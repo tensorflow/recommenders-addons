@@ -35,7 +35,7 @@ leads.
 ### Design Review
 A new project in this repository or a significant change to an existing project
 requires a design review. We recommend that you discuss your idea in the mailing
-list (sig-recommenders@tensorflow.org) before moving forward.
+list (recommenders@tensorflow.org) before moving forward.
 
 The centerpiece of a design review is a design doc which needs to include the following:
 * Motivation of the change
@@ -67,8 +67,7 @@ TODO: CLA?
 ## Community
 
 * TensorFlow Recommenders code (github.com/tensorflow/recommenders-addons)
-* SIG Recommenders mailing list (https://groups.google.com/a/tensorflow.org/forum/#!forum/sig-recommenders)
-* SIG Recommenders Gitter chat channel (https://gitter.im/tensorflow/sig-recommenders)
+* SIG Recommenders mailing list (https://groups.google.com/a/tensorflow.org/g/recommenders)
 
 ## Licence
 Apache License 2.0

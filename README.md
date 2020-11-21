@@ -9,14 +9,13 @@ TensorFlow Core and TensorFlow Recommenders etc.
 
 See approved TensorFlow RFC #[313](https://github.com/tensorflow/community/pull/313). 
 
-TensorFlow has open-sourced [TensorFlow Recommenders]
-(https://blog.tensorflow.org/2020/09/introducing-tensorflow-recommenders.html),
+TensorFlow has open-sourced [TensorFlow Recommenders](https://blog.tensorflow.org/2020/09/introducing-tensorflow-recommenders.html),
 an open-source TensorFlow package that makes building, evaluating, and serving
 sophisticated recommender models easy. Github: 
 [github.com/tensorflow/recommenders](http://github.com/tensorflow/recommenders)
 
 Further, this repo is maintained by TF SIG Recommenders
-(sig-recommenders@tensorflow.org) for community contributions. SIG Recommenders
+(recommenders@tensorflow.org) for community contributions. SIG Recommenders
 can contributes more addons as complementary to TensorFlow Recommenders, or any
 helpful libraries related to recommendation systems using TensorFlow. The
 contribution areas can be broad and don't limit to the topic listed
@@ -59,10 +58,8 @@ Please follow up the [contributing guide](CONTRIBUTING.md) for more details.
 
 ## Community
 
-* SIG Recommenders mailing list (sig-recommenders@tensorflow.org,
-[google groups](https://groups.google.com/a/tensorflow.org/forum/#!forum/sig-recommenders))
-* SIG Recommenders Gitter chat channel (
-[gitter.im/tensorflow/sig-recommenders](https://gitter.im/tensorflow/sig-recommenders))
+* SIG Recommenders mailing list (recommenders@tensorflow.org,
+[google groups](https://groups.google.com/a/tensorflow.org/g/recommenders))
 
 ## Licence
 Apache License 2.0
