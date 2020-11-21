@@ -9,17 +9,16 @@ TensorFlow Core and TensorFlow Recommenders etc.
 
 See approved TensorFlow RFC #[313](https://github.com/tensorflow/community/pull/313). 
 
-TensorFlow has open-sourced [TensorFlow Recommenders](https://blog.tensorflow.org/2020/09/introducing-tensorflow-recommenders.html),
+TensorFlow has open-sourced [TensorFlow Recommenders](https://blog.tensorflow.org/2020/09/introducing-tensorflow-recommenders.html)
+([github.com/tensorflow/recommenders](http://github.com/tensorflow/recommenders)),
 an open-source TensorFlow package that makes building, evaluating, and serving
-sophisticated recommender models easy. Github: 
-[github.com/tensorflow/recommenders](http://github.com/tensorflow/recommenders)
+sophisticated recommender models easy.
 
 Further, this repo is maintained by TF SIG Recommenders
-(recommenders@tensorflow.org) for community contributions. SIG Recommenders
-can contributes more addons as complementary to TensorFlow Recommenders, or any
-helpful libraries related to recommendation systems using TensorFlow. The
-contribution areas can be broad and don't limit to the topic listed
-below:
+([recommenders@tensorflow.org](https://groups.google.com/a/tensorflow.org/g/recommenders))
+for community contributions. SIG Recommenders can contributes more addons as complementary
+to TensorFlow Recommenders, or any helpful libraries related to recommendation systems using
+TensorFlow. The contribution areas can be broad and don't limit to the topic listed below:
 
 * Training with scale: How to train from super large sparse features? How to
 deal with dynamic embedding?
@@ -58,8 +57,8 @@ Please follow up the [contributing guide](CONTRIBUTING.md) for more details.
 
 ## Community
 
-* SIG Recommenders mailing list (recommenders@tensorflow.org,
-[google groups](https://groups.google.com/a/tensorflow.org/g/recommenders))
+* SIG Recommenders mailing list:
+[recommenders@tensorflow.org](https://groups.google.com/a/tensorflow.org/g/recommenders)
 
 ## Licence
 Apache License 2.0
