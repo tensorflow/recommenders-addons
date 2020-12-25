@@ -980,5 +980,4 @@ class TrainDynamicEmbeddingInMonitoredTrainingSessionTest(test.TestCase):
 
 
 if __name__ == '__main__':
-  os.environ['TF_HASHTABLE_INIT_SIZE'] = '100000'
   test.main()

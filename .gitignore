@@ -4,3 +4,15 @@ dist/
 build/
 .idea/
 tensorflow_recommenders_addons.egg-info/
+
+.DS_Store
+
+artifacts/# File patterns to ignore; see `git help ignore` for more information.
+# Lines that start with '#' are comments.
+
+*.whl
+/build_deps/
+/bazel-bin/
+/bazel-out/
+/bazel-recommenders-addons/
+/bazel-testlogs/

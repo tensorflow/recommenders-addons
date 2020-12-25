@@ -23,20 +23,17 @@ import six
 
 from tensorflow_recommenders_addons import dynamic_embedding as de
 
-from tensorflow.core.framework import node_def_pb2
 from tensorflow.python.distribute import distribution_strategy_context as distribute_ctx
 from tensorflow.python.distribute import reduce_util as ds_reduce_util
 from tensorflow.python.eager import context
-from tensorflow.python.framework import device as pydev
 from tensorflow.python.framework import ops
 from tensorflow.python.keras import backend
 from tensorflow.python.keras import initializers
 from tensorflow.python.keras.optimizer_v2 import optimizer_v2
 from tensorflow.python.keras.utils import tf_utils
 from tensorflow.python.ops import control_flow_ops
-from tensorflow.python.ops import resource_variable_ops as rvo
 from tensorflow.python.ops import variables
-from tensorflow.python.training import device_setter
+from tensorflow.python.ops import variable_scope
 from tensorflow.python.training import optimizer
 from tensorflow.python.training import slot_creator
 
@@ -246,6 +243,7 @@ def DynamicEmbeddingOptimizer(self):
                                   slot_variable=new_slot_variable)
       named_slots[optimizer._var_key(var)] = new_slot_variable
     return named_slots[optimizer._var_key(var)]
+
   if isinstance(self, optimizer.Optimizer):
     self._get_or_make_slot = _get_or_make_slot
     self._get_or_make_slot_with_initializer = _get_or_make_slot_with_initializer
@@ -257,3 +255,33 @@ def DynamicEmbeddingOptimizer(self):
     raise Exception('Optimizer type is not supported! got {}'.format(
         str(type(self))))
   return self
+
+
+def create_slots(primary, init, slot_name, op_name):
+  """Helper function for creating a slot variable for statefull optimizers."""
+  params_var_, params_ids_ = primary.params, primary.ids
+
+  scope = variable_scope.get_variable_scope()
+  scope_store = variable_scope._get_default_variable_store()
+  full_name = params_var_.name + "/" + op_name + "/" + slot_name
+  if full_name not in scope_store._vars:
+    with ops.colocate_with(primary, ignore_existing=True):
+      slot_variable_ = de.Variable(name=full_name,
+                                   key_dtype=params_var_.key_dtype,
+                                   value_dtype=params_var_.value_dtype,
+                                   dim=params_var_.dim,
+                                   devices=params_var_.devices,
+                                   partitioner=params_var_.partition_fn,
+                                   initializer=init,
+                                   trainable=False,
+                                   checkpoint=params_var_.checkpoint)
+
+    scope_store._vars[full_name] = slot_variable_
+
+  slot_trainable = None
+  _, slot_trainable = de.embedding_lookup(params=scope_store._vars[full_name],
+                                          ids=params_ids_,
+                                          name=slot_name,
+                                          return_trainable=True)
+
+  return slot_trainable

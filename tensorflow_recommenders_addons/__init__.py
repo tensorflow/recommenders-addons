@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """TensorFlow Recommenders Addon is a library for building recommender system models.
 
 It helps with the full workflow of building a recommender system: data
@@ -20,8 +19,10 @@ preparation, model formulation, training, evaluation, and deployment.
 It's built on Keras and aims to have a gentle learning curve while still giving
 you the flexibility to build complex models.
 """
+from tensorflow_addons.utils.ensure_tf_install import _check_tf_version
+
+_check_tf_version()
 
 __version__ = "v0.1.0"
 
 from tensorflow_recommenders_addons import dynamic_embedding
-

@@ -24,465 +24,378 @@ from __future__ import print_function
 
 from tensorflow_recommenders_addons import dynamic_embedding as de
 
-from tensorflow.python.client import device_lib
+from tensorflow.core.framework import attr_value_pb2
 from tensorflow.python.eager import context
-from tensorflow.python.framework import constant_op
+from tensorflow.python.eager import tape
+from tensorflow.python.ops import clip_ops
 from tensorflow.python.framework import dtypes
 from tensorflow.python.framework import ops
 from tensorflow.python.framework import sparse_tensor
 from tensorflow.python.framework import tensor_shape
 from tensorflow.python.ops import array_ops
-from tensorflow.python.ops import bitwise_ops
-from tensorflow.python.ops import control_flow_ops
-from tensorflow.python.ops import data_flow_ops
-from tensorflow.python.ops import init_ops
-from tensorflow.python.ops import init_ops_v2
-from tensorflow.python.ops import lookup_ops
-from tensorflow.python.ops import math_ops
+from tensorflow.python.ops import gen_resource_variable_ops
 from tensorflow.python.ops import resource_variable_ops
+from tensorflow.python.ops import math_ops
 from tensorflow.python.ops import sparse_ops
+from tensorflow.python.ops import variables
 from tensorflow.python.ops import variable_scope
-from tensorflow.python.platform import tf_logging
-from tensorflow.python.training.tracking import tracking as trackable
+from tensorflow.python.training.tracking import base as trackable
+from tensorflow.python.util import compat
 from tensorflow.python.util.tf_export import tf_export
 
-def _partition(data, partition_index, shard_num):
+
+class TrainableWrapper(resource_variable_ops.ResourceVariable):
   """
-  Shard keys to shard_num partitions
-
-  Args:
-    data: keys or values, usually the IDs of dynamic features.
-    partition_index: partitions index.
-    shard_num: partition number
-  Returns:
-    a pair of tensor: (partition result, partition indices)
-  """
-  if shard_num <= 1:
-    return [
-        data,
-    ], None
-  with ops.colocate_with(data, ignore_existing=True):
-    partitions = data_flow_ops.dynamic_partition(data, partition_index,
-                                                 shard_num)
-    indices = data_flow_ops.dynamic_partition(
-        math_ops.range(array_ops.shape(data)[0]),
-        math_ops.cast(partition_index, dtypes.int32), shard_num)
-  return partitions, indices
-
-
-def _stitch(values, indices):
-  if len(values) == 1:
-    return values[0]
-  with ops.colocate_with(indices[0], ignore_existing=True):
-    all_values = data_flow_ops.dynamic_stitch(indices, values)
-  return all_values
-
-
-def default_partition_fn(keys, shard_num):
-  """The default partition function.
-    partition keys by "mod" strategy.
-
-    keys: a tensor presents the keys to be partitioned.
-    shard_num: the num of partitions
-  Returns:
-    a tensor with same shape as keys with type of `tf.int32`,
-      represents the corresponding partition-ids of keys.
-  """
-  keys_op = ops.convert_to_tensor(keys, name="keys")
-  with ops.colocate_with(keys_op):
-    if keys_op.dtype == dtypes.int64:
-      mask = constant_op.constant(0x7fffffff, dtypes.int64)
-      keys_int32 = math_ops.cast(bitwise_ops.bitwise_and(keys_op, mask),
-                                 dtypes.int32)
-      mod = math_ops.mod(keys_int32,
-                         constant_op.constant(shard_num, dtypes.int32))
-      ids = math_ops.cast(mod, dtype=dtypes.int32)
-    else:
-      ids = math_ops.cast(math_ops.mod(keys_op, shard_num), dtype=dtypes.int32)
-  return ids
-
-
-class Variable(trackable.TrackableResource):
-  """
-  A Distributed version of HashTable(reference from lookup_ops.MutableHashTable)
-  It is designed to dynamically store the Sparse Weights(Parameters) of DLRMs.
+  This class is a trainable wrapper of Dynamic Embedding,
+  and the key role is recording the map relation between params and ids.
+  inheriting from the ResourceVariable make it trainable.
   """
 
-  def __init__(self,
-               key_dtype=dtypes.int64,
-               value_dtype=dtypes.float32,
-               dim=1,
-               devices=None,
-               partitioner=default_partition_fn,
-               shared_name=None,
-               name="DynamicEmbedding_Variable",
-               initializer=None,
-               trainable=True,
-               checkpoint=True):
-    """Creates an empty `Variable` object.
+  def __getattribute__(self, name):
+    if name in ['sparse_read', 'gather_nd']:
+      raise AttributeError('no such method: {}'.format(name))
+    return super(resource_variable_ops.ResourceVariable,
+                 self).__getattribute__(name)
+
+  def __init__(self, params, ids, max_norm, *args, **kwargs):
+    """Creates an empty `TrainableWrapper` object.
 
     Creates a group of tables placed on devices,
     the type of its keys and values are specified by key_dtype
     and value_dtype, respectively.
-    The environment variables 'TF_HASHTABLE_INIT_SIZE' can be used to set the
-    inital size of each tables, which can help reduce rehash times.
-    The default initial table size : 1,048,576 for CPU, 16,777,216 for GPU.
 
     Args:
-      key_dtype: the type of the key tensors.
-      value_dtype: the type of the value tensors.
-      dim: the length of the value array for each key.
-      devices: the list of devices holding the tables.
-        One table will be created on each device.
-      partitioner: partition function of keys,
-        return the partition index for each key.
-
-      Example partition func:
-      ```python
-      def default_partition_fn(keys, shard_num):
-        return tf.cast(keys % shard_num, dtype=tf.int32)
-      ```
-      shared_name: No used.
-      name: A name for the operation (optional).
-      initializer: The value to use if a key is missing in the hash table.
-        which can be a python number, numpy array or `tf.initializer` instances.
-        If initializer is `None` (the default), `0` will be taken.
-      trainable: True, will be treated as a trainable Variable, and add to
-        to the list of variables collected in the graph under the key
-        `GraphKeys.TRAINABLE_VARIABLES`.
-      checkpoint: if True, the contents of the SparseVariable are
-        saved to and restored from checkpoints.
-        If `shared_name` is empty for a checkpointed table,
-        it is shared using the table node name.
-
+      params: A dynamic_embedding.Variable instance.
+      ids: a tensor with any shape as same dtype of params.key_dtype.
+      max_norm: If not `None`, each values is clipped if its l2-norm is larger
+        than this value.
+      other parameters is same with ResourceVariable.
     Returns:
-      A `Variable` object.
+      A `TrainableWrapper` object which is a subclass of ResourceVariable.
     """
-    self.key_dtype = key_dtype
-    self.value_dtype = value_dtype
-    self.dim = dim
+    self.params = params
+    self.ids = ids
+    self.max_norm = max_norm
+    self.prefetch_values_op = None
+    super(TrainableWrapper, self).__init__(*args, **kwargs)
 
-    def _get_default_devices():
-      gpu_list = [
-          x.name
-          for x in device_lib.list_local_devices()
-          if x.device_type == 'GPU'
-      ]
-      return gpu_list[0:1] or [
-          "/CPU:0",
-      ]
-    devices_ = devices or _get_default_devices()
-    self.devices = devices_ if isinstance(devices_, list) else [
-        devices,
-    ]
-    self.partition_fn = partitioner
-    self.name = name
-    self.shared_name = shared_name or "shared_name.{}".format(name)
+  def prefetch_values(self):
+    if self.prefetch_values_op is None:
+      self.prefetch_values_op = self.transform(self.params.lookup(self.ids))
+    return self.prefetch_values_op
 
-    self.initializer = None
-
-    self.trainable = trainable
-    self.checkpoint = checkpoint
-
-    self._tables = []
-    self.size_ops = []
-    self.shard_num = len(self.devices)
-
-    key_dtype_list = [dtypes.int32, dtypes.int64]
-    value_dtype_list = [
-        dtypes.int32, dtypes.int64, dtypes.bool, dtypes.float32, dtypes.float64,
-        dtypes.half, dtypes.int8
-    ]
-    if 'GPU' in self.devices[0].upper():
-      key_dtype_list = [dtypes.int64]
-      value_dtype_list = [
-          dtypes.int32, dtypes.float32, dtypes.half, dtypes.int8
-      ]
-    if key_dtype not in key_dtype_list:
-      raise TypeError("key_dtype should be ", key_dtype_list)
-    if value_dtype not in value_dtype_list:
-      raise TypeError("value_dtype should be ", value_dtype_list)
-
-    _initializer = initializer
-    if _initializer is None:
-      _initializer = init_ops.zeros_initializer(dtype=self.value_dtype)
-    static_default_value = self._convert_anything_to_init(_initializer, dim)
-    scope_name = self.name.split("/")[-1]
-    with ops.name_scope(scope_name, "DynamicEmbedding_Variable"):
-      with ops.colocate_with(None, ignore_existing=True):
-        for idx in range(len(self.devices)):
-          with ops.device(self.devices[idx]):
-            mht = None
-            mht = lookup_ops.MutableHashTable(
-                key_dtype=self.key_dtype,
-                value_dtype=self.value_dtype,
-                default_value=static_default_value,
-                name=self._make_name(idx),
-                checkpoint=self.checkpoint)
-
-            self._tables.append(mht)
-    super(Variable, self).__init__()
-
-    self.trainable_wrappers = []
-
-  @property
-  def tables(self):
-    return self._tables
-
-  def _convert_anything_to_init(self, raw_init, dim):
-    init = raw_init
-    while callable(init):
-      if isinstance(init, (init_ops.Initializer, init_ops_v2.Initializer)):
-        self.initializer = init
-        init = init(shape=[1])
-      else:
-        init = init()
-    init = math_ops.cast(array_ops.fill([dim],
-                                        array_ops.reshape(init, [-1])[0]),
-                         dtype=self.value_dtype)
-    return init
-
-  def _create_resource(self):
-    raise NotImplementedError
-
-  def _make_name(self, table_idx):
-    return "{}_mht_{}of{}".format(self.name.replace("/", "_"), table_idx + 1,
-                                  self.shard_num)
-
-  def upsert(self, keys, values, name=None):
-    """Insert or Update `keys` with `values`.
-
-    If key exists already, value will be updated.
+  def _init_from_args(self,
+                      initial_value=None,
+                      trainable=None,
+                      collections=None,
+                      caching_device=None,
+                      name=None,
+                      dtype=None,
+                      constraint=None,
+                      synchronization=None,
+                      aggregation=None,
+                      distribute_strategy=None,
+                      shape=None):
+    """Creates a variable.
 
     Args:
-      keys: Keys to insert. Can be a tensor of any shape. Must match the table's
-        key type.
-      values: Values to be associated with keys. Must be a tensor of the same
-        shape as `keys` and match the table's value type.
-      name: A name for the operation (optional).
-
-    Returns:
-      The created Operation.
+      initial_value: A `Tensor`, or Python object convertible to a `Tensor`,
+        which is the initial value for the Variable. The initial value must have
+        a shape specified unless `validate_shape` is set to False. Can also be a
+        callable with no argument that returns the initial value when called.
+        (Note that initializer functions from init_ops.py must first be bound
+         to a shape before being used here.)
+      trainable: If `True`, the default, also adds the variable to the graph
+        collection `GraphKeys.TRAINABLE_VARIABLES`. This collection is used as
+        the default list of variables to use by the `Optimizer` classes.
+        Defaults to `True`, unless `synchronization` is set to `ON_READ`, in
+        which case it defaults to `False`.
+      collections: List of graph collections keys. The new variable is added to
+        these collections. Defaults to `[GraphKeys.GLOBAL_VARIABLES]`.
+      caching_device: Optional device string or function describing where the
+        Variable should be cached for reading.  Defaults to the Variable's
+        device.  If not `None`, caches on another device.  Typical use is to
+        cache on the device where the Ops using the Variable reside, to
+        deduplicate copying through `Switch` and other conditional statements.
+      name: Optional name for the variable. Defaults to `'Variable'` and gets
+        uniquified automatically.
+      dtype: If set, initial_value will be converted to the given type.
+        If None, either the datatype will be kept (if initial_value is
+       a Tensor) or float32 will be used (if it is a Python object convertible
+       to a Tensor).
+      constraint: An optional projection function to be applied to the variable
+        after being updated by an `Optimizer` (e.g. used to implement norm
+        constraints or value constraints for layer weights). The function must
+        take as input the unprojected Tensor representing the value of the
+        variable and return the Tensor for the projected value
+        (which must have the same shape). Constraints are not safe to
+        use when doing asynchronous distributed training.
+      synchronization: Indicates when a distributed a variable will be
+        aggregated. Accepted values are constants defined in the class
+        `tf.VariableSynchronization`. By default the synchronization is set to
+        `AUTO` and the current `DistributionStrategy` chooses
+        when to synchronize.
+      aggregation: Indicates how a distributed variable will be aggregated.
+        Accepted values are constants defined in the class
+        `tf.VariableAggregation`.
+      distribute_strategy: DistributionStrategy under which this variable
+        was created.
+      shape: (optional) The shape of this variable. If None, the shape of
+        `initial_value` will be used. When setting this argument to
+        `tf.TensorShape(None)` (representing an unspecified shape), the variable
+        can be assigned with values of different shapes.
 
     Raises:
-      TypeError: when `keys` or `values` doesn't match the table data
-        types.
+      ValueError: If the initial value is not specified, or does not have a
+        shape and `validate_shape` is `True`.
+
+    @compatibility(eager)
+    When Eager Execution is enabled, variables are never added to collections.
+    It is not implicitly added to the `GLOBAL_VARIABLES` or
+    `TRAINABLE_VARIABLES` collections, and the `collections` argument is
+    ignored.
+    @end_compatibility
     """
+    synchronization, aggregation, trainable = (
+        variables.validate_synchronization_aggregation_trainable(
+            synchronization, aggregation, trainable, name))
+    if initial_value is None:
+      raise ValueError("initial_value must be specified.")
+    init_from_fn = callable(initial_value)
 
-    partition_index = self.partition_fn(keys, self.shard_num)
-    keys_partitions, _ = _partition(keys, partition_index, self.shard_num)
-    values_partitions, _ = _partition(values, partition_index, self.shard_num)
+    if isinstance(initial_value, ops.Tensor) and hasattr(
+        initial_value, "graph") and initial_value.graph.building_function:
+      raise ValueError("Tensor-typed variable initializers must either be "
+                       "wrapped in an init_scope or callable "
+                       "(e.g., `tf.Variable(lambda : "
+                       "tf.truncated_normal([10, 40]))`) when building "
+                       "functions. Please file a feature request if this "
+                       "restriction inconveniences you.")
 
-    ops_ = []
-    for idx in range(len(self.devices)):
-      with ops.device(self.devices[idx]):
-        ops_.append(self._tables[idx].insert(keys_partitions[idx],
-                                             values_partitions[idx],
-                                             name=name))
+    if collections is None:
+      collections = [ops.GraphKeys.GLOBAL_VARIABLES]
+    if not isinstance(collections, (list, tuple, set)):
+      raise ValueError(
+          "collections argument to Variable constructor must be a list, tuple, "
+          "or set. Got %s of type %s" % (collections, type(collections)))
+    if constraint is not None and not callable(constraint):
+      raise ValueError("The `constraint` argument must be a callable.")
 
-    return control_flow_ops.group(ops_)
+    if isinstance(initial_value, trackable.CheckpointInitialValue):
+      self._maybe_initialize_trackable()
+      self._update_uid = initial_value.checkpoint_position.restore_uid
+      initial_value = initial_value.wrapped_value
 
-  def remove(self, keys, name=None):
-    """Removes `keys` and its associated values from the variable.
+    if trainable and ops.GraphKeys.TRAINABLE_VARIABLES not in collections:
+      collections = list(collections) + [ops.GraphKeys.TRAINABLE_VARIABLES]
+    with ops.init_scope():
+      self._in_graph_mode = not context.executing_eagerly()
+      with ops.name_scope(name, "TrainableWrapper",
+                          [] if init_from_fn else [initial_value]) as name:
+        # pylint: disable=protected-access
+        handle_name = ops.name_from_scope_name(name)
+        handle_name = (handle_name or "TrainableWrapperHandle")
+        if self._in_graph_mode:
+          shared_name = handle_name
+          unique_id = shared_name
+        else:
+          # When in eager mode use a uid for the shared_name, to prevent
+          # accidental sharing.
+          unique_id = "%s_%d" % (handle_name, ops.uid())
+          shared_name = context.shared_name()
+        # Use attr_scope and device(None) to simulate the behavior of
+        # colocate_with when the variable we want to colocate with doesn't
+        # yet exist.
+        device_context_manager = (ops.device if self._in_graph_mode else
+                                  ops.NullContextmanager)
+        attr = attr_value_pb2.AttrValue(list=attr_value_pb2.AttrValue.ListValue(
+            s=[compat.as_bytes("loc:@%s" % handle_name)]))
+        with ops.get_default_graph()._attr_scope({"_class": attr}):
+          with ops.name_scope("Initializer"), device_context_manager(None):
+            initial_value = ops.convert_to_tensor(
+                initial_value() if init_from_fn else initial_value,
+                name="initial_value",
+                dtype=dtype)
+          if shape is None:
+            shape = initial_value.shape
+          handle = resource_variable_ops.eager_safe_variable_handle(
+              initial_value=initial_value,
+              shape=None,  # shape,
+              shared_name=shared_name,
+              name=name,
+              graph_mode=self._in_graph_mode)
+        # pylint: disable=protected-access
+        if (self._in_graph_mode and initial_value is not None and
+            initial_value.op._get_control_flow_context() is not None):
+          raise ValueError(
+              "Initializer for variable %s is from inside a control-flow "
+              "construct, such as a loop or conditional. When creating a "
+              "variable inside a loop or conditional, use a lambda as the "
+              "initializer." % name)
+        # pylint: enable=protected-access
+        dtype = initial_value.dtype.base_dtype
 
-    If a key is not present in the table, it is silently ignored.
+        if self._in_graph_mode:
+          with ops.name_scope("IsInitialized"):
+            is_initialized_op = (
+                gen_resource_variable_ops.var_is_initialized_op(handle))
+          if initial_value is not None:
+            # pylint: disable=g-backslash-continuation
+            with ops.name_scope("Assign") as n, \
+                ops.colocate_with(None, ignore_existing=True), \
+                ops.device(handle.device):
+              # pylint: disable=protected-access
+              initializer_op = (gen_resource_variable_ops.assign_variable_op(
+                  handle,
+                  variables._try_guard_against_uninitialized_dependencies(
+                      name, initial_value),
+                  name=n))
+              # pylint: enable=protected-access
+            # pylint: enable=g-backslash-continuation
+          with ops.name_scope("Read"):
+            # Manually assign reads to the handle's device to avoid log
+            # messages.
+            with ops.device(handle.device):
+              with ops.control_dependencies([
+                  gen_resource_variable_ops.assign_variable_op(
+                      handle,
+                      self.prefetch_values(),
+                      name="AssignBeforeInitRead")
+              ]):
+                value = gen_resource_variable_ops.read_variable_op(
+                    handle, dtype)
+            graph_element = value
+            if caching_device is not None:
+              # Variables may be created in a tf.device() or ops.colocate_with()
+              # context. At the same time, users would expect caching device to
+              # be independent of this context, and/or would not expect the
+              # current device context to be merged with the caching device
+              # spec.  Therefore we reset the colocation stack before creating
+              # the cached value. Note that resetting the colocation stack will
+              # also reset the device stack.
+              with ops.colocate_with(None, ignore_existing=True):
+                with ops.device(caching_device):
+                  cached_value = array_ops.identity(value)
+            else:
+              cached_value = None
+        else:
+          gen_resource_variable_ops.assign_variable_op(handle, initial_value)
+          is_initialized_op = None
+          initializer_op = None
+          graph_element = None
+          if caching_device:
+            with ops.device(caching_device):
+              with ops.control_dependencies([
+                  gen_resource_variable_ops.assign_variable_op(
+                      handle,
+                      self.prefetch_values(),
+                      name="AssignBeforeInitRead")
+              ]):
+                cached_value = gen_resource_variable_ops.read_variable_op(
+                    handle, dtype)
+          else:
+            cached_value = None
+        if not context.executing_eagerly():
+          # Eager variables are only added to collections if they are part of an
+          # eager variable store (otherwise in an interactive session they would
+          # hog memory and cause OOM). This is done in ops/variable_scope.py.
+          ops.add_to_collections(collections, self)
+        elif ops.GraphKeys.GLOBAL_STEP in collections:
+          ops.add_to_collections(ops.GraphKeys.GLOBAL_STEP, self)
+      initial_value = initial_value if self._in_graph_mode else None
+      super(resource_variable_ops.ResourceVariable,
+            self).__init__(trainable=trainable,
+                           shape=shape,
+                           dtype=dtype,
+                           handle=handle,
+                           synchronization=synchronization,
+                           constraint=constraint,
+                           aggregation=aggregation,
+                           distribute_strategy=distribute_strategy,
+                           name=name,
+                           unique_id=unique_id,
+                           handle_name=handle_name,
+                           graph_element=graph_element,
+                           initial_value=initial_value,
+                           initializer_op=initializer_op,
+                           is_initialized_op=is_initialized_op,
+                           cached_value=cached_value)
 
-    Args:
-      keys: Keys to remove. Can be a tensor of any shape. Must match the table's
-        key type.
-      name: A name for the operation (optional).
+  def update_op(self):
+    return self.params.upsert(self.ids, self.read_value(False))
 
-    Returns:
-      The created Operation.
+  def size(self):
+    return self.params.size()
 
-    Raises:
-      TypeError: when `keys` do not match the table data types.
-    """
-    partition_index = self.partition_fn(keys, self.shard_num)
-    keys_partitions, _ = _partition(keys, partition_index, self.shard_num)
+  def _read_variable_op(self, do_prefetch=True):
+    resource_variable_ops.variable_accessed(self)
+    if do_prefetch:
+      with ops.control_dependencies([
+          gen_resource_variable_ops.assign_variable_op(
+              self._handle,
+              self.prefetch_values(),
+              name="AssignBeforeReadVariable")
+      ]):
+        _result = gen_resource_variable_ops.read_variable_op(
+            self._handle, self._dtype)
+    else:
+      _result = gen_resource_variable_ops.read_variable_op(
+          self._handle, self._dtype)
 
-    ops_ = []
-    for idx in range(len(self.devices)):
-      with ops.device(self.devices[idx]):
-        ops_.append(self._tables[idx].remove(keys_partitions[idx], name=name))
-
-    return control_flow_ops.group(ops_)
-
-  def _create_default_values_by_initializer(self, keys):
-    if self.initializer is None:
-      return None
-    try:
-      keys_shape = array_ops.shape(array_ops.reshape(keys, [-1]))
-      vals_shape = [keys_shape[0], self.dim]
-      init_op = self.initializer(vals_shape)
-    except Exception as e:  # constant.initializer
-      init_op = self.initializer([self.dim])
-      tf_logging.warn(
-          "Variable [{}] is not running on full-size initialization mode: {}".
-          format(str(self.name), str(e)))
-    return init_op
-
-  def lookup(self, keys, name=None):
-    """Looks up `keys` in a Variable, outputs the corresponding values.
-
-    The `default_value` is used for keys not present in the table.
-
-    Args:
-      keys: Keys to look up. Can be a tensor of any shape. Must match the
-        table's key_dtype.
-      name: A name for the operation (optional).
-
-    Returns:
-      A tensor containing the values in the same shape as `keys` using the
-        table's value type.
-    """
-    partition_index = self.partition_fn(keys, self.shard_num)
-    keys_partitions, keys_indices = _partition(keys, partition_index,
-                                               self.shard_num)
-
-    ops_ = []
-    for idx in range(len(self.devices)):
-      with ops.device(self.devices[idx]):
-        dynamic_default_values = self._create_default_values_by_initializer(
-            keys_partitions[idx])
-        if dynamic_default_values is not None:
-          dynamic_default_values = math_ops.cast(dynamic_default_values,
-                                                 self.value_dtype)
-        ops_.append(self._tables[idx].lookup(
-            keys_partitions[idx],
-            dynamic_default_values=dynamic_default_values,
-            name=name))
-    result = _stitch(ops_, keys_indices)
-
+    if not context.executing_eagerly():
+      # Note that if a control flow context is active the input of the read op
+      # might not actually be the handle. This line bypasses it.
+      tape.record_operation("ReadVariableOp", [_result], [self._handle],
+                            lambda x: [x])
+    result = self.transform(_result)
     return result
 
-  def export(self, name=None):
-    """Returns tensors of all keys and values in the table.
+  def read_value(self, do_prefetch=True):
+    """Constructs an op which reads the value of this variable.
 
+    Should be used when there are multiple reads, or when it is desirable to
+    read the value only after some condition is true.
     Args:
-      name: A name for the operation (optional).
+      do_prefetch: get value from `params` before reading, if True
 
     Returns:
-      A pair of tensors with the first tensor containing all keys and the
-        second tensors containing all values in the table.
+     the read operation.
     """
-    full_keys = []
-    full_values = []
-    for idx in range(len(self.devices)):
-      keys_ = None
-      vals_ = None
-      with ops.device(self.devices[idx]):
-        keys_, vals_ = self._tables[idx].export(name=name)
-        full_keys.append(keys_)
-        full_values.append(vals_)
-    return array_ops.concat(full_keys, 0), array_ops.concat(full_values, 0)
+    with ops.name_scope("Read"):
+      # Ensure we read the variable in the same device as the handle.
+      with ops.device(self._handle.device):
+        value = self._read_variable_op(do_prefetch)
+    # Return an identity so it can get placed on whatever device the context
+    # specifies instead of the device where the variable is.
+    return array_ops.identity(value)
 
-  def size(self, index=None, name=None):
-    """Compute the number of elements in the index-th table of this Variable.
+  @staticmethod
+  def _clip(params, ids, max_norm):
 
-    If index is none, the total size of the Variable wil be return.
+    def _rank(x):
+      rank = ops.convert_to_tensor(x).get_shape().ndims
+      if rank:
+        return rank, True
+      else:
+        return array_ops.rank(x), False
 
-    Args:
-      index: The index of table (optional)
-      name: A name for the operation (optional).
+    if max_norm is None:
+      return params
+    ids_rank, ids_static = _rank(ids)
+    params_rank, params_static = _rank(params)
+    return clip_ops.clip_by_norm(
+        params,
+        max_norm,
+        axes=(list(range(ids_rank, params_rank)) if ids_static and params_static
+              else math_ops.range(ids_rank, params_rank)))
 
-    Returns:
-      A scalar tensor containing the number of elements in this Variable.
-    """
-    if context.executing_eagerly():
-      self.size_ops = []
-    if not self.size_ops:
-      for idx in range(len(self.devices)):
-        with ops.device(self.devices[idx]):
-          self.size_ops.append(self._tables[idx].size(name=name))
-
-    return self.size_ops[index] if index is not None else math_ops.add_n(
-        self.size_ops)
-
-  def _gather_saveables_for_checkpoint(self):
-    """For object-based checkpointing."""
-    saveables = dict()
-    for table in self._tables:
-      # pylint: disable=protected-access
-      saveable_dict = table._gather_saveables_for_checkpoint()
-      for (_, saveable) in saveable_dict.items():
-        # merge all tables saveable to one dict with their own name.
-        saveables[saveable.keywords["name"]] = saveable
-    return saveables
+  def transform(self, result):
+    _result = array_ops.reshape(result, shape=array_ops.shape(result))
+    if self.max_norm is not None:
+      _result = self._clip(_result, self.ids, self.max_norm)
+    return _result
 
 
-@tf_export("dynamic_embedding.get_variable")
-def get_variable(
-    name,  # unique
-    key_dtype=dtypes.int64,
-    value_dtype=dtypes.float32,
-    dim=1,
-    devices=None,
-    partitioner=default_partition_fn,
-    shared_name="get_variable",
-    initializer=None,
-    trainable=True,
-    checkpoint=True):
-  """Gets an `Variable` object with this name if it exists,
-       or create a new one.
-
-  Args:
-    name: A unique name for the `Variable`.
-    key_dtype: the type of the key tensors.
-    value_dtype: the type of the value tensors.
-    dim: the length of the value array for each key.
-    devices: the list of devices holding the tables.
-      One table will be created on each device.
-    partitioner: partition function of keys,
-      return the partition index for each key.
-
-    Example partition func:
-    ```python
-    def default_partition_fn(keys, shard_num):
-      return tf.cast(keys % shard_num, dtype=tf.int32)
-    ```
-    shared_name: No used.
-    initializer: The value to use if a key is missing in the hash table.
-      which can a python number, numpy array or `tf.initializer` instances.
-      If initializer is `None` (the default), `0` will be used.
-    trainable: True, will be treated as a trainable Variable, and add to
-      to the list of variables collected in the graph under the key
-      `GraphKeys.TRAINABLE_VARIABLES`.
-    checkpoint: if True, the contents of the SparseVariable are
-      saved to and restored from checkpoints.
-      If `shared_name` is empty for a checkpointed table,
-      it is shared using the table node name.
-
-  Returns:
-    A `Variable` object.
-  """
-  var_ = None
-  scope = variable_scope.get_variable_scope()
-  scope_store = variable_scope._get_default_variable_store()
-  full_name = scope.name + "/" + name if scope.name else name
-  if full_name in scope_store._vars:
-    if scope.reuse is False:
-      err_msg = ("Variable %s already exists, disallowed."
-                 " Did you mean to set reuse=True or "
-                 "reuse=tf.AUTO_REUSE in VarScope?" % full_name)
-
-      raise ValueError(err_msg)
-  else:
-    var_ = Variable(key_dtype=key_dtype,
-                    value_dtype=value_dtype,
-                    dim=dim,
-                    devices=devices,
-                    partitioner=partitioner,
-                    shared_name=shared_name,
-                    name=full_name,
-                    initializer=initializer,
-                    trainable=trainable,
-                    checkpoint=checkpoint)
-    scope_store._vars[full_name] = var_
-  return scope_store._vars[full_name]
-
-
-@tf_export("dynamic_embedding.embedding_lookup")
 def embedding_lookup(
     params,
     ids,
@@ -519,7 +432,7 @@ def embedding_lookup(
     raise ValueError("Only one params is allowed.")
   if isinstance(params, (list, tuple)):
     params = params[0]
-  if not isinstance(params, Variable):
+  if not isinstance(params, de.Variable):
     raise TypeError("params should be a Variable instance.")
   if params.key_dtype != ids.dtype:
     raise TypeError(
@@ -552,14 +465,13 @@ def embedding_lookup(
       collections = [ops.GraphKeys.LOCAL_VARIABLES]
       if params.trainable:
         collections += [ops.GraphKeys.TRAINABLE_VARIABLES]
-      trainable_ = de.TrainableWrapper(
-          params,
-          ids,
-          max_norm=max_norm,
-          initial_value=initial_value,
-          dtype=params.value_dtype,
-          trainable=params.trainable,
-          collections=collections)
+      trainable_ = de.TrainableWrapper(params,
+                                       ids,
+                                       max_norm=max_norm,
+                                       initial_value=initial_value,
+                                       dtype=params.value_dtype,
+                                       trainable=params.trainable,
+                                       collections=collections)
       embeddings = array_ops.identity(trainable_)
       embeddings.set_shape(trainable_shape)
 
@@ -883,33 +795,3 @@ def _prune_invalid_weights(sparse_ids, sparse_weights):
     sparse_ids = sparse_ops.sparse_retain(sparse_ids, is_weights_valid)
     sparse_weights = sparse_ops.sparse_retain(sparse_weights, is_weights_valid)
   return sparse_ids, sparse_weights
-
-
-def create_slots(primary, init, slot_name, op_name):
-  """Helper function for creating a slot variable for statefull optimizers."""
-  params_var_, params_ids_ = primary.params, primary.ids
-
-  scope = variable_scope.get_variable_scope()
-  scope_store = variable_scope._get_default_variable_store()
-  full_name = params_var_.name + "/" + op_name + "/" + slot_name
-  if full_name not in scope_store._vars:
-    with ops.colocate_with(primary, ignore_existing=True):
-      slot_variable_ = Variable(name=full_name,
-                                key_dtype=params_var_.key_dtype,
-                                value_dtype=params_var_.value_dtype,
-                                dim=params_var_.dim,
-                                devices=params_var_.devices,
-                                partitioner=params_var_.partition_fn,
-                                initializer=init,
-                                trainable=False,
-                                checkpoint=params_var_.checkpoint)
-
-    scope_store._vars[full_name] = slot_variable_
-
-  slot_trainable = None
-  _, slot_trainable = embedding_lookup(params=scope_store._vars[full_name],
-                                       ids=params_ids_,
-                                       name=slot_name,
-                                       return_trainable=True)
-
-  return slot_trainable

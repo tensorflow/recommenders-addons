@@ -1,0 +1,2 @@
+recursive-include tensorflow_recommenders_addons *.so
+include docs/*
