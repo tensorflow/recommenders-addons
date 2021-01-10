@@ -27,4 +27,4 @@ constexpr size_t LIBCUCKOO_NO_MAXIMUM_HASHPOWER =
 
 //! set LIBCUCKOO_DEBUG to 1 to enable debug output
 #define LIBCUCKOO_DEBUG 1
-#endif // _CUCKOOHASH_CONFIG_HH
+#endif  // _CUCKOOHASH_CONFIG_HH

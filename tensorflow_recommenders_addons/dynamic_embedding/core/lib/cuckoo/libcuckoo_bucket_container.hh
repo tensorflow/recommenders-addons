@@ -27,16 +27,16 @@
 template <class Key, class T, class Allocator, class Partial,
           std::size_t SLOT_PER_BUCKET>
 class libcuckoo_bucket_container {
-public:
+ public:
   using key_type = Key;
   using mapped_type = T;
   using value_type = std::pair<const Key, T>;
 
-private:
+ private:
   using traits_ = typename std::allocator_traits<
       Allocator>::template rebind_traits<value_type>;
 
-public:
+ public:
   using allocator_type = typename traits_::allocator_type;
   using partial_t = Partial;
   using size_type = typename traits_::size_type;
@@ -54,7 +54,7 @@ public:
    * accessing is live or not.
    */
   class bucket {
-  public:
+   public:
     bucket() noexcept : occupied_{} {}
 
     const value_type &kvpair(size_type ind) const {
@@ -83,7 +83,7 @@ public:
     bool occupied(size_type ind) const { return occupied_[ind]; }
     bool &occupied(size_type ind) { return occupied_[ind]; }
 
-  private:
+   private:
     friend class libcuckoo_bucket_container;
 
     using storage_value_type = std::pair<Key, T>;
@@ -106,7 +106,9 @@ public:
   };
 
   libcuckoo_bucket_container(size_type hp, const allocator_type &allocator)
-      : allocator_(allocator), bucket_allocator_(allocator), hashpower_(hp),
+      : allocator_(allocator),
+        bucket_allocator_(allocator),
+        hashpower_(hp),
         buckets_(bucket_allocator_.allocate(size())) {
     // The bucket default constructor is nothrow, so we don't have to
     // worry about dealing with exceptions when constructing all the
@@ -124,18 +126,22 @@ public:
   libcuckoo_bucket_container(const libcuckoo_bucket_container &bc)
       : allocator_(
             traits_::select_on_container_copy_construction(bc.allocator_)),
-        bucket_allocator_(allocator_), hashpower_(bc.hashpower()),
+        bucket_allocator_(allocator_),
+        hashpower_(bc.hashpower()),
         buckets_(transfer(bc.hashpower(), bc, std::false_type())) {}
 
   libcuckoo_bucket_container(const libcuckoo_bucket_container &bc,
                              const allocator_type &a)
-      : allocator_(a), bucket_allocator_(allocator_),
+      : allocator_(a),
+        bucket_allocator_(allocator_),
         hashpower_(bc.hashpower()),
         buckets_(transfer(bc.hashpower(), bc, std::false_type())) {}
 
   libcuckoo_bucket_container(libcuckoo_bucket_container &&bc)
-      : allocator_(std::move(bc.allocator_)), bucket_allocator_(allocator_),
-        hashpower_(bc.hashpower()), buckets_(std::move(bc.buckets_)) {
+      : allocator_(std::move(bc.allocator_)),
+        bucket_allocator_(allocator_),
+        hashpower_(bc.hashpower()),
+        buckets_(std::move(bc.buckets_)) {
     // De-activate the other buckets container
     bc.buckets_ = nullptr;
   }
@@ -238,14 +244,12 @@ public:
   // Destroys and deallocates all data in the buckets. After this operation,
   // the bucket container will have no allocated data. It is still valid to
   // swap, move or copy assign to this container.
-  void clear_and_deallocate() noexcept {
-    destroy_buckets();
-  }
+  void clear_and_deallocate() noexcept { destroy_buckets(); }
 
-private:
+ private:
   using bucket_traits_ = typename traits_::template rebind_traits<bucket>;
   using bucket_pointer = typename bucket_traits_::pointer;
-  
+
   // true here means the allocators from `src` are propagated on libcuckoo_copy
   template <typename A>
   void copy_allocator(A &dst, const A &src, std::true_type) {
@@ -256,11 +260,13 @@ private:
   void copy_allocator(A &dst, const A &src, std::false_type) {}
 
   // true here means the allocators from `src` are propagated on libcuckoo_swap
-  template <typename A> void swap_allocator(A &dst, A &src, std::true_type) {
+  template <typename A>
+  void swap_allocator(A &dst, A &src, std::true_type) {
     std::swap(dst, src);
   }
 
-  template <typename A> void swap_allocator(A &, A &, std::false_type) {}
+  template <typename A>
+  void swap_allocator(A &, A &, std::false_type) {}
 
   // true here means the bucket allocator should be propagated
   void move_assign(libcuckoo_bucket_container &src, std::true_type) {
@@ -373,8 +379,8 @@ private:
                                      std::is_trivial<ThisT>::value,
                                  std::istream &>::type
   operator>>(std::istream &is,
-             libcuckoo_bucket_container<ThisKey, ThisT, Allocator,
-                                        Partial, SLOT_PER_BUCKET> &bc) {
+             libcuckoo_bucket_container<ThisKey, ThisT, Allocator, Partial,
+                                        SLOT_PER_BUCKET> &bc) {
     size_type hp;
     is.read(reinterpret_cast<char *>(&hp), sizeof(size_type));
     libcuckoo_bucket_container new_bc(hp, bc.get_allocator());
@@ -384,4 +390,4 @@ private:
     return is;
   }
 };
-#endif // LIBCUCKOO_BUCKET_CONTAINER_H
+#endif  // LIBCUCKOO_BUCKET_CONTAINER_H

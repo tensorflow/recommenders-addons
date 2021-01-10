@@ -27,42 +27,42 @@ from tensorflow_recommenders_addons.version import MAX_TF_VERSION
 
 
 def _check_tf_version():
-  """Warn the user if the version of TensorFlow used is not supported.
+    """Warn the user if the version of TensorFlow used is not supported.
 
     This is not a check for custom ops compatibility. This check only ensure that
     we support this TensorFlow version if the user uses only Addons' Python code.
     """
 
-  if "dev" in tf.__version__:
+    if "dev" in tf.__version__:
+        warnings.warn(
+            "You are currently using a nightly version of TensorFlow ({}). \n"
+            "TensorFlow Addons offers no support for the nightly versions of "
+            "TensorFlow. Some things might work, some other might not. \n"
+            "If you encounter a bug, do not file an issue on GitHub."
+            "".format(tf.__version__),
+            UserWarning,
+        )
+        return
+
+    min_version = LooseVersion(MIN_TF_VERSION)
+    max_version = LooseVersion(MAX_TF_VERSION)
+
+    if min_version <= LooseVersion(tf.__version__) < max_version:
+        return
+
     warnings.warn(
-        "You are currently using a nightly version of TensorFlow ({}). \n"
-        "TensorFlow Addons offers no support for the nightly versions of "
-        "TensorFlow. Some things might work, some other might not. \n"
-        "If you encounter a bug, do not file an issue on GitHub."
-        "".format(tf.__version__),
+        "Tensorflow Addons supports using Python ops for all Tensorflow versions "
+        "above or equal to {} and strictly below {} (nightly versions are not "
+        "supported). \n "
+        "The versions of TensorFlow you are currently using is {} and is not "
+        "supported. \n"
+        "Some things might work, some things might not.\n"
+        "If you were to encounter a bug, do not file an issue.\n"
+        "If you want to make sure you're using a tested and supported configuration, "
+        "either change the TensorFlow version or the TensorFlow Addons's version. \n"
+        "You can find the compatibility matrix in TensorFlow Addon's readme:\n"
+        "https://github.com/tensorflow/addons".format(
+            MIN_TF_VERSION, MAX_TF_VERSION, tf.__version__
+        ),
         UserWarning,
     )
-    return
-
-  min_version = LooseVersion(MIN_TF_VERSION)
-  max_version = LooseVersion(MAX_TF_VERSION)
-
-  if min_version <= LooseVersion(tf.__version__) < max_version:
-    return
-
-  warnings.warn(
-      "Tensorflow Addons supports using Python ops for all Tensorflow versions "
-      "above or equal to {} and strictly below {} (nightly versions are not "
-      "supported). \n "
-      "The versions of TensorFlow you are currently using is {} and is not "
-      "supported. \n"
-      "Some things might work, some things might not.\n"
-      "If you were to encounter a bug, do not file an issue.\n"
-      "If you want to make sure you're using a tested and supported configuration, "
-      "either change the TensorFlow version or the TensorFlow Addons's version. \n"
-      "You can find the compatibility matrix in TensorFlow Addon's readme:\n"
-      "https://github.com/tensorflow/addons".format(MIN_TF_VERSION,
-                                                    MAX_TF_VERSION,
-                                                    tf.__version__),
-      UserWarning,
-  )

@@ -15,7 +15,7 @@ py_library(
     srcs = glob(["**/*.py"]),
     deps = [
         "//tensorflow_recommenders_addons/dynamic_embedding/python/ops:dynamic_embedding",
-        "//tensorflow_recommenders_addons/utils:utils",
+        "//tensorflow_recommenders_addons/utils",
     ],
 )
 

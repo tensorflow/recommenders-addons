@@ -209,7 +209,7 @@ REGISTER_OP("CuckooHashTableImport")
     });
 
 Status CuckooHashTableShape(InferenceContext* c, const ShapeHandle& key,
-                             const ShapeHandle& value) {
+                            const ShapeHandle& value) {
   c->set_output(0, c->Scalar());
 
   ShapeHandle key_s;

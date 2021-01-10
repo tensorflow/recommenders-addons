@@ -16,7 +16,7 @@ py_test(
     python_version = "PY3",
     srcs_version = "PY3",
     deps = [
-        "//tensorflow_recommenders_addons:tensorflow_recommenders_addons",
+        "//tensorflow_recommenders_addons",
     ],
 )
 
@@ -26,7 +26,7 @@ py_test(
     python_version = "PY3",
     srcs_version = "PY3",
     deps = [
-        "//tensorflow_recommenders_addons:tensorflow_recommenders_addons",
+        "//tensorflow_recommenders_addons",
     ],
 )
 
@@ -36,6 +36,6 @@ py_test(
     python_version = "PY3",
     srcs_version = "PY3",
     deps = [
-        "//tensorflow_recommenders_addons:tensorflow_recommenders_addons",
+        "//tensorflow_recommenders_addons",
     ],
 )

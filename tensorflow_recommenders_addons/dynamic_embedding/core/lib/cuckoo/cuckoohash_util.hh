@@ -3,27 +3,29 @@
 #ifndef _CUCKOOHASH_UTIL_HH
 #define _CUCKOOHASH_UTIL_HH
 
-#include "cuckoohash_config.hh" // for LIBCUCKOO_DEBUG
 #include <exception>
 #include <thread>
 #include <utility>
 #include <vector>
 
+#include "cuckoohash_config.hh"  // for LIBCUCKOO_DEBUG
 
 #if LIBCUCKOO_DEBUG
 //! When \ref LIBCUCKOO_DEBUG is 0, LIBCUCKOO_DBG will printing out status
 //! messages in various situations
-#define LIBCUCKOO_DBG(fmt, ...)                                                \
-  fprintf(stderr, "\x1b[32m"                                                   \
-                  "[libcuckoo:%s:%d:%lu] " fmt ""                              \
-                  "\x1b[0m",                                                   \
-          __FILE__, __LINE__,                                                  \
-          std::hash<std::thread::id>()(std::this_thread::get_id()),            \
+#define LIBCUCKOO_DBG(fmt, ...)                                     \
+  fprintf(stderr,                                                   \
+          "\x1b[32m"                                                \
+          "[libcuckoo:%s:%d:%lu] " fmt                              \
+          ""                                                        \
+          "\x1b[0m",                                                \
+          __FILE__, __LINE__,                                       \
+          std::hash<std::thread::id>()(std::this_thread::get_id()), \
           __VA_ARGS__)
 #else
 //! When \ref LIBCUCKOO_DEBUG is 0, LIBCUCKOO_DBG does nothing
-#define LIBCUCKOO_DBG(fmt, ...)                                                \
-  do {                                                                         \
+#define LIBCUCKOO_DBG(fmt, ...) \
+  do {                          \
   } while (0)
 #endif
 
@@ -53,10 +55,10 @@
  * is not really "dead".
  */
 #ifdef _MSC_VER
-#define LIBCUCKOO_SQUELCH_DEADCODE_WARNING_BEGIN                               \
-  do {                                                                         \
-    __pragma(warning(push));                                                   \
-    __pragma(warning(disable : 4702))                                          \
+#define LIBCUCKOO_SQUELCH_DEADCODE_WARNING_BEGIN \
+  do {                                           \
+    __pragma(warning(push));                     \
+    __pragma(warning(disable : 4702))            \
   } while (0)
 #define LIBCUCKOO_SQUELCH_DEADCODE_WARNING_END __pragma(warning(pop))
 #else
@@ -72,7 +74,7 @@
  * workloads.
  */
 class libcuckoo_load_factor_too_low : public std::exception {
-public:
+ public:
   /**
    * Constructor
    *
@@ -93,7 +95,7 @@ public:
    */
   double load_factor() const { return load_factor_; }
 
-private:
+ private:
   const double load_factor_;
 };
 
@@ -103,7 +105,7 @@ private:
  * cuckoohash_map::maximum_hashpower method.
  */
 class libcuckoo_maximum_hashpower_exceeded : public std::exception {
-public:
+ public:
   /**
    * Constructor
    *
@@ -123,7 +125,7 @@ public:
    */
   size_t hashpower() const { return hashpower_; }
 
-private:
+ private:
   const size_t hashpower_;
 };
-#endif // _CUCKOOHASH_UTIL_HH
+#endif  // _CUCKOOHASH_UTIL_HH

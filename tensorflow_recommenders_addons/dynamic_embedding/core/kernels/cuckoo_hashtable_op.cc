@@ -16,7 +16,6 @@ limitations under the License.
 #define EIGEN_USE_THREADS
 
 #include "cuckoo_hashtable_op.h"
-#include "tensorflow_recommenders_addons/dynamic_embedding/core/lib/cuckoo/cuckoohash_map.hh"
 
 #include <string>
 #include <type_traits>
@@ -28,6 +27,7 @@ limitations under the License.
 #include "tensorflow/core/kernels/lookup_table_op.h"
 #include "tensorflow/core/lib/gtl/inlined_vector.h"
 #include "tensorflow/core/util/work_sharder.h"
+#include "tensorflow_recommenders_addons/dynamic_embedding/core/lib/cuckoo/cuckoohash_map.hh"
 
 namespace tensorflow {
 namespace cuckoohash {
@@ -129,7 +129,7 @@ class CuckooHashTableOfTensors final : public LookupInterface {
         ctx, TensorShapeUtils::IsVector(value_shape_),
         errors::InvalidArgument("Default value must be a vector, got shape ",
                                 value_shape_.DebugString()));
-    init_size_ = 1024 * 1024;
+    init_size_ = 1024 * 8;
     LOG(INFO) << "CPU CuckooHashTableOfTensors init: size = " << init_size_;
     table_ = new cuckoohash_map<K, ValueArray>(init_size_);
   }
@@ -245,7 +245,7 @@ class HashTableOpKernel : public OpKernel {
         p.container(), p.name(), value);
   }
   Status GetResourceHashTable(StringPiece input_name, OpKernelContext* ctx,
-                                LookupInterface** table) {
+                              LookupInterface** table) {
     const Tensor* handle_tensor;
     TF_RETURN_IF_ERROR(ctx->input(input_name, &handle_tensor));
     const ResourceHandle& handle = handle_tensor->scalar<ResourceHandle>()();
@@ -427,14 +427,14 @@ REGISTER_KERNEL_BUILDER(Name("CuckooHashTableImport").Device(DEVICE_CPU),
                         HashTableImportOp);
 
 // Register the CuckooMutableHashTableOfTensors op.
-#define REGISTER_KERNEL(key_dtype, value_dtype)                                \
-  REGISTER_KERNEL_BUILDER(                                                     \
-      Name("CuckooHashTableOfTensors")                                         \
-          .Device(DEVICE_CPU)                                                  \
-          .TypeConstraint<key_dtype>("key_dtype")                              \
-          .TypeConstraint<value_dtype>("value_dtype"),                         \
+#define REGISTER_KERNEL(key_dtype, value_dtype)                             \
+  REGISTER_KERNEL_BUILDER(                                                  \
+      Name("CuckooHashTableOfTensors")                                      \
+          .Device(DEVICE_CPU)                                               \
+          .TypeConstraint<key_dtype>("key_dtype")                           \
+          .TypeConstraint<value_dtype>("value_dtype"),                      \
       HashTableOp<lookup::CuckooHashTableOfTensors<key_dtype, value_dtype>, \
-                    key_dtype, value_dtype>)
+                  key_dtype, value_dtype>)
 
 REGISTER_KERNEL(int32, double);
 REGISTER_KERNEL(int32, float);

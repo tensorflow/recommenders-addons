@@ -14,15 +14,35 @@
 # ==============================================================================
 """Export dynamic_embedding APIs."""
 
-from tensorflow_recommenders_addons.dynamic_embedding.python.ops.cuckoo_hashtable_ops import CuckooHashTable
-from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_optimizer import create_slots
-from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_optimizer import DynamicEmbeddingOptimizer
-from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_ops import embedding_lookup
-from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_ops import embedding_lookup_sparse
-from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_ops import safe_embedding_lookup_sparse
-from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_ops import TrainableWrapper
-from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_variable import get_variable
-from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_variable import Variable
-from tensorflow_recommenders_addons.dynamic_embedding.python.ops.tf_hacker import hacking_tf
+from tensorflow_recommenders_addons.dynamic_embedding.python.ops.cuckoo_hashtable_ops import (
+    CuckooHashTable,
+)
+from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_optimizer import (
+    create_slots,
+)
+from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_optimizer import (
+    DynamicEmbeddingOptimizer,
+)
+from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_ops import (
+    embedding_lookup,
+)
+from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_ops import (
+    embedding_lookup_sparse,
+)
+from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_ops import (
+    safe_embedding_lookup_sparse,
+)
+from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_ops import (
+    TrainableWrapper,
+)
+from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_variable import (
+    get_variable,
+)
+from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_variable import (
+    Variable,
+)
+from tensorflow_recommenders_addons.dynamic_embedding.python.ops.tf_hacker import (
+    hacking_tf,
+)
 
 hacking_tf()

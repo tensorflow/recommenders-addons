@@ -46,7 +46,9 @@ def get_project_name_version():
     # Version
     version = {}
     base_dir = os.path.dirname(os.path.abspath(__file__))
-    with open(os.path.join(base_dir, "tensorflow_recommenders_addons", "version.py")) as fp:
+    with open(
+        os.path.join(base_dir, "tensorflow_recommenders_addons", "version.py")
+    ) as fp:
         exec(fp.read(), version)
 
     project_name = "tensorflow-recommenders-addons"

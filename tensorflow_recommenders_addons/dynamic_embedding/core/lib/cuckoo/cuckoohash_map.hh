@@ -44,7 +44,7 @@ template <class Key, class T, class Hash = std::hash<Key>,
           class Allocator = std::allocator<std::pair<const Key, T>>,
           std::size_t SLOT_PER_BUCKET = LIBCUCKOO_DEFAULT_SLOT_PER_BUCKET>
 class cuckoohash_map {
-private:
+ private:
   // Type of the partial key
   using partial_t = uint8_t;
 
@@ -52,7 +52,7 @@ private:
   using buckets_t =
       libcuckoo_bucket_container<Key, T, Allocator, partial_t, SLOT_PER_BUCKET>;
 
-public:
+ public:
   /** @name Type Declarations */
   /**@{*/
 
@@ -101,7 +101,8 @@ public:
   cuckoohash_map(size_type n = LIBCUCKOO_DEFAULT_SIZE, const Hash &hf = Hash(),
                  const KeyEqual &equal = KeyEqual(),
                  const Allocator &alloc = Allocator())
-      : hash_fn_(hf), eq_fn_(equal),
+      : hash_fn_(hf),
+        eq_fn_(equal),
         buckets_(reserve_calc(n), alloc),
         old_buckets_(0, alloc),
         all_locks_(get_allocator()),
@@ -155,9 +156,11 @@ public:
    * @param alloc the allocator instance to use with the map
    */
   cuckoohash_map(const cuckoohash_map &other, const Allocator &alloc)
-      : hash_fn_(other.hash_fn_), eq_fn_(other.eq_fn_),
+      : hash_fn_(other.hash_fn_),
+        eq_fn_(other.eq_fn_),
         buckets_(other.buckets_, alloc),
-        old_buckets_(other.old_buckets_, alloc), all_locks_(alloc),
+        old_buckets_(other.old_buckets_, alloc),
+        all_locks_(alloc),
         num_remaining_lazy_rehash_locks_(
             other.num_remaining_lazy_rehash_locks()),
         minimum_load_factor_(other.minimum_load_factor()),
@@ -187,7 +190,8 @@ public:
    * @param alloc the allocator instance to use with the map
    */
   cuckoohash_map(cuckoohash_map &&other, const Allocator &alloc)
-      : hash_fn_(std::move(other.hash_fn_)), eq_fn_(std::move(other.eq_fn_)),
+      : hash_fn_(std::move(other.hash_fn_)),
+        eq_fn_(std::move(other.eq_fn_)),
         buckets_(std::move(other.buckets_), alloc),
         old_buckets_(std::move(other.old_buckets_), alloc),
         all_locks_(alloc),
@@ -271,8 +275,8 @@ public:
     buckets_ = std::move(other.buckets_);
     old_buckets_ = std::move(other.old_buckets_);
     all_locks_ = std::move(other.all_locks_);
-    num_remaining_lazy_rehash_locks_ = std::move(
-        other.num_remaining_lazy_rehash_locks());
+    num_remaining_lazy_rehash_locks_ =
+        std::move(other.num_remaining_lazy_rehash_locks());
     minimum_load_factor_ = std::move(other.minimum_load_factor());
     maximum_hashpower_ = std::move(other.maximum_hashpower());
     max_num_worker_threads_ = std::move(other.max_num_worker_threads());
@@ -441,7 +445,6 @@ public:
     return maximum_hashpower_.load(std::memory_order_acquire);
   }
 
-
   /**
    * Set the maximum number of extra worker threads the table can spawn when
    * doing large batch operations. Currently batch operations occur in the
@@ -485,7 +488,8 @@ public:
    * @param fn the functor to invoke if the element is found
    * @return true if the key was found and functor invoked, false otherwise
    */
-  template <typename K, typename F> bool find_fn(const K &key, F fn) const {
+  template <typename K, typename F>
+  bool find_fn(const K &key, F fn) const {
     const hash_value hv = hashed_key(key);
     const auto b = snapshot_and_lock_two<normal_mode>(hv);
     const table_position pos = cuckoo_find(key, hv.partial, b.i1, b.i2);
@@ -508,7 +512,8 @@ public:
    * @param fn the functor to invoke if the element is found
    * @return true if the key was found and functor invoked, false otherwise
    */
-  template <typename K, typename F> bool update_fn(const K &key, F fn) {
+  template <typename K, typename F>
+  bool update_fn(const K &key, F fn) {
     const hash_value hv = hashed_key(key);
     const auto b = snapshot_and_lock_two<normal_mode>(hv);
     const table_position pos = cuckoo_find(key, hv.partial, b.i1, b.i2);
@@ -532,7 +537,8 @@ public:
    * @param fn the functor to invoke if the element is found
    * @return true if @p key was found and @p fn invoked, false otherwise
    */
-  template <typename K, typename F> bool erase_fn(const K &key, F fn) {
+  template <typename K, typename F>
+  bool erase_fn(const K &key, F fn) {
     const hash_value hv = hashed_key(key);
     const auto b = snapshot_and_lock_two<normal_mode>(hv);
     const table_position pos = cuckoo_find(key, hv.partial, b.i1, b.i2);
@@ -591,12 +597,13 @@ public:
    */
   template <typename K, typename F, typename... Args>
   bool upsert(K &&key, F fn, Args &&... val) {
-    return uprase_fn(std::forward<K>(key),
-                     [&fn](mapped_type &v) {
-                       fn(v);
-                       return false;
-                     },
-                     std::forward<Args>(val)...);
+    return uprase_fn(
+        std::forward<K>(key),
+        [&fn](mapped_type &v) {
+          fn(v);
+          return false;
+        },
+        std::forward<Args>(val)...);
   }
 
   /**
@@ -604,7 +611,8 @@ public:
    * calling @ref find_fn with a functor that copies the value into @p val. @c
    * mapped_type must be @c CopyAssignable.
    */
-  template <typename K> bool find(const K &key, mapped_type &val) const {
+  template <typename K>
+  bool find(const K &key, mapped_type &val) const {
     return find_fn(key, [&val](const mapped_type &v) mutable { val = v; });
   }
 
@@ -616,7 +624,8 @@ public:
    * @return the value associated with the given key
    * @throw std::out_of_range if the key is not found
    */
-  template <typename K> mapped_type find(const K &key) const {
+  template <typename K>
+  mapped_type find(const K &key) const {
     const hash_value hv = hashed_key(key);
     const auto b = snapshot_and_lock_two<normal_mode>(hv);
     const table_position pos = cuckoo_find(key, hv.partial, b.i1, b.i2);
@@ -631,7 +640,8 @@ public:
    * Returns whether or not @p key is in the table. Equivalent to @ref
    * find_fn with a functor that does nothing.
    */
-  template <typename K> bool contains(const K &key) const {
+  template <typename K>
+  bool contains(const K &key) const {
     return find_fn(key, [](const mapped_type &) {});
   }
 
@@ -641,7 +651,8 @@ public:
    * value to @p val. @c mapped_type must be @c MoveAssignable or @c
    * CopyAssignable.
    */
-  template <typename K, typename V> bool update(const K &key, V &&val) {
+  template <typename K, typename V>
+  bool update(const K &key, V &&val) {
     return update_fn(key, [&val](mapped_type &v) { v = std::forward<V>(val); });
   }
 
@@ -649,9 +660,10 @@ public:
    * Inserts the key-value pair into the table. Equivalent to calling @ref
    * upsert with a functor that does nothing.
    */
-  template <typename K, typename... Args> bool insert(K &&key, Args &&... val) {
-    return upsert(std::forward<K>(key), [](mapped_type &) {},
-                  std::forward<Args>(val)...);
+  template <typename K, typename... Args>
+  bool insert(K &&key, Args &&... val) {
+    return upsert(
+        std::forward<K>(key), [](mapped_type &) {}, std::forward<Args>(val)...);
   }
 
   /**
@@ -660,16 +672,19 @@ public:
    * calling @ref upsert with a functor that assigns the mapped value to @p
    * val.
    */
-  template <typename K, typename V> bool insert_or_assign(K &&key, V &&val) {
-    return upsert(std::forward<K>(key), [&val](mapped_type &m) { m = val; },
-                  std::forward<V>(val));
+  template <typename K, typename V>
+  bool insert_or_assign(K &&key, V &&val) {
+    return upsert(
+        std::forward<K>(key), [&val](mapped_type &m) { m = val; },
+        std::forward<V>(val));
   }
 
   /**
    * Erases the key from the table. Equivalent to calling @ref erase_fn with a
    * functor that just returns true.
    */
-  template <typename K> bool erase(const K &key) {
+  template <typename K>
+  bool erase(const K &key) {
     return erase_fn(key, [](mapped_type &) { return true; });
   }
 
@@ -713,7 +728,7 @@ public:
 
   /**@}*/
 
-private:
+ private:
   // Constructor helpers
 
   void add_locks_from_other(const cuckoohash_map &other) {
@@ -745,12 +760,14 @@ private:
     partial_t partial;
   };
 
-  template <typename K> hash_value hashed_key(const K &key) const {
+  template <typename K>
+  hash_value hashed_key(const K &key) const {
     const size_type hash = hash_function()(key);
     return {hash, partial_key(hash)};
   }
 
-  template <typename K> size_type hashed_key_only_hash(const K &key) const {
+  template <typename K>
+  size_type hashed_key_only_hash(const K &key) const {
     return hash_function()(key);
   }
 
@@ -822,7 +839,7 @@ private:
   // !is_migrated.
   LIBCUCKOO_SQUELCH_PADDING_WARNING
   class LIBCUCKOO_ALIGNAS(64) spinlock {
-  public:
+   public:
     spinlock() : elem_counter_(0), is_migrated_(true) { lock_.clear(); }
 
     spinlock(const spinlock &other)
@@ -854,7 +871,7 @@ private:
     bool &is_migrated() noexcept { return is_migrated_; }
     bool is_migrated() const noexcept { return is_migrated_; }
 
-  private:
+   private:
     std::atomic_flag lock_;
     counter_type elem_counter_;
     bool is_migrated_;
@@ -886,12 +903,14 @@ private:
   using normal_mode = std::integral_constant<bool, false>;
 
   class TwoBuckets {
-  public:
+   public:
     TwoBuckets() {}
     TwoBuckets(size_type i1_, size_type i2_, locked_table_mode)
         : i1(i1_), i2(i2_) {}
     TwoBuckets(locks_t &locks, size_type i1_, size_type i2_, normal_mode)
-        : i1(i1_), i2(i2_), first_manager_(&locks[lock_ind(i1)]),
+        : i1(i1_),
+          i2(i2_),
+          first_manager_(&locks[lock_ind(i1)]),
           second_manager_((lock_ind(i1) != lock_ind(i2)) ? &locks[lock_ind(i2)]
                                                          : nullptr) {}
 
@@ -902,7 +921,7 @@ private:
 
     size_type i1, i2;
 
-  private:
+   private:
     LockManager first_manager_, second_manager_;
   };
 
@@ -1037,12 +1056,9 @@ private:
                                                 normal_mode) const {
     std::array<size_type, 3> l{{lock_ind(i1), lock_ind(i2), lock_ind(i3)}};
     // Lock in order.
-    if (l[2] < l[1])
-      std::swap(l[2], l[1]);
-    if (l[2] < l[0])
-      std::swap(l[2], l[0]);
-    if (l[1] < l[0])
-      std::swap(l[1], l[0]);
+    if (l[2] < l[1]) std::swap(l[2], l[1]);
+    if (l[2] < l[0]) std::swap(l[2], l[0]);
+    if (l[1] < l[0]) std::swap(l[1], l[0]);
     locks_t &locks = get_current_locks();
     locks[l[0]].lock();
     check_hashpower(hp, locks[l[0]]);
@@ -1090,9 +1106,7 @@ private:
   //
   // Note that after taking all the locks, it is okay to resize the buckets_
   // container, since no other threads should be accessing the buckets.
-  AllLocksManager lock_all(locked_table_mode) {
-    return AllLocksManager();
-  }
+  AllLocksManager lock_all(locked_table_mode) { return AllLocksManager(); }
 
   AllLocksManager lock_all(normal_mode) {
     // all_locks_ should never decrease in size, so if it is non-empty now, it
@@ -1199,21 +1213,21 @@ private:
       const size_type hp = hashpower();
       pos = cuckoo_insert<TABLE_MODE>(hv, b, key);
       switch (pos.status) {
-      case ok:
-      case failure_key_duplicated:
-        return pos;
-      case failure_table_full:
-        // Expand the table and try again, re-grabbing the locks
-        cuckoo_fast_double<TABLE_MODE, automatic_resize>(hp);
-        b = snapshot_and_lock_two<TABLE_MODE>(hv);
-        break;
-      case failure_under_expansion:
-        // The table was under expansion while we were cuckooing. Re-grab the
-        // locks and try again.
-        b = snapshot_and_lock_two<TABLE_MODE>(hv);
-        break;
-      default:
-        assert(false);
+        case ok:
+        case failure_key_duplicated:
+          return pos;
+        case failure_table_full:
+          // Expand the table and try again, re-grabbing the locks
+          cuckoo_fast_double<TABLE_MODE, automatic_resize>(hp);
+          b = snapshot_and_lock_two<TABLE_MODE>(hv);
+          break;
+        case failure_under_expansion:
+          // The table was under expansion while we were cuckooing. Re-grab the
+          // locks and try again.
+          b = snapshot_and_lock_two<TABLE_MODE>(hv);
+          break;
+        default:
+          assert(false);
       }
     }
   }
@@ -1285,9 +1299,10 @@ private:
       return table_position{insert_bucket, insert_slot, ok};
     }
     assert(st == failure);
-    LIBCUCKOO_DBG("hash table is full (hashpower = %zu, hash_items = %zu,"
-                  "load factor = %.2f), need to increase hashpower\n",
-                  hashpower(), size(), load_factor());
+    LIBCUCKOO_DBG(
+        "hash table is full (hashpower = %zu, hash_items = %zu,"
+        "load factor = %.2f), need to increase hashpower\n",
+        hashpower(), size(), load_factor());
     return table_position{0, 0, failure_table_full};
   }
 
@@ -1582,7 +1597,7 @@ private:
 
   // b_queue is the queue used to store b_slots for BFS cuckoo hashing.
   class b_queue {
-  public:
+   public:
     b_queue() noexcept : first_(0), last_(0) {}
 
     void enqueue(b_slot x) {
@@ -1601,7 +1616,7 @@ private:
 
     bool full() const { return last_ == MAX_CUCKOO_COUNT; }
 
-  private:
+   private:
     // The size of the BFS queue. It holds just enough elements to fulfill a
     // MAX_BFS_PATH_LEN search for two starting buckets, with no circular
     // wrapping-around. For one bucket, this is the geometric sum
@@ -1614,9 +1629,9 @@ private:
                   "SLOT_PER_BUCKET must be greater than 0.");
     static constexpr size_type MAX_CUCKOO_COUNT =
         2 * ((slot_per_bucket() == 1)
-             ? MAX_BFS_PATH_LEN
-             : (const_pow(slot_per_bucket(), MAX_BFS_PATH_LEN) - 1) /
-               (slot_per_bucket() - 1));
+                 ? MAX_BFS_PATH_LEN
+                 : (const_pow(slot_per_bucket(), MAX_BFS_PATH_LEN) - 1) /
+                       (slot_per_bucket() - 1));
     // An array of b_slots. Since we allocate just enough space to complete a
     // full search, we should never exceed the end of the array.
     b_slot slots_[MAX_CUCKOO_COUNT];
@@ -1678,8 +1693,9 @@ private:
   template <typename TABLE_MODE, typename AUTO_RESIZE>
   cuckoo_status cuckoo_fast_double(size_type current_hp) {
     if (!is_data_nothrow_move_constructible()) {
-      LIBCUCKOO_DBG("%s", "cannot run cuckoo_fast_double because key-value"
-                          " pair is not nothrow move constructible");
+      LIBCUCKOO_DBG("%s",
+                    "cannot run cuckoo_fast_double because key-value"
+                    " pair is not nothrow move constructible");
       return cuckoo_expand_simple<TABLE_MODE, AUTO_RESIZE>(current_hp + 1);
     }
     const size_type new_hp = current_hp + 1;
@@ -1881,8 +1897,7 @@ private:
 
     parallel_exec(
         0, hashsize(hp),
-        [this, &new_map]
-        (size_type i, size_type end, std::exception_ptr &eptr) {
+        [this, &new_map](size_type i, size_type end, std::exception_ptr &eptr) {
           try {
             for (; i < end; ++i) {
               auto &bucket = buckets_[i];
@@ -1906,7 +1921,7 @@ private:
     // array. Then the old buckets will be deleted when new_map is deleted.
     maybe_resize_locks(new_map.bucket_count());
     buckets_.swap(new_map.buckets_);
-    
+
     return ok;
   }
 
@@ -1966,13 +1981,12 @@ private:
   // locks have already been taken.
   void rehash_with_workers() noexcept {
     locks_t &current_locks = get_current_locks();
-    parallel_exec_noexcept(
-        0, current_locks.size(),
-        [this](size_type start, size_type end) {
-          for (size_type i = start; i < end; ++i) {
-            rehash_lock<kIsNotLazy>(i);
-          }
-        });
+    parallel_exec_noexcept(0, current_locks.size(),
+                           [this](size_type start, size_type end) {
+                             for (size_type i = start; i < end; ++i) {
+                               rehash_lock<kIsNotLazy>(i);
+                             }
+                           });
     num_remaining_lazy_rehash_locks(0);
   }
 
@@ -2000,7 +2014,8 @@ private:
 
   // Rehashing functions
 
-  template <typename TABLE_MODE> bool cuckoo_rehash(size_type n) {
+  template <typename TABLE_MODE>
+  bool cuckoo_rehash(size_type n) {
     const size_type hp = hashpower();
     if (n == hp) {
       return false;
@@ -2008,7 +2023,8 @@ private:
     return cuckoo_expand_simple<TABLE_MODE, manual_resize>(n) == ok;
   }
 
-  template <typename TABLE_MODE> bool cuckoo_reserve(size_type n) {
+  template <typename TABLE_MODE>
+  bool cuckoo_reserve(size_type n) {
     const size_type hp = hashpower();
     const size_type new_hp = reserve_calc(n);
     if (new_hp == hp) {
@@ -2040,13 +2056,11 @@ private:
   // Get/set/decrement num remaining lazy rehash locks. If we reach 0 remaining
   // lazy locks, we can deallocate the memory in old_buckets_.
   size_type num_remaining_lazy_rehash_locks() const {
-    return num_remaining_lazy_rehash_locks_.load(
-        std::memory_order_acquire);
+    return num_remaining_lazy_rehash_locks_.load(std::memory_order_acquire);
   }
 
   void num_remaining_lazy_rehash_locks(size_type n) const {
-    return num_remaining_lazy_rehash_locks_.store(
-        n, std::memory_order_release);
+    return num_remaining_lazy_rehash_locks_.store(n, std::memory_order_release);
     if (n == 0) {
       old_buckets_.clear_and_deallocate();
     }
@@ -2054,7 +2068,7 @@ private:
 
   void decrement_num_remaining_lazy_rehash_locks() const {
     size_type old_num_remaining = num_remaining_lazy_rehash_locks_.fetch_sub(
-      1, std::memory_order_acq_rel);
+        1, std::memory_order_acq_rel);
     assert(old_num_remaining >= 1);
     if (old_num_remaining == 1) {
       old_buckets_.clear_and_deallocate();
@@ -2120,7 +2134,7 @@ private:
   // operations.
   std::atomic<size_type> max_num_worker_threads_;
 
-public:
+ public:
   /**
    * An ownership wrapper around a @ref cuckoohash_map table instance. When
    * given a table instance, it takes all the locks on the table, blocking all
@@ -2133,7 +2147,7 @@ public:
    * methods, the behavior should be mostly the same.
    */
   class locked_table {
-  public:
+   public:
     /** @name Type Declarations */
     /**@{*/
 
@@ -2156,7 +2170,7 @@ public:
      * BidirectionalIterator concept.
      */
     class const_iterator {
-    public:
+     public:
       using difference_type = typename locked_table::difference_type;
       using value_type = typename locked_table::value_type;
       using pointer = typename locked_table::const_pointer;
@@ -2239,7 +2253,7 @@ public:
         return old;
       }
 
-    protected:
+     protected:
       // The buckets owned by the locked table being iterated over. Even
       // though const_iterator cannot modify the buckets, we don't mark
       // them const so that the mutable iterator can derive from this
@@ -2282,7 +2296,7 @@ public:
      * concept.
      */
     class iterator : public const_iterator {
-    public:
+     public:
       using pointer = typename cuckoohash_map::pointer;
       using reference = typename cuckoohash_map::reference;
 
@@ -2325,7 +2339,7 @@ public:
         return old;
       }
 
-    private:
+     private:
       iterator(buckets_t &buckets, size_type index, size_type slot) noexcept
           : const_iterator(buckets, index, slot) {}
 
@@ -2507,7 +2521,8 @@ public:
       return iterator(map_.get().buckets_, pos.index_, pos.slot_);
     }
 
-    template <typename K> size_type erase(const K &key) {
+    template <typename K>
+    size_type erase(const K &key) {
       const hash_value hv = map_.get().hashed_key(key);
       const auto b =
           map_.get().template snapshot_and_lock_two<locked_table_mode>(hv);
@@ -2526,7 +2541,8 @@ public:
     /** @name Lookup */
     /**@{*/
 
-    template <typename K> iterator find(const K &key) {
+    template <typename K>
+    iterator find(const K &key) {
       const hash_value hv = map_.get().hashed_key(key);
       const auto b =
           map_.get().template snapshot_and_lock_two<locked_table_mode>(hv);
@@ -2539,7 +2555,8 @@ public:
       }
     }
 
-    template <typename K> const_iterator find(const K &key) const {
+    template <typename K>
+    const_iterator find(const K &key) const {
       const hash_value hv = map_.get().hashed_key(key);
       const auto b =
           map_.get().template snapshot_and_lock_two<locked_table_mode>(hv);
@@ -2552,7 +2569,8 @@ public:
       }
     }
 
-    template <typename K> mapped_type &at(const K &key) {
+    template <typename K>
+    mapped_type &at(const K &key) {
       auto it = find(key);
       if (it == end()) {
         throw std::out_of_range("key not found in table");
@@ -2561,7 +2579,8 @@ public:
       }
     }
 
-    template <typename K> const mapped_type &at(const K &key) const {
+    template <typename K>
+    const mapped_type &at(const K &key) const {
       auto it = find(key);
       if (it == end()) {
         throw std::out_of_range("key not found in table");
@@ -2575,12 +2594,14 @@ public:
      * cuckoohash_map::insert, except that the value is default-constructed,
      * with no parameters, if it is not already in the table.
      */
-    template <typename K> T &operator[](K &&key) {
+    template <typename K>
+    T &operator[](K &&key) {
       auto result = insert(std::forward<K>(key));
       return result.first->second;
     }
 
-    template <typename K> size_type count(const K &key) const {
+    template <typename K>
+    size_type count(const K &key) const {
       const hash_value hv = map_.get().hashed_key(key);
       const auto b =
           map_.get().template snapshot_and_lock_two<locked_table_mode>(hv);
@@ -2665,14 +2686,13 @@ public:
 
     /**@}*/
 
-  private:
+   private:
     // The constructor locks the entire table. We keep this constructor private
     // (but expose it to the cuckoohash_map class), since we don't want users
     // calling it. We also complete any remaining rehashing in the table, so
     // that everything is in map.buckets_.
     locked_table(cuckoohash_map &map) noexcept
-        : map_(map),
-          all_locks_manager_(map.lock_all(normal_mode())) {
+        : map_(map), all_locks_manager_(map.lock_all(normal_mode())) {
       map.rehash_with_workers();
     }
 
@@ -2748,6 +2768,6 @@ void swap(
   lhs.swap(rhs);
 }
 
-} // namespace std
+}  // namespace std
 
-#endif // _CUCKOOHASH_MAP_HH
+#endif  // _CUCKOOHASH_MAP_HH

@@ -26,9 +26,6 @@ from distutils.version import LooseVersion
 from tensorflow_recommenders_addons import options
 from tensorflow_recommenders_addons.utils import resource_loader
 
-# TODO: copy the layer_test implementation in Addons.
-from tensorflow.python.keras.testing_utils import layer_test  # noqa: F401
-
 
 NUMBER_OF_WORKERS = int(os.environ.get("PYTEST_XDIST_WORKER_COUNT", "1"))
 WORKER_ID = int(os.environ.get("PYTEST_XDIST_WORKER", "gw0")[2])
