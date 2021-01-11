@@ -45,21 +45,20 @@ from tensorflow.python.util.tf_export import tf_export
 
 
 class TrainableWrapper(resource_variable_ops.ResourceVariable):
-    """
+  """
     This class is a trainable wrapper of Dynamic Embedding,
     and the key role is recording the map relation between params and ids.
     inheriting from the ResourceVariable make it trainable.
     """
 
-    def __getattribute__(self, name):
-        if name in ["sparse_read", "gather_nd"]:
-            raise AttributeError("no such method: {}".format(name))
-        return super(resource_variable_ops.ResourceVariable, self).__getattribute__(
-            name
-        )
+  def __getattribute__(self, name):
+    if name in ["sparse_read", "gather_nd"]:
+      raise AttributeError("no such method: {}".format(name))
+    return super(resource_variable_ops.ResourceVariable,
+                 self).__getattribute__(name)
 
-    def __init__(self, params, ids, max_norm, *args, **kwargs):
-        """Creates an empty `TrainableWrapper` object.©
+  def __init__(self, params, ids, max_norm, *args, **kwargs):
+    """Creates an empty `TrainableWrapper` object.©
 
         Creates a group of tables placed on devices,
         the type of its keys and values are specified by key_dtype
@@ -74,32 +73,32 @@ class TrainableWrapper(resource_variable_ops.ResourceVariable):
         Returns:
           A `TrainableWrapper` object which is a subclass of ResourceVariable.
         """
-        self.params = params
-        self.ids = ids
-        self.max_norm = max_norm
-        self.prefetch_values_op = None
-        super(TrainableWrapper, self).__init__(*args, **kwargs)
+    self.params = params
+    self.ids = ids
+    self.max_norm = max_norm
+    self.prefetch_values_op = None
+    super(TrainableWrapper, self).__init__(*args, **kwargs)
 
-    def prefetch_values(self):
-        if self.prefetch_values_op is None:
-            self.prefetch_values_op = self.transform(self.params.lookup(self.ids))
-        return self.prefetch_values_op
+  def prefetch_values(self):
+    if self.prefetch_values_op is None:
+      self.prefetch_values_op = self.transform(self.params.lookup(self.ids))
+    return self.prefetch_values_op
 
-    def _init_from_args(
-        self,
-        initial_value=None,
-        trainable=None,
-        collections=None,
-        caching_device=None,
-        name=None,
-        dtype=None,
-        constraint=None,
-        synchronization=None,
-        aggregation=None,
-        distribute_strategy=None,
-        shape=None,
-    ):
-        """Creates a variable.
+  def _init_from_args(
+      self,
+      initial_value=None,
+      trainable=None,
+      collections=None,
+      caching_device=None,
+      name=None,
+      dtype=None,
+      constraint=None,
+      synchronization=None,
+      aggregation=None,
+      distribute_strategy=None,
+      shape=None,
+  ):
+    """Creates a variable.
 
         Args:
           initial_value: A `Tensor`, or Python object convertible to a `Tensor`,
@@ -159,243 +158,212 @@ class TrainableWrapper(resource_variable_ops.ResourceVariable):
         ignored.
         @end_compatibility
         """
-        (
-            synchronization,
-            aggregation,
-            trainable,
-        ) = variables.validate_synchronization_aggregation_trainable(
-            synchronization, aggregation, trainable, name
-        )
-        if initial_value is None:
-            raise ValueError("initial_value must be specified.")
-        init_from_fn = callable(initial_value)
+    (
+        synchronization,
+        aggregation,
+        trainable,
+    ) = variables.validate_synchronization_aggregation_trainable(
+        synchronization, aggregation, trainable, name)
+    if initial_value is None:
+      raise ValueError("initial_value must be specified.")
+    init_from_fn = callable(initial_value)
 
-        if (
-            isinstance(initial_value, ops.Tensor)
-            and hasattr(initial_value, "graph")
-            and initial_value.graph.building_function
-        ):
-            raise ValueError(
-                "Tensor-typed variable initializers must either be "
-                "wrapped in an init_scope or callable "
-                "(e.g., `tf.Variable(lambda : "
-                "tf.truncated_normal([10, 40]))`) when building "
-                "functions. Please file a feature request if this "
-                "restriction inconveniences you."
-            )
+    if (isinstance(initial_value, ops.Tensor)
+        and hasattr(initial_value, "graph")
+        and initial_value.graph.building_function):
+      raise ValueError("Tensor-typed variable initializers must either be "
+                       "wrapped in an init_scope or callable "
+                       "(e.g., `tf.Variable(lambda : "
+                       "tf.truncated_normal([10, 40]))`) when building "
+                       "functions. Please file a feature request if this "
+                       "restriction inconveniences you.")
 
-        if collections is None:
-            collections = [ops.GraphKeys.GLOBAL_VARIABLES]
-        if not isinstance(collections, (list, tuple, set)):
-            raise ValueError(
-                "collections argument to Variable constructor must be a list, tuple, "
-                "or set. Got %s of type %s" % (collections, type(collections))
-            )
-        if constraint is not None and not callable(constraint):
-            raise ValueError("The `constraint` argument must be a callable.")
+    if collections is None:
+      collections = [ops.GraphKeys.GLOBAL_VARIABLES]
+    if not isinstance(collections, (list, tuple, set)):
+      raise ValueError(
+          "collections argument to Variable constructor must be a list, tuple, "
+          "or set. Got %s of type %s" % (collections, type(collections)))
+    if constraint is not None and not callable(constraint):
+      raise ValueError("The `constraint` argument must be a callable.")
 
-        if isinstance(initial_value, trackable.CheckpointInitialValue):
-            self._maybe_initialize_trackable()
-            self._update_uid = initial_value.checkpoint_position.restore_uid
-            initial_value = initial_value.wrapped_value
+    if isinstance(initial_value, trackable.CheckpointInitialValue):
+      self._maybe_initialize_trackable()
+      self._update_uid = initial_value.checkpoint_position.restore_uid
+      initial_value = initial_value.wrapped_value
 
-        if trainable and ops.GraphKeys.TRAINABLE_VARIABLES not in collections:
-            collections = list(collections) + [ops.GraphKeys.TRAINABLE_VARIABLES]
-        with ops.init_scope():
-            self._in_graph_mode = not context.executing_eagerly()
-            with ops.name_scope(
-                name, "TrainableWrapper", [] if init_from_fn else [initial_value]
-            ) as name:
-                # pylint: disable=protected-access
-                handle_name = ops.name_from_scope_name(name)
-                handle_name = handle_name or "TrainableWrapperHandle"
-                if self._in_graph_mode:
-                    shared_name = handle_name
-                    unique_id = shared_name
-                else:
-                    # When in eager mode use a uid for the shared_name, to prevent
-                    # accidental sharing.
-                    unique_id = "%s_%d" % (handle_name, ops.uid())
-                    shared_name = context.shared_name()
-                # Use attr_scope and device(None) to simulate the behavior of
-                # colocate_with when the variable we want to colocate with doesn't
-                # yet exist.
-                device_context_manager = (
-                    ops.device if self._in_graph_mode else ops.NullContextmanager
-                )
-                attr = attr_value_pb2.AttrValue(
-                    list=attr_value_pb2.AttrValue.ListValue(
-                        s=[compat.as_bytes("loc:@%s" % handle_name)]
-                    )
-                )
-                with ops.get_default_graph()._attr_scope({"_class": attr}):
-                    with ops.name_scope("Initializer"), device_context_manager(None):
-                        initial_value = ops.convert_to_tensor(
-                            initial_value() if init_from_fn else initial_value,
-                            name="initial_value",
-                            dtype=dtype,
-                        )
-                    if shape is None:
-                        shape = initial_value.shape
-                    handle = resource_variable_ops.eager_safe_variable_handle(
-                        initial_value=initial_value,
-                        shape=None,  # shape,
-                        shared_name=shared_name,
-                        name=name,
-                        graph_mode=self._in_graph_mode,
-                    )
-                # pylint: disable=protected-access
-                if (
-                    self._in_graph_mode
-                    and initial_value is not None
-                    and initial_value.op._get_control_flow_context() is not None
-                ):
-                    raise ValueError(
-                        "Initializer for variable %s is from inside a control-flow "
-                        "construct, such as a loop or conditional. When creating a "
-                        "variable inside a loop or conditional, use a lambda as the "
-                        "initializer." % name
-                    )
-                # pylint: enable=protected-access
-                dtype = initial_value.dtype.base_dtype
-
-                if self._in_graph_mode:
-                    with ops.name_scope("IsInitialized"):
-                        is_initialized_op = (
-                            gen_resource_variable_ops.var_is_initialized_op(handle)
-                        )
-                    if initial_value is not None:
-                        # pylint: disable=g-backslash-continuation
-                        with ops.name_scope("Assign") as n, ops.colocate_with(
-                            None, ignore_existing=True
-                        ), ops.device(handle.device):
-                            # pylint: disable=protected-access
-                            initializer_op = gen_resource_variable_ops.assign_variable_op(
-                                handle,
-                                variables._try_guard_against_uninitialized_dependencies(
-                                    name, initial_value
-                                ),
-                                name=n,
-                            )
-                            # pylint: enable=protected-access
-                        # pylint: enable=g-backslash-continuation
-                    with ops.name_scope("Read"):
-                        # Manually assign reads to the handle's device to avoid log
-                        # messages.
-                        with ops.device(handle.device):
-                            with ops.control_dependencies(
-                                [
-                                    gen_resource_variable_ops.assign_variable_op(
-                                        handle,
-                                        self.prefetch_values(),
-                                        name="AssignBeforeInitRead",
-                                    )
-                                ]
-                            ):
-                                value = gen_resource_variable_ops.read_variable_op(
-                                    handle, dtype
-                                )
-                        graph_element = value
-                        if caching_device is not None:
-                            # Variables may be created in a tf.device() or ops.colocate_with()
-                            # context. At the same time, users would expect caching device to
-                            # be independent of this context, and/or would not expect the
-                            # current device context to be merged with the caching device
-                            # spec.  Therefore we reset the colocation stack before creating
-                            # the cached value. Note that resetting the colocation stack will
-                            # also reset the device stack.
-                            with ops.colocate_with(None, ignore_existing=True):
-                                with ops.device(caching_device):
-                                    cached_value = array_ops.identity(value)
-                        else:
-                            cached_value = None
-                else:
-                    gen_resource_variable_ops.assign_variable_op(handle, initial_value)
-                    is_initialized_op = None
-                    initializer_op = None
-                    graph_element = None
-                    if caching_device:
-                        with ops.device(caching_device):
-                            with ops.control_dependencies(
-                                [
-                                    gen_resource_variable_ops.assign_variable_op(
-                                        handle,
-                                        self.prefetch_values(),
-                                        name="AssignBeforeInitRead",
-                                    )
-                                ]
-                            ):
-                                cached_value = (
-                                    gen_resource_variable_ops.read_variable_op(
-                                        handle, dtype
-                                    )
-                                )
-                    else:
-                        cached_value = None
-                if not context.executing_eagerly():
-                    # Eager variables are only added to collections if they are part of an
-                    # eager variable store (otherwise in an interactive session they would
-                    # hog memory and cause OOM). This is done in ops/variable_scope.py.
-                    ops.add_to_collections(collections, self)
-                elif ops.GraphKeys.GLOBAL_STEP in collections:
-                    ops.add_to_collections(ops.GraphKeys.GLOBAL_STEP, self)
-            initial_value = initial_value if self._in_graph_mode else None
-            super(resource_variable_ops.ResourceVariable, self).__init__(
-                trainable=trainable,
-                shape=shape,
-                dtype=dtype,
-                handle=handle,
-                synchronization=synchronization,
-                constraint=constraint,
-                aggregation=aggregation,
-                distribute_strategy=distribute_strategy,
-                name=name,
-                unique_id=unique_id,
-                handle_name=handle_name,
-                graph_element=graph_element,
-                initial_value=initial_value,
-                initializer_op=initializer_op,
-                is_initialized_op=is_initialized_op,
-                cached_value=cached_value,
-            )
-
-    def update_op(self):
-        return self.params.upsert(self.ids, self.read_value(False))
-
-    def size(self):
-        return self.params.size()
-
-    def _read_variable_op(self, do_prefetch=True):
-        resource_variable_ops.variable_accessed(self)
-        if do_prefetch:
-            with ops.control_dependencies(
-                [
-                    gen_resource_variable_ops.assign_variable_op(
-                        self._handle,
-                        self.prefetch_values(),
-                        name="AssignBeforeReadVariable",
-                    )
-                ]
-            ):
-                _result = gen_resource_variable_ops.read_variable_op(
-                    self._handle, self._dtype
-                )
+    if trainable and ops.GraphKeys.TRAINABLE_VARIABLES not in collections:
+      collections = list(collections) + [ops.GraphKeys.TRAINABLE_VARIABLES]
+    with ops.init_scope():
+      self._in_graph_mode = not context.executing_eagerly()
+      with ops.name_scope(name, "TrainableWrapper",
+                          [] if init_from_fn else [initial_value]) as name:
+        # pylint: disable=protected-access
+        handle_name = ops.name_from_scope_name(name)
+        handle_name = handle_name or "TrainableWrapperHandle"
+        if self._in_graph_mode:
+          shared_name = handle_name
+          unique_id = shared_name
         else:
-            _result = gen_resource_variable_ops.read_variable_op(
-                self._handle, self._dtype
+          # When in eager mode use a uid for the shared_name, to prevent
+          # accidental sharing.
+          unique_id = "%s_%d" % (handle_name, ops.uid())
+          shared_name = context.shared_name()
+        # Use attr_scope and device(None) to simulate the behavior of
+        # colocate_with when the variable we want to colocate with doesn't
+        # yet exist.
+        device_context_manager = (ops.device if self._in_graph_mode else
+                                  ops.NullContextmanager)
+        attr = attr_value_pb2.AttrValue(list=attr_value_pb2.AttrValue.ListValue(
+            s=[compat.as_bytes("loc:@%s" % handle_name)]))
+        with ops.get_default_graph()._attr_scope({"_class": attr}):
+          with ops.name_scope("Initializer"), device_context_manager(None):
+            initial_value = ops.convert_to_tensor(
+                initial_value() if init_from_fn else initial_value,
+                name="initial_value",
+                dtype=dtype,
             )
+          if shape is None:
+            shape = initial_value.shape
+          handle = resource_variable_ops.eager_safe_variable_handle(
+              initial_value=initial_value,
+              shape=None,  # shape,
+              shared_name=shared_name,
+              name=name,
+              graph_mode=self._in_graph_mode,
+          )
+        # pylint: disable=protected-access
+        if (self._in_graph_mode and initial_value is not None
+            and initial_value.op._get_control_flow_context() is not None):
+          raise ValueError(
+              "Initializer for variable %s is from inside a control-flow "
+              "construct, such as a loop or conditional. When creating a "
+              "variable inside a loop or conditional, use a lambda as the "
+              "initializer." % name)
+        # pylint: enable=protected-access
+        dtype = initial_value.dtype.base_dtype
 
+        if self._in_graph_mode:
+          with ops.name_scope("IsInitialized"):
+            is_initialized_op = (
+                gen_resource_variable_ops.var_is_initialized_op(handle))
+          if initial_value is not None:
+            # pylint: disable=g-backslash-continuation
+            with ops.name_scope("Assign") as n, ops.colocate_with(
+                None, ignore_existing=True), ops.device(handle.device):
+              # pylint: disable=protected-access
+              initializer_op = gen_resource_variable_ops.assign_variable_op(
+                  handle,
+                  variables._try_guard_against_uninitialized_dependencies(
+                      name, initial_value),
+                  name=n,
+              )
+              # pylint: enable=protected-access
+            # pylint: enable=g-backslash-continuation
+          with ops.name_scope("Read"):
+            # Manually assign reads to the handle's device to avoid log
+            # messages.
+            with ops.device(handle.device):
+              with ops.control_dependencies([
+                  gen_resource_variable_ops.assign_variable_op(
+                      handle,
+                      self.prefetch_values(),
+                      name="AssignBeforeInitRead",
+                  )
+              ]):
+                value = gen_resource_variable_ops.read_variable_op(
+                    handle, dtype)
+            graph_element = value
+            if caching_device is not None:
+              # Variables may be created in a tf.device() or ops.colocate_with()
+              # context. At the same time, users would expect caching device to
+              # be independent of this context, and/or would not expect the
+              # current device context to be merged with the caching device
+              # spec.  Therefore we reset the colocation stack before creating
+              # the cached value. Note that resetting the colocation stack will
+              # also reset the device stack.
+              with ops.colocate_with(None, ignore_existing=True):
+                with ops.device(caching_device):
+                  cached_value = array_ops.identity(value)
+            else:
+              cached_value = None
+        else:
+          gen_resource_variable_ops.assign_variable_op(handle, initial_value)
+          is_initialized_op = None
+          initializer_op = None
+          graph_element = None
+          if caching_device:
+            with ops.device(caching_device):
+              with ops.control_dependencies([
+                  gen_resource_variable_ops.assign_variable_op(
+                      handle,
+                      self.prefetch_values(),
+                      name="AssignBeforeInitRead",
+                  )
+              ]):
+                cached_value = (gen_resource_variable_ops.read_variable_op(
+                    handle, dtype))
+          else:
+            cached_value = None
         if not context.executing_eagerly():
-            # Note that if a control flow context is active the input of the read op
-            # might not actually be the handle. This line bypasses it.
-            tape.record_operation(
-                "ReadVariableOp", [_result], [self._handle], lambda x: [x]
-            )
-        result = self.transform(_result)
-        return result
+          # Eager variables are only added to collections if they are part of an
+          # eager variable store (otherwise in an interactive session they would
+          # hog memory and cause OOM). This is done in ops/variable_scope.py.
+          ops.add_to_collections(collections, self)
+        elif ops.GraphKeys.GLOBAL_STEP in collections:
+          ops.add_to_collections(ops.GraphKeys.GLOBAL_STEP, self)
+      initial_value = initial_value if self._in_graph_mode else None
+      super(resource_variable_ops.ResourceVariable, self).__init__(
+          trainable=trainable,
+          shape=shape,
+          dtype=dtype,
+          handle=handle,
+          synchronization=synchronization,
+          constraint=constraint,
+          aggregation=aggregation,
+          distribute_strategy=distribute_strategy,
+          name=name,
+          unique_id=unique_id,
+          handle_name=handle_name,
+          graph_element=graph_element,
+          initial_value=initial_value,
+          initializer_op=initializer_op,
+          is_initialized_op=is_initialized_op,
+          cached_value=cached_value,
+      )
 
-    def read_value(self, do_prefetch=True):
-        """Constructs an op which reads the value of this variable.
+  def update_op(self):
+    return self.params.upsert(self.ids, self.read_value(False))
+
+  def size(self):
+    return self.params.size()
+
+  def _read_variable_op(self, do_prefetch=True):
+    resource_variable_ops.variable_accessed(self)
+    if do_prefetch:
+      with ops.control_dependencies([
+          gen_resource_variable_ops.assign_variable_op(
+              self._handle,
+              self.prefetch_values(),
+              name="AssignBeforeReadVariable",
+          )
+      ]):
+        _result = gen_resource_variable_ops.read_variable_op(
+            self._handle, self._dtype)
+    else:
+      _result = gen_resource_variable_ops.read_variable_op(
+          self._handle, self._dtype)
+
+    if not context.executing_eagerly():
+      # Note that if a control flow context is active the input of the read op
+      # might not actually be the handle. This line bypasses it.
+      tape.record_operation("ReadVariableOp", [_result], [self._handle],
+                            lambda x: [x])
+    result = self.transform(_result)
+    return result
+
+  def read_value(self, do_prefetch=True):
+    """Constructs an op which reads the value of this variable.
 
         Should be used when there are multiple reads, or when it is desirable to
         read the value only after some condition is true.
@@ -405,42 +373,40 @@ class TrainableWrapper(resource_variable_ops.ResourceVariable):
         Returns:
          the read operation.
         """
-        with ops.name_scope("Read"):
-            # Ensure we read the variable in the same device as the handle.
-            with ops.device(self._handle.device):
-                value = self._read_variable_op(do_prefetch)
-        # Return an identity so it can get placed on whatever device the context
-        # specifies instead of the device where the variable is.
-        return array_ops.identity(value)
+    with ops.name_scope("Read"):
+      # Ensure we read the variable in the same device as the handle.
+      with ops.device(self._handle.device):
+        value = self._read_variable_op(do_prefetch)
+    # Return an identity so it can get placed on whatever device the context
+    # specifies instead of the device where the variable is.
+    return array_ops.identity(value)
 
-    @staticmethod
-    def _clip(params, ids, max_norm):
-        def _rank(x):
-            rank = ops.convert_to_tensor(x).get_shape().ndims
-            if rank:
-                return rank, True
-            else:
-                return array_ops.rank(x), False
+  @staticmethod
+  def _clip(params, ids, max_norm):
 
-        if max_norm is None:
-            return params
-        ids_rank, ids_static = _rank(ids)
-        params_rank, params_static = _rank(params)
-        return clip_ops.clip_by_norm(
-            params,
-            max_norm,
-            axes=(
-                list(range(ids_rank, params_rank))
-                if ids_static and params_static
-                else math_ops.range(ids_rank, params_rank)
-            ),
-        )
+    def _rank(x):
+      rank = ops.convert_to_tensor(x).get_shape().ndims
+      if rank:
+        return rank, True
+      else:
+        return array_ops.rank(x), False
 
-    def transform(self, result):
-        _result = array_ops.reshape(result, shape=array_ops.shape(result))
-        if self.max_norm is not None:
-            _result = self._clip(_result, self.ids, self.max_norm)
-        return _result
+    if max_norm is None:
+      return params
+    ids_rank, ids_static = _rank(ids)
+    params_rank, params_static = _rank(params)
+    return clip_ops.clip_by_norm(
+        params,
+        max_norm,
+        axes=(list(range(ids_rank, params_rank)) if ids_static and params_static
+              else math_ops.range(ids_rank, params_rank)),
+    )
+
+  def transform(self, result):
+    _result = array_ops.reshape(result, shape=array_ops.shape(result))
+    if self.max_norm is not None:
+      _result = self._clip(_result, self.ids, self.max_norm)
+    return _result
 
 
 def embedding_lookup(
@@ -452,7 +418,7 @@ def embedding_lookup(
     max_norm=None,
     return_trainable=False,
 ):
-    """Provides a dynamic version of embedding_lookup
+  """Provides a dynamic version of embedding_lookup
       similar with tf.nn.embedding_lookup.
 
     Ids are flattened to a 1d tensor before being passed to embedding_lookup
@@ -476,63 +442,59 @@ def embedding_lookup(
         A TrainableWrapper object used to fill the Optimizers `var_list`
           Only provided if `return_trainable` is True.
     """
-    if isinstance(params, (list, tuple)) and len(params) > 1:
-        raise ValueError("Only one params is allowed.")
-    if isinstance(params, (list, tuple)):
-        params = params[0]
-    if not isinstance(params, de.Variable):
-        raise TypeError("params should be a Variable instance.")
-    if params.key_dtype != ids.dtype:
-        raise TypeError(
-            "params.key_dtype should be same with ids.dtype: {} vs. {}".format(
-                params.key_dtype, ids.dtype
-            )
-        )
+  if isinstance(params, (list, tuple)) and len(params) > 1:
+    raise ValueError("Only one params is allowed.")
+  if isinstance(params, (list, tuple)):
+    params = params[0]
+  if not isinstance(params, de.Variable):
+    raise TypeError("params should be a Variable instance.")
+  if params.key_dtype != ids.dtype:
+    raise TypeError(
+        "params.key_dtype should be same with ids.dtype: {} vs. {}".format(
+            params.key_dtype, ids.dtype))
 
-    scope = variable_scope.get_variable_scope()
-    full_name = scope.name + "/" if scope.name else ""
-    full_name += (name + "/") if name else "embedding_lookup/"
-    with ops.name_scope(full_name):
-        ids = ops.convert_to_tensor(ids, name="ids")
-        if ids.get_shape() == tensor_shape.unknown_shape():
-            ids = array_ops.reshape(ids, shape=[-1])
-            initial_shape = (1, params.dim)
-            trainable_shape = tensor_shape.unknown_shape()
-        else:
-            initial_shape = [d if d else 1 for d in ids.get_shape().as_list()] + [
-                params.dim
-            ]
-            trainable_shape = ids.get_shape().concatenate([params.dim])
-        initial_value = array_ops.zeros(shape=initial_shape, dtype=params.value_dtype)
-        if (
-            isinstance(initial_value, ops.Tensor)
-            and hasattr(initial_value, "graph")
-            and initial_value.graph.building_function
-        ):
+  scope = variable_scope.get_variable_scope()
+  full_name = scope.name + "/" if scope.name else ""
+  full_name += (name + "/") if name else "embedding_lookup/"
+  with ops.name_scope(full_name):
+    ids = ops.convert_to_tensor(ids, name="ids")
+    if ids.get_shape() == tensor_shape.unknown_shape():
+      ids = array_ops.reshape(ids, shape=[-1])
+      initial_shape = (1, params.dim)
+      trainable_shape = tensor_shape.unknown_shape()
+    else:
+      initial_shape = [d if d else 1 for d in ids.get_shape().as_list()
+                      ] + [params.dim]
+      trainable_shape = ids.get_shape().concatenate([params.dim])
+    initial_value = array_ops.zeros(shape=initial_shape,
+                                    dtype=params.value_dtype)
+    if (isinstance(initial_value, ops.Tensor)
+        and hasattr(initial_value, "graph")
+        and initial_value.graph.building_function):
 
-            def initial_value():
-                return array_ops.zeros(initial_shape, dtype=params.value_dtype)
+      def initial_value():
+        return array_ops.zeros(initial_shape, dtype=params.value_dtype)
 
-        with ops.colocate_with(None, ignore_existing=True):
-            collections = [ops.GraphKeys.LOCAL_VARIABLES]
-            if params.trainable:
-                collections += [ops.GraphKeys.TRAINABLE_VARIABLES]
-            trainable_ = de.TrainableWrapper(
-                params,
-                ids,
-                max_norm=max_norm,
-                initial_value=initial_value,
-                dtype=params.value_dtype,
-                trainable=params.trainable,
-                collections=collections,
-            )
-            embeddings = array_ops.identity(trainable_)
-            embeddings.set_shape(trainable_shape)
+    with ops.colocate_with(None, ignore_existing=True):
+      collections = [ops.GraphKeys.LOCAL_VARIABLES]
+      if params.trainable:
+        collections += [ops.GraphKeys.TRAINABLE_VARIABLES]
+      trainable_ = de.TrainableWrapper(
+          params,
+          ids,
+          max_norm=max_norm,
+          initial_value=initial_value,
+          dtype=params.value_dtype,
+          trainable=params.trainable,
+          collections=collections,
+      )
+      embeddings = array_ops.identity(trainable_)
+      embeddings.set_shape(trainable_shape)
 
-        if trainable_ not in params.trainable_wrappers:
-            params.trainable_wrappers.append(trainable_)
+    if trainable_ not in params.trainable_wrappers:
+      params.trainable_wrappers.append(trainable_)
 
-    return (embeddings, trainable_) if return_trainable else embeddings
+  return (embeddings, trainable_) if return_trainable else embeddings
 
 
 @tf_export("dynamic_embedding.embedding_lookup_sparse")
@@ -546,7 +508,7 @@ def embedding_lookup_sparse(
     max_norm=None,
     return_trainable=False,
 ):
-    """Provides a dynamic version of embedding_lookup_sparse
+  """Provides a dynamic version of embedding_lookup_sparse
       similar with tf.nn.embedding_lookup_sparse.
 
     This op assumes that there is at least one id for each row in the dense tensor
@@ -619,96 +581,97 @@ def embedding_lookup_sparse(
         neither `None` nor `SparseTensor`.
       ValueError: If `combiner` is not one of {"mean", "sqrtn", "sum"}.
     """
-    if combiner not in ("mean", "sqrtn", "sum"):
-        raise ValueError("combiner must be one of 'mean', 'sqrtn' or 'sum'")
+  if combiner not in ("mean", "sqrtn", "sum"):
+    raise ValueError("combiner must be one of 'mean', 'sqrtn' or 'sum'")
 
-    if not isinstance(sp_ids, sparse_tensor.SparseTensor):
-        raise TypeError("sp_ids must be SparseTensor")
+  if not isinstance(sp_ids, sparse_tensor.SparseTensor):
+    raise TypeError("sp_ids must be SparseTensor")
 
-    ignore_weights = sp_weights is None
+  ignore_weights = sp_weights is None
+  if not ignore_weights:
+    if not isinstance(sp_weights, sparse_tensor.SparseTensor):
+      raise TypeError("sp_weights must be either None or SparseTensor")
+
+  scope = variable_scope.get_variable_scope()
+  full_name = scope.name + "/" + name if scope.name else name
+  with ops.name_scope(full_name + "/"):
+    segment_ids = sp_ids.indices[:, 0]
+    if segment_ids.dtype != dtypes.int32:
+      segment_ids = math_ops.cast(segment_ids, dtypes.int32)
+
+    ids = sp_ids.values
+    ids, idx = array_ops.unique(ids)
+
+    embeddings, trainable_ = embedding_lookup(
+        params,
+        ids,
+        name=name + "/embedding_lookup",
+        partition_strategy=partition_strategy,
+        max_norm=max_norm,
+        return_trainable=True,
+    )
+    if embeddings.dtype in (dtypes.float16, dtypes.bfloat16):
+      embeddings = math_ops.cast(embeddings, dtypes.float32)
     if not ignore_weights:
-        if not isinstance(sp_weights, sparse_tensor.SparseTensor):
-            raise TypeError("sp_weights must be either None or SparseTensor")
+      weights = sp_weights.values
+      if weights.dtype != embeddings.dtype:
+        weights = math_ops.cast(weights, embeddings.dtype)
 
-    scope = variable_scope.get_variable_scope()
-    full_name = scope.name + "/" + name if scope.name else name
-    with ops.name_scope(full_name + "/"):
-        segment_ids = sp_ids.indices[:, 0]
-        if segment_ids.dtype != dtypes.int32:
-            segment_ids = math_ops.cast(segment_ids, dtypes.int32)
+      embeddings = array_ops.gather(embeddings, idx)
 
-        ids = sp_ids.values
-        ids, idx = array_ops.unique(ids)
+      # Reshape weights to allow broadcast
+      ones = array_ops.fill(
+          array_ops.expand_dims(array_ops.rank(embeddings) - 1, 0), 1)
+      bcast_weights_shape = array_ops.concat([array_ops.shape(weights), ones],
+                                             0)
 
-        embeddings, trainable_ = embedding_lookup(
-            params,
-            ids,
-            name=name + "/embedding_lookup",
-            partition_strategy=partition_strategy,
-            max_norm=max_norm,
-            return_trainable=True,
-        )
-        if embeddings.dtype in (dtypes.float16, dtypes.bfloat16):
-            embeddings = math_ops.cast(embeddings, dtypes.float32)
-        if not ignore_weights:
-            weights = sp_weights.values
-            if weights.dtype != embeddings.dtype:
-                weights = math_ops.cast(weights, embeddings.dtype)
+      orig_weights_shape = weights.get_shape()
+      weights = array_ops.reshape(weights, bcast_weights_shape)
 
-            embeddings = array_ops.gather(embeddings, idx)
+      # Set the weight shape, since after reshaping to bcast_weights_shape,
+      # the shape becomes None.
+      if embeddings.get_shape().ndims is not None:
+        weights.set_shape(
+            orig_weights_shape.concatenate(
+                [1 for _ in range(embeddings.get_shape().ndims - 1)]))
 
-            # Reshape weights to allow broadcast
-            ones = array_ops.fill(
-                array_ops.expand_dims(array_ops.rank(embeddings) - 1, 0), 1
-            )
-            bcast_weights_shape = array_ops.concat([array_ops.shape(weights), ones], 0)
+      embeddings *= weights
 
-            orig_weights_shape = weights.get_shape()
-            weights = array_ops.reshape(weights, bcast_weights_shape)
+      if combiner == "sum":
+        embeddings = math_ops.segment_sum(embeddings, segment_ids, name=name)
+      elif combiner == "mean":
+        embeddings = math_ops.segment_sum(embeddings, segment_ids)
+        weight_sum = math_ops.segment_sum(weights, segment_ids)
+        embeddings = math_ops.div(embeddings, weight_sum, name=name)
+      elif combiner == "sqrtn":
+        embeddings = math_ops.segment_sum(embeddings, segment_ids)
+        weights_squared = math_ops.pow(weights, 2)
+        weight_sum = math_ops.segment_sum(weights_squared, segment_ids)
+        weight_sum_sqrt = math_ops.sqrt(weight_sum)
+        embeddings = math_ops.div(embeddings, weight_sum_sqrt, name=name)
+      else:
+        assert False, "Unrecognized combiner"
+    else:
+      assert idx is not None
+      if combiner == "sum":
+        embeddings = math_ops.sparse_segment_sum(embeddings,
+                                                 idx,
+                                                 segment_ids,
+                                                 name=name)
+      elif combiner == "mean":
+        embeddings = math_ops.sparse_segment_mean(embeddings,
+                                                  idx,
+                                                  segment_ids,
+                                                  name=name)
+      elif combiner == "sqrtn":
+        embeddings = math_ops.sparse_segment_sqrt_n(embeddings,
+                                                    idx,
+                                                    segment_ids,
+                                                    name=name)
+      else:
+        assert False, "Unrecognized combiner"
 
-            # Set the weight shape, since after reshaping to bcast_weights_shape,
-            # the shape becomes None.
-            if embeddings.get_shape().ndims is not None:
-                weights.set_shape(
-                    orig_weights_shape.concatenate(
-                        [1 for _ in range(embeddings.get_shape().ndims - 1)]
-                    )
-                )
-
-            embeddings *= weights
-
-            if combiner == "sum":
-                embeddings = math_ops.segment_sum(embeddings, segment_ids, name=name)
-            elif combiner == "mean":
-                embeddings = math_ops.segment_sum(embeddings, segment_ids)
-                weight_sum = math_ops.segment_sum(weights, segment_ids)
-                embeddings = math_ops.div(embeddings, weight_sum, name=name)
-            elif combiner == "sqrtn":
-                embeddings = math_ops.segment_sum(embeddings, segment_ids)
-                weights_squared = math_ops.pow(weights, 2)
-                weight_sum = math_ops.segment_sum(weights_squared, segment_ids)
-                weight_sum_sqrt = math_ops.sqrt(weight_sum)
-                embeddings = math_ops.div(embeddings, weight_sum_sqrt, name=name)
-            else:
-                assert False, "Unrecognized combiner"
-        else:
-            assert idx is not None
-            if combiner == "sum":
-                embeddings = math_ops.sparse_segment_sum(
-                    embeddings, idx, segment_ids, name=name
-                )
-            elif combiner == "mean":
-                embeddings = math_ops.sparse_segment_mean(
-                    embeddings, idx, segment_ids, name=name
-                )
-            elif combiner == "sqrtn":
-                embeddings = math_ops.sparse_segment_sqrt_n(
-                    embeddings, idx, segment_ids, name=name
-                )
-            else:
-                assert False, "Unrecognized combiner"
-
-        return (embeddings, trainable_) if return_trainable else embeddings
+    return (embeddings, trainable_) if return_trainable else embeddings
 
 
 @tf_export("dynamic_embedding.safe_embedding_lookup_sparse")
@@ -723,7 +686,7 @@ def safe_embedding_lookup_sparse(
     max_norm=None,
     return_trainable=False,
 ):
-    """Provides a dynamic version of `tf.nn.safe_embedding_lookup_sparse`.
+  """Provides a dynamic version of `tf.nn.safe_embedding_lookup_sparse`.
 
     Lookup embedding results, accounting for empty features and invalid weights.
 
@@ -763,112 +726,103 @@ def safe_embedding_lookup_sparse(
     Raises:
       ValueError: if `embedding_weights` is empty.
     """
-    if embedding_weights is None:
-        raise ValueError("Missing embedding_weights %s." % embedding_weights)
+  if embedding_weights is None:
+    raise ValueError("Missing embedding_weights %s." % embedding_weights)
 
-    if embedding_weights.key_dtype != sparse_ids.dtype:
-        raise TypeError(
-            "embedding_weights.key_dtype should be same with sparse_ids.dtype: "
-            "{} vs. {}".format(embedding_weights.key_dtype, sparse_ids.dtype)
-        )
+  if embedding_weights.key_dtype != sparse_ids.dtype:
+    raise TypeError(
+        "embedding_weights.key_dtype should be same with sparse_ids.dtype: "
+        "{} vs. {}".format(embedding_weights.key_dtype, sparse_ids.dtype))
 
-    weights_dtype = sparse_weights.dtype if sparse_weights is not None else None
-    if weights_dtype and embedding_weights.value_dtype != weights_dtype:
-        raise TypeError(
-            "embedding_weights.value_dtype should be same with sparse_weights.dtype"
-            ": {} vs. {}".format(embedding_weights.value_dtype, weights_dtype)
-        )
+  weights_dtype = sparse_weights.dtype if sparse_weights is not None else None
+  if weights_dtype and embedding_weights.value_dtype != weights_dtype:
+    raise TypeError(
+        "embedding_weights.value_dtype should be same with sparse_weights.dtype"
+        ": {} vs. {}".format(embedding_weights.value_dtype, weights_dtype))
 
-    scope = variable_scope.get_variable_scope()
-    full_name = scope.name + "/" + name if scope.name else name
-    with ops.name_scope(full_name + "/"):
-        # Reshape higher-rank sparse ids and weights to linear segment ids.
-        original_shape = sparse_ids.dense_shape
-        original_rank_dim = tensor_shape.dimension_value(
-            sparse_ids.dense_shape.get_shape()[0]
-        )
-        original_rank = (
-            array_ops.size(original_shape)
-            if original_rank_dim is None
-            else original_rank_dim
-        )
-        sparse_ids = sparse_ops.sparse_reshape(
-            sparse_ids,
+  scope = variable_scope.get_variable_scope()
+  full_name = scope.name + "/" + name if scope.name else name
+  with ops.name_scope(full_name + "/"):
+    # Reshape higher-rank sparse ids and weights to linear segment ids.
+    original_shape = sparse_ids.dense_shape
+    original_rank_dim = tensor_shape.dimension_value(
+        sparse_ids.dense_shape.get_shape()[0])
+    original_rank = (array_ops.size(original_shape)
+                     if original_rank_dim is None else original_rank_dim)
+    sparse_ids = sparse_ops.sparse_reshape(
+        sparse_ids,
+        [
+            math_ops.reduce_prod(
+                array_ops.slice(original_shape, [0], [original_rank - 1])),
+            array_ops.gather(original_shape, original_rank - 1),
+        ],
+    )
+    if sparse_weights is not None:
+      sparse_weights = sparse_tensor.SparseTensor(sparse_ids.indices,
+                                                  sparse_weights.values,
+                                                  sparse_ids.dense_shape)
+
+    # Prune invalid weights.
+    if combiner != "sum":
+      sparse_ids, sparse_weights = _prune_invalid_weights(
+          sparse_ids, sparse_weights)
+
+    # Fill in dummy values for empty features, if necessary.
+    sparse_ids, is_row_empty = sparse_ops.sparse_fill_empty_rows(
+        sparse_ids, default_id or 0)
+    if sparse_weights is not None:
+      sparse_weights, _ = sparse_ops.sparse_fill_empty_rows(sparse_weights, 1.0)
+
+    result, trainable_ = embedding_lookup_sparse(
+        embedding_weights,
+        sparse_ids,
+        sparse_weights,
+        combiner=combiner,
+        partition_strategy=partition_strategy,
+        name=name + "/embedding_lookup_sparse",
+        max_norm=max_norm,
+        return_trainable=True,
+    )
+
+    if default_id is None:
+      # Broadcast is_row_empty to the same shape as embedding_lookup_result,
+      # for use in Select.
+      is_row_empty = array_ops.tile(
+          array_ops.reshape(is_row_empty, [-1, 1]),
+          array_ops.stack([1, array_ops.shape(result)[1]]),
+      )
+
+      result = array_ops.where(is_row_empty,
+                               array_ops.zeros_like(result),
+                               result,
+                               name="where")
+
+    # Reshape back from linear ids back into higher-dimensional dense result.
+    final_result = array_ops.reshape(
+        result,
+        array_ops.concat(
             [
-                math_ops.reduce_prod(
-                    array_ops.slice(original_shape, [0], [original_rank - 1])
+                array_ops.slice(
+                    math_ops.cast(original_shape, dtypes.int32),
+                    [0],
+                    [original_rank - 1],
                 ),
-                array_ops.gather(original_shape, original_rank - 1),
+                array_ops.slice(array_ops.shape(result), [1], [-1]),
             ],
-        )
-        if sparse_weights is not None:
-            sparse_weights = sparse_tensor.SparseTensor(
-                sparse_ids.indices, sparse_weights.values, sparse_ids.dense_shape
-            )
-
-        # Prune invalid weights.
-        if combiner != "sum":
-            sparse_ids, sparse_weights = _prune_invalid_weights(
-                sparse_ids, sparse_weights
-            )
-
-        # Fill in dummy values for empty features, if necessary.
-        sparse_ids, is_row_empty = sparse_ops.sparse_fill_empty_rows(
-            sparse_ids, default_id or 0
-        )
-        if sparse_weights is not None:
-            sparse_weights, _ = sparse_ops.sparse_fill_empty_rows(sparse_weights, 1.0)
-
-        result, trainable_ = embedding_lookup_sparse(
-            embedding_weights,
-            sparse_ids,
-            sparse_weights,
-            combiner=combiner,
-            partition_strategy=partition_strategy,
-            name=name + "/embedding_lookup_sparse",
-            max_norm=max_norm,
-            return_trainable=True,
-        )
-
-        if default_id is None:
-            # Broadcast is_row_empty to the same shape as embedding_lookup_result,
-            # for use in Select.
-            is_row_empty = array_ops.tile(
-                array_ops.reshape(is_row_empty, [-1, 1]),
-                array_ops.stack([1, array_ops.shape(result)[1]]),
-            )
-
-            result = array_ops.where(
-                is_row_empty, array_ops.zeros_like(result), result, name="where"
-            )
-
-        # Reshape back from linear ids back into higher-dimensional dense result.
-        final_result = array_ops.reshape(
-            result,
-            array_ops.concat(
-                [
-                    array_ops.slice(
-                        math_ops.cast(original_shape, dtypes.int32),
-                        [0],
-                        [original_rank - 1],
-                    ),
-                    array_ops.slice(array_ops.shape(result), [1], [-1]),
-                ],
-                0,
-            ),
-        )
-        final_result.set_shape(
-            tensor_shape.unknown_shape(
-                (tensor_shape.Dimension(original_rank_dim) - 1).value
-            ).concatenate(result.get_shape()[1:])
-        )
-        return (final_result, trainable_) if return_trainable else final_result
+            0,
+        ),
+    )
+    final_result.set_shape(
+        tensor_shape.unknown_shape(
+            (tensor_shape.Dimension(original_rank_dim) - 1).value).concatenate(
+                result.get_shape()[1:]))
+    return (final_result, trainable_) if return_trainable else final_result
 
 
 def _prune_invalid_weights(sparse_ids, sparse_weights):
-    """Prune invalid weights (< 0) from the input ids and weights."""
-    if sparse_weights is not None:
-        is_weights_valid = math_ops.greater(sparse_weights.values, 0)
-        sparse_ids = sparse_ops.sparse_retain(sparse_ids, is_weights_valid)
-        sparse_weights = sparse_ops.sparse_retain(sparse_weights, is_weights_valid)
-    return sparse_ids, sparse_weights
+  """Prune invalid weights (< 0) from the input ids and weights."""
+  if sparse_weights is not None:
+    is_weights_valid = math_ops.greater(sparse_weights.values, 0)
+    sparse_ids = sparse_ops.sparse_retain(sparse_ids, is_weights_valid)
+    sparse_weights = sparse_ops.sparse_retain(sparse_weights, is_weights_valid)
+  return sparse_ids, sparse_weights

@@ -11,20 +11,13 @@ on:
       - r*
 
 jobs:
-  flake8-test:
-    name: Flake8
+  yapf-test:
+    name: Yapf Python code format
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - name: Run flake8
-        run: bash tools/run_build.sh flake8-test
-  black-test:
-    name: Black Python code format
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - name: Ensure contributor used ("black ./") before commit
-        run: bash tools/run_build.sh black-test
+      - name: Ensure contributor used ("yapf --style=google -ri ./**/*.py") before commit
+        run: bash tools/run_build.sh yapf-test
   source_code_test:
     name: Check that the source code is compliant
     runs-on: ubuntu-latest
