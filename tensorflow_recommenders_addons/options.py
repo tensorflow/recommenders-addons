@@ -4,12 +4,12 @@ import warnings
 import traceback
 
 try:
-    TF_ADDONS_PY_OPS = bool(int(os.environ["TF_RECOMMENDERS_ADDONS_PY_OPS"]))
+  TF_ADDONS_PY_OPS = bool(int(os.environ["TF_RECOMMENDERS_ADDONS_PY_OPS"]))
 except KeyError:
-    if platform.system() == "Linux":
-        TF_RECOMMENDERS_ADDONS_PY_OPS = False
-    else:
-        TF_RECOMMENDERS_ADDONS_PY_OPS = True
+  if platform.system() == "Linux":
+    TF_RECOMMENDERS_ADDONS_PY_OPS = False
+  else:
+    TF_RECOMMENDERS_ADDONS_PY_OPS = True
 
 FALLBACK_WARNING_TEMPLATE = """{}
 
@@ -42,7 +42,8 @@ tfra.options.TF_RECOMMENDERS_ADDONS_PY_OPS = True
 
 
 def warn_fallback(op_name):
-    warning_msg = FALLBACK_WARNING_TEMPLATE.format(traceback.format_exc(), op_name)
-    warnings.warn(warning_msg, RuntimeWarning)
-    global TF_RECOMMENDERS_ADDONS_PY_OPS
-    TF_RECOMMENDERS_ADDONS_PY_OPS = True
+  warning_msg = FALLBACK_WARNING_TEMPLATE.format(traceback.format_exc(),
+                                                 op_name)
+  warnings.warn(warning_msg, RuntimeWarning)
+  global TF_RECOMMENDERS_ADDONS_PY_OPS
+  TF_RECOMMENDERS_ADDONS_PY_OPS = True
