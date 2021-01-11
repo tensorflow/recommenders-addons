@@ -1,0 +1,7 @@
+build --action_env TF_HEADER_DIR="/Users/hudsonrong/code/03-local/01-playground/venv/lib/python3.7/site-packages/tensorflow/include"
+build --action_env TF_SHARED_LIBRARY_DIR="/Users/hudsonrong/code/03-local/01-playground/venv/lib/python3.7/site-packages/tensorflow"
+build --action_env TF_SHARED_LIBRARY_NAME="libtensorflow_framework.2.dylib"
+build --action_env TF_CXX11_ABI_FLAG="0"
+build --spawn_strategy=standalone
+build --strategy=Genrule=standalone
+build -c opt

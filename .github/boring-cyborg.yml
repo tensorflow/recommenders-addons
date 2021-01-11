@@ -1,0 +1,24 @@
+labelPRBasedOnFilePath:
+  # Subpackages
+  activations:
+    - tensorflow_recommenders_addons/dynamic_embedding/**/*
+
+  # Other labels
+  build:
+    - build_deps/**/*
+    - tools/releases/**/*
+
+  documentation:
+    - docs/**/*
+
+  tutorials:
+    - docs/tutorials/**/*
+
+  test-cases:
+    - tools/testing/**/
+
+  style:
+    - STYLE_GUIDE.md
+
+  github:
+    - .github/**/*
