@@ -23,41 +23,46 @@ from tensorflow_recommenders_addons.utils import keras_utils
 
 
 def test_normalize_data_format():
-    assert keras_utils.normalize_data_format("Channels_Last") == "channels_last"
-    assert keras_utils.normalize_data_format("CHANNELS_FIRST") == "channels_first"
+  assert keras_utils.normalize_data_format("Channels_Last") == "channels_last"
+  assert keras_utils.normalize_data_format("CHANNELS_FIRST") == "channels_first"
 
-    with pytest.raises(ValueError, match="The `data_format` argument must be one of"):
-        keras_utils.normalize_data_format("invalid")
+  with pytest.raises(ValueError,
+                     match="The `data_format` argument must be one of"):
+    keras_utils.normalize_data_format("invalid")
 
 
 def test_normalize_tuple():
-    assert (2, 2, 2) == keras_utils.normalize_tuple(2, n=3, name="strides")
-    assert (2, 1, 2) == keras_utils.normalize_tuple((2, 1, 2), n=3, name="strides")
+  assert (2, 2, 2) == keras_utils.normalize_tuple(2, n=3, name="strides")
+  assert (2, 1, 2) == keras_utils.normalize_tuple((2, 1, 2),
+                                                  n=3,
+                                                  name="strides")
 
-    with pytest.raises(ValueError):
-        keras_utils.normalize_tuple((2, 1), n=3, name="strides")
+  with pytest.raises(ValueError):
+    keras_utils.normalize_tuple((2, 1), n=3, name="strides")
 
-    with pytest.raises(TypeError):
-        keras_utils.normalize_tuple(None, n=3, name="strides")
+  with pytest.raises(TypeError):
+    keras_utils.normalize_tuple(None, n=3, name="strides")
 
 
 def test_standard_cell():
-    keras_utils.assert_like_rnncell("cell", tf.keras.layers.LSTMCell(10))
+  keras_utils.assert_like_rnncell("cell", tf.keras.layers.LSTMCell(10))
 
 
 def test_non_cell():
-    with pytest.raises(TypeError):
-        keras_utils.assert_like_rnncell("cell", tf.keras.layers.Dense(10))
+  with pytest.raises(TypeError):
+    keras_utils.assert_like_rnncell("cell", tf.keras.layers.Dense(10))
 
 
 def test_custom_cell():
-    class CustomCell(tf.keras.layers.AbstractRNNCell):
-        @property
-        def output_size(self):
-            raise ValueError("assert_like_rnncell should not run code")
 
-    keras_utils.assert_like_rnncell("cell", CustomCell())
+  class CustomCell(tf.keras.layers.AbstractRNNCell):
+
+    @property
+    def output_size(self):
+      raise ValueError("assert_like_rnncell should not run code")
+
+  keras_utils.assert_like_rnncell("cell", CustomCell())
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__]))
+  sys.exit(pytest.main([__file__]))

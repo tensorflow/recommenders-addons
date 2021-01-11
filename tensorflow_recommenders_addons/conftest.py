@@ -5,18 +5,10 @@ import tensorflow as tf
 import tensorflow_recommenders_addons as tfra
 
 from tensorflow_recommenders_addons.utils.test_utils import (  # noqa: F401
-    maybe_run_functions_eagerly,
-    only_run_functions_eagerly,
-    run_custom_and_py_ops,
-    run_with_mixed_precision_policy,
-    pytest_make_parametrize_id,
-    data_format,
-    set_seeds,
-    pytest_addoption,
-    set_global_variables,
-    pytest_configure,
-    device,
-    pytest_generate_tests,
+    maybe_run_functions_eagerly, only_run_functions_eagerly,
+    run_custom_and_py_ops, run_with_mixed_precision_policy,
+    pytest_make_parametrize_id, data_format, set_seeds, pytest_addoption,
+    set_global_variables, pytest_configure, device, pytest_generate_tests,
     pytest_collection_modifyitems,
 )
 
@@ -27,6 +19,6 @@ from tensorflow_recommenders_addons.utils.test_utils import (  # noqa: F401
 
 @pytest.fixture(autouse=True)
 def add_doctest_namespace(doctest_namespace):
-    doctest_namespace["np"] = np
-    doctest_namespace["tf"] = tf
-    doctest_namespace["tfra"] = tfra
+  doctest_namespace["np"] = np
+  doctest_namespace["tf"] = tf
+  doctest_namespace["tfra"] = tfra

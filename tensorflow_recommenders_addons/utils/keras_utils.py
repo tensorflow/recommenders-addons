@@ -18,16 +18,18 @@ import tensorflow as tf
 
 
 def is_tensor_or_variable(x):
-    return tf.is_tensor(x) or isinstance(x, tf.Variable)
+  return tf.is_tensor(x) or isinstance(x, tf.Variable)
 
 
 class LossFunctionWrapper(tf.keras.losses.Loss):
-    """Wraps a loss function in the `Loss` class."""
+  """Wraps a loss function in the `Loss` class."""
 
-    def __init__(
-        self, fn, reduction=tf.keras.losses.Reduction.AUTO, name=None, **kwargs
-    ):
-        """Initializes `LossFunctionWrapper` class.
+  def __init__(self,
+               fn,
+               reduction=tf.keras.losses.Reduction.AUTO,
+               name=None,
+               **kwargs):
+    """Initializes `LossFunctionWrapper` class.
 
         Args:
           fn: The loss function to wrap, with signature `fn(y_true, y_pred,
@@ -44,12 +46,12 @@ class LossFunctionWrapper(tf.keras.losses.Loss):
           name: (Optional) name for the loss.
           **kwargs: The keyword arguments that are passed on to `fn`.
         """
-        super().__init__(reduction=reduction, name=name)
-        self.fn = fn
-        self._fn_kwargs = kwargs
+    super().__init__(reduction=reduction, name=name)
+    self.fn = fn
+    self._fn_kwargs = kwargs
 
-    def call(self, y_true, y_pred):
-        """Invokes the `LossFunctionWrapper` instance.
+  def call(self, y_true, y_pred):
+    """Invokes the `LossFunctionWrapper` instance.
 
         Args:
           y_true: Ground truth values.
@@ -58,30 +60,29 @@ class LossFunctionWrapper(tf.keras.losses.Loss):
         Returns:
           Loss values per sample.
         """
-        return self.fn(y_true, y_pred, **self._fn_kwargs)
+    return self.fn(y_true, y_pred, **self._fn_kwargs)
 
-    def get_config(self):
-        config = {}
-        for k, v in iter(self._fn_kwargs.items()):
-            config[k] = tf.keras.backend.eval(v) if is_tensor_or_variable(v) else v
-        base_config = super().get_config()
-        return {**base_config, **config}
+  def get_config(self):
+    config = {}
+    for k, v in iter(self._fn_kwargs.items()):
+      config[k] = tf.keras.backend.eval(v) if is_tensor_or_variable(v) else v
+    base_config = super().get_config()
+    return {**base_config, **config}
 
 
 def normalize_data_format(value):
-    if value is None:
-        value = tf.keras.backend.image_data_format()
-    data_format = value.lower()
-    if data_format not in {"channels_first", "channels_last"}:
-        raise ValueError(
-            "The `data_format` argument must be one of "
-            '"channels_first", "channels_last". Received: ' + str(value)
-        )
-    return data_format
+  if value is None:
+    value = tf.keras.backend.image_data_format()
+  data_format = value.lower()
+  if data_format not in {"channels_first", "channels_last"}:
+    raise ValueError("The `data_format` argument must be one of "
+                     '"channels_first", "channels_last". Received: ' +
+                     str(value))
+  return data_format
 
 
 def normalize_tuple(value, n, name):
-    """Transforms an integer or iterable of integers into an integer tuple.
+  """Transforms an integer or iterable of integers into an integer tuple.
 
     A copy of tensorflow.python.keras.util.
 
@@ -99,65 +100,43 @@ def normalize_tuple(value, n, name):
       ValueError: If something else than an int/long or iterable thereof was
         passed.
     """
-    if isinstance(value, int):
-        return (value,) * n
-    else:
-        try:
-            value_tuple = tuple(value)
-        except TypeError:
-            raise TypeError(
-                "The `"
-                + name
-                + "` argument must be a tuple of "
-                + str(n)
-                + " integers. Received: "
-                + str(value)
-            )
-        if len(value_tuple) != n:
-            raise ValueError(
-                "The `"
-                + name
-                + "` argument must be a tuple of "
-                + str(n)
-                + " integers. Received: "
-                + str(value)
-            )
-        for single_value in value_tuple:
-            try:
-                int(single_value)
-            except (ValueError, TypeError):
-                raise ValueError(
-                    "The `"
-                    + name
-                    + "` argument must be a tuple of "
-                    + str(n)
-                    + " integers. Received: "
-                    + str(value)
-                    + " "
-                    "including element "
-                    + str(single_value)
-                    + " of type"
-                    + " "
-                    + str(type(single_value))
-                )
-        return value_tuple
+  if isinstance(value, int):
+    return (value,) * n
+  else:
+    try:
+      value_tuple = tuple(value)
+    except TypeError:
+      raise TypeError("The `" + name + "` argument must be a tuple of " +
+                      str(n) + " integers. Received: " + str(value))
+    if len(value_tuple) != n:
+      raise ValueError("The `" + name + "` argument must be a tuple of " +
+                       str(n) + " integers. Received: " + str(value))
+    for single_value in value_tuple:
+      try:
+        int(single_value)
+      except (ValueError, TypeError):
+        raise ValueError("The `" + name + "` argument must be a tuple of " +
+                         str(n) + " integers. Received: " + str(value) + " "
+                         "including element " + str(single_value) + " of type" +
+                         " " + str(type(single_value)))
+    return value_tuple
 
 
 def _hasattr(obj, attr_name):
-    # If possible, avoid retrieving the attribute as the object might run some
-    # lazy computation in it.
-    if attr_name in dir(obj):
-        return True
-    try:
-        getattr(obj, attr_name)
-    except AttributeError:
-        return False
-    else:
-        return True
+  # If possible, avoid retrieving the attribute as the object might run some
+  # lazy computation in it.
+  if attr_name in dir(obj):
+    return True
+  try:
+    getattr(obj, attr_name)
+  except AttributeError:
+    return False
+  else:
+    return True
 
 
 def assert_like_rnncell(cell_name, cell):
-    """Raises a TypeError if cell is not like a
+  """Raises a TypeError if cell is not like a
     tf.keras.layers.AbstractRNNCell.
 
     Args:
@@ -169,24 +148,21 @@ def assert_like_rnncell(cell_name, cell):
     Raises:
       TypeError: A human-friendly exception.
     """
-    conditions = [
-        _hasattr(cell, "output_size"),
-        _hasattr(cell, "state_size"),
-        _hasattr(cell, "get_initial_state"),
-        callable(cell),
-    ]
+  conditions = [
+      _hasattr(cell, "output_size"),
+      _hasattr(cell, "state_size"),
+      _hasattr(cell, "get_initial_state"),
+      callable(cell),
+  ]
 
-    errors = [
-        "'output_size' property is missing",
-        "'state_size' property is missing",
-        "'get_initial_state' method is required",
-        "is not callable",
-    ]
+  errors = [
+      "'output_size' property is missing",
+      "'state_size' property is missing",
+      "'get_initial_state' method is required",
+      "is not callable",
+  ]
 
-    if not all(conditions):
-        errors = [error for error, cond in zip(errors, conditions) if not cond]
-        raise TypeError(
-            "The argument {!r} ({}) is not an RNNCell: {}.".format(
-                cell_name, cell, ", ".join(errors)
-            )
-        )
+  if not all(conditions):
+    errors = [error for error, cond in zip(errors, conditions) if not cond]
+    raise TypeError("The argument {!r} ({}) is not an RNNCell: {}.".format(
+        cell_name, cell, ", ".join(errors)))

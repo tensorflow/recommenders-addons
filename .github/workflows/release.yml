@@ -1,4 +1,4 @@
-name: addons-release
+name: recommenders-addons-release
 
 on:
   release:

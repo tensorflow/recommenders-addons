@@ -38,43 +38,44 @@ DOCLINES = __doc__.split("\n")
 
 
 def get_last_commit_time() -> str:
-    string_time = os.getenv("NIGHTLY_TIME").replace('"', "")
-    return datetime.strptime(string_time, "%Y-%m-%dT%H:%M:%SZ").strftime("%Y%m%d%H%M%S")
+  string_time = os.getenv("NIGHTLY_TIME").replace('"', "")
+  return datetime.strptime(string_time,
+                           "%Y-%m-%dT%H:%M:%SZ").strftime("%Y%m%d%H%M%S")
 
 
 def get_project_name_version():
-    # Version
-    version = {}
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    with open(
-        os.path.join(base_dir, "tensorflow_recommenders_addons", "version.py")
-    ) as fp:
-        exec(fp.read(), version)
+  # Version
+  version = {}
+  base_dir = os.path.dirname(os.path.abspath(__file__))
+  with open(
+      os.path.join(base_dir, "tensorflow_recommenders_addons",
+                   "version.py")) as fp:
+    exec(fp.read(), version)
 
-    project_name = "tensorflow-recommenders-addons"
-    if "--nightly" in sys.argv:
-        project_name = "tfra-nightly"
-        version["__version__"] += get_last_commit_time()
-        sys.argv.remove("--nightly")
+  project_name = "tensorflow-recommenders-addons"
+  if "--nightly" in sys.argv:
+    project_name = "tfra-nightly"
+    version["__version__"] += get_last_commit_time()
+    sys.argv.remove("--nightly")
 
-    return project_name, version
+  return project_name, version
 
 
 def get_ext_modules():
-    ext_modules = []
-    if "--platlib-patch" in sys.argv:
-        if sys.platform.startswith("linux"):
-            # Manylinux2010 requires a patch for platlib
-            ext_modules = [Extension("_foo", ["stub.cc"])]
-        sys.argv.remove("--platlib-patch")
-    return ext_modules
+  ext_modules = []
+  if "--platlib-patch" in sys.argv:
+    if sys.platform.startswith("linux"):
+      # Manylinux2010 requires a patch for platlib
+      ext_modules = [Extension("_foo", ["stub.cc"])]
+    sys.argv.remove("--platlib-patch")
+  return ext_modules
 
 
 class BinaryDistribution(Distribution):
-    """This class is needed in order to create OS specific wheels."""
+  """This class is needed in order to create OS specific wheels."""
 
-    def has_ext_modules(self):
-        return True
+  def has_ext_modules(self):
+    return True
 
 
 project_name, version = get_project_name_version()
@@ -91,7 +92,9 @@ setup(
     ext_modules=get_ext_modules(),
     install_requires=Path("requirements.txt").read_text().splitlines(),
     extras_require={
-        "tensorflow": ["tensorflow>={},<{}".format(min_tf_version, max_tf_version)],
+        "tensorflow": [
+            "tensorflow>={},<{}".format(min_tf_version, max_tf_version)
+        ],
         "tensorflow-gpu": [
             "tensorflow-gpu>={},<{}".format(min_tf_version, max_tf_version)
         ],
