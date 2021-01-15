@@ -31,11 +31,7 @@ limitations under the License.
 
 namespace tensorflow {
 namespace cuckoohash {
-
-using tensorflow::lookup::LookupInterface;
-using tensorflow::lookup::SubtleMustCopyIfIntegral;
 namespace lookup {
-
 typedef Eigen::ThreadPoolDevice CPUDevice;
 
 template <typename Device, class K, class V, class J>
@@ -172,7 +168,7 @@ class CuckooHashTableOfTensors final : public LookupInterface {
 
     // mutex_lock l(mu_);
     for (int64 i = 0; i < key_flat.size(); ++i) {
-      table_->erase(SubtleMustCopyIfIntegral(key_flat(i)));
+      table_->erase(tensorflow::lookup::SubtleMustCopyIfIntegral(key_flat(i)));
     }
     return Status::OK();
   }
@@ -255,8 +251,7 @@ class HashTableOpKernel : public OpKernel {
     if (expected_input_0_ == DT_RESOURCE) {
       return this->GetResourceHashTable("table_handle", ctx, table);
     } else {
-      return tensorflow::lookup::GetReferenceLookupTable("table_handle", ctx,
-                                                         table);
+      return GetReferenceLookupTable("table_handle", ctx, table);
     }
   }
 

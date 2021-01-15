@@ -64,7 +64,7 @@ the repo.*
 
 ## Installation
 #### Stable Builds
-TensorFlow Recommenders-Addons is available on PyPI for Linux, macOS, and Windows. To install the latest version, 
+TensorFlow Recommenders-Addons is available on PyPI for Linux, macOS. To install the latest version, 
 run the following:
 ```
 pip install tensorflow-recommenders-addons
@@ -97,8 +97,8 @@ does not match what it was tested against.
 #### Python Op Compatibility Matrix
 | TensorFlow Recommenders-Addons | TensorFlow | Python  |
 |:----------------------- |:---|:---------- |
-| tfra-nightly | 2.2 | 3.6, 3.7, 3.8 | 
-| tensorflow-recommenders-addons-0.1.0 | 2.2 |3.6, 3.7, 3.8 |
+| tfra-nightly | 2.3 | 3.6, 3.7, 3.8 | 
+| tensorflow-recommenders-addons-0.1.0 | 2.3 |3.6, 3.7, 3.8 |
 
 ### C++ Custom Op Compatibility
 TensorFlow C++ APIs are not stable and thus we can only guarantee compatibility with the 
@@ -118,8 +118,8 @@ is compiled differently. A typical example of this would be `conda`-installed Te
 #### C++ Custom Op Compatibility Matrix
 | TensorFlow Recommenders-Addons | TensorFlow | Compiler  | cuDNN | CUDA | 
 |:----------------------- |:---- |:---------|:---------|:---------|
-| tfra-nightly | 2.2 | GCC 7.3.1 | 7.6 | 10.1 |
-| tensorflow-recommenders-addons-0.1.0 | 2.2  | GCC 7.3.1 | 7.6 | 10.1 |
+| tfra-nightly | 2.3 | GCC 7.3.1 | 7.6 | 10.1 |
+| tensorflow-recommenders-addons-0.1.0 | 2.3  | GCC 7.3.1 | 7.6 | 10.1 |
 
 
 #### Nightly Builds

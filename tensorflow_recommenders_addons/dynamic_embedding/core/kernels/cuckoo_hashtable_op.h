@@ -32,6 +32,9 @@ limitations under the License.
 namespace tensorflow {
 namespace cuckoohash {
 
+using tensorflow::lookup::CheckTableDataTypes;
+using tensorflow::lookup::LookupInterface;
+
 template <class Container, class key_dtype, class value_dtype>
 class HashTableOp : public OpKernel {
  public:
@@ -59,29 +62,28 @@ class HashTableOp : public OpKernel {
     }
 
     auto creator =
-        [ctx, this](lookup::LookupInterface** ret)
-            TF_EXCLUSIVE_LOCKS_REQUIRED(mu_) {
-              lookup::LookupInterface* container = new Container(ctx, this);
-              if (!ctx->status().ok()) {
-                container->Unref();
-                return ctx->status();
-              }
-              if (ctx->track_allocations()) {
-                ctx->record_persistent_memory_allocation(
-                    container->MemoryUsed() + table_handle_.AllocatedBytes());
-              }
-              *ret = container;
-              return Status::OK();
-            };
+        [ctx, this](LookupInterface** ret) TF_EXCLUSIVE_LOCKS_REQUIRED(mu_) {
+          LookupInterface* container = new Container(ctx, this);
+          if (!ctx->status().ok()) {
+            container->Unref();
+            return ctx->status();
+          }
+          if (ctx->track_allocations()) {
+            ctx->record_persistent_memory_allocation(
+                container->MemoryUsed() + table_handle_.AllocatedBytes());
+          }
+          *ret = container;
+          return Status::OK();
+        };
 
-    lookup::LookupInterface* table = nullptr;
-    OP_REQUIRES_OK(ctx,
-                   cinfo_.resource_manager()
-                       ->template LookupOrCreate<lookup::LookupInterface>(
-                           cinfo_.container(), cinfo_.name(), &table, creator));
+    LookupInterface* table = nullptr;
+    OP_REQUIRES_OK(
+        ctx,
+        cinfo_.resource_manager()->template LookupOrCreate<LookupInterface>(
+            cinfo_.container(), cinfo_.name(), &table, creator));
     core::ScopedUnref unref_me(table);
 
-    OP_REQUIRES_OK(ctx, lookup::CheckTableDataTypes(
+    OP_REQUIRES_OK(ctx, CheckTableDataTypes(
                             *table, DataTypeToEnum<key_dtype>::v(),
                             DataTypeToEnum<value_dtype>::v(), cinfo_.name()));
 
@@ -89,8 +91,8 @@ class HashTableOp : public OpKernel {
       if (!table_handle_set_) {
         auto h =
             table_handle_.AccessTensor(ctx)->template scalar<ResourceHandle>();
-        h() = MakeResourceHandle<lookup::LookupInterface>(
-            ctx, cinfo_.container(), cinfo_.name());
+        h() = MakeResourceHandle<LookupInterface>(ctx, cinfo_.container(),
+                                                  cinfo_.name());
       }
       ctx->set_output(0, *table_handle_.AccessTensor(ctx));
     } else {
@@ -107,8 +109,8 @@ class HashTableOp : public OpKernel {
   ~HashTableOp() override {
     if (table_handle_set_ && cinfo_.resource_is_private_to_kernel()) {
       if (!cinfo_.resource_manager()
-               ->template Delete<lookup::LookupInterface>(cinfo_.container(),
-                                                          cinfo_.name())
+               ->template Delete<LookupInterface>(cinfo_.container(),
+                                                  cinfo_.name())
                .ok()) {
       }
     }
