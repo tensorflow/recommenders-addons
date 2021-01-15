@@ -43,6 +43,14 @@ def is_windows():
   return platform.system() == "Windows"
 
 
+def is_linux():
+  return platform.system() == "Linux"
+
+
+def is_raspi_arm():
+  return os.uname()[4] == "armv7l"
+
+
 def get_tf_header_dir():
   import tensorflow as tf
 
@@ -59,6 +67,8 @@ def get_tf_shared_lib_dir():
   if is_windows():
     tf_shared_lib_dir = tf.sysconfig.get_compile_flags()[0][2:-7] + "python"
     return tf_shared_lib_dir.replace("\\", "/")
+  elif is_raspi_arm():
+    return tf.sysconfig.get_compile_flags()[0][2:-7] + "python"
   else:
     return tf.sysconfig.get_link_flags()[0][2:]
 
@@ -74,6 +84,9 @@ def get_shared_lib_name():
   elif is_windows():
     # Windows
     return "_pywrap_tensorflow_internal.lib"
+  elif is_raspi_arm():
+    # The below command for linux would return an empty list
+    return "_pywrap_tensorflow_internal.so"
   else:
     # Linux
     return namespec[1][3:]
@@ -96,6 +109,15 @@ def create_build_configuration():
   write("build --spawn_strategy=standalone")
   write("build --strategy=Genrule=standalone")
   write("build -c opt")
+
+  if is_windows():
+    write("build --config=windows")
+    write("build:windows --enable_runfiles")
+    write("build:windows --copt=/experimental:preprocessor")
+    write("build:windows --host_copt=/experimental:preprocessor")
+    write("build:windows --copt=/arch=AVX2")
+    # write("build:windows --cxxopt=/std:c++14")
+    # write("build:windows --host_cxxopt=/std:c++14")
 
   if os.getenv("TF_NEED_CUDA", "0") == "1":
     print("> Building GPU & CPU ops")

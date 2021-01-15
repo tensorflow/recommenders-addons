@@ -290,7 +290,7 @@ class VariableTest(test.TestCase):
     id = 0
     for initializer, target_mean, target_stddev in [
         (-1.0, -1.0, 0.0),
-        (init_ops.random_normal_initializer(0.0, 0.01), 0.0, 0.01),
+        (init_ops.random_normal_initializer(0.0, 0.01, seed=2), 0.0, 0.01),
     ]:
       with self.session(config=default_config,
                         use_gpu=test_util.is_gpu_available()):
