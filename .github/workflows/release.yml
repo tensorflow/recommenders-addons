@@ -1,4 +1,4 @@
-name: recommenders-addons-release
+name: tfra-release
 
 on:
   release:
@@ -41,7 +41,7 @@ jobs:
         # TODO: add back 'windows-latest' when it can be compiled.
         os: ['macos-latest', 'ubuntu-18.04']
         py-version: ['3.6', '3.7', '3.8']
-        tf-version: ['2.2.0']
+        tf-version: ['2.3.0']
       fail-fast: false
     steps:
       - uses: actions/github-script@0.3.0
@@ -79,7 +79,8 @@ jobs:
     runs-on: ubuntu-18.04
     strategy:
       matrix:
-        os: ['macOS', 'Windows', 'Linux']
+        # TODO: add back 'Windows' when it can be compiled.
+        os: ['macOS', 'Linux']
         py-version: ['3.6', '3.7', '3.8']
         tf-version: ['2.3.0']
       fail-fast: false

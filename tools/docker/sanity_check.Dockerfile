@@ -1,12 +1,12 @@
 #syntax=docker/dockerfile:1.1.5-experimental
 # -------------------------------
-FROM python:3.6-alpine as yapf-test
+FROM python:3.6 as yapf-test
 
 COPY tools/install_deps/yapf.txt ./
 RUN pip install -r yapf.txt
 COPY ./ /recommenders-addons
 WORKDIR /recommenders-addons
-RUN yapf --style=./.style.yapf -dr ./**/*.py
+RUN python tools/check_python_format.py
 RUN touch /ok.txt
 
 # -------------------------------
