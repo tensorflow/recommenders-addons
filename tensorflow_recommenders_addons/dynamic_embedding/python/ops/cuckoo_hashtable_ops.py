@@ -116,7 +116,7 @@ class CuckooHashTable(LookupInterface):
     # explicitly specified.
     use_node_name_sharing = self._checkpoint and self._shared_name is None
 
-    table_ref = cuckoo_hashtable_ops.cuckoo_hash_table_of_tensors(
+    table_ref = cuckoo_hashtable_ops.tfra_cuckoo_hash_table_of_tensors(
         shared_name=self._shared_name,
         use_node_name_sharing=use_node_name_sharing,
         key_dtype=self._key_dtype,
@@ -146,7 +146,8 @@ class CuckooHashTable(LookupInterface):
         """
     with ops.name_scope(name, "%s_Size" % self.name, [self.resource_handle]):
       with ops.colocate_with(self.resource_handle):
-        return cuckoo_hashtable_ops.cuckoo_hash_table_size(self.resource_handle)
+        return cuckoo_hashtable_ops.tfra_cuckoo_hash_table_size(
+            self.resource_handle)
 
   def remove(self, keys, name=None):
     """Removes `keys` and its associated values from the table.
@@ -173,7 +174,7 @@ class CuckooHashTable(LookupInterface):
         "%s_lookup_table_remove" % self.name,
         (self.resource_handle, keys, self._default_value),
     ):
-      op = cuckoo_hashtable_ops.cuckoo_hash_table_remove(
+      op = cuckoo_hashtable_ops.tfra_cuckoo_hash_table_remove(
           self.resource_handle, keys)
 
     return op
@@ -205,7 +206,7 @@ class CuckooHashTable(LookupInterface):
     ):
       keys = ops.convert_to_tensor(keys, dtype=self._key_dtype, name="keys")
       with ops.colocate_with(self.resource_handle):
-        values = cuckoo_hashtable_ops.cuckoo_hash_table_find(
+        values = cuckoo_hashtable_ops.tfra_cuckoo_hash_table_find(
             self.resource_handle,
             keys,
             dynamic_default_values
@@ -239,7 +240,7 @@ class CuckooHashTable(LookupInterface):
       values = ops.convert_to_tensor(values, self._value_dtype, name="values")
       with ops.colocate_with(self.resource_handle):
         # pylint: disable=protected-access
-        op = cuckoo_hashtable_ops.cuckoo_hash_table_insert(
+        op = cuckoo_hashtable_ops.tfra_cuckoo_hash_table_insert(
             self.resource_handle, keys, values)
     return op
 
@@ -259,7 +260,7 @@ class CuckooHashTable(LookupInterface):
         (
             exported_keys,
             exported_values,
-        ) = cuckoo_hashtable_ops.cuckoo_hash_table_export(
+        ) = cuckoo_hashtable_ops.tfra_cuckoo_hash_table_export(
             self.resource_handle, self._key_dtype, self._value_dtype)
     return exported_keys, exported_values
 
@@ -298,11 +299,11 @@ class CuckooHashTable(LookupInterface):
       # pylint: disable=protected-access
       with ops.name_scope(name, "%s_table_restore" % self.name):
         with ops.colocate_with(self.op.resource_handle):
-          return cuckoo_hashtable_ops.cuckoo_hash_table_import(
+          return cuckoo_hashtable_ops.tfra_cuckoo_hash_table_import(
               self.op.resource_handle,
               restored_tensors[0],
               restored_tensors[1],
           )
 
 
-ops.NotDifferentiable("CuckooHashTableOfTensors")
+ops.NotDifferentiable("TFRA>CuckooHashTableOfTensors")
