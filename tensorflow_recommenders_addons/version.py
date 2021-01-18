@@ -15,7 +15,7 @@
 """Define TensorFlow Recommenders Addons version information."""
 
 # Required TensorFlow version [min, max)
-MIN_TF_VERSION = "2.3.0"
+MIN_TF_VERSION = "2.4.0"
 MAX_TF_VERSION = "2.4.0"
 
 # We follow Semantic Versioning (https://semver.org/)

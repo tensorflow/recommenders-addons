@@ -9,7 +9,7 @@ from tensorflow_recommenders_addons.utils.resource_loader import get_project_roo
 
 def register_all(keras_objects: bool = True,
                  custom_kernels: bool = True) -> None:
-  """Register TensorFlow Addons' objects in TensorFlow global dictionaries.
+  """Register TensorFlow Recommenders Addons' objects in TensorFlow global dictionaries.
 
     When loading a Keras model that has a TF Recommenders-Addons' function,
     it is needed for this function to be known by the Keras deserialization
