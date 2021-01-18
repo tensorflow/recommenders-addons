@@ -285,7 +285,7 @@ class HashTableFindOp : public HashTableOpKernel {
   }
 };
 
-REGISTER_KERNEL_BUILDER(Name("CuckooHashTableFind").Device(DEVICE_CPU),
+REGISTER_KERNEL_BUILDER(Name("TFRA>CuckooHashTableFind").Device(DEVICE_CPU),
                         HashTableFindOp);
 
 // Table insert op.
@@ -318,7 +318,7 @@ class HashTableInsertOp : public HashTableOpKernel {
   }
 };
 
-REGISTER_KERNEL_BUILDER(Name("CuckooHashTableInsert").Device(DEVICE_CPU),
+REGISTER_KERNEL_BUILDER(Name("TFRA>CuckooHashTableInsert").Device(DEVICE_CPU),
                         HashTableInsertOp);
 
 // Table remove op.
@@ -349,7 +349,7 @@ class HashTableRemoveOp : public HashTableOpKernel {
   }
 };
 
-REGISTER_KERNEL_BUILDER(Name("CuckooHashTableRemove").Device(DEVICE_CPU),
+REGISTER_KERNEL_BUILDER(Name("TFRA>CuckooHashTableRemove").Device(DEVICE_CPU),
                         HashTableRemoveOp);
 
 // Op that returns the size of the given table.
@@ -368,7 +368,7 @@ class HashTableSizeOp : public HashTableOpKernel {
   }
 };
 
-REGISTER_KERNEL_BUILDER(Name("CuckooHashTableSize").Device(DEVICE_CPU),
+REGISTER_KERNEL_BUILDER(Name("TFRA>CuckooHashTableSize").Device(DEVICE_CPU),
                         HashTableSizeOp);
 
 // Op that outputs tensors of all keys and all values.
@@ -385,7 +385,7 @@ class HashTableExportOp : public HashTableOpKernel {
   }
 };
 
-REGISTER_KERNEL_BUILDER(Name("CuckooHashTableExport").Device(DEVICE_CPU),
+REGISTER_KERNEL_BUILDER(Name("TFRA>CuckooHashTableExport").Device(DEVICE_CPU),
                         HashTableExportOp);
 
 // Clear the table and insert data.
@@ -418,13 +418,13 @@ class HashTableImportOp : public HashTableOpKernel {
   }
 };
 
-REGISTER_KERNEL_BUILDER(Name("CuckooHashTableImport").Device(DEVICE_CPU),
+REGISTER_KERNEL_BUILDER(Name("TFRA>CuckooHashTableImport").Device(DEVICE_CPU),
                         HashTableImportOp);
 
 // Register the CuckooMutableHashTableOfTensors op.
 #define REGISTER_KERNEL(key_dtype, value_dtype)                             \
   REGISTER_KERNEL_BUILDER(                                                  \
-      Name("CuckooHashTableOfTensors")                                      \
+      Name("TFRA>CuckooHashTableOfTensors")                                 \
           .Device(DEVICE_CPU)                                               \
           .TypeConstraint<key_dtype>("key_dtype")                           \
           .TypeConstraint<value_dtype>("value_dtype"),                      \
