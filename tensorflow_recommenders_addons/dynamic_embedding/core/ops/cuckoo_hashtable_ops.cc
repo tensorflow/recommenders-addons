@@ -14,7 +14,7 @@ limitations under the License.
 ==============================================================================*/
 
 #include "tensorflow/core/framework/common_shape_fns.h"
-#include "tensorflow/core/framework/dataset_stateful_op_whitelist.h"
+#include "tensorflow/core/framework/dataset_stateful_op_allowlist.h"
 #include "tensorflow/core/framework/op.h"
 #include "tensorflow/core/framework/op_def_builder.h"
 #include "tensorflow/core/framework/shape_inference.h"
@@ -134,7 +134,7 @@ REGISTER_OP("CuckooHashTableFind")
 
       return Status::OK();
     });
-WHITELIST_STATEFUL_OP_FOR_DATASET_FUNCTIONS("CuckooHashTableFind");
+ALLOW_STATEFUL_OP_FOR_DATASET_FUNCTIONS("CuckooHashTableFind");
 // TODO(b/72710477): Update this.
 
 REGISTER_OP("CuckooHashTableInsert")
@@ -168,7 +168,7 @@ REGISTER_OP("CuckooHashTableSize")
     .Input("table_handle: resource")
     .Output("size: int64")
     .SetShapeFn(ScalarAndTwoElementVectorInputsAndScalarOutputs);
-WHITELIST_STATEFUL_OP_FOR_DATASET_FUNCTIONS("CuckooHashTableSize");
+ALLOW_STATEFUL_OP_FOR_DATASET_FUNCTIONS("CuckooHashTableSize");
 
 REGISTER_OP("CuckooHashTableExport")
     .Input("table_handle: resource")

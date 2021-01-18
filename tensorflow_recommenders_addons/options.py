@@ -4,7 +4,8 @@ import warnings
 import traceback
 
 try:
-  TF_ADDONS_PY_OPS = bool(int(os.environ["TF_RECOMMENDERS_ADDONS_PY_OPS"]))
+  TF_RECOMMENDERS_ADDONS_PY_OPS = bool(
+      int(os.environ["TF_RECOMMENDERS_ADDONS_PY_OPS"]))
 except KeyError:
   if platform.system() == "Linux":
     TF_RECOMMENDERS_ADDONS_PY_OPS = False
