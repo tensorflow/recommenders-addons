@@ -112,7 +112,7 @@ Status ValidateTableResourceHandle(InferenceContext* c, ShapeHandle keys,
   return Status::OK();
 }
 
-REGISTER_OP("CuckooHashTableFind")
+REGISTER_OP("TFRA>CuckooHashTableFind")
     .Input("table_handle: resource")
     .Input("keys: Tin")
     .Input("default_value: Tout")
@@ -134,10 +134,10 @@ REGISTER_OP("CuckooHashTableFind")
 
       return Status::OK();
     });
-ALLOW_STATEFUL_OP_FOR_DATASET_FUNCTIONS("CuckooHashTableFind");
+ALLOW_STATEFUL_OP_FOR_DATASET_FUNCTIONS("TFRA>CuckooHashTableFind");
 // TODO(b/72710477): Update this.
 
-REGISTER_OP("CuckooHashTableInsert")
+REGISTER_OP("TFRA>CuckooHashTableInsert")
     .Input("table_handle: resource")
     .Input("keys: Tin")
     .Input("values: Tout")
@@ -151,7 +151,7 @@ REGISTER_OP("CuckooHashTableInsert")
       return Status::OK();
     });
 
-REGISTER_OP("CuckooHashTableRemove")
+REGISTER_OP("TFRA>CuckooHashTableRemove")
     .Input("table_handle: resource")
     .Input("keys: Tin")
     .Attr("Tin: type")
@@ -164,13 +164,13 @@ REGISTER_OP("CuckooHashTableRemove")
       return Status::OK();
     });
 
-REGISTER_OP("CuckooHashTableSize")
+REGISTER_OP("TFRA>CuckooHashTableSize")
     .Input("table_handle: resource")
     .Output("size: int64")
     .SetShapeFn(ScalarAndTwoElementVectorInputsAndScalarOutputs);
 ALLOW_STATEFUL_OP_FOR_DATASET_FUNCTIONS("CuckooHashTableSize");
 
-REGISTER_OP("CuckooHashTableExport")
+REGISTER_OP("TFRA>CuckooHashTableExport")
     .Input("table_handle: resource")
     .Output("keys: Tkeys")
     .Output("values: Tvalues")
@@ -192,7 +192,7 @@ REGISTER_OP("CuckooHashTableExport")
       return Status::OK();
     });
 
-REGISTER_OP("CuckooHashTableImport")
+REGISTER_OP("TFRA>CuckooHashTableImport")
     .Input("table_handle: resource")
     .Input("keys: Tin")
     .Input("values: Tout")
@@ -227,7 +227,7 @@ Status CuckooHashTableShape(InferenceContext* c, const ShapeHandle& key,
   return Status::OK();
 }
 
-REGISTER_OP("CuckooHashTableOfTensors")
+REGISTER_OP("TFRA>CuckooHashTableOfTensors")
     .Output("table_handle: resource")
     .Attr("container: string = ''")
     .Attr("shared_name: string = ''")
