@@ -29,8 +29,7 @@ ARG PY_VERSION
 RUN ln -sf $(which python$PY_VERSION) /usr/bin/python
 
 RUN python -m pip install setuptools
-
-RUN python -m pip install --upgrade pip==19.0 auditwheel==2.0.0
+RUN python -m pip install --upgrade pip==19.0 auditwheel==3.3.1
 
 ARG TF_VERSION
 RUN python -m pip install --default-timeout=1000 tensorflow==$TF_VERSION
@@ -45,7 +44,7 @@ COPY ./ /recommenders-addons
 WORKDIR /recommenders-addons
 
 # -------------------------------------------------------------------
-FROM base_install as tfa_gpu_tests
+FROM base_install as tfra_gpu_tests
 CMD ["bash", "tools/testing/build_and_run_tests.sh"]
 
 # -------------------------------------------------------------------

@@ -7,7 +7,7 @@ TensorFlow Core and TensorFlow Recommenders etc.
 
 ## Maintainership
 
-We adopt proxy maintainership as in [TensorFlow addons](https://github.com/tensorflow/addons):
+We adopt proxy maintainership as in [TensorFlow recommenders-addons](https://github.com/tensorflow/recommenders-addons):
 
 *Projects and subpackages are compartmentalized and each is maintained by those
 with expertise and vested interest in that component.*
