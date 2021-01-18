@@ -208,7 +208,7 @@ class TrainableWrapper(resource_variable_ops.ResourceVariable):
           # When in eager mode use a uid for the shared_name, to prevent
           # accidental sharing.
           unique_id = "%s_%d" % (handle_name, ops.uid())
-          shared_name = context.shared_name()
+          shared_name = None
         # Use attr_scope and device(None) to simulate the behavior of
         # colocate_with when the variable we want to colocate with doesn't
         # yet exist.
