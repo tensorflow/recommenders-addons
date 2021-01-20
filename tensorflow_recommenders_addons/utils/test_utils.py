@@ -92,21 +92,21 @@ def only_run_functions_eagerly(request):
 
 @pytest.fixture(scope="function", params=["custom_ops", "py_ops"])
 def run_custom_and_py_ops(request):
-  previous_py_ops_value = options.TF_ADDONS_PY_OPS
+  previous_py_ops_value = options.TF_RECOMMENDERS_ADDONS_PY_OPS
   if request.param == "custom_ops":
-    options.TF_ADDONS_PY_OPS = False
+    options.TF_RECOMMENDERS_ADDONS_PY_OPS = False
   elif request.param == "py_ops":
-    options.TF_ADDONS_PY_OPS = True
+    options.TF_RECOMMENDERS_ADDONS_PY_OPS = True
 
   def _restore_py_ops_value():
-    options.TF_ADDONS_PY_OPS = previous_py_ops_value
+    options.TF_RECOMMENDERS_ADDONS_PY_OPS = previous_py_ops_value
 
   request.addfinalizer(_restore_py_ops_value)
 
 
 @pytest.fixture(scope="function", params=["float32", "mixed_float16"])
 def run_with_mixed_precision_policy(request):
-  if is_gpu_available() and LooseVersion(tf.__version__) <= "2.3.0":
+  if is_gpu_available() and LooseVersion(tf.__version__) <= "2.4.0":
     pytest.xfail("See https://github.com/tensorflow/tensorflow/issues/39775")
   tf.keras.mixed_precision.experimental.set_policy(request.param)
   yield

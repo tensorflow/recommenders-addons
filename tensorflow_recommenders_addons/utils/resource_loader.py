@@ -20,7 +20,7 @@ import warnings
 
 import tensorflow as tf
 
-MIN_TF_VERSION_FOR_ABI_COMPATIBILITY = "2.3.0"
+MIN_TF_VERSION_FOR_ABI_COMPATIBILITY = "2.4.0"
 MAX_TF_VERSION_FOR_ABI_COMPATIBILITY = "2.4.0"
 abi_warning_already_raised = False
 SKIP_CUSTOM_OPS = False
@@ -71,7 +71,7 @@ class LazySO:
     warnings.warn(
         "You are currently using TensorFlow {} and trying to load a custom op ({})."
         "\n"
-        "TensorFlow Addons has compiled its custom ops against TensorFlow {}, "
+        "TensorFlow Recommenders Addons has compiled its custom ops against TensorFlow {}, "
         "and there are no compatibility guarantees between the two versions. "
         "\n"
         "This means that you might get segfaults when loading the custom op, "
@@ -79,7 +79,7 @@ class LazySO:
         "on Github. This is a known limitation."
         "\n\n"
         "It might help you to fallback to pure Python "
-        "ops with TF_ADDONS_PY_OPS . To do that, see "
+        "ops with TF_RECOMMENDERS_ADDONS_PY_OPS . To do that, see "
         "https://github.com/tensorflow/recommenders-addons#gpucpu-custom-ops "
         "\n\n"
         "You can also change the TensorFlow version installed on your system. "
