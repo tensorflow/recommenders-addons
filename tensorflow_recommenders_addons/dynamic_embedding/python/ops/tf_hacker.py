@@ -32,7 +32,7 @@ from tensorflow.python.training import optimizer
 
 
 class _DenseDynamicEmbeddingTrainableProcessor(optimizer._OptimizableVariable):
-  """Processor for dense DynamiceEmbedding."""
+  """Processor for dense DynamicEmbedding."""
 
   def __init__(self, v):
     self._v = v
