@@ -162,7 +162,7 @@ def notify_codeowners(pull_request_id, no_dry_run, file):
     if pull_request_id == "auto":
       pull_request_id = get_pull_request_id_from_gh_actions()
     pull_request_id = int(pull_request_id)
-    pull_request = CLIENT.get_repo("rhdong/recommenders-addons").get_pull(
+    pull_request = CLIENT.get_repo("tensorflow/recommenders-addons").get_pull(
         pull_request_id)
     msg = craft_message(codeowners, pull_request)
     print(msg)
