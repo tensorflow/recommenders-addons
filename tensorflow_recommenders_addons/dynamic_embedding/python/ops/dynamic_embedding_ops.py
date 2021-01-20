@@ -491,8 +491,11 @@ def embedding_lookup(
       embeddings = array_ops.identity(trainable_)
       embeddings.set_shape(trainable_shape)
 
-    if trainable_ not in params.trainable_wrappers:
-      params.trainable_wrappers.append(trainable_)
+    for existed in params.trainable_wrappers:
+      if trainable_.name == existed.name:
+        break
+      else:
+        params.trainable_wrappers.append(trainable_)
 
   return (embeddings, trainable_) if return_trainable else embeddings
 
