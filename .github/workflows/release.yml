@@ -41,7 +41,10 @@ jobs:
         # TODO: add back 'windows-latest' when it can be compiled.
         os: ['macos-latest', 'ubuntu-18.04']
         py-version: ['3.6', '3.7', '3.8']
-        tf-version: ['2.4.0']
+        tf-version: ['1.15.5', '2.3.0', '2.4.0']
+        exclude:
+          - py-version: '3.8'
+            tf-version: '1.15.5'
       fail-fast: false
     steps:
       - uses: actions/github-script@0.3.0
@@ -83,7 +86,10 @@ jobs:
         # TODO: add back 'Windows' when it can be compiled.
         os: ['macOS', 'Linux']
         py-version: ['3.6', '3.7', '3.8']
-        tf-version: ['2.4.0']
+        tf-version: ['1.15.5', '2.3.0', '2.4.0']
+        exclude:
+          - py-version: '3.8'
+            tf-version: '1.15.5'
       fail-fast: false
     if: (github.event_name == 'push' && github.ref == 'refs/heads/master') || github.event_name == 'release'
     steps:
@@ -110,4 +116,4 @@ jobs:
           set -e -x
           echo ${{ secrets.DOCKER_PW }} | docker login --username ${{ secrets.DOCKER_USER }} --password-stdin
           bash .github/workflows/github_build_dev_container.sh
-          docker push tfaddons/dev_container:latest-cpu
+          docker push tfra/dev_container:latest-cpu
