@@ -32,6 +32,8 @@ from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embeddi
     get_variable,)
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_variable import (
     Variable,)
+from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_variable_restrictor import (
+    VariableRestrictor, RestrictPolicy, TimestampRestrictPolicy, FrequencyRestrictPolicy,)
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.tf_hacker import (
     hacking_tf,)
 

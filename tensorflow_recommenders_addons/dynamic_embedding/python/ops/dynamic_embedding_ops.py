@@ -27,6 +27,7 @@ from tensorflow_recommenders_addons import dynamic_embedding as de
 from tensorflow.core.framework import attr_value_pb2
 from tensorflow.python.eager import context
 from tensorflow.python.eager import tape
+from tensorflow.python.keras.optimizer_v2 import optimizer_v2
 from tensorflow.python.ops import clip_ops
 from tensorflow.python.framework import dtypes
 from tensorflow.python.framework import ops
@@ -492,10 +493,10 @@ def embedding_lookup(
       embeddings.set_shape(trainable_shape)
 
     for existed in params.trainable_wrappers:
-      if trainable_.name == existed.name:
+      if optimizer_v2._var_key(trainable_) == optimizer_v2._var_key(existed):
         break
-      else:
-        params.trainable_wrappers.append(trainable_)
+    else:
+      params.trainable_wrappers.append(trainable_)
 
   return (embeddings, trainable_) if return_trainable else embeddings
 

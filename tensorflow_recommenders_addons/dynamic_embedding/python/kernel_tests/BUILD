@@ -39,3 +39,13 @@ py_test(
         "//tensorflow_recommenders_addons",
     ],
 )
+
+py_test(
+    name = "dynamic_variable_restrictor_test",
+    srcs = ["dynamic_variable_restrictor_test.py"],
+    python_version = "PY3",
+    srcs_version = "PY3",
+    deps = [
+        "//tensorflow_recommenders_addons",
+    ],
+)
