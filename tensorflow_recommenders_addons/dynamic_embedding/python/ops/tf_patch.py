@@ -19,6 +19,7 @@ from __future__ import division
 from __future__ import print_function
 
 from tensorflow_recommenders_addons import dynamic_embedding as de
+from tensorflow_recommenders_addons import embedding_variable as ev
 
 from tensorflow.core.framework import node_def_pb2
 from tensorflow.python.eager import context
@@ -85,6 +86,8 @@ def _get_processor(v):
     return _DenseDynamicEmbeddingTrainableProcessor(v)
   if (rvo.is_resource_variable(v) and not v._in_graph_mode):  # pylint: disable=protected-access
     # True if and only if `v` was initialized eagerly.
+    return optimizer._DenseResourceVariableProcessor(v)
+  if isinstance(v, ev.EmbeddingVariable):
     return optimizer._DenseResourceVariableProcessor(v)
   if v.op.type == "VarHandleOp":
     return optimizer._DenseResourceVariableProcessor(v)
