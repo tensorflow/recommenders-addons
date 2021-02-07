@@ -34,7 +34,8 @@ namespace cuckoohash {
 namespace lookup {
 typedef Eigen::ThreadPoolDevice CPUDevice;
 
-template <typename Device, class K, class V, class J> struct LaunchTensorsFind;
+template <typename Device, class K, class V, class J>
+struct LaunchTensorsFind;
 
 template <class K, class V, class J>
 struct LaunchTensorsFind<CPUDevice, K, V, J> {
@@ -74,7 +75,7 @@ struct LaunchTensorsFind<CPUDevice, K, V, J> {
           shard);
   }
 
-private:
+ private:
   const int64 value_dim_;
 };
 
@@ -110,13 +111,13 @@ struct LaunchTensorsInsert<CPUDevice, K, V, J> {
           shard);
   }
 
-private:
+ private:
   const int64 value_dim_;
 };
 
 template <class K, class V>
 class CuckooHashTableOfTensors final : public LookupInterface {
-public:
+ public:
   CuckooHashTableOfTensors(OpKernelContext *ctx, OpKernel *kernel) {
     int64 env_var = 0;
     int64 init_size = 0;
@@ -130,7 +131,7 @@ public:
     init_size_ = static_cast<size_t>(init_size);
     if (init_size_ == 0) {
       Status status = ReadInt64FromEnvVar("TF_HASHTABLE_INIT_SIZE",
-                                          1024 * 8, // 8192 KV pairs by default
+                                          1024 * 8,  // 8192 KV pairs by default
                                           &env_var);
       if (!status.ok()) {
         LOG(ERROR) << "Error parsing TF_HASHTABLE_INIT_SIZE: " << status;
@@ -153,10 +154,9 @@ public:
     if (strings::safe_strto64(tf_env_var_val, value)) {
       return Status::OK();
     }
-    return errors::InvalidArgument(
-        strings::StrCat("Failed to parse the env-var ${", env_var_name,
-                        "} into int64: ", tf_env_var_val,
-                        ". Use the default value: ", default_val));
+    return errors::InvalidArgument(strings::StrCat(
+        "Failed to parse the env-var ${", env_var_name, "} into int64: ",
+        tf_env_var_val, ". Use the default value: ", default_val));
   }
 
   size_t size() const override { return table_->size(); }
@@ -245,23 +245,23 @@ public:
     return sizeof(CuckooHashTableOfTensors) + ret;
   }
 
-private:
+ private:
   TensorShape value_shape_;
   typedef gtl::InlinedVector<V, 4> ValueArray;
   cuckoohash_map<K, ValueArray> *table_;
   size_t init_size_;
 };
 
-} // namespace lookup
+}  // namespace lookup
 
 class HashTableOpKernel : public OpKernel {
-public:
+ public:
   explicit HashTableOpKernel(OpKernelConstruction *ctx)
       : OpKernel(ctx),
         expected_input_0_(ctx->input_type(0) == DT_RESOURCE ? DT_RESOURCE
                                                             : DT_STRING_REF) {}
 
-protected:
+ protected:
   Status LookupResource(OpKernelContext *ctx, const ResourceHandle &p,
                         LookupInterface **value) {
     return ctx->resource_manager()->Lookup<LookupInterface, false>(
@@ -286,7 +286,7 @@ protected:
 };
 
 class HashTableFindOp : public HashTableOpKernel {
-public:
+ public:
   using HashTableOpKernel::HashTableOpKernel;
 
   void Compute(OpKernelContext *ctx) override {
@@ -317,7 +317,7 @@ REGISTER_KERNEL_BUILDER(Name("TFRA>CuckooHashTableFind").Device(DEVICE_CPU),
 
 // Table insert op.
 class HashTableInsertOp : public HashTableOpKernel {
-public:
+ public:
   using HashTableOpKernel::HashTableOpKernel;
 
   void Compute(OpKernelContext *ctx) override {
@@ -350,7 +350,7 @@ REGISTER_KERNEL_BUILDER(Name("TFRA>CuckooHashTableInsert").Device(DEVICE_CPU),
 
 // Table remove op.
 class HashTableRemoveOp : public HashTableOpKernel {
-public:
+ public:
   using HashTableOpKernel::HashTableOpKernel;
 
   void Compute(OpKernelContext *ctx) override {
@@ -381,7 +381,7 @@ REGISTER_KERNEL_BUILDER(Name("TFRA>CuckooHashTableRemove").Device(DEVICE_CPU),
 
 // Op that returns the size of the given table.
 class HashTableSizeOp : public HashTableOpKernel {
-public:
+ public:
   using HashTableOpKernel::HashTableOpKernel;
 
   void Compute(OpKernelContext *ctx) override {
@@ -400,7 +400,7 @@ REGISTER_KERNEL_BUILDER(Name("TFRA>CuckooHashTableSize").Device(DEVICE_CPU),
 
 // Op that outputs tensors of all keys and all values.
 class HashTableExportOp : public HashTableOpKernel {
-public:
+ public:
   using HashTableOpKernel::HashTableOpKernel;
 
   void Compute(OpKernelContext *ctx) override {
@@ -417,7 +417,7 @@ REGISTER_KERNEL_BUILDER(Name("TFRA>CuckooHashTableExport").Device(DEVICE_CPU),
 
 // Clear the table and insert data.
 class HashTableImportOp : public HashTableOpKernel {
-public:
+ public:
   using HashTableOpKernel::HashTableOpKernel;
 
   void Compute(OpKernelContext *ctx) override {
@@ -449,13 +449,13 @@ REGISTER_KERNEL_BUILDER(Name("TFRA>CuckooHashTableImport").Device(DEVICE_CPU),
                         HashTableImportOp);
 
 // Register the CuckooMutableHashTableOfTensors op.
-#define REGISTER_KERNEL(key_dtype, value_dtype)                                \
-  REGISTER_KERNEL_BUILDER(                                                     \
-      Name("TFRA>CuckooHashTableOfTensors")                                    \
-          .Device(DEVICE_CPU)                                                  \
-          .TypeConstraint<key_dtype>("key_dtype")                              \
-          .TypeConstraint<value_dtype>("value_dtype"),                         \
-      HashTableOp<lookup::CuckooHashTableOfTensors<key_dtype, value_dtype>,    \
+#define REGISTER_KERNEL(key_dtype, value_dtype)                             \
+  REGISTER_KERNEL_BUILDER(                                                  \
+      Name("TFRA>CuckooHashTableOfTensors")                                 \
+          .Device(DEVICE_CPU)                                               \
+          .TypeConstraint<key_dtype>("key_dtype")                           \
+          .TypeConstraint<value_dtype>("value_dtype"),                      \
+      HashTableOp<lookup::CuckooHashTableOfTensors<key_dtype, value_dtype>, \
                   key_dtype, value_dtype>)
 
 REGISTER_KERNEL(int32, double);
@@ -478,5 +478,5 @@ REGISTER_KERNEL(tstring, Eigen::half);
 
 #undef REGISTER_KERNEL
 
-} // namespace cuckoohash
-} // namespace tensorflow
+}  // namespace cuckoohash
+}  // namespace tensorflow
