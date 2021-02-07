@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - name: Ensure contributor used ("yapf --style=google -ri ./**/*.py") before commit
+      - name: Ensure contributor used ("yapf --style=./.yapf -ri ./**/*.py") before commit
         run: bash tools/run_build.sh yapf-test
   source_code_test:
     name: Check that the source code is compliant
