@@ -25,6 +25,7 @@ from tensorflow_recommenders_addons import dynamic_embedding as de
 from tensorflow.python.framework import dtypes
 from tensorflow.python.framework import test_util
 from tensorflow.core.protobuf import config_pb2
+from tensorflow.python.platform import test
 
 default_config = config_pb2.ConfigProto(
     allow_soft_placement=False,
@@ -32,22 +33,24 @@ default_config = config_pb2.ConfigProto(
 
 
 @test_util.deprecated_graph_mode_only
-def test_dynamic_embedding_variable_set_init_size(self):
-  test_list = [["CPU", False, 12345, 12345], ["CPU", False, 0, 100000]]
-  if test_util.is_gpu_available():
-    test_list = [["GPU", True, 54321, 54321], ["GPU", True, 0, 100000]]
-  id = 0
-  for dev_str, use_gpu, init_size, expect_size in test_list:
-    with self.session(use_gpu=use_gpu, config=default_config):
-      with self.captureWritesToStream(sys.stderr) as printed:
-        table = de.get_variable("2021-" + str(id),
-                                dtypes.int64,
-                                dtypes.int32,
-                                initializer=0,
-                                dim=8,
-                                init_size=init_size)
-        self.evaluate(table.size())
-      id += 1
-      self.assertTrue("I" in printed.contents())
-      self.assertTrue(dev_str in printed.contents())
-      self.assertTrue("_size={}".format(expect_size) in printed.contents())
+class CuckooHashtableTest(test.TestCase):
+
+  def test_dynamic_embedding_variable_set_init_size(self):
+    test_list = [["CPU", False, 12345, 12345], ["CPU", False, 0, 100000]]
+    if test_util.is_gpu_available():
+      test_list = [["GPU", True, 54321, 54321], ["GPU", True, 0, 100000]]
+    id = 0
+    for dev_str, use_gpu, init_size, expect_size in test_list:
+      with self.session(use_gpu=use_gpu, config=default_config):
+        with self.captureWritesToStream(sys.stderr) as printed:
+          table = de.get_variable("2021-" + str(id),
+                                  dtypes.int64,
+                                  dtypes.int32,
+                                  initializer=0,
+                                  dim=8,
+                                  init_size=init_size)
+          self.evaluate(table.size())
+        id += 1
+        self.assertTrue("I" in printed.contents())
+        self.assertTrue(dev_str in printed.contents())
+        self.assertTrue("_size={}".format(expect_size) in printed.contents())
