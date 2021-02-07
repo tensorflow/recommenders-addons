@@ -30,6 +30,7 @@ default_config = config_pb2.ConfigProto(
     allow_soft_placement=False,
     gpu_options=config_pb2.GPUOptions(allow_growth=True))
 
+
 @test_util.deprecated_graph_mode_only
 def test_dynamic_embedding_variable_set_init_size(self):
   test_list = [["CPU", False, 12345, 12345], ["CPU", False, 0, 100000]]
