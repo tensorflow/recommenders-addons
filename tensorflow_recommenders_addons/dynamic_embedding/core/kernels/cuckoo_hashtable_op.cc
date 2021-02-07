@@ -132,7 +132,7 @@ class CuckooHashTableOfTensors final : public LookupInterface {
     init_size_ = static_cast<size_t>(init_size);
     if(init_size_ == 0){
       Status status = ReadInt64FromEnvVar("TF_HASHTABLE_INIT_SIZE",
-                                          1024 * 1024,  // 1M KV pairs by default
+                                          1024 * 8,  // 8192 KV pairs by default
                                           &env_var);
       if (!status.ok()) {
         LOG(ERROR) << "Error parsing TF_HASHTABLE_INIT_SIZE: " << status;
