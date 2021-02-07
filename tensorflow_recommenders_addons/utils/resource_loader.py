@@ -1,4 +1,4 @@
-# Copyright 2019 The TensorFlow Authors. All Rights Reserved.
+# Copyright 2020 The TensorFlow Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,8 +20,8 @@ import warnings
 
 import tensorflow as tf
 
-MIN_TF_VERSION_FOR_ABI_COMPATIBILITY = "2.4.0"
-MAX_TF_VERSION_FOR_ABI_COMPATIBILITY = "2.4.0"
+MIN_TF_VERSION_FOR_ABI_COMPATIBILITY = "2.4.1"
+MAX_TF_VERSION_FOR_ABI_COMPATIBILITY = "2.4.1"
 abi_warning_already_raised = False
 SKIP_CUSTOM_OPS = False
 
@@ -74,30 +74,25 @@ class LazySO:
         "TensorFlow Recommenders Addons has compiled its custom ops against TensorFlow {}, "
         "and there are no compatibility guarantees between the two versions. "
         "\n"
-        "This means that you might get segfaults when loading the custom op, "
+        "This means that you might get 'Symbol not found' when loading the custom op, "
         "or other kind of low-level errors.\n If you do, do not file an issue "
         "on Github. This is a known limitation."
         "\n\n"
-        "It might help you to fallback to pure Python "
-        "ops with TF_RECOMMENDERS_ADDONS_PY_OPS . To do that, see "
-        "https://github.com/tensorflow/recommenders-addons#gpucpu-custom-ops "
-        "\n\n"
         "You can also change the TensorFlow version installed on your system. "
-        "You would need a TensorFlow version equal to or above {} and strictly "
-        "below {}.\n Note that nightly versions of TensorFlow, "
+        "You would need a TensorFlow version equal to {}. \n"
+        "Note that nightly versions of TensorFlow, "
         "as well as non-pip TensorFlow like `conda install tensorflow` or compiled "
         "from source are not supported."
         "\n\n"
-        "The last solution is to find the TensorFlow Recommenders-Addons version that has "
-        "custom ops compatible with the TensorFlow installed on your "
-        "system. To do that, refer to the readme: "
+        "The last solution is to compile the TensorFlow Recommenders-Addons "
+        "with the TensorFlow installed on your system. "
+        "To do that, refer to the readme: "
         "https://github.com/tensorflow/recommenders-addons"
         "".format(
             tf.__version__,
             self.relative_path,
             MIN_TF_VERSION_FOR_ABI_COMPATIBILITY,
             MIN_TF_VERSION_FOR_ABI_COMPATIBILITY,
-            MAX_TF_VERSION_FOR_ABI_COMPATIBILITY,
         ),
         UserWarning,
     )
@@ -106,9 +101,8 @@ class LazySO:
 
 def abi_is_compatible():
   if "dev" in tf.__version__:
-    # tf-nightly
     return False
 
   min_version = LooseVersion(MIN_TF_VERSION_FOR_ABI_COMPATIBILITY)
   max_version = LooseVersion(MAX_TF_VERSION_FOR_ABI_COMPATIBILITY)
-  return min_version <= LooseVersion(tf.__version__) < max_version
+  return min_version <= LooseVersion(tf.__version__) <= max_version

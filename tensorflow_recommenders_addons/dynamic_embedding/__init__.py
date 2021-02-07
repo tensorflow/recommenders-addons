@@ -32,7 +32,7 @@ from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embeddi
     get_variable,)
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_variable import (
     Variable,)
-from tensorflow_recommenders_addons.dynamic_embedding.python.ops.tf_hacker import (
-    hacking_tf,)
+from tensorflow_recommenders_addons.dynamic_embedding.python.ops.tf_patch import (
+    patch_on_tf,)
 
-hacking_tf()
+patch_on_tf()

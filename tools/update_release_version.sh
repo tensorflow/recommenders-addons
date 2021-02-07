@@ -18,7 +18,7 @@
 # Usage
 if [ $# -lt 1 ]; then
 	echo "Usage: bash tools/update_release_version.sh <list_of_release_numbers>"
-	echo "e.g. bash tools/update_release_version.sh 2.4.0"
+	echo "e.g. bash tools/update_release_version.sh 2.4.1"
 	exit 1
 fi
 

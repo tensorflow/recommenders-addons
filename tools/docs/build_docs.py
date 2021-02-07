@@ -1,4 +1,4 @@
-# Copyright 2015 The TensorFlow Authors. All Rights Reserved.
+# Copyright 2020 The TensorFlow Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -71,7 +71,7 @@ def main(argv):
       root_title=PROJECT_FULL_NAME,
       py_modules=[(PROJECT_SHORT_NAME, tfra)],
       code_url_prefix=code_url_prefix,
-      private_map={"tfa": ["__version__", "utils", "version"]},
+      private_map={"tfra": ["__version__", "utils", "version"]},
       # This callback usually cleans up a lot of aliases caused by internal imports.
       callbacks=[public_api.local_definitions_filter],
       search_hints=FLAGS.search_hints,

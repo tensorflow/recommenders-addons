@@ -20,3 +20,5 @@ artifacts/# File patterns to ignore; see `git help ignore` for more information.
 
 bazel-genfiles
 /pip-wheel-metadata/
+
+.bazelrc

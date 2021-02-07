@@ -11,10 +11,10 @@ def _run_format():
 
   try:
     check_bash_call(
-        "find . -name '*.py' -print0 | xargs -0 yapf --style=./.style.yapf -dr")
+        "find . -name '*.py' -print0 | xargs -0 yapf --style=./.yapf -dr")
   except CalledProcessError:
     check_bash_call(
-        "find . -name '*.py' -print0 | xargs -0 yapf --style=./.style.yapf -ir")
+        "find . -name '*.py' -print0 | xargs -0 yapf --style=./.yapf -ir")
     files_changed = True
 
   if files_changed:
