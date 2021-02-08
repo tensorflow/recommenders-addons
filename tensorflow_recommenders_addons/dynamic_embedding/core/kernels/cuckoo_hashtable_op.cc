@@ -145,9 +145,9 @@ class CuckooHashTableOfTensors final : public LookupInterface {
   ~CuckooHashTableOfTensors() { delete table_; }
 
   Status ReadInt64FromEnvVar(StringPiece env_var_name, int64 default_val,
-                             int64 *value) {
+                             int64* value) {
     *value = default_val;
-    const char *tf_env_var_val = getenv(string(env_var_name).c_str());
+    const char* tf_env_var_val = getenv(string(env_var_name).c_str());
     if (tf_env_var_val == nullptr) {
       return Status::OK();
     }
