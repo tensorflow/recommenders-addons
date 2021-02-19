@@ -231,6 +231,7 @@ REGISTER_OP("TFRA>CuckooHashTableOfTensors")
     .Attr("key_dtype: type")
     .Attr("value_dtype: type")
     .Attr("value_shape: shape = {}")
+    .Attr("init_size: int = 0")
     .SetIsStateful()
     .SetShapeFn([](InferenceContext* c) {
       PartialTensorShape value_p;

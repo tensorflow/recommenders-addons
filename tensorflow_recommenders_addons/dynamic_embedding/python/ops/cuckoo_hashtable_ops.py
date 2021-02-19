@@ -56,6 +56,7 @@ class CuckooHashTable(LookupInterface):
       default_value,
       name="CuckooHashTable",
       checkpoint=True,
+      init_size=0,
   ):
     """Creates an empty `CuckooHashTable` object.
 
@@ -70,6 +71,8 @@ class CuckooHashTable(LookupInterface):
           checkpoint: if True, the contents of the table are saved to and restored
             from checkpoints. If `shared_name` is empty for a checkpointed table, it
             is shared using the table node name.
+          init_size: initial size for the Variable and initial size of each hash 
+            tables will be int(init_size / N), N is the number of the devices.
 
         Returns:
           A `CuckooHashTable` object.
@@ -83,6 +86,7 @@ class CuckooHashTable(LookupInterface):
     self._checkpoint = checkpoint
     self._key_dtype = key_dtype
     self._value_dtype = value_dtype
+    self.init_size = init_size
     self._name = name
 
     self._shared_name = None
@@ -122,6 +126,7 @@ class CuckooHashTable(LookupInterface):
         key_dtype=self._key_dtype,
         value_dtype=self._value_dtype,
         value_shape=self._default_value.get_shape(),
+        init_size=self.init_size,
         name=self._name,
     )
 

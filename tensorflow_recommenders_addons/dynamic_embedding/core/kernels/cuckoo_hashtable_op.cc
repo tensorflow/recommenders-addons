@@ -119,18 +119,45 @@ template <class K, class V>
 class CuckooHashTableOfTensors final : public LookupInterface {
  public:
   CuckooHashTableOfTensors(OpKernelContext* ctx, OpKernel* kernel) {
+    int64 env_var = 0;
+    int64 init_size = 0;
     OP_REQUIRES_OK(ctx,
                    GetNodeAttr(kernel->def(), "value_shape", &value_shape_));
+    OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "init_size", &init_size));
     OP_REQUIRES(
         ctx, TensorShapeUtils::IsVector(value_shape_),
         errors::InvalidArgument("Default value must be a vector, got shape ",
                                 value_shape_.DebugString()));
-    init_size_ = 1024 * 8;
+    init_size_ = static_cast<size_t>(init_size);
+    if (init_size_ == 0) {
+      Status status = ReadInt64FromEnvVar("TF_HASHTABLE_INIT_SIZE",
+                                          1024 * 8,  // 8192 KV pairs by default
+                                          &env_var);
+      if (!status.ok()) {
+        LOG(ERROR) << "Error parsing TF_HASHTABLE_INIT_SIZE: " << status;
+      }
+      init_size_ = env_var;
+    }
     LOG(INFO) << "CPU CuckooHashTableOfTensors init: size = " << init_size_;
     table_ = new cuckoohash_map<K, ValueArray>(init_size_);
   }
 
   ~CuckooHashTableOfTensors() { delete table_; }
+
+  Status ReadInt64FromEnvVar(StringPiece env_var_name, int64 default_val,
+                             int64* value) {
+    *value = default_val;
+    const char* tf_env_var_val = getenv(string(env_var_name).c_str());
+    if (tf_env_var_val == nullptr) {
+      return Status::OK();
+    }
+    if (strings::safe_strto64(tf_env_var_val, value)) {
+      return Status::OK();
+    }
+    return errors::InvalidArgument(strings::StrCat(
+        "Failed to parse the env-var ${", env_var_name, "} into int64: ",
+        tf_env_var_val, ". Use the default value: ", default_val));
+  }
 
   size_t size() const override { return table_->size(); }
 
