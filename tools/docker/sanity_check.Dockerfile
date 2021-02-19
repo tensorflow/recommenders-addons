@@ -32,7 +32,7 @@ RUN python configure.py
 RUN --mount=type=cache,id=cache_bazel,target=/root/.cache/bazel \
     bash tools/install_so_files.sh
 
-RUN pytest -v /recommenders-addons/tools/testing/
+RUN pytest -v -s /recommenders-addons/tools/testing/
 RUN touch /ok.txt
 
 # -------------------------------
@@ -127,7 +127,7 @@ RUN python configure.py
 RUN --mount=type=cache,id=cache_bazel,target=/root/.cache/bazel \
     bash tools/install_so_files.sh
 RUN pip install --no-deps -e .
-RUN pytest -v -n auto ./tensorflow_recommenders_addons/dynamic_embedding
+RUN pytest -v -s -n auto ./tensorflow_recommenders_addons/dynamic_embedding
 RUN touch /ok.txt
 
 # -------------------------------
