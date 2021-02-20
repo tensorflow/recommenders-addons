@@ -77,6 +77,8 @@ class TrainableWrapper(resource_variable_ops.ResourceVariable):
     self.ids = ids
     self.max_norm = max_norm
     self.prefetch_values_op = None
+    self.model_mode = kwargs.get("model_mode")
+    kwargs.pop("model_mode")
     super(TrainableWrapper, self).__init__(*args, **kwargs)
 
   def prefetch_values(self):
@@ -340,19 +342,21 @@ class TrainableWrapper(resource_variable_ops.ResourceVariable):
 
   def _read_variable_op(self, do_prefetch=True):
     resource_variable_ops.variable_accessed(self)
-    if do_prefetch:
-      with ops.control_dependencies([
-          gen_resource_variable_ops.assign_variable_op(
-              self._handle,
-              self.prefetch_values(),
-              name="AssignBeforeReadVariable",
-          )
-      ]):
+    if self.model_mode == "train":
+      if do_prefetch:
+        with ops.control_dependencies([
+            gen_resource_variable_ops.assign_variable_op(
+                self._handle,
+                self.prefetch_values(),
+                name="AssignBeforeReadVariable")
+        ]):
+          _result = gen_resource_variable_ops.read_variable_op(
+              self._handle, self._dtype)
+      else:
         _result = gen_resource_variable_ops.read_variable_op(
             self._handle, self._dtype)
     else:
-      _result = gen_resource_variable_ops.read_variable_op(
-          self._handle, self._dtype)
+      _result = self.prefetch_values()
 
     if not context.executing_eagerly():
       # Note that if a control flow context is active the input of the read op
@@ -479,15 +483,14 @@ def embedding_lookup(
       collections = [ops.GraphKeys.LOCAL_VARIABLES]
       if params.trainable:
         collections += [ops.GraphKeys.TRAINABLE_VARIABLES]
-      trainable_ = de.TrainableWrapper(
-          params,
-          ids,
-          max_norm=max_norm,
-          initial_value=initial_value,
-          dtype=params.value_dtype,
-          trainable=params.trainable,
-          collections=collections,
-      )
+      trainable_ = de.TrainableWrapper(params,
+                                       ids,
+                                       max_norm=max_norm,
+                                       initial_value=initial_value,
+                                       dtype=params.value_dtype,
+                                       trainable=params.trainable,
+                                       collections=collections,
+                                       model_mode=ModelMode.CURRENT_SETTING)
       embeddings = array_ops.identity(trainable_)
       embeddings.set_shape(trainable_shape)
 
@@ -728,7 +731,7 @@ def safe_embedding_lookup_sparse(
 
     Raises:
       ValueError: if `embedding_weights` is empty.
-    """
+  """
   if embedding_weights is None:
     raise ValueError("Missing embedding_weights %s." % embedding_weights)
 
@@ -829,3 +832,49 @@ def _prune_invalid_weights(sparse_ids, sparse_weights):
     sparse_ids = sparse_ops.sparse_retain(sparse_ids, is_weights_valid)
     sparse_weights = sparse_ops.sparse_retain(sparse_weights, is_weights_valid)
   return sparse_ids, sparse_weights
+
+
+class ModelMode(object):
+  """The global config of model modes.
+
+    `TrainableWrapper.read_value` is not thread-safe that causes threads
+    competition and Out-Of-Bound exception in concurrent serving scenario.
+
+    To resolve this, we define the `ModelMode` APIs to instruct
+    the `TrainableWrapper` to build a different thread-safe sub-graph
+    for 'TrainableWrapper.read_value' on inference mode.
+
+    **NOTE** These APIs should be called before any graph are built.
+
+  The following standard modes are defined:
+
+  * `TRAIN`: training/fitting mode.
+  * `INFERENCE`: prediction/inference mode.
+  """
+
+  TRAIN = 'train'
+  INFERENCE = 'inference'
+
+  # The default setting is training mode.
+  CURRENT_SETTING = TRAIN
+
+
+def get_model_mode():
+  """ get model mode.
+
+  Returns:
+    A string: `train` or 'inference'
+  """
+  return ModelMode.CURRENT_SETTING
+
+
+def enable_train_mode():
+  """ enable train mode.
+  """
+  ModelMode.CURRENT_SETTING = ModelMode.TRAIN
+
+
+def enable_inference_mode():
+  """ set inference mode.
+  """
+  ModelMode.CURRENT_SETTING = ModelMode.INFERENCE

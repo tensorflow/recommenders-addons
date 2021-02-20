@@ -34,7 +34,9 @@ from tensorflow.python.framework import test_util
 from tensorflow.python.keras import optimizer_v2
 from tensorflow.python.ops import array_ops
 from tensorflow.python.ops import embedding_ops
+from tensorflow.python.ops import init_ops
 from tensorflow.python.ops import math_ops
+from tensorflow.python.ops import variable_scope
 from tensorflow.python.ops import resource_variable_ops
 from tensorflow.python.ops import state_ops
 from tensorflow.python.ops import variables
@@ -241,6 +243,7 @@ class CommonTrainableTestV2Base(object):
 class EmbeddingLookupTrainableV1Test(test.TestCase, CommonTrainableTestV1Base):
 
   def common_minimize_trainable(self, base_opt, test_opt, name):
+    de.enable_train_mode()
     base_opt = de.DynamicEmbeddingOptimizer(base_opt)
     test_opt = de.DynamicEmbeddingOptimizer(test_opt)
     id = 0
@@ -334,6 +337,7 @@ class EmbeddingLookupTrainableV1Test(test.TestCase, CommonTrainableTestV1Base):
 class EmbeddingLookupTrainableV2Test(test.TestCase, CommonTrainableTestV2Base):
 
   def common_minimize_trainable_v2(self, base_opt, test_opt, name):
+    de.enable_train_mode()
     base_opt = de.DynamicEmbeddingOptimizer(base_opt)
     test_opt = de.DynamicEmbeddingOptimizer(test_opt)
     id = 0
@@ -431,6 +435,7 @@ class EmbeddingLookupSparseTrainableV1Test(test.TestCase,
                                            CommonTrainableTestV1Base):
 
   def common_minimize_trainable(self, base_opt, test_opt, name):
+    de.enable_train_mode()
     base_opt = de.DynamicEmbeddingOptimizer(base_opt)
     test_opt = de.DynamicEmbeddingOptimizer(test_opt)
     id = 0
@@ -561,6 +566,7 @@ class EmbeddingLookupSparseTrainableV2Test(test.TestCase,
                                            CommonTrainableTestV2Base):
 
   def common_minimize_trainable_v2(self, base_opt, test_opt, name):
+    de.enable_train_mode()
     base_opt = de.DynamicEmbeddingOptimizer(base_opt)
     test_opt = de.DynamicEmbeddingOptimizer(test_opt)
     id = 0
@@ -685,6 +691,7 @@ class SafeEmbeddingLookupSparseTrainableV1Test(test.TestCase,
 
   @test_util.deprecated_graph_mode_only
   def common_minimize_trainable(self, base_opt, test_opt, name):
+    de.enable_train_mode()
     base_opt = de.DynamicEmbeddingOptimizer(base_opt)
     test_opt = de.DynamicEmbeddingOptimizer(test_opt)
     id = 0
@@ -808,6 +815,7 @@ class SafeEmbeddingLookupSparseTrainableV2Test(test.TestCase,
                                                CommonTrainableTestV2Base):
 
   def common_minimize_trainable_v2(self, base_opt, test_opt, name):
+    de.enable_train_mode()
     base_opt = de.DynamicEmbeddingOptimizer(base_opt)
     test_opt = de.DynamicEmbeddingOptimizer(test_opt)
     id = 0
@@ -983,6 +991,7 @@ class TrainDynamicEmbeddingInMonitoredTrainingSessionTest(test.TestCase):
         self.device_check(table)
 
   def common_minimize_trainable(self, base_opt, test_opt, name):
+    de.enable_train_mode()
     base_opt = de.DynamicEmbeddingOptimizer(base_opt)
     test_opt = de.DynamicEmbeddingOptimizer(test_opt)
     id = 0
@@ -1115,6 +1124,88 @@ class TrainDynamicEmbeddingInMonitoredTrainingSessionTest(test.TestCase):
     base_opt = adagrad.AdagradOptimizer(0.1)
     test_opt = adagrad.AdagradOptimizer(0.1)
     self.common_minimize_trainable(base_opt, test_opt, name="adagrad")
+
+
+@test_util.deprecated_graph_mode_only
+class ModelModeTest(test.TestCase):
+  """Tests ModelMode."""
+
+  def test_check_ops_number(self):
+    self.assertTrue(de.get_model_mode() == "train")
+    de.enable_inference_mode()
+    self.assertTrue(de.get_model_mode() == "inference")
+    de.enable_train_mode()
+    self.assertTrue(de.get_model_mode() == "train")
+    for fn, assign_num, read_num in [(de.enable_train_mode, 1, 2),
+                                     (de.enable_inference_mode, 0, 1)]:
+      fn()
+      embeddings = de.get_variable('ModeModeTest' + str(assign_num),
+                                   key_dtype=dtypes.int64,
+                                   value_dtype=dtypes.float32,
+                                   devices=_get_devices(),
+                                   initializer=1.,
+                                   dim=8)
+      ids = constant_op.constant([0, 1, 2, 3, 4], dtype=dtypes.int64)
+      test_var, trainable = de.embedding_lookup([embeddings],
+                                                ids,
+                                                return_trainable=True)
+      _ = math_ops.add(test_var, 1)
+      op_list = ops.get_default_graph().get_operations()
+      op_list_assign = [
+          op.name for op in op_list if "AssignBeforeReadVariable" in op.name
+      ]
+      op_list_read = [op.name for op in op_list if "ReadVariableOp" in op.name]
+      self.assertTrue(len(op_list_assign) == assign_num)
+      self.assertTrue(len(op_list_read) == read_num)
+      de.enable_train_mode()
+      ops.reset_default_graph()
+
+  def test_inference_numberic_correctness(self):
+    train_pred = None
+    infer_pred = None
+    dim = 8
+    initializer = init_ops.random_normal_initializer(0.0, 0.001)
+    raw_init_vals = np.random.rand(100, dim)
+
+    for fn in [de.enable_train_mode, de.enable_inference_mode]:
+      with ops.Graph().as_default():
+        fn()
+
+        init_ids = constant_op.constant(list(range(100)), dtype=dtypes.int64)
+        init_vals = constant_op.constant(raw_init_vals, dtype=dtypes.float32)
+        with variable_scope.variable_scope("modelmode",
+                                           reuse=variable_scope.AUTO_REUSE):
+          embeddings = de.get_variable('ModelModeTest-numberic',
+                                       key_dtype=dtypes.int64,
+                                       value_dtype=dtypes.float32,
+                                       devices=_get_devices() * 2,
+                                       initializer=initializer,
+                                       dim=dim)
+
+          w = variables.Variable(1.0, name="w")
+          _ = training_util.create_global_step()
+        init_op = embeddings.upsert(init_ids, init_vals)
+
+        ids = constant_op.constant([0, 1, 2, 3, 4], dtype=dtypes.int64)
+        test_var, trainable = de.embedding_lookup([embeddings],
+                                                  ids,
+                                                  return_trainable=True)
+        pred = math_ops.add(test_var, 1) * w
+        loss = pred * pred
+        opt = de.DynamicEmbeddingOptimizer(adagrad.AdagradOptimizer(0.1))
+        opt.minimize(loss)
+
+        with monitored_session.MonitoredTrainingSession(
+            is_chief=True, config=default_config) as sess:
+          if de.get_model_mode() == de.ModelMode.TRAIN:
+            sess.run(init_op)
+            train_pred = sess.run(pred)
+          elif de.get_model_mode() == de.ModelMode.INFERENCE:
+            sess.run(init_op)
+            infer_pred = sess.run(pred)
+      de.enable_train_mode()
+      ops.reset_default_graph()
+    self.assertAllEqual(train_pred, infer_pred)
 
 
 if __name__ == "__main__":
