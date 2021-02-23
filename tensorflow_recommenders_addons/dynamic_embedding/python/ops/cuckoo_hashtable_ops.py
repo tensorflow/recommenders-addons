@@ -86,7 +86,7 @@ class CuckooHashTable(LookupInterface):
     self._checkpoint = checkpoint
     self._key_dtype = key_dtype
     self._value_dtype = value_dtype
-    self.init_size = init_size
+    self._init_size = init_size
     self._name = name
 
     self._shared_name = None
@@ -126,7 +126,7 @@ class CuckooHashTable(LookupInterface):
         key_dtype=self._key_dtype,
         value_dtype=self._value_dtype,
         value_shape=self._default_value.get_shape(),
-        init_size=self.init_size,
+        init_size=self._init_size,
         name=self._name,
     )
 
