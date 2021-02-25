@@ -59,7 +59,6 @@ def _select_slot_vars(var, optmz):
         tf_logging.warn('trainable_wrapper {} not'
                         ' applied.'.format(tw._unique_id))
   return var_in_slots
-  
 
 
 def _flatten(fold):
@@ -461,7 +460,7 @@ class VariableRestrictor(object):
   Use an independent restrictor to enable flexible management on variable and
   optimizer slots, without aggregating the tables in variables and optimizers.
 
-  ### Tensorflow 1.x example:
+  ### graph mode example:
   ```python
   var = dynamic_embedding.get_variable(...)
   ...
@@ -470,18 +469,17 @@ class VariableRestrictor(object):
                                      optimizer_list=[optimizer],
                                      policy=de.TimestampRestrictPolicy)
 
-
   update_op = restrictor.update()
   restrict_op = restrictor.restrict(residue=20000, trigger=25000)
 
-  with tf.compat.v1.Session() as sess:
+  with session.Session() as sess:
     for step in range(num_ter):
       sess.run([training_operations, update_op])
       if step % 1000 == 0:
         sess.run(restrict_op)
   ```
 
-  ### Tensorflow 2.x eager mode example:
+  ### eager mode example:
   ```python
   var = dynamic_embedding.get_variable(...)
   optmizer = tf.keras.adam.Adam(0.1)

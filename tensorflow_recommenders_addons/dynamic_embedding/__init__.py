@@ -41,9 +41,12 @@ from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embeddi
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_variable import (
     Variable,)
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_variable_restrictor import (
-    VariableRestrictor, RestrictPolicy, TimestampRestrictPolicy, FrequencyRestrictPolicy,)
+    VariableRestrictor,
+    RestrictPolicy,
+    TimestampRestrictPolicy,
+    FrequencyRestrictPolicy,
+)
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.tf_patch import (
     patch_on_tf,)
-
 
 patch_on_tf()
