@@ -13,7 +13,7 @@
 # limitations under the License.
 
 # lint-as: python3
-"""hacker to tensorflow"""
+"""patch on tensorflow"""
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
@@ -137,6 +137,6 @@ def device_function(self, op):
   return worker_device.to_string()
 
 
-def hacking_tf():
+def patch_on_tf():
   optimizer._get_processor = _get_processor
   device_setter._ReplicaDeviceChooser.device_function = device_function

@@ -20,14 +20,14 @@ def register_all(keras_objects: bool = True,
     ```python
     tf.keras.models.load_model(
         "my_model.tf",
-        custom_objects={"LAMB": tfa.image.optimizer.LAMB}
+        custom_objects={"CUCKOO": tfra.dynamic_embedding.CuckooHashTable}
     )
     ```
 
     or you can do:
     ```python
-    tfa.register_all()
-    tf.tf.keras.models.load_model("my_model.tf")
+    tfra.register_all()
+    tf.keras.models.load_model("my_model.tf")
     ```
 
     If the model contains custom ops (compiled ops) of TensorFlow Addons,
@@ -44,7 +44,7 @@ def register_all(keras_objects: bool = True,
     this function:
 
     ```python
-    tfa.register_all()
+    tfra.register_all()
     tf.saved_model.load("my_model.tf")
     ```
 
@@ -87,7 +87,7 @@ def register_custom_kernels() -> None:
     raise FileNotFoundError(
         "No shared objects files were found in the custom ops "
         "directory in Tensorflow Recommenders-Addons, check your installation again, "
-        "or, if you don't need custom ops, call `tfa.register_all(custom_kernels=False)`"
+        "or, if you don't need custom ops, call `tfra.register_all(custom_kernels=False)`"
         " instead.")
   try:
     for shared_object in all_shared_objects:
@@ -96,11 +96,12 @@ def register_custom_kernels() -> None:
     raise RuntimeError(
         "One of the shared objects ({}) could not be loaded. This may be "
         "due to a number of reasons (incompatible TensorFlow version, buiding from "
-        "source with different flags, broken install of TensorFlow Addons...). If you "
+        "source with different flags, broken install of Recommenders Addons...). If you "
         "wanted to register the shared objects because you needed them when loading your "
         "model, you should fix your install of TensorFlow Recommenders-Addons. If you don't "
         "use custom ops in your model, you can skip registering custom ops with "
-        "`tfa.register_all(custom_kernels=False)`".format(shared_object)) from e
+        "`tfra.register_all(custom_kernels=False)`".format(
+            shared_object)) from e
 
 
 def _get_all_shared_objects():

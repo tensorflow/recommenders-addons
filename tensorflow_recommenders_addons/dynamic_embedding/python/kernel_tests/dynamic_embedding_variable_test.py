@@ -454,7 +454,7 @@ class VariableTest(test.TestCase):
       self.assertAllEqual([[0], [1], [2], [-1], [-1]], self.evaluate(output))
       del table
 
-  def test_traing_save_restore(self):
+  def test_training_save_restore(self):
     opt = de.DynamicEmbeddingOptimizer(adam.AdamOptimizer(0.3))
     id = 0
     if test_util.is_gpu_available():

@@ -13,7 +13,7 @@
 # limitations under the License.
 
 # lint-as: python3
-"""hacker to tensorflow"""
+"""patch on optimizers"""
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function

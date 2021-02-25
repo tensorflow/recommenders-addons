@@ -1,11 +1,10 @@
 # TensorFlow Recommenders Addons
 -----------------
-
+![TensorFlow Recommenders logo](assets/SIGRecommendersAddons.png)
 [![PyPI Status Badge](https://badge.fury.io/py/tensorflow-recommenders-addons.svg)](https://pypi.org/project/tensorflow-recommenders-addons/)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/tensorflow-recommenders-addons)](https://pypi.org/project/tensorflow-recommenders-addons/)
 [![Documentation](https://img.shields.io/badge/api-reference-blue.svg)](https://www.tensorflow.org/recommenders-addons/api_docs/python/tfra)
 [![Gitter chat](https://img.shields.io/badge/chat-on%20gitter-46bc99.svg)](https://gitter.im/tensorflow/sig-recommenders-addons)
-[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
 
 TensorFlow Recommenders Addons are a collection of projects related to
@@ -43,6 +42,7 @@ specific frameworks (e.g. NVIDIA Merlin, …), and integrations with Cloud servi
 
 ## RFCs
 * [RFC: Sparse Domain Isolation](rfcs/20200424-sparse-domain-isolation.md)
+* [RFC: Embedding Variable](https://docs.google.com/document/d/1odez6-69YH-eFcp8rKndDHTNGxZgdFFRJufsW94_gl4/edit)
 
 ## Recommender-Addons Subpackages
 
@@ -87,22 +87,9 @@ import tensorflow as tf
 import tensorflow_recommenders_addons as tfra
 ```
 
-### Python Op Compatility
-TensorFlow Recommenders-Addons is actively working towards forward compatibility with TensorFlow 2.x. 
-However, there are still a few private API uses within the repository so at the moment 
-we can only guarantee compatibility with the TensorFlow versions which it was tested against. 
-Warnings will be emitted when importing `tensorflow_recommenders_addons` if your TensorFlow version  
-does not match what it was tested against.
-
-#### Python Op Compatibility Matrix
-| TensorFlow Recommenders-Addons | TensorFlow | Python  |
-|:----------------------- |:---|:---------- |
-| tfra-nightly | 1.15, 2.3, 2.4 | 3.6, 3.7, 3.8 | 
-| tensorflow-recommenders-addons-0.1.0 | 1.15, 2.3, 2.4 |3.6, 3.7, 3.8 |
-
-### C++ Custom Op Compatibility
+### Compatility with Tensorflow
 TensorFlow C++ APIs are not stable and thus we can only guarantee compatibility with the 
-version TensorFlow Recommenders-Addons was built against. It is possible custom ops will work with 
+version TensorFlow Recommenders-Addons(TFRA) was built against. It is possible TFRA will work with 
 multiple versions of TensorFlow, but there is also a chance for segmentation faults or other problematic 
 crashes. Warnings will be emitted when loading a custom op if your TensorFlow version does not match 
 what it was built against.
@@ -115,11 +102,10 @@ is compiled differently. A typical example of this would be `conda`-installed Te
 [RFC #133](https://github.com/tensorflow/community/pull/133) aims to fix this.
 
 
-#### C++ Custom Op Compatibility Matrix
+#### Compatibility Matrix
 | TensorFlow Recommenders-Addons | TensorFlow | Compiler  | cuDNN | CUDA | 
 |:----------------------- |:---- |:---------|:---------|:---------|
-| tfra-nightly | 1.15, 2.3, 2.4 | GCC 7.3.1 | 7.6 | 10.1 |
-| tensorflow-recommenders-addons-0.1.0 | 1.15, 2.3, 2.4  | GCC 7.3.1 | 7.6 | 10.1 |
+| tensorflow-recommenders-addons-0.1.0 | 2.4.1  | GCC 7.3.1 | 7.6 | 10.1 |
 
 
 #### Nightly Builds

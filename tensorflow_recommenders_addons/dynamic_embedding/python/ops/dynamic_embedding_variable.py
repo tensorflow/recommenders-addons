@@ -118,6 +118,7 @@ class Variable(trackable.TrackableResource):
       initializer=None,
       trainable=True,
       checkpoint=True,
+      init_size=0,
   ):
     """Creates an empty `Variable` object.
 
@@ -154,6 +155,8 @@ class Variable(trackable.TrackableResource):
             saved to and restored from checkpoints.
             If `shared_name` is empty for a checkpointed table,
             it is shared using the table node name.
+          init_size: initial size for the Variable and initial size of each hash 
+            tables will be int(init_size / N), N is the number of the devices.
 
         Returns:
           A `Variable` object.
@@ -188,6 +191,7 @@ class Variable(trackable.TrackableResource):
     self._tables = []
     self.size_ops = []
     self.shard_num = len(self.devices)
+    self.init_size = int(init_size / self.shard_num)
 
     key_dtype_list = [dtypes.int32, dtypes.int64]
     value_dtype_list = [
@@ -225,6 +229,7 @@ class Variable(trackable.TrackableResource):
                 default_value=static_default_value,
                 name=self._make_name(idx),
                 checkpoint=self.checkpoint,
+                init_size=self.init_size,
             )
 
             self._tables.append(mht)
@@ -433,6 +438,7 @@ def get_variable(
     initializer=None,
     trainable=True,
     checkpoint=True,
+    init_size=0,
 ):
   """Gets an `Variable` object with this name if it exists,
          or create a new one.
@@ -490,6 +496,7 @@ def get_variable(
         initializer=initializer,
         trainable=trainable,
         checkpoint=checkpoint,
+        init_size=init_size,
     )
     scope_store._vars[full_name] = var_
   return scope_store._vars[full_name]
