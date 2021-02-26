@@ -13,11 +13,10 @@
 # limitations under the License.
 
 # lint-as: python3
-"""Restrain dynamic embedding variable with specified size."""
+"""Tracking and restrict dynamic embedding variables in training."""
 from tensorflow_recommenders_addons import dynamic_embedding as de
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_variable import _partition
 
-from tensorflow.python.eager import context
 from tensorflow.python.framework import constant_op
 from tensorflow.python.framework import dtypes
 from tensorflow.python.framework import ops
@@ -30,7 +29,6 @@ from tensorflow.python.ops import nn_ops
 from tensorflow.python.ops import variable_scope
 from tensorflow.python.platform import tf_logging
 from tensorflow.python.training import optimizer
-from tensorflow.python.util import nest
 
 
 def _select_relative_trainable_wrappers(var, trainable_wrappers):
@@ -67,37 +65,37 @@ def _flatten(fold):
 
 class RestrictPolicy(object):
   """
-  RestrictPolicy is a base class for recording and restricting the
+  RestrictPolicy is a base class for tracking and restricting the
   size of the `dynamic_embedding.Variable`. If the variable joins
   training via stateful optimizer, the policy also manage the slots
   of the optimizer.
 
   `RestrictPolicy` requires a set of interfaces `create_status`,
-  `update_rule`, and `restrict_rule`.
+  `update_rule`, and `restrict_rule` which need to be override.
 
-  1. `create_status` make a record on the strategy defined informantion
-    for comparing the importance of evey feature.
-  2. `update_rule` provides a method to keep the status created by
-    `create_status` tracing on dynamic of training.
-  3. `restrict_rule` provides a method to eliminate features which are
-    not qualified for certain standard.
+  * `create_status` make a record on the strategy defined informantion
+    for comparing the importance of every feature.
+  * `update_rule` provides a method to keep the status created by
+    `create_status` and trace the dynamic of variable and optimizer slots.
+  * `restrict_rule` provides a method to eliminate features which are
+    not qualified by certain standard.
   """
 
   def __init__(self, var, optmz, **kwargs):
     """
-    Create a `RestrictPolicy` object with giving variable and optimizer.
+    Create a `RestrictPolicy` object with the given variable and optimizer.
 
     Args:
-      var: An `dynamic_embedding.Variable` object.
+      var: A `dynamic_embedding.Variable` object.
       optmz: A `tf.train.Optimizer` object.
       **kwargs: Optional keyword arguments.
     """
     if not isinstance(var, de.Variable):
-      raise TypeError("Parameter var type should be {}, but get {} "
-                      "instead.".format(type(de.Variable), type(var)))
+      raise TypeError('var type should be dynamic_embedding.Variable, '
+                      'but get {} instead.'.format(type(var)))
     if not isinstance(optmz, (optimizer.Optimizer, optimizer_v2.OptimizerV2)):
-      raise TypeError("Parameter optmz type should be Optimizer or "
-                      "OptimizerV2, but get {} instead.".format(type(optmz)))
+      raise TypeError('optmz type should be Optimizer or OptimizerV2, '
+                      'but get {} instead.'.format(type(optmz)))
 
     self.var = var
     self.optmz = optmz
@@ -105,7 +103,7 @@ class RestrictPolicy(object):
 
   def create_status(self, **kwargs):
     """
-    Create variable's status. Generally its value is related to
+    Create an status. Generally its value is related to
     property of the keys, such as life-span or occurrence counts.
     And its keys have same dtype as the target variable.
     """
@@ -120,7 +118,7 @@ class RestrictPolicy(object):
       trainable_wrappers: A list of `TrainableWrapper` objects. The
         status of variable is only updated by trainable_wrappers, to
         avoid consuming unrelated indices when embedding is shared by
-        multiple optimizers, and only parts of then work. `None` means
+        multiple optimizers, and only parts of them work. `None` means
         update all embeddings.
       **kwargs: Optional keyword arguments.
 
@@ -140,14 +138,14 @@ class RestrictPolicy(object):
 
 class TimestampRestrictPolicy(RestrictPolicy):
   """
-  An derived policy to eliminate features in variable follow
+  A derived policy to eliminate features in variable follow
   the "oldest-out-first" rule.
   """
 
   def __init__(self, var, optmz, **kwargs):
     """
     Args:
-      var: An `dynamic_embedding.Variable` object.
+      var: A `dynamic_embedding.Variable` object.
       optmz: A `tf.train.Optimizer` object.
       **kwargs: Unused.
     """
@@ -190,14 +188,14 @@ class TimestampRestrictPolicy(RestrictPolicy):
     """
     Define the rule to update timestamp status of the variable.
     It will upsert a set of keys into the timestamp status. It
-    will consume a set of inputs data. Make sure it uses the same
-    inputs data as the training step.
+    will consume a set of input data. Make sure it uses the same
+    input data as the training step.
 
     Args:
       trainable_wrappers: A list of `TrainableWrapper` objects. The
         status of variable is only updated by trainable_wrappers, to
         avoid consuming unrelated indices when embedding is shared by
-        multiple optimizers, and only parts of then work. `None` means
+        multiple optimizers, and only parts of them work. `None` means
         update all embeddings.
       **kwargs: Unused.
 
@@ -290,14 +288,14 @@ class TimestampRestrictPolicy(RestrictPolicy):
 
 class FrequencyRestrictPolicy(RestrictPolicy):
   """
-  An derived policy to eliminate features in variable
+  A derived policy to eliminate features in variable
   follow the "lowest-occurrence-out-first" rule.
   """
 
   def __init__(self, var, optmz, **kwargs):
     """
     Args:
-      var: An `dynamic_embedding.Variable` object.
+      var: A `dynamic_embedding.Variable` object.
       optmz: A `tf.train.Optimizer` object.
       **kwargs: Unused.
     """
@@ -342,14 +340,14 @@ class FrequencyRestrictPolicy(RestrictPolicy):
     """
     Define the rule to update frequency status of the variable.
     It will upsert a set of keys into the frequency status. It
-    will consume a set of inputs data. Make sure it uses the same
-    inputs data as the training step.
+    will consume a set of input data. Make sure it uses the same
+    input data as the training step.
 
     Args:
       trainable_wrappers: A list of `TrainableWrapper` objects. The
         status of variable is only updated by trainable_wrappers, to
         avoid consuming unrelated indices when embedding is shared by
-        multiple optimizers, and only parts of then work. `None` means
+        multiple optimizers, and only parts of them work. `None` means
         update all embeddings.
       **kwargs: Unused.
 
@@ -464,7 +462,7 @@ class VariableRestrictor(object):
   ```python
   var = dynamic_embedding.get_variable(...)
   ...
-  optmizer = tf.train.AdagradOptimizer(0.1)
+  optimizer = tf.train.AdagradOptimizer(0.1)
   restrictor = de.VariableRestrictor(var_list=[var],
                                      optimizer_list=[optimizer],
                                      policy=de.TimestampRestrictPolicy)
@@ -482,7 +480,7 @@ class VariableRestrictor(object):
   ### eager mode example:
   ```python
   var = dynamic_embedding.get_variable(...)
-  optmizer = tf.keras.adam.Adam(0.1)
+  optimizer = tf.keras.adam.Adam(0.1)
   restrictor = de.VariableRestrictor(var_list=[var],
                                      optimizer_list=[optimizer],
                                      policy=de.TimestampRestrictPolicy)
@@ -529,13 +527,13 @@ class VariableRestrictor(object):
 
   def update(self, trainable_wrappers=None, **kwargs):
     """
-    Update the restrictor's status.
+    Update the status of restrictor.
 
     Args:
       trainable_wrappers: A list of `TrainableWrapper` objects. The
         status of variable is only updated by trainable_wrappers, to
         avoid consuming unrelated indices when embedding is shared by
-        multiple optimizers, and only parts of then work. `None` means
+        multiple optimizers, and only parts of them work. `None` means
         update all embeddings.
       **kwargs: Optional keyword arguments.
 

@@ -12,13 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-"""Unit tests of dynamic embedding restrictor"""
+"""Unit tests of dynamic variable restrictor"""
 
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-import itertools
 import numpy as np
 import os
 import tempfile
@@ -37,12 +36,8 @@ from tensorflow.python.framework import test_util
 from tensorflow.python.keras import layers
 from tensorflow.python.keras import optimizer_v2
 from tensorflow.python.ops import array_ops
-from tensorflow.python.ops import control_flow_ops
-from tensorflow.python.ops import init_ops
 from tensorflow.python.ops import math_ops
 from tensorflow.python.ops import nn
-from tensorflow.python.ops import nn_impl
-from tensorflow.python.ops import random_ops
 from tensorflow.python.ops import variables
 from tensorflow.python.platform import test
 from tensorflow.python.training import adadelta
@@ -54,7 +49,6 @@ from tensorflow.python.training import gradient_descent
 from tensorflow.python.training import momentum
 from tensorflow.python.training import proximal_adagrad
 from tensorflow.python.training import proximal_gradient_descent as pgd
-from tensorflow.python.training import device_setter
 from tensorflow.python.training import rmsprop
 from tensorflow.python.training import saver as saver_lib
 from tensorflow.python.training import server_lib
