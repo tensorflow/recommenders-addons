@@ -23,11 +23,11 @@ limitations under the License.
 namespace tensorflow {
 namespace ev {
 
-#define REGISTER_EV_HANDLE(ktype, vtype)                       \
-  REGISTER_KERNEL_BUILDER(Name("EVHandleOp")                   \
-                              .Device(DEVICE_CPU)              \
-                              .TypeConstraint<ktype>("Tkeys")  \
-                              .TypeConstraint<vtype>("dtype"), \
+#define REGISTER_EV_HANDLE(ktype, vtype)                        \
+  REGISTER_KERNEL_BUILDER(Name("EVHandleOp")                    \
+                              .Device(DEVICE_CPU)               \
+                              .TypeConstraint<ktype>("Tkey")    \
+                              .TypeConstraint<vtype>("Tvalue"), \
                           ResourceHandleOp<EmbeddingVar<ktype, vtype>>);
 REGISTER_EV_HANDLE(int32, float)
 REGISTER_EV_HANDLE(int64, float)
@@ -56,7 +56,8 @@ class EVShapeOp : public OpKernel {
   REGISTER_KERNEL_BUILDER(Name("EVShape")                       \
                               .Device(DEVICE_CPU)               \
                               .TypeConstraint<type>("out_type") \
-                              .TypeConstraint<ktype>("Tkeys"),  \
+                              .TypeConstraint<ktype>("Tkey")    \
+                              .TypeConstraint<vtype>("Tvalue"), \
                           EVShapeOp<type, ktype, vtype>);
 REGISTER_KV_VARIABLE_SHAPE(int32, int32, float)
 REGISTER_KV_VARIABLE_SHAPE(int32, int64, float)
@@ -68,7 +69,7 @@ template <typename TKey, typename TValue>
 class InitializeEVOp : public OpKernel {
  public:
   explicit InitializeEVOp(OpKernelConstruction* c) : OpKernel(c) {
-    OP_REQUIRES_OK(c, c->GetAttr("dtype", &dtype_));
+    OP_REQUIRES_OK(c, c->GetAttr("Tvalue", &dtype_));
     OP_REQUIRES_OK(c, c->GetAttr("shape", &shape_));
     OP_REQUIRES(c, shape_.dims() == 1,
                 errors::InvalidArgument("EV dimension must be 1"));
@@ -81,13 +82,15 @@ class InitializeEVOp : public OpKernel {
                     dtype_, " and ", context->input(1).dtype()));
     EmbeddingVar<TKey, TValue>* embedding_var = nullptr;
     const Tensor& default_values = context->input(1);
-    OP_REQUIRES_OK(
-        context, LookupOrCreateResource<EmbeddingVar<TKey, TValue>>(
-                     context, HandleFromInput(context, 0), &embedding_var,
-                     [this, default_values](EmbeddingVar<TKey, TValue>** ptr) {
-                       *ptr = new EmbeddingVar<TKey, TValue>("EmbeddingVar");
-                       return (*ptr)->Init(default_values);
-                     }));
+    const Tensor& invalid_key = context->input(2);
+    OP_REQUIRES_OK(context,
+                   LookupOrCreateResource<EmbeddingVar<TKey, TValue>>(
+                       context, HandleFromInput(context, 0), &embedding_var,
+                       [this, default_values,
+                        invalid_key](EmbeddingVar<TKey, TValue>** ptr) {
+                         *ptr = new EmbeddingVar<TKey, TValue>("EmbeddingVar");
+                         return (*ptr)->Init(default_values, invalid_key);
+                       }));
     core::ScopedUnref unref_me(embedding_var);
     embedding_var->SetInitialized();
   }
@@ -97,11 +100,11 @@ class InitializeEVOp : public OpKernel {
   TensorShape shape_;
 };
 
-#define REGISTER_KERNELS(ktype, vtype)                         \
-  REGISTER_KERNEL_BUILDER(Name("InitializeEVOp")               \
-                              .Device(DEVICE_CPU)              \
-                              .TypeConstraint<ktype>("Tkeys")  \
-                              .TypeConstraint<vtype>("dtype"), \
+#define REGISTER_KERNELS(ktype, vtype)                          \
+  REGISTER_KERNEL_BUILDER(Name("InitializeEVOp")                \
+                              .Device(DEVICE_CPU)               \
+                              .TypeConstraint<ktype>("Tkey")    \
+                              .TypeConstraint<vtype>("Tvalue"), \
                           InitializeEVOp<ktype, vtype>);
 #define REGISTER_KERNELS_ALL_INDEX(type) \
   REGISTER_KERNELS(int32, type)          \
@@ -132,10 +135,11 @@ class EVIsInitializedOp : public OpKernel {
     output->flat<bool>()(0) = found;
   }
 };
-#define REGISTER_KERNELS(ktype, vtype)                        \
-  REGISTER_KERNEL_BUILDER(Name("EVIsInitializedOp")           \
-                              .TypeConstraint<ktype>("Tkeys") \
-                              .Device(DEVICE_CPU),            \
+#define REGISTER_KERNELS(ktype, vtype)                         \
+  REGISTER_KERNEL_BUILDER(Name("EVIsInitializedOp")            \
+                              .TypeConstraint<ktype>("Tkey")   \
+                              .TypeConstraint<vtype>("Tvalue") \
+                              .Device(DEVICE_CPU),             \
                           EVIsInitializedOp<ktype, vtype>);
 REGISTER_KERNELS(int32, float)
 REGISTER_KERNELS(int64, float)
@@ -190,15 +194,15 @@ class EVGatherOp : public OpKernel {
   }
 };
 
-#define REGISTER_KERNELS(ktype, vtype)                         \
-  REGISTER_KERNEL_BUILDER(Name("EVGather")                     \
-                              .Device(DEVICE_CPU)              \
-                              .HostMemory("resource")          \
-                              .HostMemory("indices")           \
-                              .HostMemory("default_value")     \
-                              .HostMemory("output")            \
-                              .TypeConstraint<vtype>("dtype")  \
-                              .TypeConstraint<ktype>("Tkeys"), \
+#define REGISTER_KERNELS(ktype, vtype)                          \
+  REGISTER_KERNEL_BUILDER(Name("EVGather")                      \
+                              .Device(DEVICE_CPU)               \
+                              .HostMemory("resource")           \
+                              .HostMemory("indices")            \
+                              .HostMemory("default_value")      \
+                              .HostMemory("output")             \
+                              .TypeConstraint<ktype>("Tkey")    \
+                              .TypeConstraint<vtype>("Tvalue"), \
                           EVGatherOp<ktype, vtype>)
 
 #define REGISTER_CPU_KERNELS(type) \
@@ -210,7 +214,7 @@ REGISTER_CPU_KERNELS(float);
 #undef REGISTER_CPU_KERNELS
 #undef REGISTER_KERNELS
 
-template <typename T, typename Tindex, typename Tstep>
+template <typename TKey, typename TValue, typename TStep>
 class EVSparseApplyGradientDescentOp : public OpKernel {
  public:
   explicit EVSparseApplyGradientDescentOp(OpKernelConstruction* ctx)
@@ -219,10 +223,10 @@ class EVSparseApplyGradientDescentOp : public OpKernel {
   }
 
   void Compute(OpKernelContext* ctx) {
-    auto locks = MaybeLockEmbeddingVariableInputMutexesInOrder<Tindex, T>(
+    auto locks = MaybeLockEmbeddingVariableInputMutexesInOrder<TKey, TValue>(
         ctx, use_exclusive_lock_, {0});
 
-    EmbeddingVar<Tindex, T>* embedding_var = nullptr;
+    EmbeddingVar<TKey, TValue>* embedding_var = nullptr;
     OP_REQUIRES_OK(
         ctx, LookupResource(ctx, HandleFromInput(ctx, 0), &embedding_var));
 
@@ -260,15 +264,15 @@ class EVSparseApplyGradientDescentOp : public OpKernel {
             "grad must be the same size as indices in the first dimension."));
 
     if (N > 0) {
-      auto indices_vec = indices.vec<Tindex>();
-      T lr_scalar = lr.scalar<T>()();
-      Tstep global_step_scalar = global_step.scalar<Tstep>()();
+      auto indices_vec = indices.vec<TKey>();
+      TValue lr_scalar = lr.scalar<TValue>()();
+      TStep global_step_scalar = global_step.scalar<TStep>()();
 
       if (inner_dim > 0) {
-        auto grad_flat = grad.flat_outer_dims<T>();
+        auto grad_flat = grad.flat_outer_dims<TValue>();
 
         for (int64 i = 0; i < N; i++) {
-          const Tindex index = indices_vec(i);
+          const TKey index = indices_vec(i);
           auto g = grad_flat.template chip<0>(i);
           auto v = embedding_var->flat(index, global_step_scalar);
           v -= g.constant(lr_scalar) * g;
@@ -281,18 +285,21 @@ class EVSparseApplyGradientDescentOp : public OpKernel {
   bool use_exclusive_lock_;
 };
 
-#define REGISTER_KERNELS(T, Tindices, Tstep)                        \
-  REGISTER_KERNEL_BUILDER(Name("EVSparseApplyGradientDescent")      \
-                              .Device(DEVICE_CPU)                   \
-                              .HostMemory("var")                    \
-                              .TypeConstraint<T>("T")               \
-                              .TypeConstraint<Tindices>("Tindices") \
-                              .TypeConstraint<Tstep>("Tstep"),      \
-                          EVSparseApplyGradientDescentOp<T, Tindices, Tstep>);
+#define REGISTER_KERNELS(ktype, vtype, stype) \
+  REGISTER_KERNEL_BUILDER(                    \
+      Name("EVSparseApplyGradientDescent")    \
+          .Device(DEVICE_CPU)                 \
+          .HostMemory("var")                  \
+          .TypeConstraint<ktype>("Tkey")      \
+          .TypeConstraint<vtype>("Tvalue")    \
+          .TypeConstraint<stype>("Tstep"),    \
+      EVSparseApplyGradientDescentOp<ktype, vtype, stype>);
 
 #define REGISTER_CPU_KERNELS(T)      \
-  REGISTER_KERNELS(T, int64, int32); \
-  REGISTER_KERNELS(T, int64, int64);
+  REGISTER_KERNELS(int32, T, int32); \
+  REGISTER_KERNELS(int32, T, int64); \
+  REGISTER_KERNELS(int64, T, int32); \
+  REGISTER_KERNELS(int64, T, int64);
 
 REGISTER_CPU_KERNELS(float);
 

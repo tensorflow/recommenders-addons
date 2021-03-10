@@ -44,7 +44,7 @@ Status ValidateVariableResourceHandle(InferenceContext* c,
   } else {
     *shape_and_type = (*handle_data)[0];
     DataType value_dtype;
-    TF_RETURN_IF_ERROR(c->GetAttr("dtype", &value_dtype));
+    TF_RETURN_IF_ERROR(c->GetAttr("Tvalue", &value_dtype));
     if (shape_and_type->dtype != value_dtype) {
       return errors::InvalidArgument(
           "Trying to read variable with wrong dtype. "
@@ -92,15 +92,15 @@ Status EVShapeShapeFn(InferenceContext* c) {
 REGISTER_OP("EVHandleOp")
     .Attr("container: string = ''")
     .Attr("shared_name: string = ''")
-    .Attr("dtype: type")
     .Attr("shape: shape")
-    .Attr("Tkeys: {int64}")
+    .Attr("Tkey: {int32, int64}")
+    .Attr("Tvalue: type")
     .Output("resource: resource")
     .SetIsStateful()
     .SetShapeFn([](InferenceContext* c) {
       c->set_output(0, c->Scalar());
       DataType t;
-      TF_RETURN_IF_ERROR(c->GetAttr("dtype", &t));
+      TF_RETURN_IF_ERROR(c->GetAttr("Tvalue", &t));
       PartialTensorShape p;
       TF_RETURN_IF_ERROR(c->GetAttr("shape", &p));
       ShapeHandle s;
@@ -115,17 +115,17 @@ Creates a handle to a Embedding Variable resource.
 
 container: the container this variable is placed in.
 shared_name: the name by which this variable is referred to.
-dtype: the type of this variable. Must agree with the dtypes
+Tvalue: the type of this variable. Must agree with the dtypes
   of all ops using this variable.
 shape: The (possibly partially specified) shape of this variable.
 )");
 
 REGISTER_OP("InitializeEVOp")
     .Input("resource: resource")
-    .Input("value: dtype")
-    .Input("empty_key: Tkeys")
-    .Attr("Tkeys: {int32, int64}")
-    .Attr("dtype: type")
+    .Input("value: Tvalue")
+    .Input("empty_key: Tkey")
+    .Attr("Tkey: {int32, int64}")
+    .Attr("Tvalue: type")
     .Attr("shape: shape")
     .SetShapeFn(CreateAssignShapeFn)
     .Doc(R"(
@@ -134,7 +134,8 @@ REGISTER_OP("InitializeEVOp")
 REGISTER_OP("EVIsInitializedOp")
     .Input("resource: resource")
     .Output("is_initialized: bool")
-    .Attr("Tkeys: {int32, int64}")
+    .Attr("Tkey: {int32, int64}")
+    .Attr("Tvalue: type")
     .SetShapeFn(tensorflow::shape_inference::ScalarShape)
     .Doc(R"doc(
 )doc");
@@ -143,19 +144,20 @@ REGISTER_OP("EVShape")
     .Input("input: resource")
     .Output("output: out_type")
     .Attr("out_type: {int32, int64} = DT_INT32")
-    .Attr("Tkeys: {int32, int64}")
+    .Attr("Tkey: {int32, int64}")
+    .Attr("Tvalue: type")
     .SetShapeFn(EVShapeShapeFn)
     .Doc(R"doc(
 )doc");
 
 REGISTER_OP("EVGather")
     .Input("resource: resource")
-    .Input("indices: Tkeys")
-    .Input("default_value: dtype")
+    .Input("indices: Tkey")
+    .Input("default_value: Tvalue")
+    .Output("output: Tvalue")
     .Attr("validate_indices: bool = true")
-    .Output("output: dtype")
-    .Attr("dtype: type")
-    .Attr("Tkeys: {int32, int64}")
+    .Attr("Tkey: {int32, int64}")
+    .Attr("Tvalue: type")
     .SetShapeFn([](InferenceContext* c) {
       ShapeAndType handle_shape_and_type;
       TF_RETURN_IF_ERROR(
@@ -177,12 +179,12 @@ REGISTER_OP("EVGather")
 
 REGISTER_OP("EVSparseApplyGradientDescent")
     .Input("var: resource")
-    .Input("alpha: T")
-    .Input("grad: T")
-    .Input("indices: Tindices")
+    .Input("alpha: Tvalue")
+    .Input("grad: Tvalue")
+    .Input("indices: Tkey")
     .Input("global_step: Tstep")
-    .Attr("T: numbertype")
-    .Attr("Tindices: {int32, int64}")
+    .Attr("Tkey: {int32, int64}")
+    .Attr("Tvalue: numbertype")
     .Attr("Tstep: {int32, int64}")
     .Attr("use_locking: bool = false")
     .SetShapeFn(EVApplyGradientDescentShapeFn)
