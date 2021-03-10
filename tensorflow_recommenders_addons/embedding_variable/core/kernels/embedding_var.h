@@ -30,10 +30,10 @@ class EmbeddingVar : public ResourceBase {
   EmbeddingVar(const string& name, Allocator* alloc = cpu_allocator())
       : name_(name), value_len_(0), default_value_(NULL), alloc_(alloc) {}
 
-  Status Init(const Tensor& default_tensor) {
+  Status Init(const Tensor& default_tensor, const Tensor& empty_key_tensor) {
     dense_hash_map_.max_load_factor(0.8);
-    dense_hash_map_.set_empty_key(-1);
-    dense_hash_map_.set_deleted_key(-2);
+    auto empty_key_tensor_scalar = empty_key_tensor.scalar<K>();
+    dense_hash_map_.set_empty_key(empty_key_tensor_scalar());
     if (default_tensor.dims() != 1) {
       return errors::InvalidArgument("EV's default_tensor shape must be 1-D");
     } else if (DataTypeToEnum<V>::v() != default_tensor.dtype()) {

@@ -24,6 +24,7 @@ from tensorflow.core.framework import variable_pb2
 from tensorflow.python.eager import context
 from tensorflow.python.eager import tape
 from tensorflow.python.framework import dtypes
+from tensorflow.python.framework import errors_impl
 from tensorflow.python.framework import ops
 from tensorflow.python.framework import tensor_shape
 from tensorflow.python.framework import tensor_util
@@ -75,13 +76,14 @@ class EmbeddingVariable(resource_variable_ops.ResourceVariable):
   """
 
   def __init__(self,
-               initial_value=None,
-               initializer=None,
+               embedding_dim,
+               initializer,
                trainable=True,
                collections=None,
                caching_device=None,
                name=None,
-               dtype=None,
+               ktype=None,
+               vtype=None,
                variable_def=None,
                import_scope=None,
                constraint=None,
@@ -92,11 +94,7 @@ class EmbeddingVariable(resource_variable_ops.ResourceVariable):
     """Creates a variable.
 
     Args:
-      initial_value: A `Tensor`, or Python object convertible to a `Tensor`,
-        which is the initial value for the EmbeddingVariable. Can also be a
-        callable with no argument that returns the initial value when called.
-        (Note that initializer functions from init_ops.py must first be bound
-         to a shape before being used here.)
+      embedding_dim: EmbeddingVarible's dimension.
       trainable: If `True`, the default, also adds the variable to the graph
         collection `GraphKeys.TRAINABLE_VARIABLES`. This collection is used as
         the default list of variables to use by the `Optimizer` classes.
@@ -104,7 +102,9 @@ class EmbeddingVariable(resource_variable_ops.ResourceVariable):
         these collections. Defaults to `[GraphKeys.GLOBAL_VARIABLES]`.
       name: Optional name for the variable. Defaults to `'EmbeddingVariable'`
         and gets uniquified automatically.
-      dtype: If set, initial_value will be converted to the given type.
+      ktype: If set, EV's key will be converted to the given type.
+        If None, int32 will be used.
+      vtype: If set, initial_value will be converted to the given type.
         If None, either the datatype will be kept (if initial_value is
         a Tensor) or float32 will be used (if it is a Python object convertible
         to a Tensor).
@@ -128,21 +128,19 @@ class EmbeddingVariable(resource_variable_ops.ResourceVariable):
     @end_compatibility
     """
     if variable_def:
-      if initial_value is not None:
-        raise ValueError("variable_def and initial_value are mutually "
-                         "exclusive.")
       if context.executing_eagerly():
         raise ValueError("Creating EmbeddingVariable from variable_def is "
                          "not supported when eager execution is enabled.")
       self._init_from_proto(variable_def, import_scope=import_scope)
     else:
-      self._init_from_args(initial_value=initial_value,
+      self._init_from_args(embedding_dim=embedding_dim,
                            initializer=initializer,
                            trainable=trainable,
                            collections=collections,
                            caching_device=caching_device,
                            name=name,
-                           dtype=dtype,
+                           ktype=ktype,
+                           vtype=vtype,
                            constraint=constraint,
                            synchronization=synchronization,
                            aggregation=aggregation,
@@ -150,8 +148,8 @@ class EmbeddingVariable(resource_variable_ops.ResourceVariable):
                            invalid_key=invalid_key)
 
   def __repr__(self):
-    return "<tf.EmbeddingVariable '%s' embedding dim=%s dtype=%s>" % (
-        self.name, self.shape, self.dtype.name)
+    return "<tf.EmbeddingVariable '%s' embedding dim=%s ktype=%s vtype=%s>" % (
+        self.name, self.shape, self._ktype.name, self.dtype.name)
 
   # LINT.IfChange
   # _VariableFromResource inherits from EmbeddingVariable but
@@ -159,13 +157,14 @@ class EmbeddingVariable(resource_variable_ops.ResourceVariable):
   # there.
   # pylint: disable=unused-argument
   def _init_from_args(self,
-                      initial_value=None,
+                      embedding_dim,
                       initializer=None,
                       trainable=True,
                       collections=None,
                       caching_device=None,
                       name=None,
-                      dtype=None,
+                      ktype=None,
+                      vtype=None,
                       constraint=None,
                       synchronization=None,
                       aggregation=None,
@@ -186,10 +185,12 @@ class EmbeddingVariable(resource_variable_ops.ResourceVariable):
         these collections. Defaults to `[GraphKeys.GLOBAL_VARIABLES]`.
       name: Optional name for the variable. Defaults to `'EmbeddingVariable'` and gets
         uniquified automatically.
-      dtype: If set, initial_value will be converted to the given type.
+      ktype: If set, EV's key will be converted to the given type.
+        If None, int32 will be used.
+      vtype: If set, initial_value will be converted to the given type.
         If None, either the datatype will be kept (if initial_value is
-       a Tensor) or float32 will be used (if it is a Python object convertible
-       to a Tensor).
+        a Tensor) or float32 will be used (if it is a Python object convertible
+        to a Tensor).
       constraint: An optional projection function to be applied to the variable
         after being updated by an `Optimizer` (e.g. used to implement norm
         constraints or value constraints for layer weights). The function must
@@ -204,9 +205,10 @@ class EmbeddingVariable(resource_variable_ops.ResourceVariable):
     collections, and the `collections` argument is ignored.
     @end_compatibility
     """
-    if initial_value is None:
-      raise ValueError("initial_value must be specified.")
+    initial_value = initializer(shape=[embedding_dim])
     init_from_fn = callable(initial_value)
+    if ktype is None:
+      ktype = dtypes.int32
 
     if collections is None:
       collections = [ops.GraphKeys.GLOBAL_VARIABLES]
@@ -220,7 +222,7 @@ class EmbeddingVariable(resource_variable_ops.ResourceVariable):
     self._initializer = initializer
     if trainable and ops.GraphKeys.TRAINABLE_VARIABLES not in collections:
       collections = list(collections) + [ops.GraphKeys.TRAINABLE_VARIABLES]
-    #self._save_slice_info = None
+
     with ops.init_scope():
       self._in_graph_mode = not context.executing_eagerly()
       with ops.name_scope(name,
@@ -229,9 +231,7 @@ class EmbeddingVariable(resource_variable_ops.ResourceVariable):
                           skip_on_eager=False) as name:
         # pylint: disable=protected-access
         self._invalid_key = invalid_key
-        self._invalid_key_type = ops.convert_to_tensor(
-            invalid_key, name="invalid_key",
-            preferred_dtype=dtypes.int64).dtype.base_dtype
+        self._ktype = ktype
         handle_name = ops.name_from_scope_name(name)
         if self._in_graph_mode:
           shared_name = handle_name
@@ -258,7 +258,7 @@ class EmbeddingVariable(resource_variable_ops.ResourceVariable):
               initial_value = initial_value.wrapped_value
             initial_value = ops.convert_to_tensor(initial_value,
                                                   name="initial_value",
-                                                  dtype=dtype)
+                                                  dtype=vtype)
           shape = initial_value.shape
           handle = self._embedding_variable_handle(
               shape=initial_value.get_shape(),
@@ -275,12 +275,12 @@ class EmbeddingVariable(resource_variable_ops.ResourceVariable):
               "variable inside a loop or conditional, use a lambda as the "
               "initializer." % name)
         # pylint: enable=protected-access
-        dtype = initial_value.dtype.base_dtype
+        vtype = initial_value.dtype.base_dtype
 
         if self._in_graph_mode:
           with ops.name_scope("IsInitialized"):
             is_initialized_op = (gen_ev_ops.ev_is_initialized_op(
-                handle, Tkeys=self._invalid_key_type))
+                handle, Tkey=self._ktype, Tvalue=vtype))
           if initial_value is not None:
             # pylint: disable=g-backslash-continuation
             with ops.name_scope("Initialize") as n, \
@@ -291,8 +291,7 @@ class EmbeddingVariable(resource_variable_ops.ResourceVariable):
                   handle,
                   variables._try_guard_against_uninitialized_dependencies(
                       name, initial_value),
-                  ops.convert_to_tensor(invalid_key,
-                                        preferred_dtype=dtypes.int64),
+                  ops.convert_to_tensor(invalid_key, dtype=self._ktype),
                   shape=initial_value.get_shape(),
                   name=n))
           cached_value = None
@@ -300,9 +299,8 @@ class EmbeddingVariable(resource_variable_ops.ResourceVariable):
         else:
           gen_ev_ops.initialize_ev_op(handle,
                                       initial_value,
-                                      ops.convert_to_tensor(
-                                          invalid_key,
-                                          preferred_dtype=dtypes.int64),
+                                      ops.convert_to_tensor(invalid_key,
+                                                            dtype=self._ktype),
                                       shape=initial_value.get_shape())
           is_initialized_op = None
           initializer_op = None
@@ -320,7 +318,7 @@ class EmbeddingVariable(resource_variable_ops.ResourceVariable):
       super(resource_variable_ops.ResourceVariable,
             self).__init__(trainable=trainable,
                            shape=shape,
-                           dtype=dtype,
+                           dtype=vtype,
                            handle=handle,
                            synchronization=synchronization,
                            constraint=constraint,
@@ -370,18 +368,20 @@ class EmbeddingVariable(resource_variable_ops.ResourceVariable):
     else:
       self._save_slice_info = None
     self._caching_device = None
-    self._dtype = dtypes.as_dtype(self._handle.op.get_attr("dtype"))
+    self._dtype = dtypes.as_dtype(self._handle.op.get_attr("Tvalue"))
     self._invalid_key = -1
     self._initial_value = ops.convert_to_tensor([0],
                                                 name="initial_value",
                                                 dtype=self._dtype)
-    self._invalid_key_type = dtypes.as_dtype(self._handle.op.get_attr("Tkeys"))
+    self._ktype = dtypes.as_dtype(self._handle.op.get_attr("Tkey"))
     self._graph_element = None
     self._constraint = None
 
   def total_count(self):
     """The shape of this variable."""
-    return gen_ev_ops.ev_shape(self._handle, Tkeys=self._invalid_key_type)
+    return gen_ev_ops.ev_shape(self._handle,
+                               Tkey=self._ktype,
+                               Tvalue=self.dtype)
 
   @property
   def invalid_key(self):
@@ -414,12 +414,16 @@ class EmbeddingVariable(resource_variable_ops.ResourceVariable):
 
   def sparse_read(self, indices, name=None):
     """Reads the value of this variable sparsely, using `gather`."""
+    if indices.dtype != self._ktype:
+      raise errors_impl.InvalidArgumentError(
+          None, None,
+          "type of indices is not match with EmbeddingVariable key type.")
     with ops.name_scope("Gather" if name is None else name) as name:
       resource_variable_ops.variable_accessed(self)
       default_value = self._initializer(array_ops.concat(
           [array_ops.shape(indices),
            self.shape.as_list()], axis=0),
-                                        dtype=self._dtype)
+                                        dtype=self.dtype)
       value = gen_ev_ops.ev_gather(self._handle,
                                    indices,
                                    default_value,
@@ -487,10 +491,10 @@ class EmbeddingVariable(resource_variable_ops.ResourceVariable):
     if container is None:
       container = ""
     return gen_ev_ops.ev_handle_op(shape=shape,
-                                   dtype=dtype,
                                    shared_name=shared_name,
                                    name=name,
-                                   Tkeys=self._invalid_key_type,
+                                   Tkey=self._ktype,
+                                   Tvalue=dtype,
                                    container=container)
 
 
@@ -509,7 +513,9 @@ def _GatherGrad(op, grad):
   """Gradient for gather op."""
   handle = op.inputs[0]
   indices = op.inputs[1]
-  params_shape = gen_ev_ops.ev_shape(handle, Tkeys=indices.dtype)
+  params_shape = gen_ev_ops.ev_shape(handle,
+                                     Tkey=indices.dtype,
+                                     Tvalue=grad.dtype)
   size = array_ops.expand_dims(array_ops.size(indices), 0)
   values_shape = array_ops.concat([size, params_shape[1:]], 0)
   values = array_ops.reshape(grad, values_shape)
