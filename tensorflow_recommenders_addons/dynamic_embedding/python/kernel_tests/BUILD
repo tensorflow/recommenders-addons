@@ -41,8 +41,8 @@ py_test(
 )
 
 py_test(
-    name = "dynamic_variable_restrictor_test",
-    srcs = ["dynamic_variable_restrictor_test.py"],
+    name = "restrict_policies_test",
+    srcs = ["restrict_policies_test.py"],
     python_version = "PY3",
     srcs_version = "PY3",
     deps = [

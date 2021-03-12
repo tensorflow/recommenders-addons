@@ -74,6 +74,12 @@ def DynamicEmbeddingOptimizer(self):
       else:
         with ops.colocate_with(None, ignore_existing=True):
           _slots = [self.get_slot(var, _s) for _s in self.get_slot_names()]
+          # Add the correlated slots's sparse parameters with same keys to variable
+          # which created by `dynamic_embedding.get_variable` or `Variable`, for
+          # keeping restrict_policy updated.
+          if var.params.restrict_policy:
+            var.params.restrict_policy._track_params_in_slots(_slots)
+
           with ops.control_dependencies([grad]):
             _before = [var.read_value()] + [_s.read_value() for _s in _slots]
           if isinstance(grad, ops.IndexedSlices):
