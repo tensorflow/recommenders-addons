@@ -100,6 +100,23 @@ def default_partition_fn(keys, shard_num):
   return ids
 
 
+class GraphKeys(object):
+  """Extended standard names related to `dynamic_embedding_ops.Variable` to use
+  for graph collections.
+
+  The following standard keys are defined:
+
+  * `DYNAMIC_EMBEDDING_VARIABLES`: the default collection of
+    all `dynamic_embedding_ops.Variable` objects.
+  * `TRAINABLE_DYNAMIC_EMBEDDING_VARIABLES`: the subset of
+    `dynamic_embedding_ops.Variable` that is trainable.
+  """
+  # Dynamic embedding variables.
+  DYNAMIC_EMBEDDING_VARIABLES = "dynamic_embedding_variables"
+  # Trainable dynamic embedding variables.
+  TRAINABLE_DYNAMIC_EMBEDDING_VARIABLES = "trainable_dynamic_embedding_variables"
+
+
 class Variable(trackable.TrackableResource):
   """
     A Distributed version of HashTable(reference from lookup_ops.MutableHashTable)
@@ -236,6 +253,10 @@ class Variable(trackable.TrackableResource):
     super(Variable, self).__init__()
 
     self.trainable_wrappers = []
+    ops.add_to_collection(de.GraphKeys.DYNAMIC_EMBEDDING_VARIABLES, self)
+    if trainable:
+      ops.add_to_collections(de.GraphKeys.TRAINABLE_DYNAMIC_EMBEDDING_VARIABLES,
+                             self)
 
   @property
   def tables(self):
