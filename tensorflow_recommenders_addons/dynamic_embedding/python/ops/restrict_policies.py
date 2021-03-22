@@ -34,7 +34,7 @@ class RestrictPolicy(object):
   Base class of restrict policies. Never use this class directly, but
   instead of of its derived class.
 
-  This class defines the APIs for tracking and constraining the size of the
+  This class defines the rules for tracking and constraining the size of the
   `dynamic_embedding.Variable`. If the variable joins training via stateful
   optimizer, the policy also manage the slots of the optimizer. It could own
   a status to keep tracking the state of affairs of the features presented

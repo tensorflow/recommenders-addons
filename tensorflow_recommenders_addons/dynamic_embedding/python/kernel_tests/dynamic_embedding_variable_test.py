@@ -111,7 +111,7 @@ def embedding_result(params, id_vals, weight_vals=None):
 
 
 def data_fn(shape, maxval):
-  return random_ops.random_uniform(shape, maxval=maxval, dtype=dtypes.int64) 
+  return random_ops.random_uniform(shape, maxval=maxval, dtype=dtypes.int64)
 
 
 def model_fn(sparse_vars, embed_dim, feature_inputs):

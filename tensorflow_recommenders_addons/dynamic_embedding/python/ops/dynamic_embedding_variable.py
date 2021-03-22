@@ -175,6 +175,10 @@ class Variable(trackable.TrackableResource):
             it is shared using the table node name.
           init_size: initial size for the Variable and initial size of each hash 
             tables will be int(init_size / N), N is the number of the devices.
+          restrict_policy: a restrict policy to specify the rule to restrict the
+            size of variable. If in training program, the variable is updated by
+            optimizer, then the sparse slot variables in optimizer are alse be
+            restricted.
 
         Returns:
           A `Variable` object.
@@ -338,7 +342,8 @@ class Variable(trackable.TrackableResource):
       **kwargs: keyword arguments passing to `restrict_policy.apply_restriction`.
 
     Returns:
-      An operation restrict size of self.
+      An operation to restrict size of the variable itself. Return None if
+      the restrict policy is not set.
     """
     if self._restrict_policy:
       return self._restrict_policy.apply_restriction(residue, **kwargs)
