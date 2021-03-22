@@ -104,7 +104,7 @@ class RestrictPolicy(object):
       else:
         raise TypeError('slots should be dynamic_embedding.TrainableWrapper'
                         'or dynamic_embedding.Variable. But get {}'.format(
-						    type(_s)))
+                            type(_s)))
       if not self._already_has_params(params):
         self.params_in_slots.append(params)
 
