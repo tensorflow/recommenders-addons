@@ -43,7 +43,7 @@ class RestrictPolicy(object):
   `RestrictPolicy` requires a set of methods to be override, in its derived
   policies: `apply_update`, `apply_restriction`, `status`.
 
-  * apply_update: keep tracking on the status of the spase variable,
+  * apply_update: keep tracking on the status of the sparse variable,
       specifically the attributes the every key in sparse variable.
   * apply_restriction: eliminate the features which are not legitimate.
   """
@@ -76,7 +76,7 @@ class RestrictPolicy(object):
     """
     Define the rule to constrain the size of the target variable. There are
     three kinds of variables are token into consideration: variable, status
-    variable, and variables in slots. Number of `residue` features will be left
+    variable, and variables in slots. Number of `residue` features will be kept
     in variable.
 
     Args:
@@ -279,7 +279,7 @@ class FrequencyRestrictPolicy(RestrictPolicy):
   def apply_update(self, indices):
     """
     Define the rule to update the frequency status. If any feature shows up,
-    then its frequency value will be added by 1.
+    then its frequency value will be increased by 1.
 
     Args:
       indices: A Tensor. Keys emerge in training program. These keys

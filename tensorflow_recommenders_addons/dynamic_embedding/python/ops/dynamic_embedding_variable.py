@@ -177,7 +177,7 @@ class Variable(trackable.TrackableResource):
             tables will be int(init_size / N), N is the number of the devices.
           restrict_policy: a restrict policy to specify the rule to restrict the
             size of variable. If in training program, the variable is updated by
-            optimizer, then the sparse slot variables in optimizer are alse be
+            optimizer, then the sparse slot variables in optimizer are also be
             restricted.
 
         Returns:
@@ -527,7 +527,10 @@ def get_variable(
         it is shared using the table node name.
       init_size: initial size for the Variable and initial size of each hash 
         tables will be int(init_size / N), N is the number of the devices.
-      restrict_policy: TODO(Lifann)
+      restrict_policy: a restrict policy to specify the rule to restrict the
+        size of variable. If in training program, the variable is updated by
+        optimizer, then the sparse slot variables in optimizer are also be
+        restricted.
 
     Returns:
       A `Variable` object.
