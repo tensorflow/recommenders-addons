@@ -45,6 +45,8 @@ from tensorflow_recommenders_addons.dynamic_embedding.python.ops.restrict_polici
     TimestampRestrictPolicy,
     FrequencyRestrictPolicy,
 )
+from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_variable import (
+    GraphKeys,)
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.tf_patch import (
     patch_on_tf,)
 
