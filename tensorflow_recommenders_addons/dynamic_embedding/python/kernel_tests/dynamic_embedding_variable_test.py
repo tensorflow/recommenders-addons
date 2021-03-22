@@ -114,10 +114,6 @@ def data_fn(shape, maxval):
   return random_ops.random_uniform(shape, maxval=maxval, dtype=dtypes.int64) 
 
 
-def np_data_fn(shape, maxval):
-  return (maxval * np.random.rand(*shape)).astype(np.int64)
-
-
 def model_fn(sparse_vars, embed_dim, feature_inputs):
   embedding_weights = []
   embedding_trainables = []
