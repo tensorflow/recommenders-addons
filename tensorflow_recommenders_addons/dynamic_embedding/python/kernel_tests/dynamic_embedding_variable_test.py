@@ -284,6 +284,39 @@ default_config = config_pb2.ConfigProto(
 
 
 @test_util.run_all_in_graph_and_eager_modes
+class GraphKeysTest(test.TestCase):
+
+  def test_GraphKeys(self):
+    v0 = de.Variable(key_dtype=dtypes.int64,
+                     value_dtype=dtypes.float32,
+                     initializer=0.0,
+                     name="v0")
+    v1 = de.Variable(key_dtype=dtypes.int64,
+                     value_dtype=dtypes.float32,
+                     initializer=0.0,
+                     name="v1",
+                     trainable=False)
+    v2 = de.get_variable(
+        "v2",
+        key_dtype=dtypes.int64,
+        value_dtype=dtypes.float32,
+        initializer=init_ops.zeros_initializer,
+        dim=10,
+    )
+    v3 = de.get_variable("v3",
+                         key_dtype=dtypes.int64,
+                         value_dtype=dtypes.float32,
+                         initializer=init_ops.zeros_initializer,
+                         dim=10,
+                         trainable=False)
+    de_vars = ops.get_collection(de.GraphKeys.DYNAMIC_EMBEDDING_VARIABLES)
+    self.assertSetEqual(set([v0, v1, v2, v3]), set(de_vars))
+    de_trainable_vars = ops.get_collection(
+        de.GraphKeys.TRAINABLE_DYNAMIC_EMBEDDING_VARIABLES)
+    self.assertAllEqual(set([v0, v2]), set(de_trainable_vars))
+
+
+@test_util.run_all_in_graph_and_eager_modes
 class VariableTest(test.TestCase):
 
   def test_variable(self):
