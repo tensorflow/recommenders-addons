@@ -78,6 +78,23 @@ static Status EVApplyGradientDescentShapeFn(InferenceContext* c) {
   return Status::OK();
 }
 
+static Status EVApplyAdagradShapeFn(InferenceContext* c) {
+  ShapeHandle unused;
+  ShapeHandle s = ShapeOrHandleShape(c, 0);
+  TF_RETURN_IF_ERROR(c->Merge(s, ShapeOrHandleShape(c, 1), &s));
+  TF_RETURN_IF_ERROR(c->WithRank(c->input(2), 0, &unused));
+
+  ShapeHandle grad = ShapeOrHandleShape(c, 3);
+  ShapeHandle indices;
+  TF_RETURN_IF_ERROR(c->WithRank(c->input(4), 1, &indices));
+  DimensionHandle unused2;
+  TF_RETURN_IF_ERROR(c->Merge(c->Dim(indices, 0), c->Dim(grad, 0), &unused2));
+
+  ShapeHandle grad_unknown_first;
+  TF_RETURN_IF_ERROR(c->Subshape(grad, 1, &grad_unknown_first));
+  return Status::OK();
+}
+
 Status EVShapeShapeFn(InferenceContext* c) {
   auto* handle_data = c->input_handle_shapes_and_types(0);
   if (handle_data == nullptr || handle_data->empty()) {
@@ -191,7 +208,20 @@ REGISTER_OP("EVSparseApplyGradientDescent")
     .Doc(R"doc(
 )doc");
 
-// TODO(candy.dc): Other optimizer, such as: Adam, Adagrad
+REGISTER_OP("EVSparseApplyAdagrad")
+    .Input("var: resource")
+    .Input("accum: resource")
+    .Input("lr: Tvalue")
+    .Input("grad: Tvalue")
+    .Input("indices: Tkey")
+    .Input("global_step: Tstep")
+    .Attr("Tkey: {int32, int64}")
+    .Attr("Tvalue: numbertype")
+    .Attr("Tstep: {int32, int64}")
+    .Attr("use_locking: bool = false")
+    .SetShapeFn(EVApplyAdagradShapeFn)
+    .Doc(R"doc(
+)doc");
 
 }  // namespace ev
 }  // namespace tensorflow

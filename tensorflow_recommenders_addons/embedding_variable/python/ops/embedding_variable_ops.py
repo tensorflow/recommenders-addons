@@ -19,6 +19,8 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import six
+
 from tensorflow.core.framework import attr_value_pb2
 from tensorflow.core.framework import variable_pb2
 from tensorflow.python.eager import context
@@ -205,7 +207,12 @@ class EmbeddingVariable(resource_variable_ops.ResourceVariable):
     collections, and the `collections` argument is ignored.
     @end_compatibility
     """
-    initial_value = initializer(shape=[embedding_dim])
+    if isinstance(embedding_dim, tensor_shape.TensorShape):
+      embedding_shape = embedding_dim
+    elif isinstance(embedding_dim, six.integer_types):
+      embedding_shape = [embedding_dim]
+
+    initial_value = initializer(shape=embedding_shape)
     init_from_fn = callable(initial_value)
     if ktype is None:
       ktype = dtypes.int32
@@ -240,7 +247,7 @@ class EmbeddingVariable(resource_variable_ops.ResourceVariable):
           # When in eager mode use a uid for the shared_name, to prevent
           # accidental sharing.
           unique_id = "%s_%d" % (handle_name, ops.uid())
-          shared_name = None  # Never shared
+          shared_name = unique_id
         # Use attr_scope and device(None) to simulate the behavior of
         # colocate_with when the variable we want to colocate with doesn't
         # yet exist.
