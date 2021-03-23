@@ -462,14 +462,15 @@ def embedding_lookup(
   full_name += (name + "/") if name else "embedding_lookup/"
   with ops.name_scope(full_name):
     ids = ops.convert_to_tensor(ids, name="ids")
-    if ids.get_shape() == tensor_shape.unknown_shape():
-      ids = array_ops.reshape(ids, shape=[-1])
-      initial_shape = (1, params.dim)
-      trainable_shape = tensor_shape.unknown_shape()
+    if ids.get_shape().is_fully_defined():
+      # use static shape
+      initial_shape = [ids.get_shape().num_elements(), params.dim]
+      embeddings_shape = ids.get_shape().concatenate([params.dim])
     else:
-      initial_shape = [d if d else 1 for d in ids.get_shape().as_list()
-                      ] + [params.dim]
-      trainable_shape = ids.get_shape().concatenate([params.dim])
+      # use dynamic shape
+      initial_shape = (1, params.dim)
+      embeddings_shape = array_ops.concat([array_ops.shape(ids), [params.dim]],
+                                          axis=0)
     initial_value = array_ops.zeros(shape=initial_shape,
                                     dtype=params.value_dtype)
     if (isinstance(initial_value, ops.Tensor)
@@ -492,7 +493,7 @@ def embedding_lookup(
                                        collections=collections,
                                        model_mode=ModelMode.CURRENT_SETTING)
       embeddings = array_ops.identity(trainable_)
-      embeddings.set_shape(trainable_shape)
+      embeddings = array_ops.reshape(embeddings, shape=embeddings_shape)
 
     for existed in params.trainable_wrappers:
       if trainable_.name == existed.name:
