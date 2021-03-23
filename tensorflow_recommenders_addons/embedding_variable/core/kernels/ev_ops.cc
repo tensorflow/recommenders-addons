@@ -17,6 +17,7 @@ limitations under the License.
 #include "tensorflow/core/framework/resource_mgr.h"
 #include "tensorflow/core/framework/resource_op_kernel.h"
 #include "tensorflow/core/lib/core/status.h"
+#include "tensorflow/core/util/work_sharder.h"
 #include "tensorflow_recommenders_addons/embedding_variable/core/kernels/embedding_var.h"
 #include "tensorflow_recommenders_addons/embedding_variable/core/kernels/ev_op_helpers.h"
 
@@ -295,6 +296,99 @@ class EVSparseApplyGradientDescentOp : public OpKernel {
           .TypeConstraint<stype>("Tstep"),    \
       EVSparseApplyGradientDescentOp<ktype, vtype, stype>);
 
+#define REGISTER_CPU_KERNELS(T)      \
+  REGISTER_KERNELS(int32, T, int32); \
+  REGISTER_KERNELS(int32, T, int64); \
+  REGISTER_KERNELS(int64, T, int32); \
+  REGISTER_KERNELS(int64, T, int64);
+
+REGISTER_CPU_KERNELS(float);
+
+#undef REGISTER_CPU_KERNELS
+#undef REGISTER_KERNELS
+
+template <typename TKey, typename TValue, typename TStep>
+class EVSparseApplyAdagradOp : public OpKernel {
+ public:
+  explicit EVSparseApplyAdagradOp(OpKernelConstruction* ctx) : OpKernel(ctx) {
+    OP_REQUIRES_OK(ctx, ctx->GetAttr("use_locking", &use_exclusive_lock_));
+  }
+
+  void Compute(OpKernelContext* ctx) {
+    auto locks = MaybeLockEmbeddingVariableInputMutexesInOrder<TKey, TValue>(
+        ctx, use_exclusive_lock_, {0, 1});
+
+    EmbeddingVar<TKey, TValue>* var = nullptr;
+    OP_REQUIRES_OK(ctx, LookupResource(ctx, HandleFromInput(ctx, 0), &var));
+
+    EmbeddingVar<TKey, TValue>* accum = nullptr;
+    OP_REQUIRES_OK(ctx, LookupResource(ctx, HandleFromInput(ctx, 1), &accum));
+
+    const Tensor& lr = ctx->input(2);
+    OP_REQUIRES(ctx, TensorShapeUtils::IsScalar(lr.shape()),
+                errors::InvalidArgument("lr is not a scalar: ",
+                                        lr.shape().DebugString()));
+    const Tensor& grad = ctx->input(3);
+    const Tensor& indices = ctx->input(4);
+    OP_REQUIRES(ctx, TensorShapeUtils::IsVector(indices.shape()),
+                errors::InvalidArgument("indices must be one-dimensional"));
+
+    const Tensor& global_step = ctx->input(5);
+    OP_REQUIRES(ctx, TensorShapeUtils::IsScalar(global_step.shape()),
+                errors::InvalidArgument("global_step is not a scalar: ",
+                                        global_step.shape().DebugString()));
+
+    int64 inner_dim = 1;
+    TensorShape var_shape({var->Size(), var->ValueLen()});
+    for (int d = 1; d < var_shape.dims(); d++) {
+      OP_REQUIRES(ctx, var_shape.dim_size(d) == grad.dim_size(d),
+                  errors::InvalidArgument(strings::StrCat(
+                      "var and grad must match in dimension ", d)));
+      inner_dim *= grad.dim_size(d);
+    }
+
+    const TKey N = indices.dim_size(0);
+    OP_REQUIRES(
+        ctx, grad.dim_size(0) == N,
+        errors::InvalidArgument(
+            "grad must be the same size as indices in the first dimension."));
+
+    OP_REQUIRES(ctx, inner_dim > 0,
+                errors::InvalidArgument(
+                    "Inner dimension should be greater than zero."));
+
+    if (N > 0) {
+      if (inner_dim > 0) {
+        auto indices_vec = indices.vec<TKey>();
+        auto grad_flat = grad.flat_outer_dims<TValue>();
+        TValue lr_scalar = lr.scalar<TValue>()();
+        TStep gs = global_step.scalar<TStep>()();
+
+        for (int64 i = 0; i < N; i++) {
+          const TKey index = indices_vec(i);
+
+          auto a = accum->flat(index, gs);
+          auto g = grad_flat.template chip<0>(i);
+          auto v = var->flat(index, gs);
+
+          a += g.square();
+          v -= g.constant(lr_scalar) * g * a.rsqrt();
+        }
+      }
+    }
+  }
+
+ private:
+  bool use_exclusive_lock_;
+};
+
+#define REGISTER_KERNELS(ktype, vtype, stype)                  \
+  REGISTER_KERNEL_BUILDER(Name("EVSparseApplyAdagrad")         \
+                              .Device(DEVICE_CPU)              \
+                              .TypeConstraint<ktype>("Tkey")   \
+                              .TypeConstraint<vtype>("Tvalue") \
+                              .TypeConstraint<stype>("Tstep"), \
+                          EVSparseApplyAdagradOp<ktype, vtype, stype>);
 #define REGISTER_CPU_KERNELS(T)      \
   REGISTER_KERNELS(int32, T, int32); \
   REGISTER_KERNELS(int32, T, int64); \
