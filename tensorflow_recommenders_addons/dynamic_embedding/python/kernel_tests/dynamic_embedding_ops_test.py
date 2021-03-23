@@ -31,10 +31,12 @@ from tensorflow.python.framework import constant_op
 from tensorflow.python.framework import dtypes
 from tensorflow.python.framework import ops
 from tensorflow.python.framework import sparse_tensor
+from tensorflow.python.framework import tensor_shape
 from tensorflow.python.framework import test_util
 from tensorflow.python.keras import initializers as keras_init_ops
 from tensorflow.python.ops import array_ops
 from tensorflow.python.ops import embedding_ops
+from tensorflow.python.ops import gen_array_ops
 from tensorflow.python.ops import init_ops
 from tensorflow.python.ops import math_ops
 from tensorflow.python.ops import variable_scope
@@ -637,6 +639,59 @@ class EmbeddingLookupTest(test.TestCase):
         self.assertTrue(not (list(vals_op[0]) == list(vals_op[1])))
         self.assertAllClose(target_mean, mean, rtol, atol)
         self.assertAllClose(target_stddev, stddev, rtol, atol)
+
+  def test_embedding_lookup_shape(self):
+
+    def _evaluate(tensors, feed_dict):
+      sess = ops.get_default_session()
+      if sess is None:
+        with self.test_session() as sess:
+          return sess.run(tensors, feed_dict=feed_dict)
+      else:
+        return sess.run(tensors, feed_dict=feed_dict)
+
+    with self.session(use_gpu=test_util.is_gpu_available(),
+                      config=default_config):
+      default_val = -1
+
+      keys = constant_op.constant([0, 1, 2], dtypes.int64)
+      values = constant_op.constant([[0, 0, 0], [1, 1, 1], [2, 2, 2]],
+                                    dtypes.int32)
+      table = de.get_variable("t140",
+                              dtypes.int64,
+                              dtypes.int32,
+                              dim=3,
+                              initializer=default_val)
+      self.evaluate(table.upsert(keys, values))
+      self.assertAllEqual(3, self.evaluate(table.size()))
+
+      # shape of ids is fully defined
+      ids = constant_op.constant([[0, 1], [2, 4]], dtypes.int64)
+      embeddings = de.embedding_lookup(table, ids)
+      self.assertAllEqual([2, 2, 3], embeddings.get_shape())
+      re = self.evaluate(embeddings)
+      self.assertAllEqual([[[0, 0, 0], [1, 1, 1]], [[2, 2, 2], [-1, -1, -1]]],
+                          re)
+
+      # shape of ids is partially defined
+      ids = gen_array_ops.placeholder(shape=(2, None), dtype=dtypes.int64)
+      embeddings = de.embedding_lookup(table, ids)
+      self.assertFalse(embeddings.get_shape().is_fully_defined())
+      re = _evaluate(
+          embeddings,
+          feed_dict={ids: np.asarray([[0, 1], [2, 4]], dtype=np.int64)})
+      self.assertAllEqual([[[0, 0, 0], [1, 1, 1]], [[2, 2, 2], [-1, -1, -1]]],
+                          re)
+
+      # shape of ids is unknown
+      ids = gen_array_ops.placeholder(dtype=dtypes.int64)
+      embeddings = de.embedding_lookup(table, ids)
+      self.assertEqual(embeddings.get_shape(), tensor_shape.unknown_shape())
+      re = _evaluate(
+          embeddings,
+          feed_dict={ids: np.asarray([[0, 1], [2, 4]], dtype=np.int64)})
+      self.assertAllEqual([[[0, 0, 0], [1, 1, 1]], [[2, 2, 2], [-1, -1, -1]]],
+                          re)
 
 
 @test_util.deprecated_graph_mode_only
