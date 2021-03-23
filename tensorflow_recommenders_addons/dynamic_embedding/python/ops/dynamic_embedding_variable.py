@@ -331,14 +331,14 @@ class Variable(trackable.TrackableResource):
 
     return control_flow_ops.group(ops_)
 
-  def restrict(self, residue, **kwargs):
+  def restrict(self, num_reserved, **kwargs):
     """
     Restrict the size of self, also including features reside in commensal
     slots, and the policy status. The restriction rule follow the setting
     in `restrict_policy`.
 
     Args:
-      residue: int. Number of remaining features after restriction.
+      num_reserved: int. Number of remaining features after restriction.
       **kwargs: keyword arguments passing to `restrict_policy.apply_restriction`.
 
     Returns:
@@ -346,7 +346,7 @@ class Variable(trackable.TrackableResource):
       the restrict policy is not set.
     """
     if self._restrict_policy:
-      return self._restrict_policy.apply_restriction(residue, **kwargs)
+      return self._restrict_policy.apply_restriction(num_reserved, **kwargs)
     else:
       tf_logging.warning('Call restrict without setting restrict policy.')
       return None

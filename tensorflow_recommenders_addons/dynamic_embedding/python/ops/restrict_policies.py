@@ -1,4 +1,4 @@
-# Copyright 2020 The TensorFlow Recommenders-Addpnons Authors.
+# Copyright 2021 The TensorFlow Recommenders-Addons Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -34,7 +34,7 @@ class RestrictPolicy(object):
   Base class of restrict policies. Never use this class directly, but
   instead of of its derived class.
 
-  This class defines the rules for tracking and constraining the size of the
+  This class defines the rules for tracking and restricting the size of the
   `dynamic_embedding.Variable`. If the variable joins training via stateful
   optimizer, the policy also manage the slots of the optimizer. It could own
   a status to keep tracking the state of affairs of the features presented
@@ -44,7 +44,7 @@ class RestrictPolicy(object):
   policies: `apply_update`, `apply_restriction`, `status`.
 
   * apply_update: keep tracking on the status of the sparse variable,
-      specifically the attributes the every key in sparse variable.
+      specifically the attributes of each key in sparse variable.
   * apply_restriction: eliminate the features which are not legitimate.
   """
 
@@ -58,29 +58,29 @@ class RestrictPolicy(object):
     self.var = var
     self.params_in_slots = []
 
-  def apply_update(self, indices):
+  def apply_update(self, ids):
     """
     Define the rule to update status, with tracking the
     changes in variable and slots.
 
     Args:
-      indices: A Tensor. Keys emerge in training program. These keys
-        in status variable will be updated if there is any status.
+      ids: A Tensor. Keys appear in training. These keys in status
+        variable will be updated if needed.
 
     Returns:
       An operation to update status.
     """
     raise NotImplementedError
 
-  def apply_restriction(self, residue, **kwargs):
+  def apply_restriction(self, num_reserved, **kwargs):
     """
-    Define the rule to constrain the size of the target variable. There are
+    Define the rule to restrict the size of the target variable. There are
     three kinds of variables are token into consideration: variable, status
-    variable, and variables in slots. Number of `residue` features will be kept
-    in variable.
+    variable, and variables in slots. Number of `num_reserved` features will
+    be kept in variable.
 
     Args:
-      residue: number of remained keys after restriction.
+      num_reserved: number of remained keys after restriction.
       **kwargs: (Optional) reserved keyword arguments.
 
     Returns:
@@ -91,11 +91,11 @@ class RestrictPolicy(object):
   @property
   def status(self):
     """
-    Status variable to reflect property of the features reside in variable.
+    Get status variable which save information about properties of features.
     """
     return None
 
-  def _track_params_in_slots(self, slots):
+  def _track_optimizer_slots(self, slots):
     for _s in slots:
       if isinstance(_s, de.TrainableWrapper):
         params = _s.params
@@ -105,16 +105,10 @@ class RestrictPolicy(object):
         raise TypeError('slots should be dynamic_embedding.TrainableWrapper'
                         'or dynamic_embedding.Variable. But get {}'.format(
                             type(_s)))
-      if not self._already_has_params(params):
+      # TODO(Lifann) Use unique identifier instead of Python id().
+      id_collection = [id(p) for p in self.params_in_slots]
+      if id(params) not in id_collection:
         self.params_in_slots.append(params)
-
-  # TODO(Lifann) Use unique identifier instead of Python id().
-  def _already_has_params(self, params):
-    id_collection = [id(p) for p in self.params_in_slots]
-    if id(params) in id_collection:
-      return True
-    else:
-      return False
 
 
 class TimestampRestrictPolicy(RestrictPolicy):
@@ -125,9 +119,10 @@ class TimestampRestrictPolicy(RestrictPolicy):
 
   def __init__(self, var):
     """
-    Create a TimestampRestrictPolicy. A timestamp status sparse variable is
-    created. The timestamp status has same key_dtype as the target variable
-    and value_dtype in int32, which indicates the timestamp value.
+    A timestamp status sparse variable is created. The timestamp status
+    has same key_dtype as the target variable and value_dtype in int32,
+    which indicates the timestamp value. The timestamp means a digital
+    record of time. The later the time, the larger the timestamp.
 
     Args:
       var: A `dynamic_embedding.Variable` object to be restricted.
@@ -154,21 +149,22 @@ class TimestampRestrictPolicy(RestrictPolicy):
           devices=self.var.devices,
           partitioner=self.var.partition_fn,
           trainable=False,
+          init_size=self.var.init_size,
       )
 
-  def apply_update(self, indices):
+  def apply_update(self, ids):
     """
     Define the rule to update the timestamp status. If any feature shows up
     in training, then its timestamp will be updated.
 
     Args:
-      indices: A Tensor. Keys emerge in training program. These keys
-        in status variable will be updated, if there is any status.
+      ids: A Tensor. Keys appear in training. These keys in status variable
+        will be updated if needed.
 
     Returns:
       An operation to update timestamp status.
     """
-    keys = array_ops.reshape(indices, (-1,))
+    keys = array_ops.reshape(ids, (-1,))
     fresh_tstp = array_ops.tile(
         array_ops.reshape(gen_logging_ops.timestamp(), [1]),
         array_ops.reshape(array_ops.size(keys), (-1,)),
@@ -178,41 +174,44 @@ class TimestampRestrictPolicy(RestrictPolicy):
     update_tstp_op = self.tstp_var.upsert(keys, fresh_tstp)
     return update_tstp_op
 
-  def apply_restriction(self, residue, **kwargs):
+  def apply_restriction(self, num_reserved, **kwargs):
     """
-    Define the rule to constrain the size of the target variable by eliminating
-    the oldest k features, and number of `residue` feature will be left.
+    Define the rule to restrict the size of the target variable by eliminating
+    the oldest k features, and number of `num_reserved` feature will be kept.
 
     Args:
-      residue: int. Number of remained keys after restriction.
+      num_reserved: int. Number of remained keys after restriction.
       **kwargs: (Optional) reserved keyword arguments.
         trigger: int. The triggered threshold to execute restriction. Default
-          equals to `residue`.
+          equals to `num_reserved`.
 
     Returns:
-      An operation to do restriction.
+      An operation to restrict the sizes of variable and variables in slots.
     """
-    if not isinstance(residue, int):
-      raise TypeError('residue should be integer.')
-    self._residue = residue
-    trigger = kwargs.get('trigger', residue)
+    if not isinstance(num_reserved, int):
+      raise TypeError('num_reserved should be integer.')
+    self._num_reserved = num_reserved
+    trigger = kwargs.get('trigger', num_reserved)
     if not isinstance(trigger, int):
       raise TypeError('trigger should be integer.')
 
-    is_overflow = math_ops.greater(self.var.size(), trigger)
-    return control_flow_ops.cond(is_overflow, self._cond_apply_restriction,
-                                 self._cond_no_op)
+    is_oversize = math_ops.greater(self.var.size(), trigger)
+    return control_flow_ops.cond(is_oversize, self._cond_restrict_fn,
+                                 control_flow_ops.no_op)
 
-  def _cond_apply_restriction(self):
+  def _cond_restrict_fn(self):
+    """
+    This will only be execute when size of variable is larger than trigger.
+    """
     restrict_var_ops, restrict_status_ops, restrict_slot_ops = [], [], []
     for i, dev in enumerate(self.tstp_var.devices):
       with ops.device(dev):
         partial_keys, partial_tstp = self.tstp_var.tables[i].export()
-        partial_residue = int(self._residue / self.tstp_var.shard_num)
+        partial_reserved = int(self._num_reserved / self.tstp_var.shard_num)
         partial_tstp = array_ops.reshape(partial_tstp, (-1,))
         first_dim = array_ops.shape(partial_tstp)[0]
 
-        k_on_top = math_ops.cast(first_dim - partial_residue,
+        k_on_top = math_ops.cast(first_dim - partial_reserved,
                                  dtype=dtypes.int32)
         k_on_top = math_ops.maximum(k_on_top, 0)
         _, removed_key_indices = nn_ops.top_k(-partial_tstp,
@@ -225,9 +224,6 @@ class TimestampRestrictPolicy(RestrictPolicy):
           restrict_slot_ops.append(slot_param.tables[i].remove(removed_keys))
     return control_flow_ops.group(restrict_var_ops, restrict_status_ops,
                                   restrict_slot_ops)
-
-  def _cond_no_op(self):
-    return control_flow_ops.no_op()
 
   @property
   def status(self):
@@ -242,16 +238,15 @@ class FrequencyRestrictPolicy(RestrictPolicy):
 
   def __init__(self, var):
     """
-    Create a FrequencyRestrictPolicy. A frequency status sparse variable is
-    created. The frequency status has same key_dtype as the target variable
-    and value_dtype in `int32`, which indicates the times of the feature
-    occurrence.
+    A frequency status sparse variable is created. The frequency status has
+    same key_dtype as the target variable and value_dtype in `int32`, which
+    indicates the occurrence times of the feature.
 
     Args:
       var: A `dynamic_embedding.Variable` object to be restricted.
     """
     super(FrequencyRestrictPolicy, self).__init__(var)
-    self.default_count = constant_op.constant(0, dtypes.int32)
+    self.init_count = constant_op.constant(0, dtypes.int32)
 
     scope = variable_scope.get_variable_scope()
     if scope.name:
@@ -274,74 +269,78 @@ class FrequencyRestrictPolicy(RestrictPolicy):
           devices=self.var.devices,
           partitioner=self.var.partition_fn,
           trainable=False,
+          init_size=self.var.init_size,
       )
 
-  def apply_update(self, indices):
+  def apply_update(self, ids):
     """
     Define the rule to update the frequency status. If any feature shows up,
     then its frequency value will be increased by 1.
 
     Args:
-      indices: A Tensor. Keys emerge in training program. These keys
-        in status variable will be updated, if there is any status.
+      ids: A Tensor. Keys appear in training. These keys in status variable
+        will be updated if needed.
 
     Returns:
       An operation to update timestamp status.
     """
     update_status_ops = []
-    keys = array_ops.reshape(indices, (-1,))
+    keys = array_ops.reshape(ids, (-1,))
     partitioned_indices = self.var.partition_fn(keys, self.var.shard_num)
     partitioned_keys, _ = _partition(keys, partitioned_indices,
                                      self.var.shard_num)
     for i, dev in enumerate(self.freq_var.devices):
       with ops.device(dev):
         feature_counts = self.freq_var.tables[i].lookup(
-            partitioned_keys[i], dynamic_default_values=self.default_count)
+            partitioned_keys[i], dynamic_default_values=self.init_count)
         feature_counts += 1
         update_table_op = self.freq_var.tables[i].insert(
             partitioned_keys[i], feature_counts)
         update_status_ops.append(update_table_op)
     return control_flow_ops.group(update_status_ops)
 
-  def apply_restriction(self, residue, **kwargs):
+  def apply_restriction(self, num_reserved, **kwargs):
     """
-    Define the rule to constrain the size of the target variable by eliminating
-    k features with least occurrence, and number of `residue` features will be
-    left.
+    Define the rule to restrict the size of the target variable by eliminating
+    k features with least occurrence, and number of `num_reserved` features will
+    be left.
 
     Args:
-      residue: int. Number of remained keys after restriction.
+      num_reserved: int. Number of remained keys after restriction.
       **kwargs: (Optional) reserved keyword arguments.
         trigger: int. The triggered threshold to execute restriction. Default
-          equals to `residue`.
+          equals to `num_reserved`.
 
     Returns:
       An operation to do restriction.
     """
-    if not isinstance(residue, int):
-      raise TypeError('residue should be integer.')
-    if residue < 0:
-      raise ValueError('residue should be non-negative.')
-    self._residue = residue
-    trigger = kwargs.get('trigger', residue)
+    if not isinstance(num_reserved, int):
+      raise TypeError('num_reserved should be integer.')
+    if num_reserved < 0:
+      raise ValueError('num_reserved should be non-negative.')
+    self._num_reserved = num_reserved
+    trigger = kwargs.get('trigger', num_reserved)
     if not isinstance(trigger, int):
       raise TypeError('trigger should be integer.')
 
-    is_overflow = math_ops.greater(self.var.size(), trigger)
-    return control_flow_ops.cond(is_overflow, self._cond_apply_restriction,
-                                 self._cond_no_op)
+    is_oversize = math_ops.greater(self.var.size(), trigger)
+    return control_flow_ops.cond(is_oversize, self._cond_restrict_fn,
+                                 control_flow_ops.no_op)
 
-  def _cond_apply_restriction(self):
+  def _cond_restrict_fn(self):
+    """
+    This will only be execute when size of variable is larger than trigger.
+    """
     restrict_var_ops, restrict_status_ops, restrict_slot_ops = [], [], []
 
     for i, dev in enumerate(self.freq_var.devices):
       with ops.device(dev):
         partial_keys, partial_counts = self.freq_var.tables[i].export()
-        partial_residue = int(self._residue / self.freq_var.shard_num)
+        partial_reserved = int(self._num_reserved / self.freq_var.shard_num)
         partial_counts = array_ops.reshape(partial_counts, (-1,))
         first_dim = array_ops.shape(partial_counts)[0]
 
-        k_on_top = math_ops.cast(first_dim - partial_residue,
+        k_on_top = math_ops.cast(first_dim - partial_reserved,
                                  dtype=dtypes.int32)
         k_on_top = math_ops.maximum(k_on_top, 0)
         _, removed_key_indices = nn_ops.top_k(-partial_counts,
@@ -355,9 +354,6 @@ class FrequencyRestrictPolicy(RestrictPolicy):
           restrict_slot_ops.append(slot_param.tables[i].remove(removed_keys))
     return control_flow_ops.group(restrict_var_ops, restrict_status_ops,
                                   restrict_slot_ops)
-
-  def _cond_no_op(self):
-    return control_flow_ops.no_op()
 
   @property
   def status(self):

@@ -337,7 +337,7 @@ class TrainableWrapper(resource_variable_ops.ResourceVariable):
 
   def update_op(self):
     update_param_op = self.params.upsert(self.ids, self.read_value(False))
-    if self.params.restrict_policy:
+    if self.params.restrict_policy is not None:
       update_status_op = self.params.restrict_policy.apply_update(self.ids)
       return control_flow_ops.group([update_param_op, update_status_op])
     return update_param_op

@@ -49,11 +49,9 @@ class _DenseDynamicEmbeddingTrainableProcessor(optimizer._OptimizableVariable):
       _slots = [
           optimizer.get_slot(self._v, _s) for _s in optimizer.get_slot_names()
       ]
-      # Add the correlated slots's sparse parameters with same keys to variable
-      # which created by `dynamic_embedding.get_variable` or `Variable`, for
-      # keeping restrict_policy updated.
-      if self._v.params.restrict_policy:
-        self._v.params.restrict_policy._track_params_in_slots(_slots)
+      # Add the optimizer slots to restricting list.
+      if self._v.params.restrict_policy is not None:
+        self._v.params.restrict_policy._track_optimizer_slots(_slots)
 
       with ops.control_dependencies([g]):
         _before = [self._v.read_value()] + [_s.read_value() for _s in _slots]

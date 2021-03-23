@@ -1,4 +1,4 @@
-# Copyright 2020 The TensorFlow Authors. All Rights Reserved.
+# Copyright 2021 The TensorFlow Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -141,6 +141,7 @@ class TimestampRestrictPolicyV1Test(test.TestCase, RestrictPolicyV1TestBase):
                             key_dtype=ids.dtype,
                             value_dtype=dtypes.float32,
                             initializer=-0.1,
+                            init_size=256,
                             dim=2)
       embed_w, trainable = de.embedding_lookup(var, ids, return_trainable=True)
       policy = de.TimestampRestrictPolicy(var)

@@ -1102,7 +1102,7 @@ class VariableTest(test.TestCase):
     optmz = de.DynamicEmbeddingOptimizer(adam.AdamOptimizer(0.1))
     data_len = 32
     maxval = 256
-    residue = 100
+    num_reserved = 100
     trigger = 150
     embed_dim = 8
 
@@ -1112,6 +1112,7 @@ class VariableTest(test.TestCase):
         value_dtype=dtypes.float32,
         initializer=-1.,
         dim=embed_dim,
+        init_size=256,
         restrict_policy=de.TimestampRestrictPolicy)
 
     var_guard_by_freq = de.get_variable(
@@ -1120,6 +1121,7 @@ class VariableTest(test.TestCase):
         value_dtype=dtypes.float32,
         initializer=-1.,
         dim=embed_dim,
+        init_size=256,
         restrict_policy=de.FrequencyRestrictPolicy)
 
     sparse_vars = [var_guard_by_tstp, var_guard_by_freq]
@@ -1136,14 +1138,14 @@ class VariableTest(test.TestCase):
       var_sizes = self.evaluate([spv.size() for spv in sparse_vars])
 
     self.assertTrue(all(sz >= trigger for sz in var_sizes))
-    tstp_restrict_op = var_guard_by_tstp.restrict(residue, trigger=trigger)
+    tstp_restrict_op = var_guard_by_tstp.restrict(num_reserved, trigger=trigger)
     if tstp_restrict_op != None:
       self.evaluate(tstp_restrict_op)
-    freq_restrict_op = var_guard_by_freq.restrict(residue, trigger=trigger)
+    freq_restrict_op = var_guard_by_freq.restrict(num_reserved, trigger=trigger)
     if freq_restrict_op != None:
       self.evaluate(freq_restrict_op)
     var_sizes = self.evaluate([spv.size() for spv in sparse_vars])
-    self.assertAllEqual(var_sizes, [residue, residue])
+    self.assertAllEqual(var_sizes, [num_reserved, num_reserved])
 
     slot_params = []
     for _trainable in trainables:
@@ -1154,11 +1156,11 @@ class VariableTest(test.TestCase):
     slot_params = list(set(slot_params))
 
     for sp in slot_params:
-      self.assertAllEqual(self.evaluate(sp.size()), residue)
+      self.assertAllEqual(self.evaluate(sp.size()), num_reserved)
     tstp_size = self.evaluate(var_guard_by_tstp.restrict_policy.status.size())
-    self.assertAllEqual(tstp_size, residue)
+    self.assertAllEqual(tstp_size, num_reserved)
     freq_size = self.evaluate(var_guard_by_freq.restrict_policy.status.size())
-    self.assertAllEqual(freq_size, residue)
+    self.assertAllEqual(freq_size, num_reserved)
 
   def test_dynamic_embedding_variable_with_restrict_v2(self):
     if not context.executing_eagerly():
@@ -1167,7 +1169,7 @@ class VariableTest(test.TestCase):
     optmz = de.DynamicEmbeddingOptimizer(optimizer_v2.adam.Adam(0.1))
     data_len = 32
     maxval = 256
-    residue = 100
+    num_reserved = 100
     trigger = 150
     embed_dim = 8
     trainables = []
@@ -1207,10 +1209,10 @@ class VariableTest(test.TestCase):
       var_sizes = [spv.size() for spv in sparse_vars]
 
     self.assertTrue(all(sz >= trigger for sz in var_sizes))
-    var_guard_by_tstp.restrict(residue, trigger=trigger)
-    var_guard_by_freq.restrict(residue, trigger=trigger)
+    var_guard_by_tstp.restrict(num_reserved, trigger=trigger)
+    var_guard_by_freq.restrict(num_reserved, trigger=trigger)
     var_sizes = [spv.size() for spv in sparse_vars]
-    self.assertAllEqual(var_sizes, [residue, residue])
+    self.assertAllEqual(var_sizes, [num_reserved, num_reserved])
 
     slot_params = []
     for _trainable in trainables:
@@ -1221,11 +1223,11 @@ class VariableTest(test.TestCase):
     slot_params = list(set(slot_params))
 
     for sp in slot_params:
-      self.assertAllEqual(sp.size(), residue)
+      self.assertAllEqual(sp.size(), num_reserved)
     self.assertAllEqual(var_guard_by_tstp.restrict_policy.status.size(),
-                        residue)
+                        num_reserved)
     self.assertAllEqual(var_guard_by_freq.restrict_policy.status.size(),
-                        residue)
+                        num_reserved)
 
 
 if __name__ == "__main__":
