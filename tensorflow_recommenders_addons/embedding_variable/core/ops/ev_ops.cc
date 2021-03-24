@@ -95,6 +95,29 @@ static Status EVApplyAdagradShapeFn(InferenceContext* c) {
   return Status::OK();
 }
 
+static Status EVApplyAdamShapeFn(InferenceContext* c) {
+  ShapeHandle unused;
+  ShapeHandle s = ShapeOrHandleShape(c, 0);                       // var
+  TF_RETURN_IF_ERROR(c->Merge(s, ShapeOrHandleShape(c, 1), &s));  // m
+  TF_RETURN_IF_ERROR(c->Merge(s, ShapeOrHandleShape(c, 2), &s));  // v
+  TF_RETURN_IF_ERROR(c->WithRank(c->input(3), 0, &unused));       // beta1_power
+  TF_RETURN_IF_ERROR(c->WithRank(c->input(4), 0, &unused));       // beta2_power
+  TF_RETURN_IF_ERROR(c->WithRank(c->input(5), 0, &unused));       // lr
+  TF_RETURN_IF_ERROR(c->WithRank(c->input(6), 0, &unused));       // beta1
+  TF_RETURN_IF_ERROR(c->WithRank(c->input(7), 0, &unused));       // beta2
+  TF_RETURN_IF_ERROR(c->WithRank(c->input(8), 0, &unused));       // epsilon
+
+  ShapeHandle grad = ShapeOrHandleShape(c, 9);
+  ShapeHandle indices;
+  TF_RETURN_IF_ERROR(c->WithRank(c->input(10), 1, &indices));
+  DimensionHandle unused2;
+  TF_RETURN_IF_ERROR(c->Merge(c->Dim(indices, 0), c->Dim(grad, 0), &unused2));
+
+  ShapeHandle grad_unknown_first;
+  TF_RETURN_IF_ERROR(c->Subshape(grad, 1, &grad_unknown_first));
+  return Status::OK();
+}
+
 Status EVShapeShapeFn(InferenceContext* c) {
   auto* handle_data = c->input_handle_shapes_and_types(0);
   if (handle_data == nullptr || handle_data->empty()) {
@@ -220,6 +243,27 @@ REGISTER_OP("EVSparseApplyAdagrad")
     .Attr("Tstep: {int32, int64}")
     .Attr("use_locking: bool = false")
     .SetShapeFn(EVApplyAdagradShapeFn)
+    .Doc(R"doc(
+)doc");
+
+REGISTER_OP("EVSparseApplyAdam")
+    .Input("var: resource")
+    .Input("m: resource")
+    .Input("v: resource")
+    .Input("beta1_power: Tvalue")
+    .Input("beta2_power: Tvalue")
+    .Input("lr: Tvalue")
+    .Input("beta1: Tvalue")
+    .Input("beta2: Tvalue")
+    .Input("epsilon: Tvalue")
+    .Input("grad: Tvalue")
+    .Input("indices: Tkey")
+    .Input("global_step: Tstep")
+    .Attr("Tkey: {int32, int64}")
+    .Attr("Tvalue: numbertype")
+    .Attr("Tstep: {int32, int64}")
+    .Attr("use_locking: bool = false")
+    .SetShapeFn(EVApplyAdamShapeFn)
     .Doc(R"doc(
 )doc");
 
