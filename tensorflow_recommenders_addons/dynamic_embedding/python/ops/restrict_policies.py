@@ -15,7 +15,7 @@
 # lint-as: python3
 """Policies for restricting the dynamic embedding variable"""
 from tensorflow_recommenders_addons import dynamic_embedding as de
-from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_variable import _partition
+from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_variable import make_partition
 
 from tensorflow.python.framework import constant_op
 from tensorflow.python.framework import dtypes
@@ -287,8 +287,8 @@ class FrequencyRestrictPolicy(RestrictPolicy):
     update_status_ops = []
     keys = array_ops.reshape(ids, (-1,))
     partitioned_indices = self.var.partition_fn(keys, self.var.shard_num)
-    partitioned_keys, _ = _partition(keys, partitioned_indices,
-                                     self.var.shard_num)
+    partitioned_keys, _ = make_partition(keys, partitioned_indices,
+                                         self.var.shard_num)
     for i, dev in enumerate(self.freq_var.devices):
       with ops.device(dev):
         feature_counts = self.freq_var.tables[i].lookup(

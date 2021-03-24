@@ -42,7 +42,7 @@ from tensorflow.python.training.tracking import tracking as trackable
 from tensorflow.python.util.tf_export import tf_export
 
 
-def _partition(data, partition_index, shard_num):
+def make_partition(data, partition_index, shard_num):
   """
     Shard keys to shard_num partitions
 
@@ -214,7 +214,7 @@ class Variable(trackable.TrackableResource):
     self.size_ops = []
     self.shard_num = len(self.devices)
     self.init_size = int(init_size / self.shard_num)
-    if restrict_policy:
+    if restrict_policy is not None:
       if not issubclass(restrict_policy, de.RestrictPolicy):
         raise TypeError('restrict_policy must be subclass of RestrictPolicy.')
       self._restrict_policy = restrict_policy(self)
@@ -319,8 +319,9 @@ class Variable(trackable.TrackableResource):
         """
 
     partition_index = self.partition_fn(keys, self.shard_num)
-    keys_partitions, _ = _partition(keys, partition_index, self.shard_num)
-    values_partitions, _ = _partition(values, partition_index, self.shard_num)
+    keys_partitions, _ = make_partition(keys, partition_index, self.shard_num)
+    values_partitions, _ = make_partition(values, partition_index,
+                                          self.shard_num)
 
     ops_ = []
     for idx in range(len(self.devices)):
@@ -345,7 +346,7 @@ class Variable(trackable.TrackableResource):
       An operation to restrict size of the variable itself. Return None if
       the restrict policy is not set.
     """
-    if self._restrict_policy:
+    if self._restrict_policy is not None:
       return self._restrict_policy.apply_restriction(num_reserved, **kwargs)
     else:
       tf_logging.warning('Call restrict without setting restrict policy.')
@@ -368,7 +369,7 @@ class Variable(trackable.TrackableResource):
           TypeError: when `keys` do not match the table data types.
         """
     partition_index = self.partition_fn(keys, self.shard_num)
-    keys_partitions, _ = _partition(keys, partition_index, self.shard_num)
+    keys_partitions, _ = make_partition(keys, partition_index, self.shard_num)
 
     ops_ = []
     for idx in range(len(self.devices)):
@@ -406,8 +407,8 @@ class Variable(trackable.TrackableResource):
             table's value type.
         """
     partition_index = self.partition_fn(keys, self.shard_num)
-    keys_partitions, keys_indices = _partition(keys, partition_index,
-                                               self.shard_num)
+    keys_partitions, keys_indices = make_partition(keys, partition_index,
+                                                   self.shard_num)
 
     ops_ = []
     for idx in range(len(self.devices)):
