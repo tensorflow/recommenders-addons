@@ -30,15 +30,21 @@ from tensorflow_recommenders_addons import dynamic_embedding as de
 
 from tensorflow.core.protobuf import config_pb2
 from tensorflow.python.client import session
+from tensorflow.python.eager import context
 from tensorflow.python.framework import constant_op
 from tensorflow.python.framework import dtypes
 from tensorflow.python.framework import ops
 from tensorflow.python.framework import sparse_tensor
 from tensorflow.python.framework import test_util
+from tensorflow.python.keras import layers
+from tensorflow.python.keras import optimizer_v2
+from tensorflow.python.ops import array_ops
 from tensorflow.python.ops import init_ops
 from tensorflow.python.ops import math_ops
-from tensorflow.python.ops import variable_scope
+from tensorflow.python.ops import nn
+from tensorflow.python.ops import random_ops
 from tensorflow.python.ops import script_ops
+from tensorflow.python.ops import variable_scope
 from tensorflow.python.ops import variables
 from tensorflow.python.platform import test
 from tensorflow.python.training import adam
@@ -102,6 +108,44 @@ def embedding_result(params, id_vals, weight_vals=None):
   weights = np.array(weights).astype(np.float32)
   weights_squared = np.array(weights_squared).astype(np.float32)
   return values, weights, weights_squared
+
+
+def data_fn(shape, maxval):
+  return random_ops.random_uniform(shape, maxval=maxval, dtype=dtypes.int64)
+
+
+def model_fn(sparse_vars, embed_dim, feature_inputs):
+  embedding_weights = []
+  embedding_trainables = []
+  for sp in sparse_vars:
+    for inp_tensor in feature_inputs:
+      embed_w, trainable = de.embedding_lookup(sp,
+                                               inp_tensor,
+                                               return_trainable=True)
+      embedding_weights.append(embed_w)
+      embedding_trainables.append(trainable)
+
+  def layer_fn(entry, dimension, activation=False):
+    entry = array_ops.reshape(entry, (-1, dimension, embed_dim))
+    dnn_fn = layers.Dense(dimension, use_bias=False)
+    batch_normal_fn = layers.BatchNormalization()
+    dnn_result = dnn_fn(entry)
+    if activation:
+      return batch_normal_fn(nn.selu(dnn_result))
+    return dnn_result
+
+  def dnn_fn(entry, dimension, activation=False):
+    hidden = layer_fn(entry, dimension, activation)
+    output = layer_fn(hidden, 1)
+    logits = math_ops.reduce_mean(output)
+    return logits
+
+  logits_sum = sum(dnn_fn(w, 16, activation=True) for w in embedding_weights)
+  labels = 0.0
+  err_prob = nn.sigmoid_cross_entropy_with_logits(logits=logits_sum,
+                                                  labels=labels)
+  loss = math_ops.reduce_mean(err_prob)
+  return labels, embedding_trainables, loss
 
 
 def ids_and_weights_2d(embed_dim=4):
@@ -1050,6 +1094,140 @@ class VariableTest(test.TestCase):
 
       result = self.evaluate(output)
       self.assertNotEqual([-1.0], result[2])
+
+  def test_dynamic_embedding_variable_with_restrict_v1(self):
+    if context.executing_eagerly():
+      self.skipTest('skip eager test when using legacy optimizers.')
+
+    optmz = de.DynamicEmbeddingOptimizer(adam.AdamOptimizer(0.1))
+    data_len = 32
+    maxval = 256
+    num_reserved = 100
+    trigger = 150
+    embed_dim = 8
+
+    var_guard_by_tstp = de.get_variable(
+        'tstp_guard',
+        key_dtype=dtypes.int64,
+        value_dtype=dtypes.float32,
+        initializer=-1.,
+        dim=embed_dim,
+        init_size=256,
+        restrict_policy=de.TimestampRestrictPolicy)
+
+    var_guard_by_freq = de.get_variable(
+        'freq_guard',
+        key_dtype=dtypes.int64,
+        value_dtype=dtypes.float32,
+        initializer=-1.,
+        dim=embed_dim,
+        init_size=256,
+        restrict_policy=de.FrequencyRestrictPolicy)
+
+    sparse_vars = [var_guard_by_tstp, var_guard_by_freq]
+
+    indices = [data_fn((data_len, 1), maxval) for _ in range(3)]
+    _, trainables, loss = model_fn(sparse_vars, embed_dim, indices)
+    train_op = optmz.minimize(loss, var_list=trainables)
+
+    var_sizes = [0, 0]
+    self.evaluate(variables.global_variables_initializer())
+
+    while not all(sz > trigger for sz in var_sizes):
+      self.evaluate(train_op)
+      var_sizes = self.evaluate([spv.size() for spv in sparse_vars])
+
+    self.assertTrue(all(sz >= trigger for sz in var_sizes))
+    tstp_restrict_op = var_guard_by_tstp.restrict(num_reserved, trigger=trigger)
+    if tstp_restrict_op != None:
+      self.evaluate(tstp_restrict_op)
+    freq_restrict_op = var_guard_by_freq.restrict(num_reserved, trigger=trigger)
+    if freq_restrict_op != None:
+      self.evaluate(freq_restrict_op)
+    var_sizes = self.evaluate([spv.size() for spv in sparse_vars])
+    self.assertAllEqual(var_sizes, [num_reserved, num_reserved])
+
+    slot_params = []
+    for _trainable in trainables:
+      slot_params += [
+          optmz.get_slot(_trainable, name).params
+          for name in optmz.get_slot_names()
+      ]
+    slot_params = list(set(slot_params))
+
+    for sp in slot_params:
+      self.assertAllEqual(self.evaluate(sp.size()), num_reserved)
+    tstp_size = self.evaluate(var_guard_by_tstp.restrict_policy.status.size())
+    self.assertAllEqual(tstp_size, num_reserved)
+    freq_size = self.evaluate(var_guard_by_freq.restrict_policy.status.size())
+    self.assertAllEqual(freq_size, num_reserved)
+
+  def test_dynamic_embedding_variable_with_restrict_v2(self):
+    if not context.executing_eagerly():
+      self.skipTest('Test in eager mode only.')
+
+    optmz = de.DynamicEmbeddingOptimizer(optimizer_v2.adam.Adam(0.1))
+    data_len = 32
+    maxval = 256
+    num_reserved = 100
+    trigger = 150
+    embed_dim = 8
+    trainables = []
+
+    var_guard_by_tstp = de.get_variable(
+        'tstp_guard',
+        key_dtype=dtypes.int64,
+        value_dtype=dtypes.float32,
+        initializer=-1.,
+        dim=embed_dim,
+        restrict_policy=de.TimestampRestrictPolicy)
+
+    var_guard_by_freq = de.get_variable(
+        'freq_guard',
+        key_dtype=dtypes.int64,
+        value_dtype=dtypes.float32,
+        initializer=-1.,
+        dim=embed_dim,
+        restrict_policy=de.FrequencyRestrictPolicy)
+
+    sparse_vars = [var_guard_by_tstp, var_guard_by_freq]
+
+    def loss_fn(sparse_vars, trainables):
+      indices = [data_fn((data_len, 1), maxval) for _ in range(3)]
+      _, tws, loss = model_fn(sparse_vars, embed_dim, indices)
+      trainables.clear()
+      trainables.extend(tws)
+      return loss
+
+    def var_fn():
+      return trainables
+
+    var_sizes = [0, 0]
+
+    while not all(sz > trigger for sz in var_sizes):
+      optmz.minimize(lambda: loss_fn(sparse_vars, trainables), var_fn)
+      var_sizes = [spv.size() for spv in sparse_vars]
+
+    self.assertTrue(all(sz >= trigger for sz in var_sizes))
+    var_guard_by_tstp.restrict(num_reserved, trigger=trigger)
+    var_guard_by_freq.restrict(num_reserved, trigger=trigger)
+    var_sizes = [spv.size() for spv in sparse_vars]
+    self.assertAllEqual(var_sizes, [num_reserved, num_reserved])
+
+    slot_params = []
+    for _trainable in trainables:
+      slot_params += [
+          optmz.get_slot(_trainable, name).params
+          for name in optmz.get_slot_names()
+      ]
+    slot_params = list(set(slot_params))
+
+    for sp in slot_params:
+      self.assertAllEqual(sp.size(), num_reserved)
+    self.assertAllEqual(var_guard_by_tstp.restrict_policy.status.size(),
+                        num_reserved)
+    self.assertAllEqual(var_guard_by_freq.restrict_policy.status.size(),
+                        num_reserved)
 
 
 if __name__ == "__main__":

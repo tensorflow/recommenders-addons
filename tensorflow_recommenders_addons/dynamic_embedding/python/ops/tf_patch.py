@@ -1,4 +1,4 @@
-# Copyright 2020 The TensorFlow Recommenders-Addpnons Authors.
+# Copyright 2020 The TensorFlow Recommenders-Addons Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -51,6 +51,10 @@ class _DenseDynamicEmbeddingTrainableProcessor(optimizer._OptimizableVariable):
       _slots = [
           optimizer.get_slot(self._v, _s) for _s in optimizer.get_slot_names()
       ]
+      # Add the optimizer slots to restricting list.
+      if self._v.params.restrict_policy is not None:
+        self._v.params.restrict_policy._track_optimizer_slots(_slots)
+
       with ops.control_dependencies([g]):
         _before = [self._v.read_value()] + [_s.read_value() for _s in _slots]
       if isinstance(g, ops.IndexedSlices):

@@ -1,4 +1,4 @@
-# Copyright 2020 The TensorFlow Recommenders-Addpnons Authors.
+# Copyright 2020 The TensorFlow Recommenders-Addons Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -42,7 +42,7 @@ from tensorflow.python.training.tracking import tracking as trackable
 from tensorflow.python.util.tf_export import tf_export
 
 
-def _partition(data, partition_index, shard_num):
+def make_partition(data, partition_index, shard_num):
   """
     Shard keys to shard_num partitions
 
@@ -136,6 +136,7 @@ class Variable(trackable.TrackableResource):
       trainable=True,
       checkpoint=True,
       init_size=0,
+      restrict_policy=None,
   ):
     """Creates an empty `Variable` object.
 
@@ -174,6 +175,10 @@ class Variable(trackable.TrackableResource):
             it is shared using the table node name.
           init_size: initial size for the Variable and initial size of each hash 
             tables will be int(init_size / N), N is the number of the devices.
+          restrict_policy: a restrict policy to specify the rule to restrict the
+            size of variable. If in training program, the variable is updated by
+            optimizer, then the sparse slot variables in optimizer are also be
+            restricted.
 
         Returns:
           A `Variable` object.
@@ -209,6 +214,12 @@ class Variable(trackable.TrackableResource):
     self.size_ops = []
     self.shard_num = len(self.devices)
     self.init_size = int(init_size / self.shard_num)
+    if restrict_policy is not None:
+      if not issubclass(restrict_policy, de.RestrictPolicy):
+        raise TypeError('restrict_policy must be subclass of RestrictPolicy.')
+      self._restrict_policy = restrict_policy(self)
+    else:
+      self._restrict_policy = None
 
     key_dtype_list = [dtypes.int32, dtypes.int64]
     value_dtype_list = [
@@ -252,7 +263,6 @@ class Variable(trackable.TrackableResource):
             self._tables.append(mht)
     super(Variable, self).__init__()
 
-    self.trainable_wrappers = []
     ops.add_to_collection(de.GraphKeys.DYNAMIC_EMBEDDING_VARIABLES, self)
     if trainable:
       ops.add_to_collections(de.GraphKeys.TRAINABLE_DYNAMIC_EMBEDDING_VARIABLES,
@@ -261,6 +271,10 @@ class Variable(trackable.TrackableResource):
   @property
   def tables(self):
     return self._tables
+
+  @property
+  def restrict_policy(self):
+    return self._restrict_policy
 
   def _convert_anything_to_init(self, raw_init, dim):
     init = raw_init
@@ -305,8 +319,9 @@ class Variable(trackable.TrackableResource):
         """
 
     partition_index = self.partition_fn(keys, self.shard_num)
-    keys_partitions, _ = _partition(keys, partition_index, self.shard_num)
-    values_partitions, _ = _partition(values, partition_index, self.shard_num)
+    keys_partitions, _ = make_partition(keys, partition_index, self.shard_num)
+    values_partitions, _ = make_partition(values, partition_index,
+                                          self.shard_num)
 
     ops_ = []
     for idx in range(len(self.devices)):
@@ -316,6 +331,26 @@ class Variable(trackable.TrackableResource):
                                              name=name))
 
     return control_flow_ops.group(ops_)
+
+  def restrict(self, num_reserved, **kwargs):
+    """
+    Restrict the size of self, also including features reside in commensal
+    slots, and the policy status. The restriction rule follow the setting
+    in `restrict_policy`.
+
+    Args:
+      num_reserved: int. Number of remaining features after restriction.
+      **kwargs: keyword arguments passing to `restrict_policy.apply_restriction`.
+
+    Returns:
+      An operation to restrict size of the variable itself. Return None if
+      the restrict policy is not set.
+    """
+    if self._restrict_policy is not None:
+      return self._restrict_policy.apply_restriction(num_reserved, **kwargs)
+    else:
+      tf_logging.warning('Call restrict without setting restrict policy.')
+      return None
 
   def remove(self, keys, name=None):
     """Removes `keys` and its associated values from the variable.
@@ -334,7 +369,7 @@ class Variable(trackable.TrackableResource):
           TypeError: when `keys` do not match the table data types.
         """
     partition_index = self.partition_fn(keys, self.shard_num)
-    keys_partitions, _ = _partition(keys, partition_index, self.shard_num)
+    keys_partitions, _ = make_partition(keys, partition_index, self.shard_num)
 
     ops_ = []
     for idx in range(len(self.devices)):
@@ -372,8 +407,8 @@ class Variable(trackable.TrackableResource):
             table's value type.
         """
     partition_index = self.partition_fn(keys, self.shard_num)
-    keys_partitions, keys_indices = _partition(keys, partition_index,
-                                               self.shard_num)
+    keys_partitions, keys_indices = make_partition(keys, partition_index,
+                                                   self.shard_num)
 
     ops_ = []
     for idx in range(len(self.devices)):
@@ -460,6 +495,7 @@ def get_variable(
     trainable=True,
     checkpoint=True,
     init_size=0,
+    restrict_policy=None,
 ):
   """Gets an `Variable` object with this name if it exists,
          or create a new one.
@@ -490,6 +526,12 @@ def get_variable(
         saved to and restored from checkpoints.
         If `shared_name` is empty for a checkpointed table,
         it is shared using the table node name.
+      init_size: initial size for the Variable and initial size of each hash 
+        tables will be int(init_size / N), N is the number of the devices.
+      restrict_policy: a restrict policy to specify the rule to restrict the
+        size of variable. If in training program, the variable is updated by
+        optimizer, then the sparse slot variables in optimizer are also be
+        restricted.
 
     Returns:
       A `Variable` object.
@@ -518,6 +560,7 @@ def get_variable(
         trainable=trainable,
         checkpoint=checkpoint,
         init_size=init_size,
+        restrict_policy=restrict_policy,
     )
     scope_store._vars[full_name] = var_
   return scope_store._vars[full_name]
