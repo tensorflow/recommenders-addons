@@ -41,6 +41,16 @@ py_test(
 )
 
 py_test(
+    name = "restrict_policies_test",
+    srcs = ["restrict_policies_test.py"],
+    python_version = "PY3",
+    srcs_version = "PY3",
+    deps = [
+        "//tensorflow_recommenders_addons",
+    ],
+)
+
+py_test(
     name = "cuckoo_hashtable_ops_test",
     srcs = ["cuckoo_hashtable_ops_test.py"],
     python_version = "PY3",
