@@ -110,6 +110,9 @@ is compiled differently. A typical example of this would be `conda`-installed Te
 |:----------------------- |:---- |:---------|
 | tensorflow-recommenders-addons-0.1.0 | 2.4.1  | GCC 7.3.1 |
 
+**NOTICE**：The release packages have strict version binding relationship with TensorFlow. 
+If you need to work with other versions of TensorFlow, we recommend you installing from source.
+
 
 #### Installing from Source
 You can also install from source. This requires the [Bazel](https://bazel.build/) build system (version >= 1.0.0).
@@ -140,6 +143,9 @@ Please follow up the [contributing guide](CONTRIBUTING.md) for more details.
 
 * SIG Recommenders mailing list:
 [recommenders@tensorflow.org](https://groups.google.com/a/tensorflow.org/g/recommenders)
+
+## Acknowledgment
+We are very grateful to the maintainers of [tensorflow/addons](https://github.com/tensorflow/addons) for borrowing a lot of code from [tensorflow/addons](https://github.com/tensorflow/addons) to build our workflow and documentation system.
 
 ## Licence
 Apache License 2.0
