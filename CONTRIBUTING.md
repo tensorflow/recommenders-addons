@@ -52,17 +52,14 @@ could then start contributing the implementation.
 
 ### Coding Style
 We require all contribution conforms to [TensorFlow Style Guide](https://www.tensorflow.org/community/contribute/code_style#tensorflow_conventions_and_special_uses).
+See our [Style Guide](STYLE_GUIDE.md) for more details.
 
 ### Additional Requirements
 In addition to the above requirements, contribution also needs to meet the following criteria:
 * The functionality is not otherwise available in TensorFlow.
-* It has to be compatible with TensorFlow 2.x.
+* It has to be compatible with TensorFlow 2.4.1.
 * The change needs to include unit tests and integration tests if any.
 * Each project needs to provide documentation for when and how to use it.
-
-TODO: add instructions for how to run tests.
-
-TODO: CLA?
 
 ## Community
 
