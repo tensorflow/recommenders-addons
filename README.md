@@ -131,6 +131,47 @@ bazel-bin/build_pip_pkg artifacts
 pip install artifacts/tensorflow_recommenders_addons-*.whl
 ```
 
+### Compatility with Tensorflow Serving
+
+#### Compatibility Matrix
+| TensorFlow Recommenders-Addons | TensorFlow | Serving | Compiler  |
+|:----------------------- |:---- |:---- |:---------|
+| tensorflow-recommenders-addons-0.1.0 | 2.4.1  | 2.4.0  | GCC 7.3.1 |
+
+#### Serving TensorFlow models with custom ops
+Reference documents: https://www.tensorflow.org/tfx/serving/custom_op
+
+TFRA modification(**tensorflow_recommenders_addons.bzl**):
+```
+deps = deps + [
+        # "@local_config_tf//:libtensorflow_framework",
+        "@local_config_tf//:tf_header_lib",
+    ]
+
+native.cc_library(
+        name = name,
+        srcs = srcs,
+        copts = copts,
+        alwayslink = 1,
+        features = select({
+            "//tensorflow_recommenders_addons:windows": ["windows_export_all_symbols"],
+            "//conditions:default": [],
+        }),
+        deps = deps,
+        **kwargs
+    )
+```
+Tensorflow Serving modification(**model_servers/BUILD**):
+```
+SUPPORTED_TENSORFLOW_OPS = if_v2([]) + if_not_v2([
+    "@org_tensorflow//tensorflow/contrib:contrib_kernels",
+    "@org_tensorflow//tensorflow/contrib:contrib_ops_op_lib",
+]) + [
+    "@org_tensorflow_text//tensorflow_text:ops_lib",
+    "//tensorflow_recommenders_addons/dynamic_embedding/core:_cuckoo_hashtable_ops.so",
+]
+```
+
 ## Contributing
 
 TensorFlow Recommenders-Addons is a community-led open source project. As such,
