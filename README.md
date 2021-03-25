@@ -3,8 +3,7 @@
 ![TensorFlow Recommenders logo](assets/SIGRecommendersAddons.png)
 [![PyPI Status Badge](https://badge.fury.io/py/tensorflow-recommenders-addons.svg)](https://pypi.org/project/tensorflow-recommenders-addons/)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/tensorflow-recommenders-addons)](https://pypi.org/project/tensorflow-recommenders-addons/)
-[![Documentation](https://img.shields.io/badge/api-reference-blue.svg)](https://www.tensorflow.org/recommenders-addons/api_docs/python/tfra)
-[![Gitter chat](https://img.shields.io/badge/chat-on%20gitter-46bc99.svg)](https://gitter.im/tensorflow/sig-recommenders-addons)
+[![Documentation](https://img.shields.io/badge/api-reference-blue.svg)](docs/api_docs/)
 
 
 TensorFlow Recommenders Addons are a collection of projects related to
@@ -41,13 +40,17 @@ specific frameworks (e.g. NVIDIA Merlin, …), and integrations with Cloud servi
 (e.g. GCP, AWS, Azure…)
 
 ## RFCs
-* [RFC: Sparse Domain Isolation](rfcs/20200424-sparse-domain-isolation.md)
+* [RFC: Dynamic Embedding](rfcs/20200424-sparse-domain-isolation.md)
 * [RFC: Embedding Variable](https://docs.google.com/document/d/1odez6-69YH-eFcp8rKndDHTNGxZgdFFRJufsW94_gl4/edit)
 
-## Recommender-Addons Subpackages
+## Recommenders-Addons Subpackages
 
-* [tfra.dynamic_embedding](https://www.tensorflow.org/addons/api_docs/python/tfra/dynamic_embdding)
-   
+* [tfra.dynamic_embedding](docs/api_docs/dynamic_embedding.md)
+* [tfra.embedding_variable](https://github.com/tensorflow/recommenders-addons/blob/master/docs/tutorials/embedding_variable_tutorial.ipynb)
+
+## Tutorials
+See [`docs/tutorials/`](docs/tutorials/) for end-to-end examples of each subpackages.
+
 ## Maintainership
 
 We adopt proxy maintainership as in [TensorFlow Recommenders-Addons](https://github.com/tensorflow/recommenders-addons):
@@ -103,27 +106,15 @@ is compiled differently. A typical example of this would be `conda`-installed Te
 
 
 #### Compatibility Matrix
-| TensorFlow Recommenders-Addons | TensorFlow | Compiler  | cuDNN | CUDA | 
-|:----------------------- |:---- |:---------|:---------|:---------|
-| tensorflow-recommenders-addons-0.1.0 | 2.4.1  | GCC 7.3.1 | 7.6 | 10.1 |
+| TensorFlow Recommenders-Addons | TensorFlow | Compiler  |
+|:----------------------- |:---- |:---------|
+| tensorflow-recommenders-addons-0.1.0 | 2.4.1  | GCC 7.3.1 |
 
-
-#### Nightly Builds
-There are also nightly builds of TensorFlow Recommenders-Addons under the pip package
-`tfra-nightly`, which is built against **the latest stable version of TensorFlow**. Nightly builds
-include newer features, but may be less stable than the versioned releases. Contrary to 
-what the name implies, nightly builds are not released every night, but at every commit 
-of the master branch. `0.1.0.dev20201225174950` means that the commit time was 
-2020/12/25 at 17:49:50 Coordinated Universal Time.
-
-```
-pip install tfra-nightly
-```
 
 #### Installing from Source
 You can also install from source. This requires the [Bazel](https://bazel.build/) build system (version >= 1.0.0).
 
-##### CPU Custom Ops
+##### CPU
 ```
 git clone https://github.com/tensorflow/recommenders-addons.git
 cd recommenders-addons
@@ -136,10 +127,6 @@ bazel-bin/build_pip_pkg artifacts
 
 pip install artifacts/tensorflow_recommenders_addons-*.whl
 ```
-
-## Tutorials
-See [`docs/tutorials/`](docs/tutorials/)
-for end-to-end examples of various addons.
 
 ## Contributing
 

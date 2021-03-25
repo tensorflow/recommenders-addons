@@ -14,14 +14,10 @@
 # ==============================================================================
 """TensorFlow Recommenders Addons.
 
-TensorFlow Recommenders Addons is a repository of contributions that conform to
-well-established API patterns, but implement new functionality not available
-in core TensorFlow. TensorFlow natively supports a large number of
-operators, layers, metrics, losses, and optimizers. However, in a fast
-moving field like ML, there are many interesting new developments that
-cannot be integrated into core TensorFlow (because their broad
-applicability is not yet clear, or it is mostly used by a smaller subset
-of the community).
+TensorFlow Recommenders Addons are a collection of projects related to
+large-scale recommendation systems built upon TensorFlow. They are contributed
+and maintained by the community. Those contributions will be complementary to
+TensorFlow Core and TensorFlow Recommenders etc.
 """
 
 import os
