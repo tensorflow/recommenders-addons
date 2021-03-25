@@ -14,5 +14,7 @@
 #
 # ==============================================================================
 toc:
-- title: "Recommending movies: ranking"
-  path: /recommenders-addons/tutorials/basic_ranking_with_dynamic_embedding
+  - title: "DynamicEmbedding Tutorial"
+    path: /recommenders-addons/tutorials/dynamic_embedding_tutorial.ipynb
+  - title: "EmbeddingVariable Tutorial"
+    path: /recommenders-addons/tutorials/embedding_variable_tutorial.ipynb
