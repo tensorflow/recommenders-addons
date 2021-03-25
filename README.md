@@ -141,7 +141,7 @@ pip install artifacts/tensorflow_recommenders_addons-*.whl
 #### Serving TensorFlow models with custom ops
 Reference documents: https://www.tensorflow.org/tfx/serving/custom_op
 
-TFRA modification(**tensorflow_recommenders_addons.bzl**):
+TFRA modification([`tensorflow_recommenders_addons.bzl`](tensorflow_recommenders_addons/tensorflow_recommenders_addons.bzl)):
 ```
 deps = deps + [
         # "@local_config_tf//:libtensorflow_framework",
