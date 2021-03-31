@@ -539,5 +539,88 @@ REGISTER_CPU_KERNELS(float);
 #undef REGISTER_CPU_KERNELS
 #undef REGISTER_KERNELS
 
+template <typename TKey, typename TValue>
+class EVExportOp : public OpKernel {
+ public:
+  explicit EVExportOp(OpKernelConstruction* ctx) : OpKernel(ctx) {}
+
+  void Compute(OpKernelContext* ctx) {
+    EmbeddingVar<TKey, TValue>* ev = nullptr;
+    OP_REQUIRES_OK(ctx, LookupResource(ctx, HandleFromInput(ctx, 0), &ev));
+    std::vector<TKey> key_list;
+    std::vector<TValue*> valueptr_list;
+    int64 total_size = ev->GetSnapshot(&key_list, &valueptr_list);
+
+    Tensor* key = nullptr;
+    Tensor* val = nullptr;
+    OP_REQUIRES_OK(ctx,
+                   ctx->allocate_output(0, TensorShape({total_size}), &key));
+    OP_REQUIRES_OK(
+        ctx, ctx->allocate_output(1, TensorShape({total_size, ev->ValueLen()}),
+                                  &val));
+    auto key_flat = key->flat<TKey>();
+    auto val_matrix = val->matrix<TValue>();
+    for (size_t i = 0; i < total_size; ++i) {
+      key_flat(i) = key_list[i];
+      TValue* value = valueptr_list[i];
+      Eigen::array<Eigen::DenseIndex, 1> dims({ev->ValueLen()});
+      typename TTypes<TValue>::Flat value_flat =
+          typename TTypes<TValue>::Flat(value, dims);
+      for (int64 j = 0; j < ev->ValueLen(); ++j) {
+        val_matrix(i, j) = value_flat(j);
+      }
+    }
+  }
+};
+
+#define REGISTER_KERNELS(ktype, vtype)                          \
+  REGISTER_KERNEL_BUILDER(Name("EVExport")                      \
+                              .Device(DEVICE_CPU)               \
+                              .TypeConstraint<ktype>("Tkey")    \
+                              .TypeConstraint<vtype>("Tvalue"), \
+                          EVExportOp<ktype, vtype>);
+#define REGISTER_CPU_KERNELS(T) \
+  REGISTER_KERNELS(int32, T);   \
+  REGISTER_KERNELS(int64, T);
+
+REGISTER_CPU_KERNELS(float);
+
+#undef REGISTER_CPU_KERNELS
+#undef REGISTER_KERNELS
+
+template <typename TKey, typename TValue>
+class EVImportOp : public OpKernel {
+ public:
+  explicit EVImportOp(OpKernelConstruction* ctx) : OpKernel(ctx) {}
+
+  void Compute(OpKernelContext* ctx) {
+    EmbeddingVar<TKey, TValue>* ev = nullptr;
+    OP_REQUIRES_OK(ctx, LookupResource(ctx, HandleFromInput(ctx, 0), &ev));
+    Tensor key = ctx->input(1);
+    Tensor val = ctx->input(2);
+    auto key_flat = key.flat<TKey>();
+    auto val_matrix = val.matrix<TValue>();
+    for (size_t i = 0; i < key.NumElements(); ++i) {
+      auto value = &val_matrix(i, 0);
+      ev->LookupOrCreate(key_flat(i), value);
+    }
+  }
+};
+
+#define REGISTER_KERNELS(ktype, vtype)                          \
+  REGISTER_KERNEL_BUILDER(Name("EVImport")                      \
+                              .Device(DEVICE_CPU)               \
+                              .TypeConstraint<ktype>("Tkey")    \
+                              .TypeConstraint<vtype>("Tvalue"), \
+                          EVImportOp<ktype, vtype>);
+#define REGISTER_CPU_KERNELS(T) \
+  REGISTER_KERNELS(int32, T);   \
+  REGISTER_KERNELS(int64, T);
+
+REGISTER_CPU_KERNELS(float);
+
+#undef REGISTER_CPU_KERNELS
+#undef REGISTER_KERNELS
+
 }  // namespace ev
 }  // namespace tensorflow

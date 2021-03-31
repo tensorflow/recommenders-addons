@@ -27,6 +27,7 @@ from __future__ import print_function
 import numpy as np
 import os
 
+from tensorflow.python.client import session
 from tensorflow.python.framework import errors
 from tensorflow.python.framework import ops
 from tensorflow.python.framework import test_util
@@ -115,6 +116,34 @@ class EmbeddingVariableTest(test.TestCase):
       for j in range(3):
         self.assertAlmostEqual(.8, emb_result[i][j], delta=1e-05)
         self.assertAlmostEqual(2., grad_result.values[i][j], delta=1e-05)
+
+  @test_util.deprecated_graph_mode_only
+  def testEmbeddingVariableForSaveRestore(self):
+    ev = embedding_variable_ops.EmbeddingVariable(
+        embedding_dim=2,
+        initializer=init_ops.random_normal_initializer(),
+        ktype=dtypes.int64)
+    var_emb = embedding_ops.embedding_lookup(
+        ev, math_ops.cast([0, 1, 2], dtypes.int64))
+    loss = math_ops.reduce_sum(var_emb)
+    optimizer = gradient_descent.GradientDescentOptimizer(0.1)
+    with ops.control_dependencies([var_emb]):
+      opt = optimizer.minimize(loss)
+    saver = saver_module.Saver()
+    init = variables.global_variables_initializer()
+    with session.Session() as sess:
+      sess.run([init])
+      sess.run([opt, var_emb])
+      sess.run([opt, var_emb])
+      sess.run([opt, var_emb])
+      save = sess.run(var_emb)
+      saver.save(sess, "ckpt")
+    with session.Session() as sess:
+      saver.restore(sess, "ckpt")
+      restore = sess.run(var_emb)
+    for i in range(3):
+      for j in range(2):
+        self.assertAlmostEqual(save[i][j], restore[i][j], delta=1e-05)
 
 
 if __name__ == "__main__":

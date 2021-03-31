@@ -111,6 +111,16 @@ class EmbeddingVar : public ResourceBase {
     return Status::OK();
   }
 
+  int64 GetSnapshot(std::vector<K>* key_list, std::vector<V*>* value_list) {
+    tf_shared_lock l(mu_);
+    int64 tot_size = dense_hash_map_.size();
+    for (const auto it : dense_hash_map_) {
+      key_list->push_back(it.first);
+      value_list->push_back(it.second);
+    }
+    return tot_size;
+  }
+
   mutex* mu() { return &mu_; }
 
  private:

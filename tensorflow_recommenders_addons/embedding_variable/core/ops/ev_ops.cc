@@ -267,5 +267,23 @@ REGISTER_OP("EVSparseApplyAdam")
     .Doc(R"doc(
 )doc");
 
+REGISTER_OP("EVExport")
+    .Input("ev: resource")
+    .Output("keys: Tkey")
+    .Output("values: Tvalue")
+    .Attr("Tkey: {int32, int64}")
+    .Attr("Tvalue: numbertype")
+    .Doc(R"doc(
+)doc");
+
+REGISTER_OP("EVImport")
+    .Input("ev: resource")
+    .Input("keys: Tkey")
+    .Input("values: Tvalue")
+    .Attr("Tkey: {int32, int64}")
+    .Attr("Tvalue: numbertype")
+    .Doc(R"doc(
+)doc");
+
 }  // namespace ev
 }  // namespace tensorflow
