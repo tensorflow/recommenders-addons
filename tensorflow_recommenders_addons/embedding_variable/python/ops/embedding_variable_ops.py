@@ -37,13 +37,16 @@ from tensorflow.python.ops import variables
 from tensorflow.python.ops import resource_variable_ops
 from tensorflow.python.training.tracking import base as trackable
 from tensorflow.python.util import compat
+from tensorflow.python.training.saving import saveable_object
+from tensorflow.python.training.saver import BaseSaverBuilder
 
 from tensorflow_recommenders_addons.embedding_variable.python import gen_ev_ops
 
 __all__ = ["EmbeddingVariable"]
 
 
-class EmbeddingVariable(resource_variable_ops.ResourceVariable):
+class EmbeddingVariable(resource_variable_ops.ResourceVariable,
+                        saveable_object.SaveableObject):
   """Embedding Variable based on resource variable.
 
   See the ${variables} documentation for more details.
@@ -341,6 +344,17 @@ class EmbeddingVariable(resource_variable_ops.ResourceVariable):
                            cached_value=cached_value,
                            caching_device=caching_device)
 
+    tensors = gen_ev_ops.ev_export(self.handle, Tkey=self._ktype, Tvalue=vtype)
+    self.specs = [
+        BaseSaverBuilder.SaveSpec(tensors[0], "", name + "-keys"),
+        BaseSaverBuilder.SaveSpec(tensors[1], "", name + "-values"),
+    ]
+
+  def restore(self, restored_tensors, restored_shapes):
+    with ops.control_dependencies([self.initializer]):
+      return gen_ev_ops.ev_import(self.handle, restored_tensors[0],
+                                  restored_tensors[1])
+
   def _init_from_proto(self, variable_def, import_scope=None):
     """Initializes from `VariableDef` proto."""
     # Note that init_from_proto is currently not supported in Eager mode.
@@ -465,7 +479,6 @@ class EmbeddingVariable(resource_variable_ops.ResourceVariable):
         var_def.snapshot_name = ops.strip_name_scope(self._cached_value.name,
                                                      export_scope)
       var_def.is_resource = True
-      var_def.is_embedding_var = True
       if self._save_slice_info:
         var_def.save_slice_info_def.MergeFrom(
             self._save_slice_info.to_proto(export_scope=export_scope))
