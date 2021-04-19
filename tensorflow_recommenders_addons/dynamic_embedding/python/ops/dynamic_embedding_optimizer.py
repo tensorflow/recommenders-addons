@@ -39,6 +39,22 @@ from tensorflow.python.training import slot_creator
 
 
 def DynamicEmbeddingOptimizer(self):
+  """ An optimizer wrapper to make any TensorFlow optimizer capable of training
+  Dynamic Embeddding Variables.
+
+  Args:
+    self: a TensorFlow optimizer.
+
+  Example usage:
+
+    ```python
+    optimizer = tfra.dynamic_embedding.DynamicEmbeddingOptimizer(
+        tf.train.AdamOptimizer(0.001))
+    ```
+
+  Returns:
+    The optimizer itself but has ability to train Dynamic Embedding Variables.
+  """
 
   def _distributed_apply(distribution, grads_and_vars, name, apply_state):
     """`apply_gradients` using a `DistributionStrategy`."""
