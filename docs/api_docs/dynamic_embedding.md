@@ -26,6 +26,8 @@ Public API for tfra.dynamic_embedding namespace.
 
 [`safe_embedding_lookup_sparse(...)`](./dynamic_embedding/safe_embedding_lookup_sparse.md): Provides a dynamic version of <a href="https://www.tensorflow.org/api_docs/python/tf/nn/safe_embedding_lookup_sparse"><code>tf.nn.safe_embedding_lookup_sparse</code></a>.
 
+[`DynamicEmbeddingOptimizer(...)`](./dynamic_embedding/DynamicEmbeddingOptimizer.md): An optimizer wrapper to make any TensorFlow optimizer capable of training [`Variable`](./dynamic_embedding/Variable.md).
+
 [`enable_train_mode(...)`](./dynamic_embedding/enable_train_mode.md): enable train mode.
 
 [`enable_inference_mode(...)`](./dynamic_embedding/enable_inference_mode.md): set inference mode.
