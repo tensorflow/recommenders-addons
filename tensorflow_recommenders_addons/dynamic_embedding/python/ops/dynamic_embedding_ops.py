@@ -711,10 +711,10 @@ def embedding_lookup_sparse(
     else:
       assert idx is not None
       if combiner == "sum":
-        embeddings = math_ops.sparse_segment_sum(embeddings,
-                                                 idx,
-                                                 segment_ids,
-                                                 name=name)
+        embeddings = de.math.sparse_segment_sum(embeddings,
+                                                idx,
+                                                segment_ids,
+                                                name=name)
       elif combiner == "mean":
         embeddings = math_ops.sparse_segment_mean(embeddings,
                                                   idx,

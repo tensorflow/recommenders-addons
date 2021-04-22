@@ -59,3 +59,23 @@ py_test(
         "//tensorflow_recommenders_addons",
     ],
 )
+
+py_test(
+    name = "math_ops_test",
+    srcs = ["math_ops_test.py"],
+    python_version = "PY3",
+    srcs_version = "PY3",
+    deps = [
+        "//tensorflow_recommenders_addons",
+    ],
+)
+
+py_test(
+    name = "math_grad_test",
+    srcs = ["math_grad_test.py"],
+    python_version = "PY3",
+    srcs_version = "PY3",
+    deps = [
+        "//tensorflow_recommenders_addons",
+    ],
+)
