@@ -28,6 +28,7 @@ limitations under the License.
 #include "tensorflow/core/lib/gtl/map_util.h"
 #include "tensorflow/core/platform/macros.h"
 #include "tensorflow/core/platform/thread_annotations.h"
+#include "tensorflow/core/util/env_var.h"
 
 namespace tensorflow {
 namespace cuckoohash {
