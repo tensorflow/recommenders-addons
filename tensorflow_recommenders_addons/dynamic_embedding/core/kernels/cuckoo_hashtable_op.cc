@@ -106,9 +106,27 @@ struct LaunchTensorsInsert<CPUDevice, K, V, J> {
       }
     };
     auto& worker_threads = *context->device()->tensorflow_cpu_worker_threads();
+    // Only use num_worker_threads when
+    // TFRA_NUM_WORKER_THREADS_FOR_LOOKUP_TABLE_INSERT env var is set to k where
+    // k > 0 and k <current number of tf cpu worker threads. Otherwise nothing
+    // changes.
+    int64 num_worker_threads = -1;
+    Status status =
+        ReadInt64FromEnvVar("TFRA_NUM_WORKER_THREADS_FOR_LOOKUP_TABLE_INSERT",
+                            -1, &num_worker_threads);
+    if (!status.ok()) {
+      LOG(ERROR)
+          << "Error parsing TFRA_NUM_WORKER_THREADS_FOR_LOOKUP_TABLE_INSERT: "
+          << status;
+    }
+    if (num_worker_threads <= 0 ||
+        num_worker_threads > worker_threads.num_threads) {
+      num_worker_threads = worker_threads.num_threads;
+    }
+    LOG(INFO) << "LaunchTensorsInsert num_worker_threads = "
+              << num_worker_threads;
     int64 slices = static_cast<int64>(total / worker_threads.num_threads) + 1;
-    Shard(worker_threads.num_threads, worker_threads.workers, total, slices,
-          shard);
+    Shard(num_worker_threads, worker_threads.workers, total, slices, shard);
   }
 
  private:
@@ -143,21 +161,6 @@ class CuckooHashTableOfTensors final : public LookupInterface {
   }
 
   ~CuckooHashTableOfTensors() { delete table_; }
-
-  Status ReadInt64FromEnvVar(StringPiece env_var_name, int64 default_val,
-                             int64* value) {
-    *value = default_val;
-    const char* tf_env_var_val = getenv(string(env_var_name).c_str());
-    if (tf_env_var_val == nullptr) {
-      return Status::OK();
-    }
-    if (strings::safe_strto64(tf_env_var_val, value)) {
-      return Status::OK();
-    }
-    return errors::InvalidArgument(strings::StrCat(
-        "Failed to parse the env-var ${", env_var_name, "} into int64: ",
-        tf_env_var_val, ". Use the default value: ", default_val));
-  }
 
   size_t size() const override { return table_->size(); }
 
