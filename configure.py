@@ -92,6 +92,15 @@ def get_shared_lib_name():
     return namespec[1][3:]
 
 
+def get_tf_version():
+  version = tf.__version__
+  try:
+    major, minor, patch = version.split('.')
+  except:
+    raise ValueError('got wrong tf.__version__: {}'.format(version))
+  return version, major, minor, patch
+
+
 def create_build_configuration():
   print()
   print("Configuring TensorFlow Recommenders-Addons to be built from source...")
@@ -105,6 +114,13 @@ def create_build_configuration():
   write_action_env("TF_SHARED_LIBRARY_DIR", get_tf_shared_lib_dir())
   write_action_env("TF_SHARED_LIBRARY_NAME", get_shared_lib_name())
   write_action_env("TF_CXX11_ABI_FLAG", tf.sysconfig.CXX11_ABI_FLAG)
+
+  _, tf_major_version, tf_minor_version, tf_patch_version = get_tf_version()
+  # This is used to trace the difference between Tensorflow versions.
+  # TODO(Lifann) write them to enviroment variables.
+  write_action_env("TF_MAJOR_VERSION", tf_major_version)
+  write_action_env("TF_MINOR_VERSION", tf_minor_version)
+  write_action_env("TF_PATCH_VERSION", tf_patch_version)
 
   write("build --spawn_strategy=standalone")
   write("build --strategy=Genrule=standalone")

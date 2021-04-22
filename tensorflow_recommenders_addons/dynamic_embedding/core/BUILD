@@ -3,6 +3,7 @@ licenses(["notice"])  # Apache 2.0
 package(default_visibility = ["//visibility:public"])
 
 load("//tensorflow_recommenders_addons:tensorflow_recommenders_addons.bzl", "custom_op_library")
+load("@local_config_cuda//cuda:build_defs.bzl", "if_cuda")
 
 custom_op_library(
     name = "_cuckoo_hashtable_ops.so",
@@ -12,4 +13,18 @@ custom_op_library(
         "ops/cuckoo_hashtable_ops.cc",
     ],
     deps = ["//tensorflow_recommenders_addons/dynamic_embedding/core/lib/cuckoo:cuckoohash"],
+)
+
+custom_op_library(
+    name = "_segment_reduction_ops.so",
+    srcs = [
+        "kernels/segment_reduction_ops.h",
+        "kernels/segment_reduction_ops_impl.cc",
+        "kernels/segment_reduction_ops_impl.h",
+        "ops/math_ops.cc",
+    ],
+    cuda_srcs = [
+        "kernels/segment_reduction_ops.h",
+        "kernels/segment_reduction_ops_gpu.cu.cc",
+    ],
 )

@@ -1,5 +1,14 @@
-load("@local_config_tf//:build_defs.bzl", "D_GLIBCXX_USE_CXX11_ABI")
-load("@local_config_cuda//cuda:build_defs.bzl", "if_cuda", "if_cuda_is_configured")
+load(                                                                
+    "@local_config_tf//:build_defs.bzl",                             
+    "D_GLIBCXX_USE_CXX11_ABI",                                       
+    "DTF_MAJOR_VERSION",                                             
+    "DTF_MINOR_VERSION",                                             
+    "DTF_PATCH_VERSION")                                             
+load(                                                                
+    "@local_config_cuda//cuda:build_defs.bzl",                       
+    "if_cuda",                                                       
+    "if_cuda_is_configured",                                         
+)
 
 def custom_op_library(
         name,
@@ -51,7 +60,14 @@ def custom_op_library(
             "/DNOGDI",
             "/UTF_COMPILE_LIBRARY",
         ],
-        "//conditions:default": ["-pthread", "-std=c++11", D_GLIBCXX_USE_CXX11_ABI],
+        "//conditions:default": [
+            "-pthread",
+            "-std=c++14",
+            D_GLIBCXX_USE_CXX11_ABI,
+            DTF_MAJOR_VERSION,
+            DTF_MINOR_VERSION,
+            DTF_PATCH_VERSION,
+        ],
     })
 
     native.cc_binary(

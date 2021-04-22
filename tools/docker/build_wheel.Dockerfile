@@ -2,7 +2,7 @@
 ARG TF_VERSION
 ARG PY_VERSION
 FROM tfaddons/tensorflow:2.1.0-custom-op-gpu-ubuntu16-minimal as base_install
-ENV TF_NEED_CUDA="1"
+ENV TF_NEED_CUDA="0"
 
 # is needed because when we sqashed the image, we lost all environment variables.
 ENV NVIDIA_REQUIRE_CUDA=cuda>=10.1 brand=tesla,driver>=384,driver<385 brand=tesla,driver>=396,driver<397 brand=tesla,driver>=410,driver<411
@@ -54,13 +54,13 @@ ARG NIGHTLY_TIME
 RUN --mount=type=cache,id=cache_bazel,target=/root/.cache/bazel \
     bash tools/testing/build_and_run_tests.sh && \
     bazel build \
-        -c opt \
-        --noshow_progress \
-        --noshow_loading_progress \
-        --verbose_failures \
-        --test_output=errors \
-        --crosstool_top=//build_deps/toolchains/gcc7_manylinux2010-nvcc-cuda10.1:toolchain \
-        build_pip_pkg && \
+    -c opt \
+    --noshow_progress \
+    --noshow_loading_progress \
+    --verbose_failures \
+    --test_output=errors \
+    --crosstool_top=//build_deps/toolchains/gcc7_manylinux2010-nvcc-cuda10.1:toolchain \
+    build_pip_pkg && \
     # Package Whl
     bazel-bin/build_pip_pkg artifacts $NIGHTLY_FLAG
 

@@ -8,6 +8,12 @@ _TF_SHARED_LIBRARY_NAME = "TF_SHARED_LIBRARY_NAME"
 
 _TF_CXX11_ABI_FLAG = "TF_CXX11_ABI_FLAG"
 
+TF_MAJOR_VERSION = "TF_MAJOR_VERSION"
+
+TF_MINOR_VERSION = "TF_MINOR_VERSION"
+
+TF_PATCH_VERSION = "TF_PATCH_VERSION"
+
 def _tpl(repository_ctx, tpl, substitutions = {}, out = None):
     if not out:
         out = tpl
@@ -204,6 +210,9 @@ def _tf_pip_impl(repository_ctx):
     tf_shared_library_name = repository_ctx.os.environ[_TF_SHARED_LIBRARY_NAME]
     tf_shared_library_path = "%s/%s" % (tf_shared_library_dir, tf_shared_library_name)
     tf_cx11_abi = "-D_GLIBCXX_USE_CXX11_ABI=%s" % (repository_ctx.os.environ[_TF_CXX11_ABI_FLAG])
+    tf_major_version = "-DTF_MAJOR_VERSION=%s" % (repository_ctx.os.environ[TF_MAJOR_VERSION])
+    tf_minor_version = "-DTF_MINOR_VERSION=%s" % (repository_ctx.os.environ[TF_MINOR_VERSION])
+    tf_patch_version = "-DTF_PATCH_VERSION=%s" % (repository_ctx.os.environ[TF_PATCH_VERSION])
 
     tf_shared_library_rule = _symlink_genrule_for_dir(
         repository_ctx,
@@ -225,6 +234,9 @@ def _tf_pip_impl(repository_ctx):
         "build_defs.bzl",
         {
             "%{tf_cx11_abi}": tf_cx11_abi,
+            "%{tf_major_version}": tf_major_version,
+            "%{tf_minor_version}": tf_minor_version,
+            "%{tf_patch_version}": tf_patch_version,
         },
     )
 
