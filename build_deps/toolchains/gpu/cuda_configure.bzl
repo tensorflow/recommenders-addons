@@ -1013,6 +1013,8 @@ def _create_local_cuda_repository(repository_ctx):
 
     builtin_include_directories = []
     for one_line in cuda_defines["%{host_compiler_includes}"].splitlines():
+        if len(one_line) == 0:
+            continue
         inc_dir = one_line.split(":")[1][2:-1]
         builtin_include_directories.append(inc_dir)
 
