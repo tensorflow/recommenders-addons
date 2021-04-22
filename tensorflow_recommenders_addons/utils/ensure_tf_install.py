@@ -47,7 +47,7 @@ def _check_tf_version():
   min_version = LooseVersion(MIN_TF_VERSION)
   max_version = LooseVersion(MAX_TF_VERSION)
 
-  if min_version <= LooseVersion(tf.__version__) < max_version:
+  if min_version <= LooseVersion(tf.__version__) <= max_version:
     return
 
   warnings.warn(
