@@ -42,6 +42,35 @@ Be sure to run it before you push your commits, otherwise the CI will fail!
 yapf --style=./.yapf -ir ./**/*.py
 ```
 
+#### Bazel BUILD
+Use [buildifier](https://github.com/bazelbuild/buildtools/blob/master/buildifier/README.md) in project [bazelbuild/buildtools](https://github.com/bazelbuild/buildtools) to format the bazel code.
+
+Install it with:
+```bash
+git clone https://github.com/bazelbuild/buildtools.git
+cd buildtools
+bazel build //buildifier
+```
+Then copy the binary to directory on $PATH. (such as "/usr/local/bin")
+```bash
+cp bazel-bin/buildifier/buildifier_/buildifier /usr/local/bin
+```
+
+Run following commmand to see whether if installation ok:
+```bash
+buildifier --version
+```
+
+Use `buildifier`
+```bash
+buildifier -mode diff ${your_file_name}
+```
+to see formating problem in the BUILD file, or:
+```bash
+buildifier -mode diff ${directory}
+```
+for all BUILD files in ${directory}.
+
 #### TensorFlow Conventions
 
 Follow the guidance in the [TensorFlow Style Guide - Conventions](https://www.tensorflow.org/community/contribute/code_style#tensorflow_conventions_and_special_uses).
