@@ -10,6 +10,6 @@ custom_op_library(
         "kernels/cuckoo_hashtable_op.cc",
         "kernels/cuckoo_hashtable_op.h",
         "ops/cuckoo_hashtable_ops.cc",
-    ],
+    ] + glob(["kernels/lookup_impl/lookup_table_op_cpu*"]),
     deps = ["//tensorflow_recommenders_addons/dynamic_embedding/core/lib/cuckoo:cuckoohash"],
 )

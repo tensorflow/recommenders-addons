@@ -13,8 +13,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#ifndef TENSORFLOW_CORE_KERNELS_CUCKOO_LOOKUP_TABLE_OP_H_
-#define TENSORFLOW_CORE_KERNELS_CUCKOO_LOOKUP_TABLE_OP_H_
+#ifndef TFRA_CORE_KERNELS_CUCKOO_LOOKUP_TABLE_OP_H_
+#define TFRA_CORE_KERNELS_CUCKOO_LOOKUP_TABLE_OP_H_
 
 #include "tensorflow/core/framework/bounds_check.h"
 #include "tensorflow/core/framework/lookup_interface.h"
@@ -31,8 +31,9 @@ limitations under the License.
 #include "tensorflow/core/util/env_var.h"
 
 namespace tensorflow {
-namespace cuckoohash {
+namespace recommenders_addons {
 
+using tensorflow::OpKernelContext;
 using tensorflow::lookup::CheckTableDataTypes;
 using tensorflow::lookup::LookupInterface;
 
@@ -126,35 +127,8 @@ class HashTableOp : public OpKernel {
 
   TF_DISALLOW_COPY_AND_ASSIGN(HashTableOp);
 };
-/*
-namespace lookup {
 
-template <typename T>
-T SubtleMustCopyIfIntegral(const T& value) {
-  return internal::SubtleMustCopy(value);
-}
-
-inline const tstring& SubtleMustCopyIfIntegral(const tstring& value) {
-  return value;
-}
-
-inline const float SubtleMustCopyIfIntegral(const float value) { return value; }
-
-inline const double SubtleMustCopyIfIntegral(const double value) {
-  return value;
-}
-
-inline const Variant& SubtleMustCopyIfIntegral(const Variant& value) {
-  return value;
-}
-
-inline const ResourceHandle& SubtleMustCopyIfIntegral(
-    const ResourceHandle& value) {
-  return value;
-}
-
-}  // namespace lookup*/
-}  // namespace cuckoohash
+}  // namespace recommenders_addons
 }  // namespace tensorflow
 
-#endif  // TENSORFLOW_CORE_KERNELS_LOOKUP_TABLE_OP_H_
+#endif  // TFRA_CORE_KERNELS_CUCKOO_LOOKUP_TABLE_OP_H_
