@@ -3,6 +3,7 @@
 dist/
 build/
 .idea/
+.vscode/
 tensorflow_recommenders_addons.egg-info/
 
 .DS_Store

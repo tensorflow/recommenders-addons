@@ -1,12 +1,12 @@
 <div itemscope itemtype="http://developers.google.com/ReferenceObject">
-<meta itemprop="name" content="tfra.dynamic_embedding.embedding_lookup" />
+<meta itemprop="name" content="tfra.dynamic_embedding.embedding_lookup_unique" />
 <meta itemprop="path" content="Stable" />
 </div>
 
-# tfra.dynamic_embedding.embedding_lookup
+# tfra.dynamic_embedding.embedding_lookup_unique
 
 ``` python
-tfra.dynamic_embedding.embedding_lookup(
+tfra.dynamic_embedding.embedding_lookup_unique(
     params,
     ids,
     partition_strategy=None,
@@ -17,12 +17,9 @@ tfra.dynamic_embedding.embedding_lookup(
 )
 ```
 
-Provides a dynamic version of embedding_lookup
-  similar with tf.nn.embedding_lookup.
-
-Ids are flattened to a 1d tensor before being passed to embedding_lookup
-then, they are unflattend to match the original ids shape plus an extra
-leading dimension of the size of the embeddings.
+Version of embedding_lookup that avoids duplicate lookups.
+  This can save communication in the case of repeated ids.
+  Same interface as embedding_lookup.
 
 #### Args:
 
@@ -30,7 +27,7 @@ leading dimension of the size of the embeddings.
 * <b>`ids`</b>: A tensor with any shape as same dtype of params.key_dtype.
 * <b>`partition_strategy`</b>: No used, for API compatiblity with `nn.emedding_lookup`.
 * <b>`name`</b>: A name for the operation (optional).
-* <b>`validate_indices`</b>: No used, just for compatible with nn.embedding_lookup .
+* <b>`validate_indices`</b>: No used, just for compatible with nn.embedding_lookup_unique .
 * <b>`max_norm`</b>: If not `None`, each embedding is clipped if its l2-norm is larger
     than this value.
 * <b>`return_trainable`</b>: optional, If True, also return TrainableWrapper
