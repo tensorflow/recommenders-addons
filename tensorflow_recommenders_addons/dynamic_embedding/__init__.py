@@ -23,6 +23,8 @@ from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embeddi
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_ops import (
     embedding_lookup,)
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_ops import (
+    embedding_lookup_unique,)
+from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_ops import (
     embedding_lookup_sparse,)
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_ops import (
     safe_embedding_lookup_sparse,)

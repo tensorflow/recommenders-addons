@@ -431,6 +431,202 @@ class EmbeddingLookupTrainableV2Test(test.TestCase, CommonTrainableTestV2Base):
       )
 
 
+class EmbeddingLookupUniqueTrainableV1Test(test.TestCase,
+                                           CommonTrainableTestV1Base):
+
+  def common_minimize_trainable(self, base_opt, test_opt, name):
+    de.enable_train_mode()
+    base_opt = de.DynamicEmbeddingOptimizer(base_opt)
+    test_opt = de.DynamicEmbeddingOptimizer(test_opt)
+    id = 0
+    for (
+        num_shards,
+        k_dtype,
+        d_dtype,
+        initial_mode,
+        dim,
+        run_step,
+    ) in itertools.product(
+        [1, 2],
+        [
+            dtypes.int64,
+        ],
+        [
+            dtypes.float32,
+        ],
+        [
+            "constant",
+        ],
+        [1, 10],
+        [10],
+    ):
+      id += 1
+      with self.session(use_gpu=test_util.is_gpu_available(),
+                        config=default_config) as sess:
+        # common define
+        raw_init_ids = [0, 1, 2, 3, 4]
+        raw_init_vals = np.random.rand(5, dim)
+        raw_ids = [0, 1, 1, 2, 3, 4, 4]
+        x = constant_op.constant(np.random.rand(dim, len(raw_ids)),
+                                 dtype=d_dtype)
+
+        # base graph
+        ids = constant_op.constant(raw_ids, dtype=k_dtype)
+        base_var = resource_variable_ops.ResourceVariable(raw_init_vals,
+                                                          dtype=d_dtype)
+        unique_ids, idx = array_ops.unique(ids)
+        unique_embeddings = embedding_ops.embedding_lookup([base_var],
+                                                           unique_ids)
+        embeddings = array_ops.gather(unique_embeddings, idx)
+        pred0 = math_ops.matmul(embeddings, x)
+        loss0 = pred0 * pred0
+        base_opt_op = base_opt.minimize(loss0)
+
+        # test graph
+        embeddings = de.get_variable(
+            "t-embedding_lookup_unique-v1-" + name + str(id),
+            key_dtype=k_dtype,
+            value_dtype=d_dtype,
+            devices=_get_devices() * num_shards,
+            initializer=1.0,
+            dim=dim,
+        )
+        self.device_check(embeddings)
+        init_ids = constant_op.constant(raw_init_ids, dtype=k_dtype)
+        init_vals = constant_op.constant(raw_init_vals, dtype=d_dtype)
+        init_op = embeddings.upsert(init_ids, init_vals)
+        self.evaluate(init_op)
+
+        test_var, trainable = de.embedding_lookup_unique([embeddings],
+                                                         ids,
+                                                         return_trainable=True)
+        pred1 = math_ops.matmul(test_var, x)
+        loss1 = pred1 * pred1
+
+        test_opt_op = test_opt.minimize(loss1, var_list=[trainable])
+
+        self.evaluate(variables.global_variables_initializer())
+
+        for _ in range(run_step):
+          sess.run(base_opt_op)
+
+        # Fetch params to validate initial values
+        self.assertAllCloseAccordingToType(raw_init_vals[raw_ids],
+                                           self.evaluate(test_var))
+        # Run `run_step` step of sgd
+        for _ in range(run_step):
+          sess.run(test_opt_op)
+
+        table_var = embeddings.lookup(ids)
+        # Validate updated params
+        self.assertAllCloseAccordingToType(
+            self.evaluate(base_var)[raw_ids],
+            self.evaluate(table_var),
+            msg="Cond:{},{},{},{},{},{}".format(num_shards, k_dtype, d_dtype,
+                                                initial_mode, dim, run_step),
+        )
+
+
+class EmbeddingLookupUniqueTrainableV2Test(test.TestCase,
+                                           CommonTrainableTestV2Base):
+
+  def common_minimize_trainable_v2(self, base_opt, test_opt, name):
+    de.enable_train_mode()
+    base_opt = de.DynamicEmbeddingOptimizer(base_opt)
+    test_opt = de.DynamicEmbeddingOptimizer(test_opt)
+    id = 0
+    for (
+        num_shards,
+        k_dtype,
+        d_dtype,
+        initial_mode,
+        dim,
+        run_step,
+    ) in itertools.product(
+        [1, 2],
+        [
+            dtypes.int64,
+        ],
+        [
+            dtypes.float32,
+        ],
+        [
+            "constant",
+        ],
+        [1, 10],
+        [10],
+    ):
+      id += 1
+      # common define
+      raw_init_ids = [0, 1, 2, 3, 4]
+      raw_init_vals = np.random.rand(5, dim)
+      raw_ids = [0, 1, 1, 2, 3, 4, 4]
+
+      # base graph
+      def base_fn():
+        embeddings = resource_variable_ops.ResourceVariable(raw_init_vals,
+                                                            dtype=d_dtype)
+
+        def loss_fn(emb):
+          ids = constant_op.constant(raw_ids, dtype=k_dtype)
+          unique_ids, idx = array_ops.unique(ids)
+          unique_embeddings = embedding_ops.embedding_lookup([emb], unique_ids)
+          pred = array_ops.gather(unique_embeddings, idx)
+          return pred * pred
+
+        base_opt_op = base_opt.minimize(lambda: loss_fn(embeddings),
+                                        [embeddings])
+        self.evaluate(variables.global_variables_initializer())
+        for _ in range(run_step):
+          self.evaluate(base_opt_op)
+        return embeddings
+
+      base_opt_val = self.evaluate(base_fn())
+
+      def test_fn():
+        embeddings = de.get_variable(
+            "t2020-v2-" + name + str(id),
+            key_dtype=k_dtype,
+            value_dtype=d_dtype,
+            devices=_get_devices() * num_shards,
+            initializer=1.0,
+            dim=dim,
+        )
+        self.device_check(embeddings)
+        trainables = []
+        init_ids = constant_op.constant(raw_init_ids, dtype=k_dtype)
+        init_vals = constant_op.constant(raw_init_vals, dtype=d_dtype)
+        self.evaluate(embeddings.upsert(init_ids, init_vals))
+
+        def var_fn():
+          return trainables
+
+        def loss_fn(x, trainables):
+          ids = constant_op.constant(raw_ids, dtype=k_dtype)
+          pred, trainable = de.embedding_lookup_unique([x],
+                                                       ids,
+                                                       return_trainable=True)
+          trainables.clear()
+          trainables.append(trainable)
+          return pred * pred
+
+        test_opt_op = test_opt.minimize(lambda: loss_fn(embeddings, trainables),
+                                        var_fn)
+        self.evaluate(variables.global_variables_initializer())
+        for _ in range(run_step):
+          self.evaluate(test_opt_op)
+        return embeddings.lookup(init_ids)
+
+      with ops.device(_get_devices()[0]):
+        test_opt_val = self.evaluate(test_fn())
+      self.assertAllCloseAccordingToType(
+          base_opt_val,
+          test_opt_val,
+          msg="Cond:{},{},{},{},{},{}".format(num_shards, k_dtype, d_dtype,
+                                              initial_mode, dim, run_step),
+      )
+
+
 class EmbeddingLookupSparseTrainableV1Test(test.TestCase,
                                            CommonTrainableTestV1Base):
 
