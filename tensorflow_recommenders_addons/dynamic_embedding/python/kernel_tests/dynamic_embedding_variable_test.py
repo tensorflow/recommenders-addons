@@ -61,6 +61,10 @@ def _type_converter(tf_type):
       dtypes.int64: np.int64,
       dtypes.float32: np.float,
       dtypes.float64: np.float64,
+      dtypes.string: np.str,
+      dtypes.half: np.float16,
+      dtypes.int8: np.int8,
+      dtypes.bool: np.bool,
   }
   return mapper[tf_type]
 
@@ -319,47 +323,69 @@ class VariableTest(test.TestCase):
     id = 0
     if test_util.is_gpu_available():
       dim_list = [1, 2, 4, 8, 10, 16, 32, 64, 100, 256, 500]
+      kv_list = [[dtypes.int64, dtypes.float32], [dtypes.int64, dtypes.int32],
+                 [dtypes.int64, dtypes.half], [dtypes.int64, dtypes.int8]]
     else:
-      dim_list = [1, 10]
-    for key_dtype, value_dtype, dim in itertools.product([dtypes.int64],
-                                                         [dtypes.float32],
-                                                         dim_list):
+      dim_list = [1, 8, 16, 128]
+      kv_list = [[dtypes.int32, dtypes.double], [dtypes.int32, dtypes.float32],
+                 [dtypes.int32, dtypes.int32], [dtypes.int64, dtypes.double],
+                 [dtypes.int64, dtypes.float32], [dtypes.int64, dtypes.int32],
+                 [dtypes.int64, dtypes.int64], [dtypes.int64, dtypes.string],
+                 [dtypes.int64, dtypes.int8], [dtypes.int64, dtypes.half],
+                 [dtypes.string, dtypes.double],
+                 [dtypes.string, dtypes.float32], [dtypes.string, dtypes.int32],
+                 [dtypes.string, dtypes.int64], [dtypes.string, dtypes.int8],
+                 [dtypes.string, dtypes.half]]
+
+    def _convert(v, t):
+      return np.array(v).astype(_type_converter(t))
+
+    for (key_dtype, value_dtype), dim in itertools.product(kv_list, dim_list):
       id += 1
       with self.session(config=default_config,
-                        use_gpu=test_util.is_gpu_available()):
-        keys = constant_op.constant([0, 1, 2, 3], key_dtype)
+                        use_gpu=test_util.is_gpu_available()) as sess:
+        keys = constant_op.constant(
+            np.array([0, 1, 2, 3]).astype(_type_converter(key_dtype)),
+            key_dtype)
         values = constant_op.constant(
-            [[0] * dim, [1] * dim, [2] * dim, [3] * dim], value_dtype)
-        table = de.get_variable(
-            "t1-" + str(id),
-            key_dtype=key_dtype,
-            value_dtype=value_dtype,
-            initializer=-1,
-            dim=dim,
-        )
+            _convert([[0] * dim, [1] * dim, [2] * dim, [3] * dim], value_dtype),
+            value_dtype)
+        table = de.get_variable('t1-' + str(id),
+                                key_dtype=key_dtype,
+                                value_dtype=value_dtype,
+                                initializer=np.array([-1]).astype(
+                                    _type_converter(value_dtype)),
+                                dim=dim)
         self.assertAllEqual(0, self.evaluate(table.size()))
 
         self.evaluate(table.upsert(keys, values))
         self.assertAllEqual(4, self.evaluate(table.size()))
 
-        remove_keys = constant_op.constant([1, 5], key_dtype)
+        remove_keys = constant_op.constant(_convert([1, 5], key_dtype),
+                                           key_dtype)
         self.evaluate(table.remove(remove_keys))
         self.assertAllEqual(3, self.evaluate(table.size()))
 
-        remove_keys = constant_op.constant([0, 1, 5], key_dtype)
+        remove_keys = constant_op.constant(_convert([0, 1, 5], key_dtype),
+                                           key_dtype)
         output = table.lookup(remove_keys)
         self.assertAllEqual([3, dim], output.get_shape())
 
         result = self.evaluate(output)
-        self.assertAllEqual([[0] * dim, [-1] * dim, [-1] * dim], result)
+        self.assertAllEqual(
+            _convert([[0] * dim, [-1] * dim, [-1] * dim], value_dtype),
+            _convert(result, value_dtype))
 
         exported_keys, exported_values = table.export()
 
         # exported data is in the order of the internal map, i.e. undefined
         sorted_keys = np.sort(self.evaluate(exported_keys))
         sorted_values = np.sort(self.evaluate(exported_values), axis=0)
-        self.assertAllEqual([0, 2, 3], sorted_keys)
-        self.assertAllEqual([[0] * dim, [2] * dim, [3] * dim], sorted_values)
+        self.assertAllEqual(_convert([0, 2, 3], key_dtype),
+                            _convert(sorted_keys, key_dtype))
+        self.assertAllEqual(
+            _convert([[0] * dim, [2] * dim, [3] * dim], value_dtype),
+            _convert(sorted_values, value_dtype))
 
         del table
 
@@ -704,7 +730,7 @@ class VariableTest(test.TestCase):
   def test_dynamic_embedding_variable(self):
     with self.session(config=default_config,
                       use_gpu=test_util.is_gpu_available()):
-      default_val = constant_op.constant([-1, -1], dtypes.int64)
+      default_val = constant_op.constant([-1, -2], dtypes.int64)
       keys = constant_op.constant([0, 1, 2, 3], dtypes.int64)
       values = constant_op.constant([[0, 1], [2, 3], [4, 5], [6, 7]],
                                     dtypes.int32)
@@ -727,7 +753,7 @@ class VariableTest(test.TestCase):
       self.assertAllEqual([3, 2], output.get_shape())
 
       result = self.evaluate(output)
-      self.assertAllEqual([[0, 1], [2, 3], [-1, -1]], result)
+      self.assertAllEqual([[0, 1], [2, 3], [-1, -2]], result)
 
       exported_keys, exported_values = table.export()
       # exported data is in the order of the internal map, i.e. undefined

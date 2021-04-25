@@ -297,6 +297,7 @@ def create_slots(primary, init, slot_name, op_name):
           devices=params_var_.devices,
           partitioner=params_var_.partition_fn,
           initializer=init,
+          init_size=params_var_.init_size,
           trainable=False,
           checkpoint=params_var_.checkpoint,
       )

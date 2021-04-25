@@ -21,16 +21,12 @@ limitations under the License.
 #include <type_traits>
 #include <utility>
 
-#include "tensorflow/core/framework/register_types.h"
-#include "tensorflow/core/framework/types.h"
-#include "tensorflow/core/framework/variant.h"
 #include "tensorflow/core/kernels/lookup_table_op.h"
-#include "tensorflow/core/lib/gtl/inlined_vector.h"
 #include "tensorflow/core/util/work_sharder.h"
-#include "tensorflow_recommenders_addons/dynamic_embedding/core/lib/cuckoo/cuckoohash_map.hh"
+#include "tensorflow_recommenders_addons/dynamic_embedding/core/kernels/lookup_impl/lookup_table_op_cpu.h"
 
 namespace tensorflow {
-namespace cuckoohash {
+namespace recommenders_addons {
 namespace lookup {
 typedef Eigen::ThreadPoolDevice CPUDevice;
 
@@ -481,5 +477,5 @@ REGISTER_KERNEL(tstring, Eigen::half);
 
 #undef REGISTER_KERNEL
 
-}  // namespace cuckoohash
+}  // namespace recommenders_addons
 }  // namespace tensorflow

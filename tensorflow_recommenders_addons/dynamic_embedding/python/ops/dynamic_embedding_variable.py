@@ -24,6 +24,7 @@ from __future__ import print_function
 
 from tensorflow_recommenders_addons import dynamic_embedding as de
 
+from tensorflow.python import _pywrap_util_port
 from tensorflow.python.client import device_lib
 from tensorflow.python.eager import context
 from tensorflow.python.framework import constant_op
@@ -36,6 +37,7 @@ from tensorflow.python.ops import data_flow_ops
 from tensorflow.python.ops import init_ops
 from tensorflow.python.ops import init_ops_v2
 from tensorflow.python.ops import math_ops
+from tensorflow.python.ops import string_ops
 from tensorflow.python.ops import variable_scope
 from tensorflow.python.platform import tf_logging
 from tensorflow.python.training.tracking import tracking as trackable
@@ -87,14 +89,22 @@ def default_partition_fn(keys, shard_num):
         represents the corresponding partition-ids of keys.
     """
   keys_op = ops.convert_to_tensor(keys, name="keys")
+  gpu_mode = _pywrap_util_port.IsGoogleCudaEnabled()
+
   with ops.colocate_with(keys_op):
-    if keys_op.dtype == dtypes.int64:
-      mask = constant_op.constant(0x7FFFFFFF, dtypes.int64)
+    if keys_op.dtype == dtypes.int64 and gpu_mode:
+      # This branch has low performance on some multi-CPU scenario,
+      # so we try to use default branch when GPUs are not available.
+      mask = constant_op.constant(0x7fffffff, dtypes.int64)
       keys_int32 = math_ops.cast(bitwise_ops.bitwise_and(keys_op, mask),
                                  dtypes.int32)
       mod = math_ops.mod(keys_int32,
                          constant_op.constant(shard_num, dtypes.int32))
       ids = math_ops.cast(mod, dtype=dtypes.int32)
+    elif keys_op.dtype == dtypes.string:
+      ids = string_ops.string_to_hash_bucket_fast(keys_op, shard_num)
+      mask = constant_op.constant(0x7fffffff, dtypes.int64)
+      ids = math_ops.cast(bitwise_ops.bitwise_and(ids, mask), dtypes.int32)
     else:
       ids = math_ops.cast(math_ops.mod(keys_op, shard_num), dtype=dtypes.int32)
   return ids
@@ -221,15 +231,10 @@ class Variable(trackable.TrackableResource):
     else:
       self._restrict_policy = None
 
-    key_dtype_list = [dtypes.int32, dtypes.int64]
+    key_dtype_list = [dtypes.int32, dtypes.int64, dtypes.string]
     value_dtype_list = [
-        dtypes.int32,
-        dtypes.int64,
-        dtypes.bool,
-        dtypes.float32,
-        dtypes.float64,
-        dtypes.half,
-        dtypes.int8,
+        dtypes.int32, dtypes.int64, dtypes.bool, dtypes.float32, dtypes.float64,
+        dtypes.half, dtypes.int8, dtypes.string
     ]
     if "GPU" in self.devices[0].upper():
       key_dtype_list = [dtypes.int64]
@@ -284,11 +289,11 @@ class Variable(trackable.TrackableResource):
         init = init(shape=[1])
       else:
         init = init()
-    init = math_ops.cast(
-        array_ops.fill([dim],
-                       array_ops.reshape(init, [-1])[0]),
-        dtype=self.value_dtype,
-    )
+    try:
+      init = array_ops.reshape(init, [dim])
+    except:
+      init = array_ops.fill([dim], array_ops.reshape(init, [-1])[0])
+    init = math_ops.cast(init, dtype=self.value_dtype)
     return init
 
   def _create_resource(self):
