@@ -30,39 +30,30 @@ namespace recommenders_addons {
 namespace lookup {
 typedef Eigen::ThreadPoolDevice CPUDevice;
 
-template <typename Device, class K, class V, class J>
+template <typename Device, class K, class V>
 struct LaunchTensorsFind;
 
-template <class K, class V, class J>
-struct LaunchTensorsFind<CPUDevice, K, V, J> {
+template <class K, class V>
+struct LaunchTensorsFind<CPUDevice, K, V> {
   explicit LaunchTensorsFind(int64 value_dim) : value_dim_(value_dim) {}
 
-  void launch(OpKernelContext* context, cuckoohash_map<K, J>& table,
+  void launch(OpKernelContext* context, cpu::TableWrapperBase<K, V>* table,
               const Tensor& key, Tensor* value, const Tensor& default_value) {
     const auto key_flat = key.flat<K>();
-    auto value_flat = value->flat_inner_dims<V, 2>();
-    const auto default_flat = default_value.flat_inner_dims<V, 2>();
+    cpu::Tensor2D<V> value_flat = value->flat_inner_dims<V, 2>();
+    cpu::ConstTensor2D<V> default_flat = default_value.flat_inner_dims<V, 2>();
     int64 total = value_flat.size();
     int64 default_total = default_flat.size();
     bool is_full_default = (total == default_total);
 
-    auto shard = [this, &table, key_flat, &value_flat, &default_flat,
+    auto shard = [this, table, key_flat, &value_flat, &default_flat,
                   &is_full_default](int64 begin, int64 end) {
       for (int64 i = begin; i < end; ++i) {
         if (i >= key_flat.size()) {
           break;
         }
-        J value_vec;
-        if (table.find(key_flat(i), value_vec)) {
-          for (int64 j = 0; j < value_dim_; j++) {
-            value_flat(i, j) = value_vec.at(j);
-          }
-        } else {
-          for (int64 j = 0; j < value_dim_; j++) {
-            value_flat(i, j) =
-                is_full_default ? default_flat(i, j) : default_flat(0, j);
-          }
-        }
+        table->find(key_flat(i), value_flat, default_flat, value_dim_,
+                    is_full_default, i);
       }
     };
     auto& worker_threads = *context->device()->tensorflow_cpu_worker_threads();
@@ -75,30 +66,25 @@ struct LaunchTensorsFind<CPUDevice, K, V, J> {
   const int64 value_dim_;
 };
 
-template <typename Device, class K, class V, class J>
+template <typename Device, class K, class V>
 struct LaunchTensorsInsert;
 
-template <class K, class V, class J>
-struct LaunchTensorsInsert<CPUDevice, K, V, J> {
+template <class K, class V>
+struct LaunchTensorsInsert<CPUDevice, K, V> {
   explicit LaunchTensorsInsert(int64 value_dim) : value_dim_(value_dim) {}
 
-  void launch(OpKernelContext* context, cuckoohash_map<K, J>& table,
+  void launch(OpKernelContext* context, cpu::TableWrapperBase<K, V>* table,
               const Tensor& keys, const Tensor& values) {
     const auto key_flat = keys.flat<K>();
     int64 total = key_flat.size();
     const auto value_flat = values.flat_inner_dims<V, 2>();
 
-    auto shard = [this, &table, key_flat, value_flat](int64 begin, int64 end) {
+    auto shard = [this, &table, key_flat, &value_flat](int64 begin, int64 end) {
       for (int64 i = begin; i < end; ++i) {
         if (i >= key_flat.size()) {
           break;
         }
-        J value_vec;
-        for (int64 j = 0; j < value_dim_; j++) {
-          V value = value_flat(i, j);
-          value_vec.push_back(value);
-        }
-        table.insert_or_assign(key_flat(i), value_vec);
+        table->insert_or_assign(key_flat(i), value_flat, value_dim_, i);
       }
     };
     auto& worker_threads = *context->device()->tensorflow_cpu_worker_threads();
@@ -150,8 +136,8 @@ class CuckooHashTableOfTensors final : public LookupInterface {
       }
       init_size_ = env_var;
     }
-    LOG(INFO) << "CPU CuckooHashTableOfTensors init: size = " << init_size_;
-    table_ = new cuckoohash_map<K, ValueArray>(init_size_);
+    runtime_dim_ = value_shape_.dim_size(0);
+    cpu::CreateTable(init_size_, runtime_dim_, &table_);
   }
 
   ~CuckooHashTableOfTensors() { delete table_; }
@@ -162,8 +148,8 @@ class CuckooHashTableOfTensors final : public LookupInterface {
               const Tensor& default_value) override {
     int64 value_dim = value_shape_.dim_size(0);
 
-    LaunchTensorsFind<CPUDevice, K, V, ValueArray> launcher(value_dim);
-    launcher.launch(ctx, *table_, key, value, default_value);
+    LaunchTensorsFind<CPUDevice, K, V> launcher(value_dim);
+    launcher.launch(ctx, table_, key, value, default_value);
 
     return Status::OK();
   }
@@ -176,8 +162,8 @@ class CuckooHashTableOfTensors final : public LookupInterface {
       table_->clear();
     }
 
-    LaunchTensorsInsert<CPUDevice, K, V, ValueArray> launcher(value_dim);
-    launcher.launch(ctx, *table_, keys, values);
+    LaunchTensorsInsert<CPUDevice, K, V> launcher(value_dim);
+    launcher.launch(ctx, table_, keys, values);
 
     return Status::OK();
   }
@@ -203,29 +189,8 @@ class CuckooHashTableOfTensors final : public LookupInterface {
   }
 
   Status ExportValues(OpKernelContext* ctx) override {
-    auto lt = table_->lock_table();
-    int64 size = lt.size();
     int64 value_dim = value_shape_.dim_size(0);
-
-    Tensor* keys;
-    Tensor* values;
-    TF_RETURN_IF_ERROR(
-        ctx->allocate_output("keys", TensorShape({size}), &keys));
-    TF_RETURN_IF_ERROR(ctx->allocate_output(
-        "values", TensorShape({size, value_dim}), &values));
-
-    auto keys_data = keys->flat<K>();
-    auto values_data = values->matrix<V>();
-    int64 i = 0;
-    for (auto it = lt.begin(); it != lt.end(); ++it, ++i) {
-      K key = it->first;
-      ValueArray value = it->second;
-      keys_data(i) = key;
-      for (int64 j = 0; j < value_dim; j++) {
-        values_data(i, j) = value[j];
-      }
-    }
-    return Status::OK();
+    return table_->export_values(ctx, value_dim);
   }
 
   DataType key_dtype() const override { return DataTypeToEnum<K>::v(); }
@@ -244,8 +209,8 @@ class CuckooHashTableOfTensors final : public LookupInterface {
 
  private:
   TensorShape value_shape_;
-  typedef gtl::InlinedVector<V, 4> ValueArray;
-  cuckoohash_map<K, ValueArray>* table_;
+  size_t runtime_dim_;
+  cpu::TableWrapperBase<K, V>* table_ = nullptr;
   size_t init_size_;
 };
 
