@@ -215,7 +215,8 @@ class TimestampRestrictPolicyV1Test(test.TestCase, RestrictPolicyV1TestBase):
       for v in all_vars:
         self.assertAllEqual(sess.run(v.size()), len(updated_features))
       keys, _ = sess.run(var.export())
-      self.assertAllEqual(keys, updated_features)
+      keys_sorted = np.sort(keys)
+      self.assertAllEqual(keys_sorted, updated_features)
 
 
 class FrequencyRestrictPolicyV1Test(test.TestCase, RestrictPolicyV1TestBase):

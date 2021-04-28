@@ -53,7 +53,8 @@ class CuckooHashtableTest(test.TestCase):
         id += 1
         self.assertTrue("I" in printed.contents())
         self.assertTrue(dev_str in printed.contents())
-        self.assertTrue("size = {}".format(expect_size) in printed.contents())
+        self.assertTrue(
+            "init_size={}".format(expect_size) in printed.contents())
 
 
 if __name__ == "__main__":
