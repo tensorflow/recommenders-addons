@@ -119,8 +119,6 @@ struct LaunchTensorsInsert<CPUDevice, K, V, J> {
         num_worker_threads > worker_threads.num_threads) {
       num_worker_threads = worker_threads.num_threads;
     }
-    LOG(INFO) << "LaunchTensorsInsert num_worker_threads = "
-              << num_worker_threads;
     int64 slices = static_cast<int64>(total / worker_threads.num_threads) + 1;
     Shard(num_worker_threads, worker_threads.workers, total, slices, shard);
   }
