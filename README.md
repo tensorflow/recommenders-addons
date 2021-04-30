@@ -81,6 +81,12 @@ pip install tensorflow-recommenders-addons[tensorflow]
 ```
 
 Similar extras exist for the `tensorflow-gpu` and `tensorflow-cpu` packages.
+
+By default, install `tensorflow-recommenders-addons` with pip will download CPU version package and
+install. If you need to run on GPU, you could install the GPU version:
+```
+pip install tensorflow-recommenders-addons-gpu
+```
  
 
 To use TensorFlow Recommenders-Addons:
@@ -90,7 +96,7 @@ import tensorflow as tf
 import tensorflow_recommenders_addons as tfra
 ```
 
-### Compatility with Tensorflow
+### Compatibility with Tensorflow
 TensorFlow C++ APIs are not stable and thus we can only guarantee compatibility with the 
 version TensorFlow Recommenders-Addons(TFRA) was built against. It is possible TFRA will work with 
 multiple versions of TensorFlow, but there is also a chance for segmentation faults or other problematic 
@@ -115,6 +121,7 @@ If you need to work with other versions of TensorFlow, we recommend you installi
 
 
 #### Installing from Source
+##### CPU-only
 You can also install from source. This requires the [Bazel](https://bazel.build/) build system (version == 3.7.2).
 
 ```
@@ -130,7 +137,27 @@ bazel-bin/build_pip_pkg artifacts
 pip install artifacts/tensorflow_recommenders_addons-*.whl
 ```
 
-### Compatility with Tensorflow Serving
+##### GPU Support
+**Tensorflow Recommender-Addons** also supports to build on GPU. Please set the `TF_CUDA_VERSION`, `TF_CUDNN_VERSION`,
+`TF_NEED_CUDA`, and `CUDNN_INSTALL_PATH` in environment variables:
+```
+TF_CUDA_VERSION=11.0 TF_CUDNN_VERSION=8 TF_NEED_CUDA=1 CUDNN_INSTALL_PATH="/data/dev/packages/cuda" python configure.py
+```
+And then build the pip package and install:
+```
+bazel build --enable_runfiles build_pip_pkg
+bazel-bin/build_pip_pkg artifacts
+pip install artifacts/tensorflow_recommenders_addons-*.whl
+```
+
+##### Compatibility Matrix with GPU
+| TensorFlow Recommenders-Addons | TensorFlow | Compiler  | CUDNN | CUDA | Compute Capability |
+|:----------------------- |:---- |:---------| :------------ | :---- | :------------ |
+| tensorflow-recommenders-addons-0.1.0 | 2.4.1  | GCC 7.3.1 | 8.2.0 | 11.0 | [3.5, 5.2, 6.0, 6.1, 7.0, 7.5, 8.0] |
+
+Check [nvidia-support-matrix](https://docs.nvidia.com/deeplearning/cudnn/support-matrix/index.html) for more details.
+
+### Compatibility with Tensorflow Serving
 
 #### Compatibility Matrix
 | TensorFlow Recommenders-Addons | TensorFlow | Serving | Compiler  |

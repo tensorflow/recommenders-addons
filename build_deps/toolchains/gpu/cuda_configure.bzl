@@ -53,11 +53,11 @@ _PYTHON_BIN_PATH = "PYTHON_BIN_PATH"
 _DEFAULT_CUDA_COMPUTE_CAPABILITIES = [
     "3.5",
     "5.2",
+    "6.0",
     "6.1",
     "7.0",
     "7.5",
     "8.0",
-    "8.6",
 ]
 
 def _get_python_bin(repository_ctx):
