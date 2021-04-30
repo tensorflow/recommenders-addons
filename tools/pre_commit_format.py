@@ -18,7 +18,7 @@ def _run_format():
     files_changed = True
 
   try:
-    check_bash_call("buildifier -mode=check -r .")
+    check_bash_call("buildifier -mode=diff -r .")
   except CalledProcessError:
     check_bash_call("buildifier -r .")
     files_changed = True

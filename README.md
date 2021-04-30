@@ -115,6 +115,7 @@ If you need to work with other versions of TensorFlow, we recommend you installi
 
 
 #### Installing from Source
+##### CPU-only
 You can also install from source. This requires the [Bazel](https://bazel.build/) build system (version >= 1.0.0).
 
 ```
@@ -129,6 +130,13 @@ bazel-bin/build_pip_pkg artifacts
 
 pip install artifacts/tensorflow_recommenders_addons-*.whl
 ```
+
+##### GPU Support
+**Tensorflow Recommender-Addons** also supports to build on GPU. Please set the `TF_CUDA_VERSION`, `TF_CUDNN_VERSION`, `TF_NEED_CUDA`, and `CUDNN_INSTALL_PATH` flags in environment variables before build pip package.
+```
+TF_CUDA_VERSION=11.0 TF_CUDNN_VERSION=8 TF_NEED_CUDA=1 CUDNN_INSTALL_PATH="/data/dev/packages/cuda" python configure.py
+```
+The compatibility of `CUDA` and `CUDNN` follows Tensorflow GPU-support [configurations](https://www.tensorflow.org/install/source#tested_build_configurations).
 
 ### Compatility with Tensorflow Serving
 
