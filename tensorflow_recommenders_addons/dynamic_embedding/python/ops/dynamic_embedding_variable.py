@@ -147,6 +147,7 @@ class Variable(trackable.TrackableResource):
       checkpoint=True,
       init_size=0,
       restrict_policy=None,
+      table_fn="CuckooHashTable",
   ):
     """Creates an empty `Variable` object.
 
@@ -193,6 +194,7 @@ class Variable(trackable.TrackableResource):
         Returns:
           A `Variable` object.
         """
+    self.table_fn = table_fn
     self.key_dtype = key_dtype
     self.value_dtype = value_dtype
     self.dim = dim
@@ -256,7 +258,8 @@ class Variable(trackable.TrackableResource):
         for idx in range(len(self.devices)):
           with ops.device(self.devices[idx]):
             mht = None
-            mht = de.CuckooHashTable(
+            mht = de.TableFactory(
+                table_fn=self.table_fn,
                 key_dtype=self.key_dtype,
                 value_dtype=self.value_dtype,
                 default_value=static_default_value,
