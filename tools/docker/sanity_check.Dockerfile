@@ -76,7 +76,7 @@ COPY ./tools/install_deps/buildifier.sh ./
 RUN sh buildifier.sh
 
 COPY ./ /recommenders-addons
-RUN buildifier -mode=check -r /recommenders-addons
+RUN buildifier -mode=diff -r /recommenders-addons
 RUN touch /ok.txt
 
 # -------------------------------
