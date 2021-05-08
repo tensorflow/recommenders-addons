@@ -22,6 +22,8 @@ Public API for tfra.dynamic_embedding namespace.
 
 [`embedding_lookup(...)`](./dynamic_embedding/embedding_lookup.md): Provides a dynamic version of <a href="https://www.tensorflow.org/api_docs/python/tf/nn/embedding_lookup"><code>tf.nn.embedding_lookup</code></a>
 
+[`embedding_lookup_unique(...)`](./dynamic_embedding/embedding_lookup_unique.md): Version of embedding_lookup that avoids duplicate lookups.
+
 [`embedding_lookup_sparse(...)`](./dynamic_embedding/embedding_lookup_sparse.md): Provides a dynamic version of <a href="https://www.tensorflow.org/api_docs/python/tf/nn/embedding_lookup_sparse"><code>tf.nn.embedding_lookup_sparse</code></a>
 
 [`safe_embedding_lookup_sparse(...)`](./dynamic_embedding/safe_embedding_lookup_sparse.md): Provides a dynamic version of <a href="https://www.tensorflow.org/api_docs/python/tf/nn/safe_embedding_lookup_sparse"><code>tf.nn.safe_embedding_lookup_sparse</code></a>.

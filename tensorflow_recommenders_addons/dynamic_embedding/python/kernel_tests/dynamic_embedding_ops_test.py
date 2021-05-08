@@ -695,6 +695,30 @@ class EmbeddingLookupTest(test.TestCase):
 
 
 @test_util.deprecated_graph_mode_only
+class EmbeddingLookupUniqueTest(test.TestCase):
+
+  def test_embedding_lookup_unique(self):
+    dim = 5
+    n = 10
+    embeddings_de = de.get_variable("t_unique_001",
+                                    dtypes.int64,
+                                    dtypes.float32,
+                                    dim=dim)
+    ids_shape = (2, 3, 4)
+    embeddings_np = np.random.randn(n, dim)
+    ids = np.random.randint(0, n, ids_shape)
+
+    with self.session(use_gpu=test_util.is_gpu_available(),
+                      config=default_config):
+      self.evaluate(embeddings_de.upsert(range(n), embeddings_np))
+      embedded_np = embeddings_np[ids]
+      embedded_de = de.embedding_lookup_unique(embeddings_de, ids).eval()
+
+    self.assertEqual(embedded_np.shape, embedded_de.shape)
+    np.testing.assert_almost_equal(embedded_np, embedded_de)
+
+
+@test_util.deprecated_graph_mode_only
 class EmbeddingLookupSparseTest(test.TestCase):
 
   def _random_ids_and_weights(self, batch_size, vocab_size, k_type, d_type):
