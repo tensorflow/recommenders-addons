@@ -6,19 +6,11 @@
 
 ## start train:
 By default, this shell will start a train task with 1 PS and 1 workers and 1 chief on local machine.
-1. open three terminal
-2. terminal chief run: sh start_train
-3. terminal chief run: sh chief.sh train
-4. terminal worker run: sh worker.sh train
-5. terminal ps run: sh ps.sh train
+sh train.sh
 
 ## start export for serving:
 By default, this shell will start a train task with 1 PS and 1 workers and 1 chief on local machine.
-1. open three terminal
-2. terminal chief run: sh start_serving.sh
-3. terminal worker run: sh worker.sh serving
-4. terminal ps run: sh ps.sh serving
-5. terminal chief run: sh chief.sh serving
+sh export.sh
 
 ## stop.train
 run sh stop.sh
