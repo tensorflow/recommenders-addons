@@ -38,7 +38,7 @@ def model_fn(features, labels, mode, params):
   user_id = features["user_id"]
   rating = features["user_rating"]
 
-  is_training = True if mode == tf.estimator.ModeKeys.TRAIN else False
+  is_training = (mode == tf.estimator.ModeKeys.TRAIN)
 
   if params["run_status"] == 'online':
     tfra.dynamic_embedding.enable_inference_mode()
@@ -50,9 +50,7 @@ def model_fn(features, labels, mode, params):
     ]
     initializer = tf.keras.initializers.RandomNormal(-1, 1)
   else:
-    ps_list = [
-        "/job:localhost/replica:0/task:0/CPU:0" for _ in range(params["ps_num"])
-    ]
+    ps_list = ["/job:localhost/replica:0/task:0/CPU:0"] * params["ps_num"]
     initializer = tf.keras.initializers.Zeros()
 
   user_embeddings = tfra.dynamic_embedding.get_variable(
