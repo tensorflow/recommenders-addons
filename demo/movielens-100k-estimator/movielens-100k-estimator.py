@@ -1,3 +1,6 @@
+import json
+import os
+
 import tensorflow as tf
 from tensorflow.keras.layers import Dense
 
@@ -9,18 +12,8 @@ from absl import flags
 
 flags.DEFINE_string('model_dir', "./ckpt", 'export_dir')
 flags.DEFINE_string('export_dir', "./export_dir", 'export_dir')
-flags.DEFINE_string(
-    'ps_list', "localhost:2220, localhost:2221",
-    'ps_list: to be a comma seperated string, '
-    'like "localhost:2220, localhost:2220"')
-flags.DEFINE_string(
-    'worker_list', "localhost:2230",
-    'worker_list: to be a comma seperated string, '
-    'like "localhost:2230, localhost:2231"')
-flags.DEFINE_string('task_mode', "worker", 'runninig_mode: ps or worker.')
-flags.DEFINE_integer('task_id', 0, 'task_id: used for allocating samples.')
-flags.DEFINE_bool('is_chief', False, ''
-                  ': If true, will run init_op and save/restore.')
+flags.DEFINE_string('mode', "train", 'train or export')
+
 
 FLAGS = flags.FLAGS
 
@@ -46,14 +39,34 @@ def model_fn(features, labels, mode, params):
   user_id = features["user_id"]
   rating = features["user_rating"]
 
+  is_training = True if mode == tf.estimator.ModeKeys.TRAIN else False
+
+  if params["run_status"] == 'online':
+      tfra.dynamic_embedding.enable_inference_mode()
+
+  if is_training:
+      ps_list = [
+          "/job:ps/replica:0/task:{}/CPU:0".format(i)
+          for i in range(params["ps_num"])
+      ]
+      initializer = tf.keras.initializers.RandomNormal(-1, 1)
+  else:
+      ps_list = [
+          "/job:localhost/replica:0/task:0/CPU:0"
+          for _ in range(params["ps_num"])
+      ]
+      initializer = tf.keras.initializers.Zeros()
+
   user_embeddings = tfra.dynamic_embedding.get_variable(
       name="user_dynamic_embeddings",
       dim=embedding_size,
-      initializer=tf.keras.initializers.RandomNormal(-1, 1))
+      devices=ps_list,
+      initializer=initializer)
   movie_embeddings = tfra.dynamic_embedding.get_variable(
       name="moive_dynamic_embeddings",
       dim=embedding_size,
-      initializer=tf.keras.initializers.RandomNormal(-1, 1))
+      devices=ps_list,
+      initializer=initializer)
 
   user_id_val, user_id_idx = tf.unique(tf.concat(user_id, axis=0))
   user_id_weights, user_id_trainable_wrapper = tfra.dynamic_embedding.embedding_lookup(
@@ -117,7 +130,7 @@ def model_fn(features, labels, mode, params):
                                       export_outputs=export_outputs)
 
 
-def train(model_dir):
+def train(model_dir, ps_num, run_status):
   model_config = tf.estimator.RunConfig(log_step_count_steps=100,
                                         save_summary_steps=100,
                                         save_checkpoints_steps=100,
@@ -126,7 +139,7 @@ def train(model_dir):
 
   estimator = tf.estimator.Estimator(model_fn=model_fn,
                                      model_dir=model_dir,
-                                     params=None,
+                                     params={"run_status": run_status, "ps_num": ps_num},
                                      config=model_config)
 
   train_spec = tf.estimator.TrainSpec(input_fn=input_fn)
@@ -145,7 +158,7 @@ def serving_input_receiver_dense_fn():
   return tf.estimator.export.build_raw_serving_input_receiver_fn(input_spec)
 
 
-def export_for_serving(model_dir, export_dir):
+def export_for_serving(model_dir, export_dir, ps_num, run_status):
   model_config = tf.estimator.RunConfig(log_step_count_steps=100,
                                         save_summary_steps=100,
                                         save_checkpoints_steps=100,
@@ -153,7 +166,7 @@ def export_for_serving(model_dir, export_dir):
 
   estimator = tf.estimator.Estimator(model_fn=model_fn,
                                      model_dir=model_dir,
-                                     params=None,
+                                     params={"run_status": run_status, "ps_num": ps_num},
                                      config=model_config)
 
   estimator.export_saved_model(export_dir, serving_input_receiver_dense_fn())
@@ -161,9 +174,18 @@ def export_for_serving(model_dir, export_dir):
 
 def main(argv):
   del argv
-  train(FLAGS.model_dir)
-  if FLAGS.is_chief:
-    export_for_serving(FLAGS.model_dir, FLAGS.export_dir)
+  tf_config = json.loads(os.environ.get('TF_CONFIG') or '{}')
+  task_name = tf_config.get('task', {}).get('type')
+  task_idx = tf_config.get('task', {}).get('index')
+
+  print("tf_config is {}".format(tf_config))
+
+  ps_num = len(tf_config["cluster"]["ps"])
+
+  if FLAGS.mode == "train":
+    train(FLAGS.model_dir, ps_num, run_status="offline")
+  if FLAGS.mode == "serving" and task_name == "chief" and int(task_idx) == 0:
+    export_for_serving(FLAGS.model_dir, FLAGS.export_dir, ps_num, run_status="online")
 
 
 if __name__ == "__main__":
