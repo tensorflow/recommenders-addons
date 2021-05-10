@@ -22,6 +22,7 @@ import glob
 import itertools
 import numpy as np
 import os
+import tensorflow as tf
 
 from tensorflow_recommenders_addons import dynamic_embedding as de
 
@@ -338,6 +339,7 @@ class EmbeddingLookupTrainableV2Test(test.TestCase, CommonTrainableTestV2Base):
 
   def common_minimize_trainable_v2(self, base_opt, test_opt, name):
     de.enable_train_mode()
+    tf.config.set_soft_device_placement(True)
     base_opt = de.DynamicEmbeddingOptimizer(base_opt)
     test_opt = de.DynamicEmbeddingOptimizer(test_opt)
     id = 0
@@ -763,6 +765,7 @@ class EmbeddingLookupSparseTrainableV2Test(test.TestCase,
 
   def common_minimize_trainable_v2(self, base_opt, test_opt, name):
     de.enable_train_mode()
+    tf.config.set_soft_device_placement(True)
     base_opt = de.DynamicEmbeddingOptimizer(base_opt)
     test_opt = de.DynamicEmbeddingOptimizer(test_opt)
     id = 0
@@ -1012,6 +1015,7 @@ class SafeEmbeddingLookupSparseTrainableV2Test(test.TestCase,
 
   def common_minimize_trainable_v2(self, base_opt, test_opt, name):
     de.enable_train_mode()
+    tf.config.set_soft_device_placement(True)
     base_opt = de.DynamicEmbeddingOptimizer(base_opt)
     test_opt = de.DynamicEmbeddingOptimizer(test_opt)
     id = 0
