@@ -2,7 +2,14 @@
 
 - dataset: [movielen/100k-ratings](https://www.tensorflow.org/datasets/catalog/movielens#movielens100k-ratings)
 - model: DNN
-- Running mode: Graph mode by using estimator APIs
+- Running API: using estimator APIs
 
 ## start train:
-By default, this shell will start a train task with 2 PS and 2 workers on local machine.
+By default, this shell will start a train task with 1 PS and 1 workers and 1 chief on local machine.
+1. open three terminal
+2. terminal chief run: sh chief.sh
+3. terminal worker run: sh worker.sh
+4. terminal ps run: sh ps.sh
+
+## stop.train
+run sh stop.sh
