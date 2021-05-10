@@ -14,7 +14,6 @@ flags.DEFINE_string('model_dir', "./ckpt", 'export_dir')
 flags.DEFINE_string('export_dir', "./export_dir", 'export_dir')
 flags.DEFINE_string('mode', "train", 'train or export')
 
-
 FLAGS = flags.FLAGS
 
 
@@ -42,20 +41,19 @@ def model_fn(features, labels, mode, params):
   is_training = True if mode == tf.estimator.ModeKeys.TRAIN else False
 
   if params["run_status"] == 'online':
-      tfra.dynamic_embedding.enable_inference_mode()
+    tfra.dynamic_embedding.enable_inference_mode()
 
   if is_training:
-      ps_list = [
-          "/job:ps/replica:0/task:{}/CPU:0".format(i)
-          for i in range(params["ps_num"])
-      ]
-      initializer = tf.keras.initializers.RandomNormal(-1, 1)
+    ps_list = [
+        "/job:ps/replica:0/task:{}/CPU:0".format(i)
+        for i in range(params["ps_num"])
+    ]
+    initializer = tf.keras.initializers.RandomNormal(-1, 1)
   else:
-      ps_list = [
-          "/job:localhost/replica:0/task:0/CPU:0"
-          for _ in range(params["ps_num"])
-      ]
-      initializer = tf.keras.initializers.Zeros()
+    ps_list = [
+        "/job:localhost/replica:0/task:0/CPU:0" for _ in range(params["ps_num"])
+    ]
+    initializer = tf.keras.initializers.Zeros()
 
   user_embeddings = tfra.dynamic_embedding.get_variable(
       name="user_dynamic_embeddings",
@@ -139,7 +137,10 @@ def train(model_dir, ps_num, run_status):
 
   estimator = tf.estimator.Estimator(model_fn=model_fn,
                                      model_dir=model_dir,
-                                     params={"run_status": run_status, "ps_num": ps_num},
+                                     params={
+                                         "run_status": run_status,
+                                         "ps_num": ps_num
+                                     },
                                      config=model_config)
 
   train_spec = tf.estimator.TrainSpec(input_fn=input_fn)
@@ -166,7 +167,10 @@ def export_for_serving(model_dir, export_dir, ps_num, run_status):
 
   estimator = tf.estimator.Estimator(model_fn=model_fn,
                                      model_dir=model_dir,
-                                     params={"run_status": run_status, "ps_num": ps_num},
+                                     params={
+                                         "run_status": run_status,
+                                         "ps_num": ps_num
+                                     },
                                      config=model_config)
 
   estimator.export_saved_model(export_dir, serving_input_receiver_dense_fn())
@@ -185,7 +189,10 @@ def main(argv):
   if FLAGS.mode == "train":
     train(FLAGS.model_dir, ps_num, run_status="offline")
   if FLAGS.mode == "serving" and task_name == "chief" and int(task_idx) == 0:
-    export_for_serving(FLAGS.model_dir, FLAGS.export_dir, ps_num, run_status="online")
+    export_for_serving(FLAGS.model_dir,
+                       FLAGS.export_dir,
+                       ps_num,
+                       run_status="online")
 
 
 if __name__ == "__main__":
