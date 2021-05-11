@@ -223,7 +223,7 @@ class Variable(trackable.TrackableResource):
     self._tables = []
     self.size_ops = []
     self.shard_num = len(self.devices)
-    self.init_size = int(init_size / self.shard_num)
+    self.init_size = int(init_size)
     if restrict_policy is not None:
       if not issubclass(restrict_policy, de.RestrictPolicy):
         raise TypeError('restrict_policy must be subclass of RestrictPolicy.')
@@ -262,7 +262,7 @@ class Variable(trackable.TrackableResource):
                 default_value=static_default_value,
                 name=self._make_name(idx),
                 checkpoint=self.checkpoint,
-                init_size=self.init_size,
+                init_size=int(self.init_size / self.shard_num),
             )
 
             self._tables.append(mht)
