@@ -15,7 +15,7 @@ limitations under the License.
 
 #define EIGEN_USE_THREADS
 
-#include "cuckoo_hashtable_op.h"
+#include "tensorflow_recommenders_addons/dynamic_embedding/core/kernels/cuckoo_hashtable_op.h"
 
 #include <string>
 #include <type_traits>

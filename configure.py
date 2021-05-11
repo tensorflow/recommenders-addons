@@ -22,12 +22,12 @@ import logging
 
 import tensorflow as tf
 
-_TFA_BAZELRC = ".bazelrc"
+_TFRA_BAZELRC = ".bazelrc"
 
 
 # Writes variables to bazelrc file
 def write(line):
-  with open(_TFA_BAZELRC, "a") as f:
+  with open(_TFRA_BAZELRC, "a") as f:
     f.write(line + "\n")
 
 
@@ -96,8 +96,8 @@ def create_build_configuration():
   print()
   print("Configuring TensorFlow Recommenders-Addons to be built from source...")
 
-  if os.path.isfile(_TFA_BAZELRC):
-    os.remove(_TFA_BAZELRC)
+  if os.path.isfile(_TFRA_BAZELRC):
+    os.remove(_TFRA_BAZELRC)
 
   logging.disable(logging.WARNING)
 
@@ -115,9 +115,10 @@ def create_build_configuration():
     write("build:windows --enable_runfiles")
     write("build:windows --copt=/experimental:preprocessor")
     write("build:windows --host_copt=/experimental:preprocessor")
-    write("build:windows --copt=/arch=AVX2")
-    # write("build:windows --cxxopt=/std:c++14")
-    # write("build:windows --host_cxxopt=/std:c++14")
+    write("build:windows --copt=/arch=AVX")
+
+  if is_macos() or is_linux():
+    write("build --copt=-mavx")
 
   if os.getenv("TF_NEED_CUDA", "0") == "1":
     print("> Building GPU & CPU ops")
@@ -126,8 +127,8 @@ def create_build_configuration():
     print("> Building only CPU ops")
 
   print()
-  print("Build configurations successfully written to", _TFA_BAZELRC, ":\n")
-  print(pathlib.Path(_TFA_BAZELRC).read_text())
+  print("Build configurations successfully written to", _TFRA_BAZELRC, ":\n")
+  print(pathlib.Path(_TFRA_BAZELRC).read_text())
 
 
 def configure_cuda():
@@ -138,8 +139,8 @@ def configure_cuda():
       "CUDNN_INSTALL_PATH",
       os.getenv("CUDNN_INSTALL_PATH", "/usr/lib/x86_64-linux-gnu"),
   )
-  write_action_env("TF_CUDA_VERSION", os.getenv("TF_CUDA_VERSION", "10.1"))
-  write_action_env("TF_CUDNN_VERSION", os.getenv("TF_CUDNN_VERSION", "7"))
+  write_action_env("TF_CUDA_VERSION", os.getenv("TF_CUDA_VERSION", "11"))
+  write_action_env("TF_CUDNN_VERSION", os.getenv("TF_CUDNN_VERSION", "8"))
 
   write("test --config=cuda")
   write("build --config=cuda")
