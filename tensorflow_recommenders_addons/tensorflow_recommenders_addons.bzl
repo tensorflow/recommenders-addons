@@ -1,8 +1,6 @@
 load(
     "@local_config_tf//:build_defs.bzl",
-    "DTF_MAJOR_VERSION",
-    "DTF_MINOR_VERSION",
-    "DTF_PATCH_VERSION",
+    "DTF_VERSION",
     "D_GLIBCXX_USE_CXX11_ABI",
 )
 load(
@@ -65,9 +63,7 @@ def custom_op_library(
             "-pthread",
             "-std=c++14",
             D_GLIBCXX_USE_CXX11_ABI,
-            DTF_MAJOR_VERSION,
-            DTF_MINOR_VERSION,
-            DTF_PATCH_VERSION,
+            DTF_VERSION,
         ],
     })
 
