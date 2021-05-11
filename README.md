@@ -115,7 +115,7 @@ If you need to work with other versions of TensorFlow, we recommend you installi
 
 
 #### Installing from Source
-You can also install from source. This requires the [Bazel](https://bazel.build/) build system (version >= 1.0.0).
+You can also install from source. This requires the [Bazel](https://bazel.build/) build system (version == 3.7.2).
 
 ```
 git clone https://github.com/tensorflow/recommenders-addons.git
