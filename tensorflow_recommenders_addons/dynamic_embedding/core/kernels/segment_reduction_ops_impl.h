@@ -49,7 +49,11 @@ limitations under the License.
 #endif  // GOOGLE_CUDA || TENSORFLOW_USE_ROCM
 
 #if GOOGLE_CUDA
+#if TF_VERSION >= 2040  // 2.4.0
 #include "tensorflow/core/util/cuda_solvers.h"
+#else
+#include "tensorflow/core/kernels/cuda_solvers.h"
+#endif  // TF_VERSION >= 2040
 #include "tensorflow/stream_executor/cuda/cuda_activation.h"
 
 using stream_executor::cuda::ScopedActivateExecutorContext;

@@ -93,12 +93,42 @@ def get_shared_lib_name():
 
 
 def get_tf_version():
+  """
+  Get Tensorflow version as a 4 digits string.
+
+  For example:
+    1.15.2 get 1152
+    2.4.1 get 2041
+
+  The 4-digits-string will be passed to C macro to discriminate different
+  Tensorflow versions. 
+
+  We assume that major version has 1 digit, minor version has 2 digits. And
+  patch version has 1 digit.
+  """
   version = tf.__version__
   try:
     major, minor, patch = version.split('.')
+    assert len(
+        major
+    ) == 1, "Tensorflow major version must be length of 1. Version: {}".format(
+        version)
+    assert len(
+        minor
+    ) <= 2, "Tensorflow minor version must be less or equal to 2. Version: {}".format(
+        version)
+    assert len(
+        patch
+    ) == 1, "Tensorflow patch version must be length of 1. Version: {}".format(
+        version)
   except:
     raise ValueError('got wrong tf.__version__: {}'.format(version))
-  return version, major, minor, patch
+  tf_version_num = str(int(major) * 1000 + int(minor) * 10 + int(patch))
+  if len(tf_version_num) != 4:
+    raise ValueError('Tensorflow version flag must be length of 4 (major'
+                     ' version: 1, minor version: 2, patch_version: 1). But'
+                     ' get: {}'.format(tf_version_num))
+  return tf_version_num
 
 
 def create_build_configuration():
@@ -115,12 +145,10 @@ def create_build_configuration():
   write_action_env("TF_SHARED_LIBRARY_NAME", get_shared_lib_name())
   write_action_env("TF_CXX11_ABI_FLAG", tf.sysconfig.CXX11_ABI_FLAG)
 
-  _, tf_major_version, tf_minor_version, tf_patch_version = get_tf_version()
+  tf_version = get_tf_version()
   # This is used to trace the difference between Tensorflow versions.
   # TODO(Lifann) write them to enviroment variables.
-  write_action_env("TF_MAJOR_VERSION", tf_major_version)
-  write_action_env("TF_MINOR_VERSION", tf_minor_version)
-  write_action_env("TF_PATCH_VERSION", tf_patch_version)
+  write_action_env("TF_VERSION", tf_version)
 
   write("build --spawn_strategy=standalone")
   write("build --strategy=Genrule=standalone")
