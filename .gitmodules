@@ -1,3 +1,0 @@
-[submodule "tensorflow_recommenders_addons/dynamic_embedding/core/lib/redis/aedis"]
-	path = tensorflow_recommenders_addons/dynamic_embedding/core/lib/redis/aedis
-	url = git@github.com:mzimbres/aedis.git
