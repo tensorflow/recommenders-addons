@@ -22,7 +22,7 @@ class TableFactory:
   '''
   sparse_table = {
     'CuckooHashTable': de.CuckooHashTable, 
-    'Redis': None
+    'MacawHashTable': de.MacawHashTable,
     }
     
   def __new__(
@@ -45,7 +45,7 @@ class TableFactory:
                 init_size=init_size,
             )
     else:
-      raise ValueError("There is no sparse table creator called ",table_fn)
+      raise NotImplementedError("There is no sparse table creator called ",table_fn)
 
 class TableFactoryMeta(type):
   '''It's not useless at the moment'''
@@ -59,3 +59,4 @@ class TableFactoryMeta(type):
     obj = cls.__new__(cls)
     cls.__init__(cls, *args, **kwargs)
     return obj
+    
