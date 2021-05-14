@@ -10,6 +10,7 @@ DOCKER_BUILDKIT=1 docker build \
     --output type=local,dest=wheelhouse \
     --build-arg PY_VERSION \
     --build-arg TF_VERSION \
+    --build-arg TF_NEED_CUDA \
     --build-arg NIGHTLY_FLAG \
     --build-arg NIGHTLY_TIME \
     ./

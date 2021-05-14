@@ -49,6 +49,8 @@ def get_project_name_version():
     exec(fp.read(), version)
 
   project_name = "tensorflow-recommenders-addons"
+  if os.getenv("TF_NEED_CUDA", "0") == "1":
+    project_name = project_name + "-gpu"
   if "--nightly" in sys.argv:
     project_name = "tfra-nightly"
     version["__version__"] += get_last_commit_time()
