@@ -24,7 +24,7 @@ limitations under the License.
 
 namespace sw::redis
 {
-    namespace redis_lookup
+    namespace redis_connection
     {
         enum Connection_Mode
         {
@@ -74,7 +74,7 @@ namespace sw::redis
             ~RedisWrapper();
 
             std::shared_ptr<RedisInstance> start_conn();
-            auto conn();
+            std::shared_ptr<RedisInstance> conn();
 
             RedisWrapper(const RedisWrapper &) = delete;
             RedisWrapper &operator=(const RedisWrapper &) = delete;

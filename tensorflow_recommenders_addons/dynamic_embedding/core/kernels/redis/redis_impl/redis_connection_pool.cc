@@ -17,7 +17,7 @@ limitations under the License.
 
 namespace sw::redis
 {
-  namespace redis_lookup
+  namespace redis_connection
   {
     //for singleton mode
     template <typename RedisInstance>
@@ -177,7 +177,7 @@ namespace sw::redis
     }
 
     template <typename RedisInstance>
-    auto RedisWrapper<RedisInstance>::conn()
+    std::shared_ptr<RedisInstance> RedisWrapper<RedisInstance>::conn()
     {
       if (isRedisConnect == false)
       {
