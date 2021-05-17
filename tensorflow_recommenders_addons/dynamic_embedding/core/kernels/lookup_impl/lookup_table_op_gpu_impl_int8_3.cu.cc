@@ -18,7 +18,7 @@ namespace tensorflow {
 namespace recommenders_addons {
 namespace lookup {
 namespace gpu {
-DEFINE_CREATE_TABLE(3, int64, int8, 2, 5);
+DEFINE_CREATE_TABLE(3, int64, int8, 1, 5);
 }  // namespace gpu
 }  // namespace lookup
 }  // namespace recommenders_addons

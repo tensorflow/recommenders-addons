@@ -70,9 +70,9 @@ class CuckooHashTableOfTensorsGpu final : public LookupInterface {
         errors::InvalidArgument("Default value must be a vector, got shape ",
                                 value_shape_.DebugString()));
     runtime_dim_ = value_shape_.dim_size(0);
-    OP_REQUIRES(ctx, (runtime_dim_ <= 500),
+    OP_REQUIRES(ctx, (runtime_dim_ <= 200),
                 errors::InvalidArgument("The dim of HashTable on GPU should be "
-                                        "less than or equal to 500, got ",
+                                        "less than or equal to 200, got ",
                                         runtime_dim_));
     this->CreateTable(max_size_, &table_);
     OP_REQUIRES(ctx, (table_ != nullptr),
@@ -95,18 +95,6 @@ class CuckooHashTableOfTensorsGpu final : public LookupInterface {
       gpu::CreateTable2(max_size, runtime_dim_, pptable);
     } else if (runtime_dim_ <= 200) {
       gpu::CreateTable3(max_size, runtime_dim_, pptable);
-    } else if (runtime_dim_ <= 250) {
-      gpu::CreateTable4(max_size, runtime_dim_, pptable);
-    } else if (runtime_dim_ <= 300) {
-      gpu::CreateTable5(max_size, runtime_dim_, pptable);
-    } else if (runtime_dim_ <= 350) {
-      gpu::CreateTable6(max_size, runtime_dim_, pptable);
-    } else if (runtime_dim_ <= 400) {
-      gpu::CreateTable7(max_size, runtime_dim_, pptable);
-    } else if (runtime_dim_ <= 450) {
-      gpu::CreateTable8(max_size, runtime_dim_, pptable);
-    } else if (runtime_dim_ <= 500) {
-      gpu::CreateTable9(max_size, runtime_dim_, pptable);
     } else {
       *pptable = nullptr;
     }
