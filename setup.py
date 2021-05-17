@@ -88,7 +88,7 @@ setup(
     author_email="opensource@google.com",
     packages=find_packages(),
     ext_modules=get_ext_modules(),
-    install_requires=Path("requirements.txt").read_text().splitlines(),
+    install_requires=["tensorflow=={}".format(min_tf_version)],
     extras_require={
         "tensorflow": [
             "tensorflow>={},<{}".format(min_tf_version, max_tf_version)

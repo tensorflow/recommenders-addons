@@ -14,9 +14,11 @@
 # ============================================================================
 """Define TensorFlow Recommenders Addons version information."""
 
+import os
+
 # Required TensorFlow version [min, max)
-MIN_TF_VERSION = "2.4.1"
-MAX_TF_VERSION = "2.4.1"
+MIN_TF_VERSION = os.getenv("TF_VERSION", "2.4.1")
+MAX_TF_VERSION = os.getenv("TF_VERSION", "2.4.1")
 
 # We follow Semantic Versioning (https://semver.org/)
 _MAJOR_VERSION = "0"
