@@ -14,8 +14,8 @@
 # ==============================================================================
 """Export dynamic_embedding APIs."""
 
-from tensorflow_recommenders_addons.dynamic_embedding.python.ops.redis_ops.macaw_hashtable_ops import (
-    MacawHashTable,)
+from tensorflow_recommenders_addons.dynamic_embedding.python.ops.redis_table_ops import (
+    RedisTable,)
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.cuckoo_hashtable_ops import (
     CuckooHashTable,)
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_factory import (

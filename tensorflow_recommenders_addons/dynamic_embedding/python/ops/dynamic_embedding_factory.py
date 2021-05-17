@@ -22,7 +22,7 @@ class TableFactory:
   '''
   sparse_table = {
     'CuckooHashTable': de.CuckooHashTable, 
-    'MacawHashTable': de.MacawHashTable,
+    'MacawHashTable': de.RedisTable,
     }
     
   def __new__(

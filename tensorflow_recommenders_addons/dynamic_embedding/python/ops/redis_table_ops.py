@@ -25,7 +25,12 @@ from tensorflow.python.framework import ops
 from tensorflow.python.ops.lookup_ops import LookupInterface
 from tensorflow.python.training.saver import BaseSaverBuilder
 
-class MacawHashTable(LookupInterface):
+from tensorflow_recommenders_addons.utils.resource_loader import LazySO
+
+redis_table_ops = LazySO(
+    "dynamic_embedding/core/_redis_table_ops.so").ops
+
+class RedisTable(LookupInterface):
   """A generic mutable hash table implementation.
 
     Data can be inserted by calling the insert method and removed by calling the

@@ -504,6 +504,7 @@ def get_variable(
     checkpoint=True,
     init_size=0,
     restrict_policy=None,
+    table_fn="CuckooHashTable",
 ):
   """Gets an `Variable` object with this name if it exists,
          or create a new one.
@@ -569,6 +570,7 @@ def get_variable(
         checkpoint=checkpoint,
         init_size=init_size,
         restrict_policy=restrict_policy,
+        table_fn=table_fn,
     )
     scope_store._vars[full_name] = var_
   return scope_store._vars[full_name]

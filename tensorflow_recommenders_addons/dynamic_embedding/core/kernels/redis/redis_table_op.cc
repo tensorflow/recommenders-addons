@@ -13,21 +13,20 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#include <string>
 #include <type_traits>
 #include <utility>
-#include <any>
 
 #include "tensorflow/core/kernels/lookup_table_op.h"
 #include "tensorflow/core/util/work_sharder.h"
 
-#include "redis_impl/redis_connection_pool.h"
+#include "redis_impl/redis_connection_pool.hpp"
 #include "redis_table_op.h"
 
 using sw::redis::OptionalString;
 using sw::redis::Redis;
 using sw::redis::RedisCluster;
 using namespace sw::redis::redis_connection;
+
 namespace tensorflow
 {
   namespace recommenders_addons
@@ -42,113 +41,97 @@ namespace tensorflow
         size_t runtime_dim_;
         size_t init_size_;
 
-        static std::any _table_instance;
-        static std::any _table_conn;
+        std::shared_ptr<void> _table_instance;
+        std::shared_ptr<void> _table_conn;
 
       public:
-        static Redis_Connection_Params redis_connection_params;
+        Redis_Connection_Params redis_connection_params;
 
       private:
-        struct LaunchTensorsFind
+        void launchFind(OpKernelContext *context, std::shared_ptr<void> table_conn,
+                        const Tensor &keys, Tensor *values, const Tensor &default_value,
+                        int64 value_dim0)
         {
-          explicit LaunchTensorsFind(int64 value_dim) : value_dim_(value_dim) {}
+          int64 total = keys.dim_size(0);
+          int64 value_len = values->dim_size(1);
+          bool is_full_default = (total == value_dim0);
 
-          void launch(OpKernelContext *context, std::any table_conn,
-                      const Tensor &key, Tensor *value, const Tensor &default_value)
+          auto shard = [this, table_conn, &keys, values, &default_value,
+                        &is_full_default, &value_len, &total](int64 begin, int64 end)
           {
-            int64 total = key.dim_size(0);
-            int64 value_len = value->dim_size(1);
-            int64 default_total = default_value.dim_size(1);
-            bool is_full_default = (total == default_total);
-
-            auto shard = [this, table_conn, &key, value, &default_value,
-                          &is_full_default, &value_len, &total](int64 begin, int64 end)
+            for (int64 i = begin; i < end; ++i)
             {
-              for (int64 i = begin; i < end; ++i)
+              if (i >= total)
               {
-                if (i >= total)
+                break;
+              }
+              OptionalString val;
+              SWITCH_REDIS_MODE(redis_connection_params.connection_mode, val =, get, keys.SubSlice(i).tensor_data().data());
+              if (val)
+              {
+                // std::copy_n(*static_cast<StringPiece>(*val).data(), value_len, values->SubSlice(i).tensor_data().data());
+                values->SubSlice(i).tensor_data() = static_cast<StringPiece>(std::string(*val));
+              }
+              else
+              {
+                if (is_full_default)
                 {
-                  break;
-                }
-                OptionalString val;
-                SWITCH_REDIS_MODE(redis_connection_params.connection_mode, val=, get, key.SubSlice(i).tensor_data());
-                if (val)
-                {
-                  // std::copy_n(*static_cast<std::string_view>(*val).data(), value_len, value->SubSlice(i).tensor_data().data());
-                  value->SubSlice(i).tensor_data()=static_cast<std::string_view>(*val);
+                  // std::copy_n(default_value.SubSlice(i).tensor_data().data(), value_len, values->SubSlice(i).tensor_data().data());
+                  values->SubSlice(i).CopyFrom(default_value.SubSlice(i), values->SubSlice(i).shape());
                 }
                 else
                 {
-                  if (is_full_default)
-                  {
-                    // std::copy_n(default_value.SubSlice(i).tensor_data().data(), value_len, value->SubSlice(i).tensor_data().data());
-                    value->SubSlice(i).CopyFrom(default_value.SubSlice(i),value->SubSlice(i).shape());
-                  }
-                  else
-                  {
-                    // std::copy_n(default_value.SubSlice(0).tensor_data().data(), value_len, value->SubSlice(i).tensor_data().data());
-                    value->SubSlice(i).CopyFrom(default_value,value->SubSlice(i).shape());
-                  }
+                  // std::copy_n(default_value.SubSlice(0).tensor_data().data(), value_len, values->SubSlice(i).tensor_data().data());
+                  values->SubSlice(i).CopyFrom(default_value, values->SubSlice(i).shape());
                 }
               }
-            };
-            auto &worker_threads = *context->device()->tensorflow_cpu_worker_threads();
-            int64 slices = static_cast<int64>(total / worker_threads.num_threads) + 1;
-            Shard(worker_threads.num_threads, worker_threads.workers, total, slices,
-                  shard);
-          }
+            }
+          };
+          auto &worker_threads = *context->device()->tensorflow_cpu_worker_threads();
+          int64 slices = static_cast<int64>(total / worker_threads.num_threads) + 1;
+          Shard(worker_threads.num_threads, worker_threads.workers, total, slices,
+                shard);
+        }
 
-        private:
-          const int64 value_dim_;
-        };
-
-        struct LaunchTensorsInsert
+        void launchInsert(OpKernelContext *context, std::shared_ptr<void> table_conn,
+                          const Tensor &keys, const Tensor &values)
         {
-          explicit LaunchTensorsInsert(int64 value_dim) : value_dim_(value_dim) {}
+          int64 total = keys.dim_size(0);
 
-          void launch(OpKernelContext *context, std::any table_conn,
-                      const Tensor &keys, const Tensor &values)
+          auto shard = [this, &table_conn, &keys, &values, &total](int64 begin, int64 end)
           {
-            int64 total = keys.dim_size(0);
-
-            auto shard = [this, &table_conn, &keys, &values, &total](int64 begin, int64 end)
+            for (int64 i = begin; i < end; ++i)
             {
-              for (int64 i = begin; i < end; ++i)
+              if (i >= total)
               {
-                if (i >= total)
-                {
-                  break;
-                }
-                SWITCH_REDIS_MODE(redis_connection_params.connection_mode, , set, keys.SubSlice(i).tensor_data(), values.SubSlice(i).tensor_data());
+                break;
               }
-            };
-            auto &worker_threads = *context->device()->tensorflow_cpu_worker_threads();
-            // Only use num_worker_threads when
-            // TFRA_NUM_WORKER_THREADS_FOR_LOOKUP_TABLE_INSERT env var is set to k where
-            // k > 0 and k <current number of tf cpu worker threads. Otherwise nothing
-            // changes.
-            int64 num_worker_threads = -1;
-            Status status =
-                ReadInt64FromEnvVar("TFRA_NUM_WORKER_THREADS_FOR_LOOKUP_TABLE_INSERT",
-                                    -1, &num_worker_threads);
-            if (!status.ok())
-            {
-              LOG(ERROR)
-                  << "Error parsing TFRA_NUM_WORKER_THREADS_FOR_LOOKUP_TABLE_INSERT: "
-                  << status;
+              SWITCH_REDIS_MODE(redis_connection_params.connection_mode, , set, keys.SubSlice(i).tensor_data().data(), values.SubSlice(i).tensor_data().data());
             }
-            if (num_worker_threads <= 0 ||
-                num_worker_threads > worker_threads.num_threads)
-            {
-              num_worker_threads = worker_threads.num_threads;
-            }
-            int64 slices = static_cast<int64>(total / worker_threads.num_threads) + 1;
-            Shard(num_worker_threads, worker_threads.workers, total, slices, shard);
+          };
+          auto &worker_threads = *context->device()->tensorflow_cpu_worker_threads();
+          // Only use num_worker_threads when
+          // TFRA_NUM_WORKER_THREADS_FOR_LOOKUP_TABLE_INSERT env var is set to k where
+          // k > 0 and k <current number of tf cpu worker threads. Otherwise nothing
+          // changes.
+          int64 num_worker_threads = -1;
+          Status status =
+              ReadInt64FromEnvVar("TFRA_NUM_WORKER_THREADS_FOR_LOOKUP_TABLE_INSERT",
+                                  -1, &num_worker_threads);
+          if (!status.ok())
+          {
+            LOG(ERROR)
+                << "Error parsing TFRA_NUM_WORKER_THREADS_FOR_LOOKUP_TABLE_INSERT: "
+                << status;
           }
-
-        private:
-          const int64 value_dim_;
-        };
+          if (num_worker_threads <= 0 ||
+              num_worker_threads > worker_threads.num_threads)
+          {
+            num_worker_threads = worker_threads.num_threads;
+          }
+          int64 slices = static_cast<int64>(total / worker_threads.num_threads) + 1;
+          Shard(num_worker_threads, worker_threads.workers, total, slices, shard);
+        }
 
       public:
         RedisTableOfTensors(OpKernelContext *ctx, OpKernel *kernel)
@@ -181,14 +164,16 @@ namespace tensorflow
           {
           case ClusterMode:
           {
-            _table_instance = RedisWrapper<RedisCluster>::get_instance(redis_connection_params);
-            _table_conn = std::any_cast<std::shared_ptr<RedisWrapper<RedisCluster>>>(_table_instance)->conn();
+            _table_instance = RedisWrapper<RedisCluster>::get_instance();
+            std::static_pointer_cast<RedisWrapper<RedisCluster>>(_table_instance)->set_params(redis_connection_params);
+            _table_conn = std::static_pointer_cast<RedisWrapper<RedisCluster>>(_table_instance)->conn();
             break;
           }
           case SentinelMode:
           {
-            _table_instance = RedisWrapper<Redis>::get_instance(redis_connection_params);
-            _table_conn = std::any_cast<std::shared_ptr<RedisWrapper<Redis>>>(_table_instance)->conn();
+            _table_instance = RedisWrapper<Redis>::get_instance();
+            std::static_pointer_cast<RedisWrapper<Redis>>(_table_instance)->set_params(redis_connection_params);
+            _table_conn = std::static_pointer_cast<RedisWrapper<Redis>>(_table_instance)->conn();
             break;
           }
           case StreamMode:
@@ -206,16 +191,16 @@ namespace tensorflow
           }
         }
 
-        ~RedisTableOfTensors() 
-        { 
+        ~RedisTableOfTensors()
+        {
           _table_conn.reset();
-          _table_instance.reset(); 
+          _table_instance.reset();
         }
 
         size_t size() const override
         {
-          std::string_view info_result;
-          SWITCH_REDIS_MODE_noCluster(redis_connection_params.connection_mode, info_result=, info, "memory");
+          std::string info_result;
+          SWITCH_REDIS_MODE_noCluster(redis_connection_params.connection_mode, info_result =, info, "memory");
           auto tmp1 = strtok(const_cast<char *>(info_result.data()), "\n");
           tmp1 = strtok(NULL, "\n");
           tmp1 = strtok(tmp1, ":");
@@ -228,8 +213,7 @@ namespace tensorflow
         {
           int64 value_dim = value_shape_.dim_size(0);
 
-          LaunchTensorsFind launcher(value_dim);
-          launcher.launch(ctx, _table_conn, key, value, default_value);
+          launchFind(ctx, _table_conn, key, value, default_value, value_dim);
 
           return Status::OK();
         }
@@ -244,8 +228,7 @@ namespace tensorflow
             SWITCH_REDIS_MODE_noCluster(redis_connection_params.connection_mode, , flushall, false);
           }
 
-          LaunchTensorsInsert launcher(value_dim);
-          launcher.launch(ctx, _table_conn, keys, values);
+          launchInsert(ctx, _table_conn, keys, values);
 
           return Status::OK();
         }
@@ -261,7 +244,7 @@ namespace tensorflow
           // mutex_lock l(mu_);
           for (int64 i = 0; i < keys.dim_size(0); ++i)
           {
-            SWITCH_REDIS_MODE(redis_connection_params.connection_mode, , del, keys.SubSlice(i).tensor_data());
+            SWITCH_REDIS_MODE(redis_connection_params.connection_mode, , del, keys.SubSlice(i).tensor_data().data());
           }
           return Status::OK();
         }
@@ -280,13 +263,13 @@ namespace tensorflow
           Tensor *keys;
           Tensor *values;
 
-          if(redis_connection_params.connection_mode!=SentinelMode)
+          if (redis_connection_params.connection_mode != SentinelMode)
           {
-            std::string_view err1="Sorry! Cluster mode It's still being finished ExportValues function.";
-            return Status(tensorflow::error::UNAVAILABLE,err1);
+            std::string err1 = "Sorry! Cluster mode It's still being finished ExportValues function.";
+            return Status(tensorflow::error::UNAVAILABLE, err1);
           }
 
-          SWITCH_REDIS_MODE_noCluster(redis_connection_params.connection_mode, size=, dbsize);
+          SWITCH_REDIS_MODE_noCluster(redis_connection_params.connection_mode, size =, dbsize);
 
           TF_RETURN_IF_ERROR(
               ctx->allocate_output("keys", TensorShape({size}), &keys));
@@ -575,11 +558,9 @@ namespace tensorflow
 
 #undef REGISTER_KERNEL
 
-
 #undef SWITCH_REDIS_MODE
 #undef SWITCH_REDIS_MODE_noCluster
 
     } // namespace redis_lookup
   }   // namespace recommenders_addons
 } // namespace tensorflow
-

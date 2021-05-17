@@ -13,3 +13,18 @@ custom_op_library(
     ] + glob(["kernels/lookup_impl/lookup_table_op_cpu*"]),
     deps = ["//tensorflow_recommenders_addons/dynamic_embedding/core/lib/cuckoo:cuckoohash"],
 )
+
+custom_op_library(
+    name = "_redis_table_ops.so",
+    srcs = [
+        "kernels/redis/redis_table_op.h",
+        "kernels/redis/redis_table_op.cc",
+        "ops/redis_table_ops.cc",
+    ]   ,
+    deps = [
+        "@redis//:HIREDIS",
+        "@redis//:REDIS++",
+        "//tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis/redis_impl:REDIS_CONN_POOL",
+    ]   ,
+    copts = ["-pthread"],
+)

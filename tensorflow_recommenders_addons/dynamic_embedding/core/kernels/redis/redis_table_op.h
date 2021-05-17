@@ -175,12 +175,12 @@ namespace tensorflow
   {                                                                                                                         \
   case ClusterMode:                                                                                                         \
   {                                                                                                                         \
-    CONN_FUNC_LVALUE std::any_cast<std::shared_ptr<RedisCluster>>(_table_conn)->CONN_FUNC(__VA_ARGS__);                     \
+    CONN_FUNC_LVALUE std::static_pointer_cast<RedisCluster>(_table_conn)->CONN_FUNC(__VA_ARGS__);                     \
     break;                                                                                                                  \
   }                                                                                                                         \
   case SentinelMode:                                                                                                        \
   {                                                                                                                         \
-    CONN_FUNC_LVALUE std::any_cast<std::shared_ptr<Redis>>(_table_conn)->CONN_FUNC(__VA_ARGS__);                            \
+    CONN_FUNC_LVALUE std::static_pointer_cast<Redis>(_table_conn)->CONN_FUNC(__VA_ARGS__);                            \
     break;                                                                                                                  \
   }                                                                                                                         \
   case StreamMode:                                                                                                          \
@@ -207,7 +207,7 @@ namespace tensorflow
   }                                                                                                                         \
   case SentinelMode:                                                                                                        \
   {                                                                                                                         \
-    CONN_FUNC_LVALUE std::any_cast<std::shared_ptr<Redis>>(_table_conn)->CONN_FUNC(__VA_ARGS__);                            \
+    CONN_FUNC_LVALUE std::static_pointer_cast<Redis>(_table_conn)->CONN_FUNC(__VA_ARGS__);                            \
     break;                                                                                                                  \
   }                                                                                                                         \
   case StreamMode:                                                                                                          \
