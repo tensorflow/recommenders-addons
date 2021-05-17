@@ -162,18 +162,6 @@ void CreateTableImpl(TableWrapperBase<K, V>** pptable, size_t max_size,
   void CreateTable2(size_t max_size, size_t runtime_dim, \
                     TableWrapperBase<K, V>**);           \
   void CreateTable3(size_t max_size, size_t runtime_dim, \
-                    TableWrapperBase<K, V>**);           \
-  void CreateTable4(size_t max_size, size_t runtime_dim, \
-                    TableWrapperBase<K, V>**);           \
-  void CreateTable5(size_t max_size, size_t runtime_dim, \
-                    TableWrapperBase<K, V>**);           \
-  void CreateTable6(size_t max_size, size_t runtime_dim, \
-                    TableWrapperBase<K, V>**);           \
-  void CreateTable7(size_t max_size, size_t runtime_dim, \
-                    TableWrapperBase<K, V>**);           \
-  void CreateTable8(size_t max_size, size_t runtime_dim, \
-                    TableWrapperBase<K, V>**);           \
-  void CreateTable9(size_t max_size, size_t runtime_dim, \
                     TableWrapperBase<K, V>**);
 
 DECLARE_CREATE_TABLE(int64, float);
