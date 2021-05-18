@@ -43,7 +43,7 @@ specific frameworks (e.g. NVIDIA Merlin, …), and integrations with Cloud servi
 * [RFC: Dynamic Embedding](rfcs/20200424-sparse-domain-isolation.md)
 * [RFC: Embedding Variable](https://docs.google.com/document/d/1odez6-69YH-eFcp8rKndDHTNGxZgdFFRJufsW94_gl4/edit)
 
-## Recommenders-Addons Subpackages
+## Subpackages
 
 * [tfra.dynamic_embedding](docs/api_docs/dynamic_embedding.md)
 * [tfra.embedding_variable](https://github.com/tensorflow/recommenders-addons/blob/master/docs/tutorials/embedding_variable_tutorial.ipynb)
@@ -73,21 +73,10 @@ run the following:
 pip install tensorflow-recommenders-addons
 ```
 
-To ensure you have a version of TensorFlow that is compatible with TensorFlow Recommenders-Addons, 
-you can specify the `tensorflow` extra requirement during install:
-
-```
-pip install tensorflow-recommenders-addons[tensorflow]
-```
-
-Similar extras exist for the `tensorflow-gpu` and `tensorflow-cpu` packages.
-
-By default, install `tensorflow-recommenders-addons` with pip will download CPU version package and
-install. If you need to run on GPU, you could install the GPU version:
+By default, CPU version will be installed. To install GPU version, run the following:
 ```
 pip install tensorflow-recommenders-addons-gpu
 ```
- 
 
 To use TensorFlow Recommenders-Addons:
 
@@ -100,10 +89,9 @@ import tensorflow_recommenders_addons as tfra
 TensorFlow C++ APIs are not stable and thus we can only guarantee compatibility with the 
 version TensorFlow Recommenders-Addons(TFRA) was built against. It is possible TFRA will work with 
 multiple versions of TensorFlow, but there is also a chance for segmentation faults or other problematic 
-crashes. Warnings will be emitted when loading a custom op if your TensorFlow version does not match 
-what it was built against.
+crashes. Warnings will be emitted if your TensorFlow version does not match what it was built against.
 
-Additionally, custom ops registration does not have a stable ABI interface so it is 
+Additionally, TFRA custom ops registration does not have a stable ABI interface so it is 
 required that users have a compatible installation of TensorFlow even if the versions 
 match what we had built against. A simplification of this is that **TensorFlow Recommenders-Addons 
 custom ops will work with `pip`-installed TensorFlow** but will have issues when TensorFlow 
@@ -112,16 +100,22 @@ is compiled differently. A typical example of this would be `conda`-installed Te
 
 
 #### Compatibility Matrix
-| TensorFlow Recommenders-Addons | TensorFlow | Compiler  |
-|:----------------------- |:---- |:---------|
-| tensorflow-recommenders-addons-0.1.0 | 2.4.1  | GCC 7.3.1 |
+*GPU is supported from version `0.2.0`*
+
+| TFRA | TensorFlow | Compiler  | CUDA | CUDNN | Compute Capability |
+|:----------------------- |:---- |:---------| :------------ | :---- | :------------ |
+| 0.2.0 | 2.4.1  | GCC 7.3.1 | 11.0 | 8.0 | 3.5, 5.2, 6.0, 6.1, 7.0, 7.5, 8.0 |
+| 0.1.0 | 2.4.1  | GCC 7.3.1 | - | - | - |
+
+Check [nvidia-support-matrix](https://docs.nvidia.com/deeplearning/cudnn/support-matrix/index.html) for more details.
+
 
 **NOTICE**：The release packages have strict version binding relationship with TensorFlow. 
 If you need to work with other versions of TensorFlow, we recommend you installing from source.
 
 
 #### Installing from Source
-##### CPU-only
+##### CPU Only
 You can also install from source. This requires the [Bazel](https://bazel.build/) build system (version == 3.7.2).
 
 ```
@@ -138,31 +132,61 @@ pip install artifacts/tensorflow_recommenders_addons-*.whl
 ```
 
 ##### GPU Support
-**Tensorflow Recommender-Addons** also supports to build on GPU. Please set the `TF_CUDA_VERSION`, `TF_CUDNN_VERSION`,
-`TF_NEED_CUDA`, and `CUDNN_INSTALL_PATH` in environment variables:
-```
-TF_CUDA_VERSION=11.0 TF_CUDNN_VERSION=8 TF_NEED_CUDA=1 CUDNN_INSTALL_PATH="/data/dev/packages/cuda" python configure.py
+Only `TF_NEED_CUDA=1` is required and other environment variables are optional:
+```shell
+TF_NEED_CUDA=1 \
+TF_CUDA_VERSION=11.0 \
+TF_CUDNN_VERSION=8 \
+CUDA_TOOLKIT_PATH="/usr/local/cuda" \
+CUDNN_INSTALL_PATH="/usr/lib/x86_64-linux-gnu" \
+python configure.py
 ```
 And then build the pip package and install:
-```
+```shell
 bazel build --enable_runfiles build_pip_pkg
-bazel-bin/build_pip_pkg artifacts
-pip install artifacts/tensorflow_recommenders_addons-*.whl
+TF_NEED_CUDA=1 bazel-bin/build_pip_pkg artifacts
+pip install artifacts/tensorflow_recommenders_addons_gpu-*.whl
 ```
 
-##### Compatibility Matrix with GPU
-| TensorFlow Recommenders-Addons | TensorFlow | Compiler  | CUDNN | CUDA | Compute Capability |
-|:----------------------- |:---- |:---------| :------------ | :---- | :------------ |
-| tensorflow-recommenders-addons-0.1.0 | 2.4.1  | GCC 7.3.1 | 8.2.0 | 11.0 | [3.5, 5.2, 6.0, 6.1, 7.0, 7.5, 8.0] |
+##### Data Type Matrix for `tfra.dynamic_embedding.Variable` 
+|  Values \\ Keys  | int64  | int32 | string |
+|:----:|:----:|:----:|:----:| 
+| float  | CPU, GPU | CPU | CPU |
+| half  | CPU, GPU | - | CPU |
+| int32  | CPU, GPU | CPU | CPU |
+| int8  | CPU, GPU | - | CPU |
+| int64  | CPU | - | CPU |
+| double  | CPU, CPU | CPU | CPU |
+| bool  | - | - | CPU |
+| string  | CPU | - | - |
 
-Check [nvidia-support-matrix](https://docs.nvidia.com/deeplearning/cudnn/support-matrix/index.html) for more details.
+##### To use GPU by `tfra.dynamic_embedding.Variable`
+The `tfra.dynamic_embedding.Variable` will ignore the device placement mechanism of TensorFlow, 
+you should specify the `devices` onto GPUs explictly for it.
+```python
+import tensorflow as tf
+import tensorflow_recommenders_addons as tfra
+
+de = tfra.dynamic_embedding.get_variable("VariableOnGpu",
+                                         devices=["/job:ps/task:0/GPU:0", ],
+                                         # ...
+                                         )
+```
+
+**Usage restrictions on GPU**
+- Considering the size of the whl file, currently `dim` only supports less than or equal to 200, if you need longer `dim`, please submit an issue.
+- For GPU HashTables manage GPU memory independently, TensorFlow should be configured to allow GPU memory growth by the following:
+```python
+sess_config.gpu_options.allow_growth = True
+```
 
 ### Compatibility with Tensorflow Serving
 
 #### Compatibility Matrix
-| TensorFlow Recommenders-Addons | TensorFlow | Serving | Compiler  |
-|:----------------------- |:---- |:---- |:---------|
-| tensorflow-recommenders-addons-0.1.0 | 2.4.1  | 2.4.0  | GCC 7.3.1 |
+| TFRA | TensorFlow | Serving | Compiler  |
+|:----- |:---- |:---- |:---------|
+| 0.1.0 | 2.4.1  | 2.4.0  | GCC 7.3.1 |
+| 0.2.0 | 2.4.1  | 2.4.0  | GCC 7.3.1 |
 
 #### Serving TensorFlow models with custom ops
 Reference documents: https://www.tensorflow.org/tfx/serving/custom_op
