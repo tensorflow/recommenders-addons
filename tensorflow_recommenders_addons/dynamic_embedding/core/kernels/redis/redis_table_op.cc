@@ -53,52 +53,71 @@ namespace tensorflow
                         int64 value_dim0)
         {
           int64 total = keys.dim_size(0);
-          int64 value_len = values->dim_size(1);
+          // int64 value_len = values->dim_size(1);
           bool is_full_default = (total == value_dim0);
 
-          auto shard = [this, table_conn, &keys, values, &default_value,
-                        &is_full_default, &value_len, &total](int64 begin, int64 end)
+          std::vector<std::string> redis_keys(total);
+          SWITCH_REDIS_MODE_noCluster(redis_connection_params.connection_mode, , keys, "*", std::back_inserter(redis_keys));
+
+          auto shard1 = [this, &keys, &redis_keys, &total](int64 begin1, int64 end1)
           {
-            for (int64 i = begin; i < end; ++i)
+            for (int64 i = begin1; i < end1; ++i)
             {
               if (i >= total)
               {
                 break;
               }
-              OptionalString val;
-              SWITCH_REDIS_MODE(redis_connection_params.connection_mode, val =, get, keys.SubSlice(i).tensor_data().data());
-              if (val)
+              redis_keys[i]=keys.SubSlice(i).tensor_data().data();
+            }
+          };
+          auto &worker_threads1 = *context->device()->tensorflow_cpu_worker_threads();
+          int64 slices1 = static_cast<int64>(total / worker_threads1.num_threads) + 1;
+          Shard(worker_threads1.num_threads, worker_threads1.workers, total, slices1,
+                shard1);
+
+          // std::vector<std::string> redis_vals;
+          std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply;
+          SWITCH_REDIS_MODE(redis_connection_params.connection_mode, reply =, command, \
+            ::sw::redis::cmd::mget<std::vector<std::string>::iterator>, redis_keys.begin(), redis_keys.end());
+          
+          auto shard2 = [this, values, &reply, &default_value, &is_full_default, &total](int64 begin2, int64 end2)
+          {
+            for (int64 i = begin2; i < end2; ++i)
+            {
+              if (i >= total)
               {
-                // std::copy_n(*static_cast<StringPiece>(*val).data(), value_len, values->SubSlice(i).tensor_data().data());
-                values->SubSlice(i).tensor_data() = static_cast<StringPiece>(std::string(*val));
+                break;
+              }
+              if (reply->element[i]->type==1) // #define REDIS_REPLY_STRING 1
+              {
+                values->SubSlice(i).tensor_data() = static_cast<StringPiece>(reply->element[i]->str);
               }
               else
               {
                 if (is_full_default)
                 {
-                  // std::copy_n(default_value.SubSlice(i).tensor_data().data(), value_len, values->SubSlice(i).tensor_data().data());
                   values->SubSlice(i).CopyFrom(default_value.SubSlice(i), values->SubSlice(i).shape());
                 }
                 else
                 {
-                  // std::copy_n(default_value.SubSlice(0).tensor_data().data(), value_len, values->SubSlice(i).tensor_data().data());
                   values->SubSlice(i).CopyFrom(default_value, values->SubSlice(i).shape());
                 }
               }
             }
           };
-          auto &worker_threads = *context->device()->tensorflow_cpu_worker_threads();
-          int64 slices = static_cast<int64>(total / worker_threads.num_threads) + 1;
-          Shard(worker_threads.num_threads, worker_threads.workers, total, slices,
-                shard);
+          auto &worker_threads2 = *context->device()->tensorflow_cpu_worker_threads();
+          int64 slices2 = static_cast<int64>(total / worker_threads2.num_threads) + 1;
+          Shard(worker_threads2.num_threads, worker_threads2.workers, total, slices2,
+                shard2);
         }
 
         void launchInsert(OpKernelContext *context, std::shared_ptr<void> table_conn,
                           const Tensor &keys, const Tensor &values)
         {
           int64 total = keys.dim_size(0);
+          std::vector<std::pair<std::string, std::string>> kv_pairs(total);
 
-          auto shard = [this, &table_conn, &keys, &values, &total](int64 begin, int64 end)
+          auto shard = [this, &keys, &values, &kv_pairs, &total](int64 begin, int64 end)
           {
             for (int64 i = begin; i < end; ++i)
             {
@@ -106,10 +125,11 @@ namespace tensorflow
               {
                 break;
               }
-              SWITCH_REDIS_MODE(redis_connection_params.connection_mode, , set, keys.SubSlice(i).tensor_data().data(), values.SubSlice(i).tensor_data().data());
+              kv_pairs[i]={keys.SubSlice(i).tensor_data().data(), values.SubSlice(i).tensor_data().data()};
             }
           };
           auto &worker_threads = *context->device()->tensorflow_cpu_worker_threads();
+
           // Only use num_worker_threads when
           // TFRA_NUM_WORKER_THREADS_FOR_LOOKUP_TABLE_INSERT env var is set to k where
           // k > 0 and k <current number of tf cpu worker threads. Otherwise nothing
@@ -131,6 +151,9 @@ namespace tensorflow
           }
           int64 slices = static_cast<int64>(total / worker_threads.num_threads) + 1;
           Shard(num_worker_threads, worker_threads.workers, total, slices, shard);
+
+          SWITCH_REDIS_MODE(redis_connection_params.connection_mode, , mset, kv_pairs.begin(), kv_pairs.end());
+
         }
 
       public:
@@ -276,19 +299,28 @@ namespace tensorflow
           TF_RETURN_IF_ERROR(ctx->allocate_output(
               "values", TensorShape({size, value_dim}), &values));
 
-          std::vector<std::string> redis_keys;
+          std::vector<std::string> redis_keys(size);
           SWITCH_REDIS_MODE_noCluster(redis_connection_params.connection_mode, , keys, "*", std::back_inserter(redis_keys));
 
-          std::vector<std::string> redis_vals;
+          std::vector<std::string> redis_vals(size);
           SWITCH_REDIS_MODE(redis_connection_params.connection_mode, , mget, redis_keys.begin(), redis_keys.end(), std::back_inserter(redis_vals));
 
-          int64 i = 0;
-          for (const auto &_key : redis_keys)
+          auto shard = [this, keys, values, &redis_keys, &redis_vals, &size](int64 begin, int64 end)
           {
-            keys->SubSlice(i).tensor_data() = _key;
-            values->SubSlice(i).tensor_data() = redis_vals[i];
-            ++i;
-          }
+            for (int64 i = begin; i < end; ++i)
+            {
+              if (i >= size)
+              {
+                break;
+              }
+              keys->SubSlice(i).tensor_data() = redis_keys[i];
+              values->SubSlice(i).tensor_data() = redis_vals[i];
+            }
+          };
+          auto &worker_threads = *ctx->device()->tensorflow_cpu_worker_threads();
+          int64 slices = static_cast<int64>(size / worker_threads.num_threads) + 1;
+          Shard(worker_threads.num_threads, worker_threads.workers, size, slices,
+                shard);
 
           return Status::OK();
         }

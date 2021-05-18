@@ -43,10 +43,10 @@ namespace sw::redis
 			std::string password = "";
 			int db = 0;
 			int connect_timeout = 100; // milliseconds
-			int socket_timeout = 100;	 // milliseconds
+			int socket_timeout = 100;  // milliseconds
 			// connection_pool_options
-			int size = 10;
-			int wait_timeout = 100;				// milliseconds
+			int size = 50;
+			int wait_timeout = 100;		  // milliseconds
 			int connection_lifetime = 10; // minutes
 			// sentinel_connection_options
 			int sentinel_connect_timeout = 200; // milliseconds
@@ -63,10 +63,10 @@ namespace sw::redis
 				connect_timeout = x.connect_timeout; // milliseconds
 				socket_timeout = x.socket_timeout;	 // milliseconds
 				size = x.size;
-				wait_timeout = x.wait_timeout;												 // milliseconds
-				connection_lifetime = x.connection_lifetime;					 // minutes
+				wait_timeout = x.wait_timeout;						   // milliseconds
+				connection_lifetime = x.connection_lifetime;		   // minutes
 				sentinel_connect_timeout = x.sentinel_connect_timeout; // milliseconds
-				sentinel_socket_timeout = x.sentinel_socket_timeout;	 // milliseconds
+				sentinel_socket_timeout = x.sentinel_socket_timeout;   // milliseconds
 				return *this;
 			}
 		};

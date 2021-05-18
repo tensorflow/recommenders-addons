@@ -54,7 +54,7 @@ class RedisTable(LookupInterface):
       value_dtype,
       default_value,
       name="MacawHashTable",
-      checkpoint=True,
+      checkpoint=False,
       init_size=0,
   ):
     """Creates an empty `MacawHashTable` object.
