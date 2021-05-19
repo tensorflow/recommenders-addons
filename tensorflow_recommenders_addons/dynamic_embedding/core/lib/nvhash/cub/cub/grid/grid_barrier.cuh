@@ -194,7 +194,7 @@ public:
                 sync_bytes = new_sync_bytes;
 
                 // Allocate and initialize to zero
-                if (CubDebug(retval = cudaMalloc((void**) &d_sync, sync_bytes))) break;
+                if (CubDebug(retval = cudaMallocManaged((void**) &d_sync, sync_bytes))) break;
                 if (CubDebug(retval = cudaMemset(d_sync, 0, new_sync_bytes))) break;
             }
         } while (0);
