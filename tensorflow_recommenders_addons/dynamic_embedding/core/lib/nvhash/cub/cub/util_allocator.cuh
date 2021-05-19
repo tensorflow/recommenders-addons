@@ -443,7 +443,7 @@ struct CachingDeviceAllocator
             }
 
             // Attempt to allocate
-            if (CubDebug(error = cudaMalloc(&search_key.d_ptr, search_key.bytes)) == cudaErrorMemoryAllocation)
+            if (CubDebug(error = cudaMallocManaged(&search_key.d_ptr, search_key.bytes)) == cudaErrorMemoryAllocation)
             {
                 // The allocation attempt failed: free all cached blocks on device and retry
                 if (debug) _CubLog("\tDevice %d failed to allocate %lld bytes for stream %lld, retrying after freeing cached allocations",
@@ -487,7 +487,7 @@ struct CachingDeviceAllocator
                 if (error) return error;
 
                 // Try to allocate again
-                if (CubDebug(error = cudaMalloc(&search_key.d_ptr, search_key.bytes))) return error;
+                if (CubDebug(error = cudaMallocManaged(&search_key.d_ptr, search_key.bytes))) return error;
             }
 
             // Create ready event

@@ -509,8 +509,8 @@ void MultiGpuHashTable<KeyType, ValType, KeyGPUMapPolicy_, empty_key>::insert_fr
     KeyType* d_temp_key[buffer_count];
     ValType* d_temp_val[buffer_count];
     for(int i=0 ; i < buffer_count ; i++){
-        CUDA_CHECK(cudaMalloc( (void**) &(d_temp_key[i]), sizeof(*h_key) * buffer_len));
-        CUDA_CHECK(cudaMalloc( (void**) &(d_temp_val[i]), sizeof(*h_val) * buffer_len)); 
+        CUDA_CHECK(cudaMallocManaged( (void**) &(d_temp_key[i]), sizeof(*h_key) * buffer_len));
+        CUDA_CHECK(cudaMallocManaged( (void**) &(d_temp_val[i]), sizeof(*h_val) * buffer_len)); 
     }
 
     /* Counters recording how much we have done*/
@@ -614,9 +614,9 @@ void MultiGpuHashTable<KeyType, ValType, KeyGPUMapPolicy_, empty_key>::dump_to_c
     KeyType* d_temp_key[buffer_count];
     ValType* d_temp_val[buffer_count];
     for(int i=0 ; i < buffer_count ; i++){
-        CUDA_CHECK(cudaMalloc( (void**) &(d_temp_key[i]), sizeof(*h_key) * buffer_len));
-        CUDA_CHECK(cudaMalloc( (void**) &(d_temp_val[i]), sizeof(*h_val) * buffer_len)); 
-        CUDA_CHECK(cudaMalloc( (void**) &(d_dump_counter[i]), sizeof(size_t)));
+        CUDA_CHECK(cudaMallocManaged( (void**) &(d_temp_key[i]), sizeof(*h_key) * buffer_len));
+        CUDA_CHECK(cudaMallocManaged( (void**) &(d_temp_val[i]), sizeof(*h_val) * buffer_len)); 
+        CUDA_CHECK(cudaMallocManaged( (void**) &(d_dump_counter[i]), sizeof(size_t)));
     }
 
     /* Counters recording how much we have done*/
@@ -725,7 +725,7 @@ void MultiGpuHashTable<KeyType, ValType, KeyGPUMapPolicy_, empty_key>::dump_to_g
 
     CUDA_CHECK(cudaStreamCreate(&stream));
 
-    CUDA_CHECK(cudaMalloc( (void**) &(d_dump_counter), sizeof(size_t)));
+    CUDA_CHECK(cudaMallocManaged( (void**) &(d_dump_counter), sizeof(size_t)));
 
     // The Actual capacity of hashtable on gpu_id, NOT the size.
     const size_t table_capacity = tables_[table_index] -> get_capacity(); 
