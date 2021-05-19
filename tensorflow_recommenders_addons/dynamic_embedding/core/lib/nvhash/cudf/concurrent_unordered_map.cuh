@@ -373,7 +373,7 @@ public:
     { // allocate the raw data of hash table: m_hashtbl_values,pre-alloc it on current GPU if UM.
         m_hashtbl_values = m_allocator.allocate( m_hashtbl_capacity );
         // Allocate marker and lock buffer
-        CUDA_RT_CALL( cudaMalloc((void**)&valid_marker, m_hashtbl_capacity * sizeof(*valid_marker)) );
+        CUDA_RT_CALL( cudaMallocManaged((void**)&valid_marker, m_hashtbl_capacity * sizeof(*valid_marker)) );
         //CUDA_RT_CALL( cudaMalloc((void**)&bucket_lock, m_hashtbl_capacity * sizeof(*bucket_lock)) );
         constexpr int block_size = 128;
         {
