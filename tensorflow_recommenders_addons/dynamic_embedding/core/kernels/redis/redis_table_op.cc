@@ -55,31 +55,50 @@ namespace tensorflow
           int64 total = keys.dim_size(0);
           // int64 value_len = values->dim_size(1);
           bool is_full_default = (total == value_dim0);
-
-          std::vector<std::string> redis_keys(total);
-          SWITCH_REDIS_MODE_noCluster(redis_connection_params.connection_mode, , keys, "*", std::back_inserter(redis_keys));
-
-          auto shard1 = [this, &keys, &redis_keys, &total](int64 begin1, int64 end1)
-          {
-            for (int64 i = begin1; i < end1; ++i)
-            {
-              if (i >= total)
-              {
-                break;
-              }
-              redis_keys[i]=keys.SubSlice(i).tensor_data().data();
-            }
-          };
-          auto &worker_threads1 = *context->device()->tensorflow_cpu_worker_threads();
-          int64 slices1 = static_cast<int64>(total / worker_threads1.num_threads) + 1;
-          Shard(worker_threads1.num_threads, worker_threads1.workers, total, slices1,
-                shard1);
-
-          // std::vector<std::string> redis_vals;
-          std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply;
-          SWITCH_REDIS_MODE(redis_connection_params.connection_mode, reply =, command, \
-            ::sw::redis::cmd::mget<std::vector<std::string>::iterator>, redis_keys.begin(), redis_keys.end());
           
+          // std::vector<std::string> redis_keys(total);
+          // auto shard1 = [this, &keys, &redis_keys, &total](int64 begin1, int64 end1)
+          // {
+          //   for (int64 i = begin1; i < end1; ++i)
+          //   {
+          //     if (i >= total)
+          //     {
+          //       break;
+          //     }
+          //     redis_keys[i]=keys.SubSlice(i).tensor_data().data();
+          //   }
+          // };
+          // auto &worker_threads1 = *context->device()->tensorflow_cpu_worker_threads();
+          // int64 slices1 = static_cast<int64>(total / worker_threads1.num_threads) + 1;
+          // Shard(worker_threads1.num_threads, worker_threads1.workers, total, slices1,
+          //       shard1);
+
+          // std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply;
+          // SWITCH_REDIS_MODE_noCluster(redis_connection_params.connection_mode, , wait, 1, 0);
+          // SWITCH_REDIS_MODE(redis_connection_params.connection_mode, reply =, command,
+          //                   ::sw::redis::cmd::mget<std::vector<std::string>::iterator>, redis_keys.begin(), redis_keys.end());
+          
+          std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply;
+          auto cmd = [](::sw::redis::Connection &connection, const int64 &total, const Tensor &keys) {
+                    int argc = total+1;
+                    std::vector<const char*> ptrs(argc);
+                    std::vector<std::size_t> sizes(argc);
+
+                    ptrs[0]="mget";
+                    sizes[0]=4;
+                    for (int64 i = 1; i < total; i++)
+                    {
+                      ptrs[i]=keys.SubSlice(i).tensor_data().data();
+                      sizes[i]=keys.SubSlice(i).tensor_data().size();
+                    }
+                    
+                    connection.send(argc, ptrs.data(), sizes.data());
+          };
+          auto reply = std::static_pointer_cast<Redis>(_table_conn)->command(cmd, total, keys);
+          SWITCH_REDIS_MODE(redis_connection_params.connection_mode, reply =, command, cmd, total, keys);
+
+          
+
           auto shard2 = [this, values, &reply, &default_value, &is_full_default, &total](int64 begin2, int64 end2)
           {
             for (int64 i = begin2; i < end2; ++i)
@@ -151,6 +170,11 @@ namespace tensorflow
           }
           int64 slices = static_cast<int64>(total / worker_threads.num_threads) + 1;
           Shard(num_worker_threads, worker_threads.workers, total, slices, shard);
+
+          // for (int64 i = 0; i < total; ++i)
+          // {
+          //   kv_pairs[i] = {keys.SubSlice(i).tensor_data().data(), values.SubSlice(i).tensor_data().data()};
+          // }
 
           SWITCH_REDIS_MODE(redis_connection_params.connection_mode, , mset, kv_pairs.begin(), kv_pairs.end());
 
