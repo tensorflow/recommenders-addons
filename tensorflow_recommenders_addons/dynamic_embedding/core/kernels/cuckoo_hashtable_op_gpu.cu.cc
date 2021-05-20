@@ -16,6 +16,7 @@ limitations under the License.
 
 #include "tensorflow_recommenders_addons/dynamic_embedding/core/kernels/cuckoo_hashtable_op_gpu.h"
 #include "tensorflow_recommenders_addons/dynamic_embedding/core/kernels/lookup_impl/lookup_table_op_gpu.h"
+#include "tensorflow_recommenders_addons/dynamic_embedding/core/utils/utils.h"
 
 #define EIGEN_USE_GPU
 
@@ -351,8 +352,9 @@ class HashTableFindGpuOp : public OpKernel {
   }
 };
 
-REGISTER_KERNEL_BUILDER(Name("TFRA>CuckooHashTableFind").Device(DEVICE_GPU),
-                        HashTableFindGpuOp);
+REGISTER_KERNEL_BUILDER(
+    Name(DECORATE_OP_NAME(CuckooHashTableFind)).Device(DEVICE_GPU),
+    HashTableFindGpuOp);
 
 // Table insert op.
 class HashTableInsertGpuOp : public OpKernel {
@@ -377,8 +379,9 @@ class HashTableInsertGpuOp : public OpKernel {
   }
 };
 
-REGISTER_KERNEL_BUILDER(Name("TFRA>CuckooHashTableInsert").Device(DEVICE_GPU),
-                        HashTableInsertGpuOp);
+REGISTER_KERNEL_BUILDER(
+    Name(DECORATE_OP_NAME(CuckooHashTableInsert)).Device(DEVICE_GPU),
+    HashTableInsertGpuOp);
 
 // Table remove op.
 class HashTableRemoveGpuOp : public OpKernel {
@@ -401,8 +404,9 @@ class HashTableRemoveGpuOp : public OpKernel {
   }
 };
 
-REGISTER_KERNEL_BUILDER(Name("TFRA>CuckooHashTableRemove").Device(DEVICE_GPU),
-                        HashTableRemoveGpuOp);
+REGISTER_KERNEL_BUILDER(
+    Name(DECORATE_OP_NAME(CuckooHashTableRemove)).Device(DEVICE_GPU),
+    HashTableRemoveGpuOp);
 
 // Op that returns the size of the given table.
 class HashTableSizeGpuOp : public OpKernel {
@@ -429,8 +433,9 @@ class HashTableSizeGpuOp : public OpKernel {
   }
 };
 
-REGISTER_KERNEL_BUILDER(Name("TFRA>CuckooHashTableSize").Device(DEVICE_GPU),
-                        HashTableSizeGpuOp);
+REGISTER_KERNEL_BUILDER(
+    Name(DECORATE_OP_NAME(CuckooHashTableSize)).Device(DEVICE_GPU),
+    HashTableSizeGpuOp);
 
 // Op that outputs tensors of all keys and all values.
 class HashTableExportGpuOp : public OpKernel {
@@ -446,8 +451,9 @@ class HashTableExportGpuOp : public OpKernel {
   }
 };
 
-REGISTER_KERNEL_BUILDER(Name("TFRA>CuckooHashTableExport").Device(DEVICE_GPU),
-                        HashTableExportGpuOp);
+REGISTER_KERNEL_BUILDER(
+    Name(DECORATE_OP_NAME(CuckooHashTableExport)).Device(DEVICE_GPU),
+    HashTableExportGpuOp);
 
 // Clear the table and insert data.
 class HashTableImportGpuOp : public OpKernel {
@@ -472,13 +478,14 @@ class HashTableImportGpuOp : public OpKernel {
   }
 };
 
-REGISTER_KERNEL_BUILDER(Name("TFRA>CuckooHashTableImport").Device(DEVICE_GPU),
-                        HashTableImportGpuOp);
+REGISTER_KERNEL_BUILDER(
+    Name(DECORATE_OP_NAME(CuckooHashTableImport)).Device(DEVICE_GPU),
+    HashTableImportGpuOp);
 
 // Register the CuckooHashTableOfTensors op.
 #define REGISTER_KERNEL(key_dtype, value_dtype)                        \
   REGISTER_KERNEL_BUILDER(                                             \
-      Name("TFRA>CuckooHashTableOfTensors")                            \
+      Name(DECORATE_OP_NAME(CuckooHashTableOfTensors))                 \
           .Device(DEVICE_GPU)                                          \
           .TypeConstraint<key_dtype>("key_dtype")                      \
           .TypeConstraint<value_dtype>("value_dtype"),                 \

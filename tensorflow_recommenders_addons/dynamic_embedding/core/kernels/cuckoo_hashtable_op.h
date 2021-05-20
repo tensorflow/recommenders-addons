@@ -33,6 +33,15 @@ limitations under the License.
 namespace tensorflow {
 namespace recommenders_addons {
 
+#ifndef TF_GUARDED_BY
+#define TF_GUARDED_BY(ml)
+#endif
+
+
+#ifndef TF_EXCLUSIVE_LOCKS_REQUIRED
+#define TF_EXCLUSIVE_LOCKS_REQUIRED(ml)
+#endif
+
 using tensorflow::OpKernelContext;
 using tensorflow::lookup::CheckTableDataTypes;
 using tensorflow::lookup::LookupInterface;

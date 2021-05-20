@@ -13,6 +13,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
+#include "tensorflow_recommenders_addons/dynamic_embedding/core/utils/utils.h"
+
 #include "tensorflow/core/framework/common_shape_fns.h"
 #include "tensorflow/core/framework/op.h"
 #include "tensorflow/core/framework/op_def_builder.h"
@@ -111,7 +113,26 @@ Status ValidateTableResourceHandle(InferenceContext* c, ShapeHandle keys,
   return Status::OK();
 }
 
-REGISTER_OP("TFRA>CuckooHashTableFind")
+Status CuckooHashTableShape(InferenceContext* c, const ShapeHandle& key,
+                            const ShapeHandle& value) {
+  c->set_output(0, c->Scalar());
+
+  ShapeHandle key_s;
+  TF_RETURN_IF_ERROR(c->WithRankAtMost(key, 1, &key_s));
+
+  DataType key_t;
+  TF_RETURN_IF_ERROR(c->GetAttr("key_dtype", &key_t));
+
+  DataType value_t;
+  TF_RETURN_IF_ERROR(c->GetAttr("value_dtype", &value_t));
+
+  c->set_output_handle_shapes_and_types(
+      0, std::vector<ShapeAndType>{{key_s, key_t}, {value, value_t}});
+
+  return Status::OK();
+}
+
+REGISTER_OP(DECORATE_OP_NAME(CuckooHashTableFind))
     .Input("table_handle: resource")
     .Input("keys: Tin")
     .Input("default_value: Tout")
@@ -134,7 +155,7 @@ REGISTER_OP("TFRA>CuckooHashTableFind")
       return Status::OK();
     });
 
-REGISTER_OP("TFRA>CuckooHashTableInsert")
+REGISTER_OP(DECORATE_OP_NAME(CuckooHashTableInsert))
     .Input("table_handle: resource")
     .Input("keys: Tin")
     .Input("values: Tout")
@@ -148,7 +169,7 @@ REGISTER_OP("TFRA>CuckooHashTableInsert")
       return Status::OK();
     });
 
-REGISTER_OP("TFRA>CuckooHashTableRemove")
+REGISTER_OP(DECORATE_OP_NAME(CuckooHashTableRemove))
     .Input("table_handle: resource")
     .Input("keys: Tin")
     .Attr("Tin: type")
@@ -161,12 +182,12 @@ REGISTER_OP("TFRA>CuckooHashTableRemove")
       return Status::OK();
     });
 
-REGISTER_OP("TFRA>CuckooHashTableSize")
+REGISTER_OP(DECORATE_OP_NAME(CuckooHashTableSize))
     .Input("table_handle: resource")
     .Output("size: int64")
     .SetShapeFn(ScalarAndTwoElementVectorInputsAndScalarOutputs);
 
-REGISTER_OP("TFRA>CuckooHashTableExport")
+REGISTER_OP(DECORATE_OP_NAME(CuckooHashTableExport))
     .Input("table_handle: resource")
     .Output("keys: Tkeys")
     .Output("values: Tvalues")
@@ -188,7 +209,7 @@ REGISTER_OP("TFRA>CuckooHashTableExport")
       return Status::OK();
     });
 
-REGISTER_OP("TFRA>CuckooHashTableImport")
+REGISTER_OP(DECORATE_OP_NAME(CuckooHashTableImport))
     .Input("table_handle: resource")
     .Input("keys: Tin")
     .Input("values: Tout")
@@ -204,26 +225,7 @@ REGISTER_OP("TFRA>CuckooHashTableImport")
       return Status::OK();
     });
 
-Status CuckooHashTableShape(InferenceContext* c, const ShapeHandle& key,
-                            const ShapeHandle& value) {
-  c->set_output(0, c->Scalar());
-
-  ShapeHandle key_s;
-  TF_RETURN_IF_ERROR(c->WithRankAtMost(key, 1, &key_s));
-
-  DataType key_t;
-  TF_RETURN_IF_ERROR(c->GetAttr("key_dtype", &key_t));
-
-  DataType value_t;
-  TF_RETURN_IF_ERROR(c->GetAttr("value_dtype", &value_t));
-
-  c->set_output_handle_shapes_and_types(
-      0, std::vector<ShapeAndType>{{key_s, key_t}, {value, value_t}});
-
-  return Status::OK();
-}
-
-REGISTER_OP("TFRA>CuckooHashTableOfTensors")
+REGISTER_OP(DECORATE_OP_NAME(CuckooHashTableOfTensors))
     .Output("table_handle: resource")
     .Attr("container: string = ''")
     .Attr("shared_name: string = ''")
@@ -240,4 +242,5 @@ REGISTER_OP("TFRA>CuckooHashTableOfTensors")
       TF_RETURN_IF_ERROR(c->MakeShapeFromPartialTensorShape(value_p, &value_s));
       return CuckooHashTableShape(c, /*key=*/c->Scalar(), /*value=*/value_s);
     });
+
 }  // namespace tensorflow

@@ -22,8 +22,9 @@ from tensorflow.python.framework import ops
 from tensorflow.python.ops import math_ops
 from tensorflow.python.ops import array_ops
 
+from tensorflow_recommenders_addons.utils.resource_loader import decorate_op_name
 
-@ops.RegisterGradient("TFRA>SparseSegmentSum")
+@ops.RegisterGradient(decorate_op_name("SparseSegmentSum"))
 def _TfraSparseSegmentSumGrad(op, grad):
   """Gradient for TFRA>SparseSegmentSum."""
   input_rows = array_ops.shape(op.inputs[0])[0]
@@ -31,7 +32,7 @@ def _TfraSparseSegmentSumGrad(op, grad):
                                         op.inputs[1], input_rows), None, None)
 
 
-@ops.RegisterGradient("TFRA>SparseSegmentSumWithNumSegments")
+@ops.RegisterGradient(decorate_op_name("SparseSegmentSumWithNumSegments"))
 def _TfraSparseSegmentSumWithNumSegmentsGrad(op, grad):
   """Gradient for TFRA>SparseSegmentSumWithNumSegments."""
   input_rows = array_ops.shape(op.inputs[0])[0]

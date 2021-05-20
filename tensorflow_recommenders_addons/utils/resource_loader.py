@@ -17,11 +17,12 @@
 from distutils.version import LooseVersion
 import os
 import warnings
-
 import tensorflow as tf
 
-MIN_TF_VERSION_FOR_ABI_COMPATIBILITY = "2.4.1"
-MAX_TF_VERSION_FOR_ABI_COMPATIBILITY = "2.4.1"
+from tensorflow_recommenders_addons.version import MIN_TF_VERSION, MAX_TF_VERSION
+
+MIN_TF_VERSION_FOR_ABI_COMPATIBILITY = MIN_TF_VERSION
+MAX_TF_VERSION_FOR_ABI_COMPATIBILITY = MAX_TF_VERSION
 abi_warning_already_raised = False
 SKIP_CUSTOM_OPS = False
 
@@ -106,3 +107,24 @@ def abi_is_compatible():
   min_version = LooseVersion(MIN_TF_VERSION_FOR_ABI_COMPATIBILITY)
   max_version = LooseVersion(MAX_TF_VERSION_FOR_ABI_COMPATIBILITY)
   return min_version <= LooseVersion(tf.__version__) <= max_version
+
+
+def decorate_op_name(op_name):
+  """
+  In order to keep compatibility of existing models,
+  we cannot change the OP naming rule directly by replacing "TFRA>" to "Tfra",
+  So we had to add prefix to OP name according to the TF verison.
+
+  Args:
+    op_name: original OP name
+  Returns:
+    OP name with prefix
+  """
+  major_tf_version = int(tf.__version__.split(".")[0])
+  _prefix = "TFRA>" if major_tf_version >= 2 else "Tfra"
+  return _prefix + op_name
+
+
+def get_tf_version():
+  tf_versions = tf.__version__.split(".")
+  return tf_versions

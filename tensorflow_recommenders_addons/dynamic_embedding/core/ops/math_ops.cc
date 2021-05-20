@@ -13,6 +13,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
+#include "tensorflow_recommenders_addons/dynamic_embedding/core/utils/utils.h"
+
 #include "tensorflow/core/framework/common_shape_fns.h"
 #include "tensorflow/core/framework/numeric_op.h"
 #include "tensorflow/core/framework/op.h"
@@ -92,7 +94,7 @@ Status SparseSegmentReductionWithNumSegmentsShapeFn(InferenceContext* c) {
 }  // namespace
 
 #if GOOGLE_CUDA || TENSORFLOW_USE_ROCM
-REGISTER_OP("TFRA>SparseSegmentSum")
+REGISTER_OP(DECORATE_OP_NAME(SparseSegmentSum))
     .Input("data: T")
     .Input("indices: Tidx")
     .Input("segment_ids: Tsegmentids")
@@ -102,7 +104,7 @@ REGISTER_OP("TFRA>SparseSegmentSum")
     .Attr("Tsegmentids: {int32, int64} = DT_INT32")
     .SetShapeFn(SparseSegmentReductionShapeFn);
 
-REGISTER_OP("TFRA>SparseSegmentSumWithNumSegments")
+REGISTER_OP(DECORATE_OP_NAME(SparseSegmentSumWithNumSegments))
     .Input("data: T")
     .Input("indices: Tidx")
     .Input("segment_ids: Tsegmentids")

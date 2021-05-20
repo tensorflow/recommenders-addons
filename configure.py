@@ -52,17 +52,18 @@ def is_raspi_arm():
 
 
 def get_tf_header_dir():
-  import tensorflow as tf
-
-  tf_header_dir = tf.sysconfig.get_compile_flags()[0][2:]
-  if is_windows():
-    tf_header_dir = tf_header_dir.replace("\\", "/")
+  if int(get_tf_version()) >= 2000:
+    tf_header_dir = tf.sysconfig.get_compile_flags()[0][2:]
+    if is_windows():
+      tf_header_dir = tf_header_dir.replace("\\", "/")
+  else:
+    current_path = os.path.dirname(os.path.abspath(__file__))
+    tf_header_dir = "{}/build_deps/tf_header/{}/tensorflow".format(
+        current_path, tf.__version__)
   return tf_header_dir
 
 
 def get_tf_shared_lib_dir():
-  import tensorflow as tf
-
   # OS Specific parsing
   if is_windows():
     tf_shared_lib_dir = tf.sysconfig.get_compile_flags()[0][2:-7] + "python"
@@ -75,8 +76,6 @@ def get_tf_shared_lib_dir():
 
 # Converts the linkflag namespec to the full shared library name
 def get_shared_lib_name():
-  import tensorflow as tf
-
   namespec = tf.sysconfig.get_link_flags()
   if is_macos():
     # MacOS
@@ -131,6 +130,20 @@ def get_tf_version():
   return tf_version_num
 
 
+def write_tf_verison_to_reqirements():
+  version = tf.__version__
+  with open("requirements.txt", "a+") as reqs:
+    d = reqs.readlines()
+    reqs.seek(0)
+    for i in d:
+      if "tensorflow==" in i:
+        continue
+      reqs.write(i)
+    reqs.truncate()
+    major, minor, patch = version.split('.')
+    reqs.writelines('tensorflow=={}.{}.{}\n'.format(major, minor, patch))
+
+
 def create_build_configuration():
   print()
   print("Configuring TensorFlow Recommenders-Addons to be built from source...")
@@ -145,6 +158,7 @@ def create_build_configuration():
   write_action_env("TF_SHARED_LIBRARY_NAME", get_shared_lib_name())
   write_action_env("TF_CXX11_ABI_FLAG", tf.sysconfig.CXX11_ABI_FLAG)
 
+  write_tf_verison_to_reqirements()
   tf_version = get_tf_version()
   # This is used to trace the difference between Tensorflow versions.
   # TODO(Lifann) write them to enviroment variables.
