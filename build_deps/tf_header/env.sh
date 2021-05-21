@@ -11,7 +11,7 @@ BAZEL_CACHE_DIR=$HOME/bazel-cache
 # TODO(kimi): 860b4776177384b48cc611bdf8c7a91c may change?
 _BAZEL_CACHE_DIR=$BAZEL_CACHE_DIR/_bazel_root/860b4776177384b48cc611bdf8c7a91c
 TENSORFLOW_DIR=$HOME/tensorflow
-TENSORFLOW_GENFILE_DIR=$_BAZEL_CACHE_DIR/execroot/org_tensorflow/bazel-out/host/genfiles
+TENSORFLOW_GENFILE_DIR=$_BAZEL_CACHE_DIR/execroot/org_tensorflow/bazel-out/k8-opt/bin/tensorflow/tools/pip_package/build_pip_package.runfiles/org_tensorflo
 OUTPUT_INCLUDE_DIR=$(dirname "${BASH_SOURCE[0]}")/$TENSORFLOW_VERSION/tensorflow
 
 function use() {

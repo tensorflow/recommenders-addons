@@ -33,10 +33,11 @@ limitations under the License.
 namespace tensorflow {
 namespace recommenders_addons {
 
+typedef std::string tstring;
+
 #ifndef TF_GUARDED_BY
 #define TF_GUARDED_BY(ml)
 #endif
-
 
 #ifndef TF_EXCLUSIVE_LOCKS_REQUIRED
 #define TF_EXCLUSIVE_LOCKS_REQUIRED(ml)

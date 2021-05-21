@@ -31,7 +31,7 @@ function link() {
 
 # 1. construct all possible include files.
 rm -rf $TMP_DIR
-mkdir $TMP_DIR
+mkdir -p $TMP_DIR
 cd $TMP_DIR
 # 1.1. third party
 link $CACHE_DIR/external/com_google_absl/absl absl
@@ -52,7 +52,18 @@ link $CACHE_DIR/external/jpeg external/jpeg
 link $CACHE_DIR/external/local_config_cuda external/local_config_cuda
 link $CACHE_DIR/external/nsync external/nsync
 link $CACHE_DIR/external/zlib_archive external/zlib_archive
-link $CACHE_DIR/external/com_google_protobuf/src/google/protobuf google/protobuf
+
+if [ -d $CACHE_DIR/external/com_google_protobuf ]; then
+  # for TensorFlow 1.15.2
+  link $CACHE_DIR/external/com_google_protobuf/src/google/protobuf google/protobuf
+elif [ -d $CACHE_DIR/external/protobuf_archive ]; then
+  # for TensorFlow 1.14.0
+  link $CACHE_DIR/external/protobuf_archive/src/google/protobuf google/protobuf
+else
+  echo "No 'google/protobuf' directory in Bazel cache, please check it!"
+  exit 1
+fi
+
 link $CACHE_DIR/external/jsoncpp_git/include include
 link $TENSORFLOW_DIR/third_party/eigen3/Eigen third_party/eigen3/Eigen
 link $TENSORFLOW_DIR/third_party/eigen3/unsupported/Eigen third_party/eigen3/unsupported/Eigen
@@ -64,14 +75,14 @@ for file in $files; do
 done
 
 # 1.3. tensorflow gen file
-files=$(find -L $TTENSORFLOW_GENFILE_DIR/tensorflow/ -regextype posix-extended -regex ".*\.(h|inc)" -printf "%P\n")
+files=$(find -L $TENSORFLOW_GENFILE_DIR/tensorflow/ -regextype posix-extended -regex ".*\.(h|inc)" -printf "%P\n")
 for file in $files; do
-    install $TTENSORFLOW_GENFILE_DIR/tensorflow/$file ./tensorflow/$file
+    install $TENSORFLOW_GENFILE_DIR/tensorflow/$file ./tensorflow/$file
 done
 # 2. copy *.h to $OUTPUT_INCLUDE_DIR
 cd -
 rm -rf $OUTPUT_INCLUDE_DIR
-mkdir $OUTPUT_INCLUDE_DIR
+mkdir -p $OUTPUT_INCLUDE_DIR
 
 files=$(find -L $TMP_DIR/ -regextype posix-extended -regex ".*\.(h|inc)" -printf "%P\n")
 for file in $files; do

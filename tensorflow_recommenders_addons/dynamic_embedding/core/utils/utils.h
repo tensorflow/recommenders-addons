@@ -23,7 +23,7 @@ namespace recommenders_addons {
 #if TF_VERSION >= 2000
 #define DECORATE_OP_NAME(N) CONCAT(TFRA, >, N)
 #else
-#define DECORATE_OP_NAME(N) CONCAT(Tfra, N)
+#define DECORATE_OP_NAME(N) CONCAT(Tfr, a, N)
 #endif
 
 }  // namespace recommenders_addons

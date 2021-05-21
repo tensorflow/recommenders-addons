@@ -31,6 +31,9 @@ limitations under the License.
 
 namespace tensorflow {
 namespace recommenders_addons {
+
+typedef std::string tstring;
+
 namespace lookup {
 namespace cpu {
 
