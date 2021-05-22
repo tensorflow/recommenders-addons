@@ -48,7 +48,13 @@ namespace tensorflow
       using ValueArray = std::array<V, DIM>;
 
       template <class V>
+      using Flat1D = typename tensorflow::TTypes<V>::Flat;
+
+      template <class V>
       using Tensor2D = typename tensorflow::TTypes<V, 2>::Tensor;
+
+      template <class V>
+      using ConstFlat1D = const typename tensorflow::TTypes<V>::ConstFlat;
 
       template <class V>
       using ConstTensor2D = const typename tensorflow::TTypes<V, 2>::ConstTensor;

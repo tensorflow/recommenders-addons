@@ -17,6 +17,7 @@ custom_op_library(
 custom_op_library(
     name = "_redis_table_ops.so",
     srcs = [
+        "kernels/redis/redis_impl/redis_connection_pool.hpp",
         "kernels/redis/redis_table_op.h",
         "kernels/redis/redis_table_op.cc",
         "ops/redis_table_ops.cc",
@@ -24,7 +25,6 @@ custom_op_library(
     deps = [
         "@redis//:HIREDIS",
         "@redis//:REDIS++",
-        "//tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis/redis_impl:REDIS_CONN_POOL",
     ]   ,
-    copts = ["-pthread"],
+    copts = ["-pthread", "-O3", "-mavx", "-mavx2", "-mavx512f", "-mfma"],
 )

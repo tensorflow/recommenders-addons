@@ -36,16 +36,16 @@ namespace sw::redis
 		struct Redis_Connection_Params
 		{
 			int connection_mode = 1;
-			std::string master_name = "master";
+			std::string master_name = "redis-1-test";
 			// connection_options
-			std::string host_name = "127.0.0.1";
+			std::string host_name = "10.0.75.153";
 			int host_port = 26379;
-			std::string password = "";
+			std::string password = "redis";
 			int db = 0;
 			int connect_timeout = 100; // milliseconds
 			int socket_timeout = 100;  // milliseconds
 			// connection_pool_options
-			int size = 50;
+			int size = 10;
 			int wait_timeout = 100;		  // milliseconds
 			int connection_lifetime = 10; // minutes
 			// sentinel_connection_options
