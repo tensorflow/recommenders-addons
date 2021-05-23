@@ -42,15 +42,17 @@ namespace sw::redis
 			int host_port = 26379;
 			std::string password = "redis";
 			int db = 0;
-			int connect_timeout = 100; // milliseconds
-			int socket_timeout = 100;  // milliseconds
+			int connect_timeout = 100000; // milliseconds
+			int socket_timeout = 100000;  // milliseconds
 			// connection_pool_options
 			int size = 10;
-			int wait_timeout = 100;		  // milliseconds
+			int wait_timeout = 100000;		  // milliseconds
 			int connection_lifetime = 10; // minutes
 			// sentinel_connection_options
 			int sentinel_connect_timeout = 200; // milliseconds
 			int sentinel_socket_timeout = 200;	// milliseconds
+			//  model_tag for version and any other information
+     		std::string model_tag = "test";
 
 			Redis_Connection_Params &operator=(const Redis_Connection_Params &x)
 			{
@@ -67,6 +69,7 @@ namespace sw::redis
 				connection_lifetime = x.connection_lifetime;		   // minutes
 				sentinel_connect_timeout = x.sentinel_connect_timeout; // milliseconds
 				sentinel_socket_timeout = x.sentinel_socket_timeout;   // milliseconds
+				model_tag = x.model_tag;
 				return *this;
 			}
 		};

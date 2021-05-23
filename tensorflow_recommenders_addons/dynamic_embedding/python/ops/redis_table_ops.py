@@ -18,10 +18,13 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import os
 import functools
+from hashlib import new
 
 from tensorflow.python.eager import context
 from tensorflow.python.framework import ops
+from tensorflow.python.keras.utils.generic_utils import default
 from tensorflow.python.ops.lookup_ops import LookupInterface
 from tensorflow.python.training.saver import BaseSaverBuilder
 
@@ -48,16 +51,38 @@ class RedisTable(LookupInterface):
     ```
     """
 
+  default_redis_params={
+    "connection_mode":1,
+    "master_name":"master",
+    # connection_options
+    "host_name":"127.0.0.1",
+    "host_port":26379,
+    "password":"",
+    "db":0,
+		"connect_timeout":100,  # milliseconds
+		"socket_timeout":100,  #  milliseconds
+		#  connection_pool_options
+		"size":10,
+		"wait_timeout":100,		  #  milliseconds
+		"connection_lifetime":10,  # minutes
+		#  sentinel_connection_options
+		"sentinel_connect_timeout":200,  # milliseconds
+		"sentinel_socket_timeout":200,	#  milliseconds
+    #  model_tag for version and any other information
+    "model_tag":"test",
+  }
+
   def __init__(
       self,
       key_dtype,
       value_dtype,
       default_value,
-      name="MacawHashTable",
+      name="RedisTable",
       checkpoint=False,
       init_size=0,
+      params={},
   ):
-    """Creates an empty `MacawHashTable` object.
+    """Creates an empty `RedisTable` object.
 
         Creates a redis table through OS envionment variables, 
         the type of its keys and values are specified by key_dtype 
@@ -88,6 +113,14 @@ class RedisTable(LookupInterface):
     self._value_dtype = value_dtype
     self._init_size = init_size
     self._name = name
+
+    self._default_redis_params = self.default_redis_params.copy()
+    self._default_redis_params = {k:v for k, v in params.items() if k in self._default_redis_params}
+
+    for k, v in self._default_redis_params.items():
+      if not isinstance(v, str):
+        v = str(v)
+      os.environ[k]=v
 
     self._shared_name = None
     if context.executing_eagerly():

@@ -62,37 +62,41 @@ namespace tensorflow
           int64 total = keys.dim_size(0);
           bool is_full_default = (total == value_dim0);
 
-          // ptrs_Find.reserve(total + 1);
-          // sizes_Find.reserve(total + 1);
-          if(total > kv_pairs_default_size)
-          {
-            std::cerr << "The the size of vector for saving binary data is bugger than kv_pairs_default_size, please set the init_size." << std::endl;
-            throw std::exception();
+          if (static_cast<int64>(ptrs_Find.size()) != total + 1) {
+            ptrs_Find.reserve(total + 1);
+            sizes_Find.reserve(total + 1);
+            std::cout << ptrs_Find.size() << " " << ptrs_Find.max_size() << " " << ptrs_Find.capacity() << std::endl;
+            std::cout << sizes_Find.size() << " " << sizes_Find.max_size() << " " << sizes_Find.capacity() << std::endl;
           }
+
           std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply;
           auto cmd = [](::sw::redis::Connection &connection, const int64 &total, const Tensor &keys,
                         std::vector<const char *> &ptrs, std::vector<std::size_t> &sizes)
           {
             const int argc = total + 1;
+            
+            std::vector<const char *>::iterator ptrs_iter = ptrs.begin();
+            *ptrs_iter = "mget";
+            ++ptrs_iter;
 
-            const char **ptrs_ = ptrs.data();
-            static const char *redis_cmd = "mget";
-            ptrs_[0] = redis_cmd;
-            ptrs_++;
-            sizes[0] = 4;
-            const int64 dim0_size = keys.dim_size(0);
-            const int64 elems_per_dim0 = keys.NumElements() / dim0_size;
+            // const char **ptrs_=ptrs.data();
+            // ptrs_[0] = "mget";
+            // ptrs_++;
 
-            const std::size_t tmp_size = sizeof(K) * elems_per_dim0 / sizeof(char);
-            std::fill_n(sizes.begin() + 1, argc, tmp_size);
+            // const int64 dim0_size = keys.dim_size(0);
+            // const int64 elems_per_dim0 = keys.NumElements() / dim0_size;
+            // const std::size_t key_byte_size = elems_per_dim0 * sizeof(K);
 
-            K *pk = reinterpret_cast<K *>(keys.data());
-            const K *const pke = pk + argc * elems_per_dim0;
-            for (; pk != pke; pk += elems_per_dim0, ptrs_++)
+            char *pk = reinterpret_cast<char *>(keys.data());
+            // for (; ptrs_ != &ptrs[argc]; pk += sizeof(K), ptrs_++)
+            for (; &(*ptrs_iter) != &ptrs[argc]; pk += sizeof(K), ptrs_iter++)
             {
-              (*ptrs_) = reinterpret_cast<const char *>(pk); // Direct access to Tensor data in TensorFlow
+              *ptrs_iter = pk; // Direct access to Tensor data in TensorFlow
             }
 
+            sizes[0] = 4;
+            std::fill(sizes.begin() + 1, sizes.end(), sizeof(K));
+                        
             connection.send(argc, ptrs.data(), sizes.data());
           };
 
@@ -142,12 +146,11 @@ namespace tensorflow
         {
           int64 total = keys.dim_size(0);
 
-          // ptrs_Find.reserve(total + 1);
-          // sizes_Find.reserve(total + 1);
-          if(total > kv_pairs_default_size)
-          {
-            std::cerr << "The the size of vector for saving binary data is bugger than kv_pairs_default_size, please set the init_size." << std::endl;
-            throw std::exception();
+          if (static_cast<int64>(ptrs_Insert.size()) != total * 2 + 1) {
+            ptrs_Insert.reserve(total * 2 + 1);
+            sizes_Insert.reserve(total * 2 + 1);
+            std::cout << ptrs_Insert.size() << " ins " << ptrs_Insert.max_size() << " " << ptrs_Insert.capacity() << std::endl;
+            std::cout << sizes_Insert.size() << " ins " << sizes_Insert.max_size() << " " << sizes_Insert.capacity() << std::endl;
           }
           
           auto cmd = [](::sw::redis::Connection &connection, const int64 &total, const Tensor &keys, const Tensor &values,
@@ -155,39 +158,56 @@ namespace tensorflow
           {
             const int argc = total*2 + 1;
 
-            const char **ptrs_ = ptrs.data();
-            static const char *redis_cmd = "mset";
-            ptrs_[0] = redis_cmd;
-            ptrs_++;
-            sizes[0] = 4;
+            // const char **ptrs_ = ptrs.data();
+            // ptrs_[0] = "mset";
+            // ptrs_++;
+            // sizes[0] = 4;
 
-            const int64 Kdim0_size = keys.dim_size(0);
-            const int64 Kelems_per_dim0 = keys.NumElements() / Kdim0_size;
-            const std::size_t Ktmp_size = sizeof(K) * Kelems_per_dim0 / sizeof(char);
+            std::vector<const char *>::iterator ptrs_iter=ptrs.begin();
+            std::vector<std::size_t>::iterator size_iter=sizes.begin();
+
+            *ptrs_iter = "mset";
+            ++ptrs_iter;
+            *size_iter = 4;
+            ++size_iter;
+
+            // const int64 Kdim0_size = keys.dim_size(0);
+            // const int64 Kelems_per_dim0 = keys.NumElements() / Kdim0_size;
+            // const std::size_t K_byte_size = Kelems_per_dim0 * sizeof(K);
 
             const int64 Vdim0_size = values.dim_size(0);
-            const int64 Velems_per_dim0 = values.NumElements() / Vdim0_size;
-            const std::size_t Vtmp_size = sizeof(V) * Velems_per_dim0 / sizeof(char);
+            //const int64 Velems_per_dim0 = values.NumElements() / Vdim0_size;
+            const std::size_t V_byte_size = values.NumElements() / Vdim0_size * sizeof(V);
 
-            K *pk = reinterpret_cast<K *>(keys.data());            
-            V *pv = reinterpret_cast<V *>(values.data());
+            char *pk = reinterpret_cast<char *>(keys.data());            
+            char *pv = reinterpret_cast<char *>(values.data());
 
-            for ( std::vector<std::size_t>::iterator size_iter=sizes.begin()+1; 
-                  ptrs_ != &ptrs[argc]; 
-                  pk += Kelems_per_dim0, pv += Velems_per_dim0, ptrs_+=2, size_iter+=2 )
+            // const auto ptrs_end = &ptrs_[total*2];
+            // for ( std::vector<std::size_t>::iterator size_iter=sizes.begin()+1; 
+            //       ptrs_ != ptrs_end; 
+            //       pk += sizeof(K), 
+            //       pv += V_byte_size)
+            for ( ;&(*size_iter) != &sizes[argc]; pk += sizeof(K), pv += V_byte_size)
             {
-              (*ptrs_) = reinterpret_cast<const char *>(pk); // Direct access to Tensor data in TensorFlow
-              (*size_iter) = Ktmp_size;
-
-              (*(ptrs_+1)) = reinterpret_cast<const char *>(pv); // Direct access to Tensor data in TensorFlow
-              (*(size_iter+1)) = Vtmp_size;
+              // *ptrs_ = pk; // Direct access to Tensor data in TensorFlow  (const char* == the name of the value)
+              // *(++ptrs_) = pv; // Direct access to Tensor data in TensorFlow (whatever bits of the value)
+              // ++ptrs_;
+              *ptrs_iter = pk; // Direct access to Tensor data in TensorFlow  (const char* == the name of the value)
+              *(++ptrs_iter) = pv; // Direct access to Tensor data in TensorFlow (whatever bits of the value)
+              ++ptrs_iter;
+              
+              *size_iter = sizeof(K);  // length of key-string
+              *(++size_iter) = V_byte_size;  // number of value-bytes
+              ++size_iter;
             }
+            std::cout << " REIN fuck!" << std::endl;
 
             connection.send(argc, ptrs.data(), sizes.data());
-
           };
 
+          std::cout << " REIN !" << std::endl;
           SWITCH_REDIS_MODE_noCluster(redis_connection_params.connection_mode, , command, cmd, total, keys, values, ptrs_Insert, sizes_Insert);
+          std::cout << " RAUS !" << std::endl;
           // SWITCH_REDIS_MODE_noCluster(redis_connection_params.connection_mode, , wait, 1, 0);
         }
 

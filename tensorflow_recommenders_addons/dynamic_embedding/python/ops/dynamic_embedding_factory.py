@@ -16,18 +16,45 @@
 
 from tensorflow_recommenders_addons import dynamic_embedding as de
 
-class TableFactory:
+class Singleton(type):
+  """
+  Meta class for Singleton
+  """
+  _instances = {}
+  def __call__(cls, *args, **kwargs):
+    if cls not in cls._instances:
+      cls._instances[cls] = super(Singleton, cls).__call__(*args, **kwargs)
+    return cls._instances[cls]
+
+class KVcreator(object,metaclass=Singleton):
   '''
   Use table_fn to create the corresponding sparse table.
   '''
   sparse_table = {
     'CuckooHashTable': de.CuckooHashTable, 
-    'MacawHashTable': de.RedisTable,
+    'RedisTable': de.RedisTable,
     }
-    
+  
+  table_fn_instance='CuckooHashTable'
+  table_params_dict={}
+
   def __new__(
+    cls,
+    *args,
+  ):
+    if(len(args)==2):
+      if(isinstance(args[0],str)):
+        cls.table_fn_instance=args[0]
+        cls.table_params_dict=args[1]
+      elif(isinstance(args[1],str)):
+        cls.table_fn_instance=args[1]
+        cls.table_params_dict=args[0]
+    else:
+      raise NotImplementedError("Please provide a string name for the table and a dictionary variable for the line of sight argument of the corresponding table")
+
+  @classmethod
+  def instance(
     cls, 
-    table_fn=None,
     key_dtype=None,
     value_dtype=None,
     default_value=None,
@@ -35,19 +62,24 @@ class TableFactory:
     checkpoint=None,
     init_size=None,
     ):
-    if table_fn in cls.sparse_table:
-      return cls.sparse_table[table_fn](
+    if cls.table_fn_instance in cls.sparse_table:
+      return cls.sparse_table[cls.table_fn_instance](
                 key_dtype=key_dtype,
                 value_dtype=value_dtype,
                 default_value=default_value,
                 name=name,
                 checkpoint=checkpoint,
                 init_size=init_size,
+                params=cls.table_params_dict,
             )
     else:
-      raise NotImplementedError("There is no sparse table creator called ",table_fn)
+      raise NotImplementedError("There is no sparse table creator called ",cls.table_fn_instance)
 
-class TableFactoryMeta(type):
+
+
+
+
+class KVcreatorMeta(type):
   '''It's not useless at the moment'''
   def __init__(self, name, bases, dic):
     super().__init__(name, bases, dic)
