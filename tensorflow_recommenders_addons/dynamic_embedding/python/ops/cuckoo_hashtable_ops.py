@@ -311,4 +311,5 @@ class CuckooHashTable(LookupInterface):
               restored_tensors[1],
           )
 
+
 ops.NotDifferentiable(decorate_op_name("CuckooHashTableOfTensors"))

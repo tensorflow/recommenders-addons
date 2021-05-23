@@ -16,7 +16,6 @@ limitations under the License.
 #define EIGEN_USE_THREADS
 
 #include "tensorflow_recommenders_addons/dynamic_embedding/core/kernels/cuckoo_hashtable_op.h"
-#include "tensorflow_recommenders_addons/dynamic_embedding/core/utils/utils.h"
 
 #include <string>
 #include <type_traits>
@@ -25,6 +24,8 @@ limitations under the License.
 #include "tensorflow/core/kernels/lookup_table_op.h"
 #include "tensorflow/core/util/work_sharder.h"
 #include "tensorflow_recommenders_addons/dynamic_embedding/core/kernels/lookup_impl/lookup_table_op_cpu.h"
+#include "tensorflow_recommenders_addons/dynamic_embedding/core/utils/types.h"
+#include "tensorflow_recommenders_addons/dynamic_embedding/core/utils/utils.h"
 
 namespace tensorflow {
 namespace recommenders_addons {
@@ -302,8 +303,9 @@ class HashTableFindOp : public HashTableOpKernel {
   }
 };
 
-REGISTER_KERNEL_BUILDER(Name(DECORATE_OP_NAME(CuckooHashTableFind)).Device(DEVICE_CPU),
-                        HashTableFindOp);
+REGISTER_KERNEL_BUILDER(
+    Name(DECORATE_OP_NAME(CuckooHashTableFind)).Device(DEVICE_CPU),
+    HashTableFindOp);
 
 // Table insert op.
 class HashTableInsertOp : public HashTableOpKernel {

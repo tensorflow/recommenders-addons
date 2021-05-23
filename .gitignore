@@ -23,4 +23,3 @@ bazel-genfiles
 
 .bazelrc
 
-build_deps/tf_header/1.15.2/

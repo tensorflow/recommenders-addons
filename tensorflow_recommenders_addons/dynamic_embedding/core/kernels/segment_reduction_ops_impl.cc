@@ -15,6 +15,7 @@ limitations under the License.
 
 // See docs in ../ops/math_ops.cc.
 #include "tensorflow_recommenders_addons/dynamic_embedding/core/kernels/segment_reduction_ops_impl.h"
+
 #include "tensorflow_recommenders_addons/dynamic_embedding/core/utils/utils.h"
 
 namespace tensorflow {

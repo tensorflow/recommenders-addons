@@ -35,7 +35,7 @@ brew install clang-format
 
 format all with:
 ```bash
-clang-format -i --style=google **/*.cc **/*.h
+clang-format -i --style=google **/*.cc tensorflow_recommenders_addons/**/*.h
 ```
 
 #### Python
