@@ -19,7 +19,8 @@ ARG PY_VERSION
 RUN ln -sf /usr/local/bin/python$PY_VERSION /usr/bin/python
 
 # Use devtoolset-7 as tool chain
-# ENV PATH=/dt7/usr/bin:${PATH}
+RUN rm -r /usr/bin/gcc*
+ENV PATH=/dt7/usr/bin:${PATH}
 # ENV LD_LIBRARY_PATH=/dt7/usr/lib:${LD_LIBRARY_PATH}
 # ENV LD_LIBRARY_PATH=/dt7/usr/lib64:${LD_LIBRARY_PATH}
 # ENV MANPATH=/dt7/usr/share/man${LD_LIBRARY_PATH}
