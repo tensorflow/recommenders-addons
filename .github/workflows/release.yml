@@ -41,7 +41,7 @@ jobs:
         # TODO: add back 'windows-latest' when it can be compiled.
         os: ['macos-latest', 'ubuntu-18.04']
         py-version: ['3.6', '3.7', '3.8']
-        tf-version: ['2.4.1']
+        tf-version: ['1.15.2', '2.4.1']
         tf-need-cuda: ['1', '0']
         exclude:
           # excludes cuda on macOS
