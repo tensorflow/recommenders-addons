@@ -183,12 +183,12 @@ sess_config.gpu_options.allow_growth = True
 ### Compatibility with Tensorflow Serving
 
 #### Compatibility Matrix
-| TFRA | TensorFlow | Serving | Compiler  |
-|:----- |:---- |:---- |:---------|
-| 0.1.0 | 2.4.1  | 2.4.0  | GCC 7.3.1 |
-| 0.2.0 | 2.4.1  | 2.4.0  | GCC 7.3.1 |
+| TFRA | TensorFlow | Serving | Compiler  | CUDA | CUDNN | Compute Capability |
+|:----- |:---- |:---- |:---------| :------------ | :---- | :------------ |
+| 0.2.0 | 2.4.1  | 2.4.0  | GCC 7.3.1 | 11.0 | 8.0 | 3.5, 5.2, 6.0, 6.1, 7.0, 7.5, 8.0 |
+| 0.1.0 | 2.4.1  | 2.4.0  | GCC 7.3.1 | - | - | - |
 
-#### Serving TensorFlow models with custom ops
+#### CPU Serving TensorFlow models with custom ops
 Reference documents: https://www.tensorflow.org/tfx/serving/custom_op
 
 TFRA modification([`tensorflow_recommenders_addons.bzl`](tensorflow_recommenders_addons/tensorflow_recommenders_addons.bzl)):
@@ -219,6 +219,42 @@ SUPPORTED_TENSORFLOW_OPS = if_v2([]) + if_not_v2([
 ]) + [
     "@org_tensorflow_text//tensorflow_text:ops_lib",
     "//tensorflow_recommenders_addons/dynamic_embedding/core:_cuckoo_hashtable_ops.so",
+]
+```
+#### GPU Serving TensorFlow models with custom ops
+Including CPU Serving modification, TFRA modification([`tensorflow_recommenders_addons.bzl`](tensorflow_recommenders_addons/tensorflow_recommenders_addons.bzl)) again:
+```
+if cuda_srcs:
+    copts = copts + if_cuda(["-DGOOGLE_CUDA=1"])
+    cuda_copts = copts + if_cuda_is_configured([
+        "-x cuda",
+        "-nvcc_options=relaxed-constexpr",
+        "-nvcc_options=ftz=true",
+    ])
+    cuda_deps = deps + if_cuda_is_configured(["//tensorflow_recommenders_addons/dynamic_embedding/core/lib/nvhash:nvhashtable"]) + if_cuda_is_configured([
+        "@local_config_cuda//cuda:cuda_headers",
+        "@local_config_cuda//cuda:cudart_static",
+    ])
+    basename = name.split(".")[0]
+    native.cc_library(
+        name = basename + "_gpu",
+        srcs = cuda_srcs,
+        deps = cuda_deps,
+        copts = cuda_copts,
+        alwayslink = 1,
+        **kwargs
+    )
+    deps = deps + if_cuda_is_configured([":" + basename + "_gpu"])
+```
+Tensorflow Serving modification(**model_servers/BUILD**) again:
+```
+SUPPORTED_TENSORFLOW_OPS = if_v2([]) + if_not_v2([
+    "@org_tensorflow//tensorflow/contrib:contrib_kernels",
+    "@org_tensorflow//tensorflow/contrib:contrib_ops_op_lib",
+]) + [
+    "@org_tensorflow_text//tensorflow_text:ops_lib",
+    "//tensorflow_recommenders_addons/dynamic_embedding/core:_cuckoo_hashtable_ops.so",
+    "//tensorflow_recommenders_addons/dynamic_embedding/core:_segment_reduction_ops.so",
 ]
 ```
 
