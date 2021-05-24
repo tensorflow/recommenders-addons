@@ -45,7 +45,7 @@ specific frameworks (e.g. NVIDIA Merlin, …), and integrations with Cloud servi
 
 ## Recommenders-Addons Subpackages
 
-* [tfra.dynamic_embedding](docs/api_docs/dynamic_embedding.md)
+* [tfra.dynamic_embedding](docs/api_docs/tfra/dynamic_embedding.md)
 * [tfra.embedding_variable](https://github.com/tensorflow/recommenders-addons/blob/master/docs/tutorials/embedding_variable_tutorial.ipynb)
 
 ## Tutorials

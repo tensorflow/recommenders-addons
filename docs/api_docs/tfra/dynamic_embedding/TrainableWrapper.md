@@ -20,25 +20,15 @@
 <meta itemprop="property" content="__add__"/>
 <meta itemprop="property" content="__and__"/>
 <meta itemprop="property" content="__bool__"/>
-<meta itemprop="property" content="__deepcopy__"/>
 <meta itemprop="property" content="__div__"/>
 <meta itemprop="property" content="__eq__"/>
 <meta itemprop="property" content="__floordiv__"/>
 <meta itemprop="property" content="__ge__"/>
-<meta itemprop="property" content="__getattribute__"/>
 <meta itemprop="property" content="__getitem__"/>
 <meta itemprop="property" content="__gt__"/>
-<meta itemprop="property" content="__iadd__"/>
-<meta itemprop="property" content="__idiv__"/>
-<meta itemprop="property" content="__imul__"/>
 <meta itemprop="property" content="__init__"/>
-<meta itemprop="property" content="__int__"/>
 <meta itemprop="property" content="__invert__"/>
-<meta itemprop="property" content="__ipow__"/>
-<meta itemprop="property" content="__irealdiv__"/>
-<meta itemprop="property" content="__isub__"/>
 <meta itemprop="property" content="__iter__"/>
-<meta itemprop="property" content="__itruediv__"/>
 <meta itemprop="property" content="__le__"/>
 <meta itemprop="property" content="__lt__"/>
 <meta itemprop="property" content="__matmul__"/>
@@ -80,12 +70,15 @@
 <meta itemprop="property" content="numpy"/>
 <meta itemprop="property" content="prefetch_values"/>
 <meta itemprop="property" content="read_value"/>
+<meta itemprop="property" content="ref"/>
 <meta itemprop="property" content="scatter_add"/>
 <meta itemprop="property" content="scatter_div"/>
 <meta itemprop="property" content="scatter_max"/>
 <meta itemprop="property" content="scatter_min"/>
 <meta itemprop="property" content="scatter_mul"/>
 <meta itemprop="property" content="scatter_nd_add"/>
+<meta itemprop="property" content="scatter_nd_max"/>
+<meta itemprop="property" content="scatter_nd_min"/>
 <meta itemprop="property" content="scatter_nd_sub"/>
 <meta itemprop="property" content="scatter_nd_update"/>
 <meta itemprop="property" content="scatter_sub"/>
@@ -97,20 +90,40 @@
 <meta itemprop="property" content="transform"/>
 <meta itemprop="property" content="update_op"/>
 <meta itemprop="property" content="value"/>
-<meta itemprop="property" content="__array_priority__"/>
 </div>
 
 # tfra.dynamic_embedding.TrainableWrapper
 
+<!-- Insert buttons and diff -->
+
+<table class="tfo-notebook-buttons tfo-api" align="left">
+
+<td>
+  <a target="_blank" href="https://github.com/tensorflow/recommenders-addons/tree/master/tensorflow_recommenders_addons/dynamic_embedding/python/ops/dynamic_embedding_ops.py">
+    <img src="https://www.tensorflow.org/images/GitHub-Mark-32px.png" />
+    View source on GitHub
+  </a>
+</td></table>
+<br/>
+<br/>
+<br/>
+<br/>
+
+
+
 ## Class `TrainableWrapper`
 
-Inherits From: [`Variable`](../../tf/contrib/eager/Variable.md)
-
 This class is a trainable wrapper of Dynamic Embedding,
+
+
+
+<!-- Placeholder for "Used in" -->
 and the key role is recording the map relation between params and ids.
 inheriting from the ResourceVariable make it trainable.
 
 <h2 id="__init__"><code>__init__</code></h2>
+
+<a target="_blank" href="https://github.com/tensorflow/recommenders-addons/tree/master/tensorflow_recommenders_addons/dynamic_embedding/python/ops/dynamic_embedding_ops.py">View source</a>
 
 ``` python
 __init__(
@@ -122,7 +135,7 @@ __init__(
 )
 ```
 
-Creates an empty `TrainableWrapper` object.
+Creates an empty `TrainableWrapper` object.©
 
 Creates a group of tables placed on devices,
 the type of its keys and values are specified by key_dtype
@@ -130,11 +143,12 @@ and value_dtype, respectively.
 
 #### Args:
 
+
 * <b>`params`</b>: A dynamic_embedding.Variable instance.
-* <b>`ids`</b>: a tensor with any shape as same dtype of params.key_dtype.
+* <b>`ids`</b>: A tensor with any shape as same dtype of params.key_dtype.
 * <b>`max_norm`</b>: If not `None`, each values is clipped if its l2-norm is larger
-    than this value.
-  other parameters is same with ResourceVariable.
+  than this value.
+other parameters is same with ResourceVariable.
 
 #### Returns:
 
@@ -142,8 +156,9 @@ A `TrainableWrapper` object which is a subclass of ResourceVariable.
 
 
 
+
 ## Child Classes
-[`class SaveSliceInfo`](../../tf/Variable/SaveSliceInfo.md)
+[`class SaveSliceInfo`](../../tfra/dynamic_embedding/TrainableWrapper/SaveSliceInfo.md)
 
 ## Properties
 
@@ -151,60 +166,75 @@ A `TrainableWrapper` object which is a subclass of ResourceVariable.
 
 
 
+
 <h3 id="constraint"><code>constraint</code></h3>
 
 Returns the constraint function associated with this variable.
+
 
 #### Returns:
 
 The constraint function that was passed to the variable constructor.
 Can be `None` if no constraint was passed.
 
+
 <h3 id="create"><code>create</code></h3>
 
 The op responsible for initializing this variable.
+
 
 <h3 id="device"><code>device</code></h3>
 
 The device this variable is on.
 
+
 <h3 id="dtype"><code>dtype</code></h3>
 
 The dtype of this variable.
+
 
 <h3 id="graph"><code>graph</code></h3>
 
 The `Graph` of this variable.
 
+
 <h3 id="handle"><code>handle</code></h3>
 
 The handle by which this variable can be accessed.
+
 
 <h3 id="initial_value"><code>initial_value</code></h3>
 
 Returns the Tensor used as the initial value for the variable.
 
+
 <h3 id="initializer"><code>initializer</code></h3>
 
 The op responsible for initializing this variable.
+
 
 <h3 id="name"><code>name</code></h3>
 
 The name of the handle for this variable.
 
+
 <h3 id="op"><code>op</code></h3>
 
 The op for this variable.
+
 
 <h3 id="shape"><code>shape</code></h3>
 
 The shape of this variable.
 
+
 <h3 id="synchronization"><code>synchronization</code></h3>
 
 
 
+
 <h3 id="trainable"><code>trainable</code></h3>
+
 
 
 
@@ -228,27 +258,45 @@ tensor of the same type, where each element contains the absolute value of the
 corresponding element in the input.
 
 Given a tensor `x` of complex numbers, this operation returns a tensor of type
-`float32` or `float64` that is the absolute value of each element in `x`. All
-elements in `x` must be complex numbers of the form \\(a + bj\\). The
-absolute value is computed as \\( \sqrt{a^2 + b^2}\\).  For example:
-```python
-x = tf.constant([[-2.25 + 4.75j], [-3.25 + 5.75j]])
-tf.abs(x)  # [5.25594902, 6.60492229]
+`float32` or `float64` that is the absolute value of each element in `x`. For
+a complex number \\(a + bj\\), its absolute value is computed as
+\\(\sqrt{a^2 + b^2}\\).
+
+#### For example:
+
+
+
+```
+>>> # real number
+>>> x = tf.constant([-2.25, 3.25])
+>>> tf.abs(x)
+<tf.Tensor: shape=(2,), dtype=float32,
+numpy=array([2.25, 3.25], dtype=float32)>
+```
+
+```
+>>> # complex number
+>>> x = tf.constant([[-2.25 + 4.75j], [-3.25 + 5.75j]])
+>>> tf.abs(x)
+<tf.Tensor: shape=(2, 1), dtype=float64, numpy=
+array([[5.25594901],
+       [6.60492241]])>
 ```
 
 #### Args:
 
+
 * <b>`x`</b>: A `Tensor` or `SparseTensor` of type `float16`, `float32`, `float64`,
-    `int32`, `int64`, `complex64` or `complex128`.
+  `int32`, `int64`, `complex64` or `complex128`.
 * <b>`name`</b>: A name for the operation (optional).
 
 
 #### Returns:
 
-A `Tensor` or `SparseTensor` the same size, type, and sparsity as `x` with
-  absolute values.
-Note, for `complex64` or `complex128` input, the returned `Tensor` will be
-  of type `float32` or `float64`, respectively.
+A `Tensor` or `SparseTensor` of the same size, type and sparsity as `x`,
+  with absolute values. Note, for `complex64` or `complex128` input, the
+  returned `Tensor` will be of type `float32` or `float64`, respectively.
+
 
 <h3 id="__add__"><code>__add__</code></h3>
 
@@ -260,7 +308,29 @@ __add__(
 )
 ```
 
-Dispatches to add for strings and add_v2 for all other types.
+The operation invoked by the `Tensor.__add__` operator.
+
+  Purpose in the API:
+
+    This method is exposed in TensorFlow's API so that library developers
+    can register dispatching for `Tensor.__add__` to allow it to handle
+    custom composite tensors & other custom objects.
+
+    The API symbol is not intended to be called by users directly and does
+    appear in TensorFlow's generated documentation.
+
+#### Args:
+
+
+* <b>`x`</b>: The left-hand side of the `+` operator.
+* <b>`y`</b>: The right-hand side of the `+` operator.
+* <b>`name`</b>: an optional name for the operation.
+
+
+#### Returns:
+
+The result of the elementwise `+` operation.
+
 
 <h3 id="__and__"><code>__and__</code></h3>
 
@@ -272,21 +342,8 @@ __and__(
 )
 ```
 
-Returns the truth value of x AND y element-wise.
-
-*NOTE*: `math.logical_and` supports broadcasting. More about broadcasting
-[here](http://docs.scipy.org/doc/numpy/user/basics.broadcasting.html)
-
-#### Args:
-
-* <b>`x`</b>: A `Tensor` of type `bool`.
-* <b>`y`</b>: A `Tensor` of type `bool`.
-* <b>`name`</b>: A name for the operation (optional).
 
 
-#### Returns:
-
-A `Tensor` of type `bool`.
 
 <h3 id="__bool__"><code>__bool__</code></h3>
 
@@ -294,13 +351,6 @@ A `Tensor` of type `bool`.
 __bool__()
 ```
 
-
-
-<h3 id="__deepcopy__"><code>__deepcopy__</code></h3>
-
-``` python
-__deepcopy__(memo)
-```
 
 
 
@@ -314,11 +364,22 @@ __div__(
 )
 ```
 
-Divide two values using Python 2 semantics.
+Divides x / y elementwise (using Python 2 division operator semantics). (deprecated)
 
-Used for Tensor.__div__.
+Warning: THIS FUNCTION IS DEPRECATED. It will be removed in a future version.
+Instructions for updating:
+Deprecated in favor of operator or tf.math.divide.
+
+NOTE: Prefer using the Tensor division operator or tf.divide which obey Python
+3 division operator semantics.
+
+This function divides `x` and `y`, forcing Python 2 semantics. That is, if `x`
+and `y` are both integers then the result will be an integer. This is in
+contrast to Python 3, where division with `/` is always a float while division
+with `//` is always an integer.
 
 #### Args:
+
 
 * <b>`x`</b>: `Tensor` numerator of real numeric type.
 * <b>`y`</b>: `Tensor` denominator of real numeric type.
@@ -329,6 +390,7 @@ Used for Tensor.__div__.
 
 `x / y` returns the quotient of x and y.
 
+
 <h3 id="__eq__"><code>__eq__</code></h3>
 
 ``` python
@@ -336,6 +398,7 @@ __eq__(other)
 ```
 
 Compares two variables element-wise for equality.
+
 
 <h3 id="__floordiv__"><code>__floordiv__</code></h3>
 
@@ -361,6 +424,7 @@ as well.
 
 #### Args:
 
+
 * <b>`x`</b>: `Tensor` numerator of real numeric type.
 * <b>`y`</b>: `Tensor` denominator of real numeric type.
 * <b>`name`</b>: A name for the operation (optional).
@@ -371,7 +435,9 @@ as well.
 `x / y` rounded down.
 
 
+
 #### Raises:
+
 
 * <b>`TypeError`</b>: If the inputs are complex.
 
@@ -390,7 +456,22 @@ Returns the truth value of (x >= y) element-wise.
 *NOTE*: `math.greater_equal` supports broadcasting. More about broadcasting
 [here](http://docs.scipy.org/doc/numpy/user/basics.broadcasting.html)
 
+#### Example:
+
+
+
+```python
+x = tf.constant([5, 4, 6, 7])
+y = tf.constant([5, 2, 5, 10])
+tf.math.greater_equal(x, y) ==> [True, True, True, False]
+
+x = tf.constant([5, 4, 6, 7])
+y = tf.constant([5])
+tf.math.greater_equal(x, y) ==> [True, False, True, True]
+```
+
 #### Args:
+
 
 * <b>`x`</b>: A `Tensor`. Must be one of the following types: `float32`, `float64`, `int32`, `uint8`, `int16`, `int8`, `int64`, `bfloat16`, `uint16`, `half`, `uint32`, `uint64`.
 * <b>`y`</b>: A `Tensor`. Must have the same type as `x`.
@@ -401,13 +482,6 @@ Returns the truth value of (x >= y) element-wise.
 
 A `Tensor` of type `bool`.
 
-<h3 id="__getattribute__"><code>__getattribute__</code></h3>
-
-``` python
-__getattribute__(name)
-```
-
-Return getattr(self, name).
 
 <h3 id="__getitem__"><code>__getitem__</code></h3>
 
@@ -421,7 +495,7 @@ __getitem__(
 Creates a slice helper object given a variable.
 
 This allows creating a sub-tensor from part of the current contents
-of a variable. See <a href="../../tf/Tensor.md#__getitem__"><code>tf.Tensor.__getitem__</code></a> for detailed examples
+of a variable. See `tf.Tensor.__getitem__` for detailed examples
 of slicing.
 
 This function in addition also allows assignment to a sliced range.
@@ -446,6 +520,7 @@ semantics.
 
 #### Args:
 
+
 * <b>`var`</b>: An `ops.Variable` object.
 * <b>`slice_spec`</b>: The arguments to `Tensor.__getitem__`.
 
@@ -457,11 +532,13 @@ As an operator. The operator also has a `assign()` method
 that can be used to generate an assignment operator.
 
 
+
 #### Raises:
+
 
 * <b>`ValueError`</b>: If a slice range is negative size.
 * <b>`TypeError`</b>: TypeError: If the slice indices aren't int, slice,
-    ellipsis, tf.newaxis or int32/int64 tensors.
+  ellipsis, tf.newaxis or int32/int64 tensors.
 
 <h3 id="__gt__"><code>__gt__</code></h3>
 
@@ -478,7 +555,22 @@ Returns the truth value of (x > y) element-wise.
 *NOTE*: `math.greater` supports broadcasting. More about broadcasting
 [here](http://docs.scipy.org/doc/numpy/user/basics.broadcasting.html)
 
+#### Example:
+
+
+
+```python
+x = tf.constant([5, 4, 6])
+y = tf.constant([5, 2, 5])
+tf.math.greater(x, y) ==> [False, True, True]
+
+x = tf.constant([5, 4, 6])
+y = tf.constant([5])
+tf.math.greater(x, y) ==> [False, False, True]
+```
+
 #### Args:
+
 
 * <b>`x`</b>: A `Tensor`. Must be one of the following types: `float32`, `float64`, `int32`, `uint8`, `int16`, `int8`, `int64`, `bfloat16`, `uint16`, `half`, `uint32`, `uint64`.
 * <b>`y`</b>: A `Tensor`. Must have the same type as `x`.
@@ -488,37 +580,6 @@ Returns the truth value of (x > y) element-wise.
 #### Returns:
 
 A `Tensor` of type `bool`.
-
-<h3 id="__iadd__"><code>__iadd__</code></h3>
-
-``` python
-__iadd__(unused_other)
-```
-
-
-
-<h3 id="__idiv__"><code>__idiv__</code></h3>
-
-``` python
-__idiv__(unused_other)
-```
-
-
-
-<h3 id="__imul__"><code>__imul__</code></h3>
-
-``` python
-__imul__(unused_other)
-```
-
-
-
-<h3 id="__int__"><code>__int__</code></h3>
-
-``` python
-__int__()
-```
-
 
 
 <h3 id="__invert__"><code>__invert__</code></h3>
@@ -531,39 +592,6 @@ __invert__(
 )
 ```
 
-Returns the truth value of NOT x element-wise.
-
-#### Args:
-
-* <b>`x`</b>: A `Tensor` of type `bool`.
-* <b>`name`</b>: A name for the operation (optional).
-
-
-#### Returns:
-
-A `Tensor` of type `bool`.
-
-<h3 id="__ipow__"><code>__ipow__</code></h3>
-
-``` python
-__ipow__(unused_other)
-```
-
-
-
-<h3 id="__irealdiv__"><code>__irealdiv__</code></h3>
-
-``` python
-__irealdiv__(unused_other)
-```
-
-
-
-<h3 id="__isub__"><code>__isub__</code></h3>
-
-``` python
-__isub__(unused_other)
-```
 
 
 
@@ -583,15 +611,8 @@ to infinity.  Declaring this method prevents this unintended behavior.
 
 #### Raises:
 
+
 * <b>`TypeError`</b>: when invoked.
-
-<h3 id="__itruediv__"><code>__itruediv__</code></h3>
-
-``` python
-__itruediv__(unused_other)
-```
-
-
 
 <h3 id="__le__"><code>__le__</code></h3>
 
@@ -608,7 +629,22 @@ Returns the truth value of (x <= y) element-wise.
 *NOTE*: `math.less_equal` supports broadcasting. More about broadcasting
 [here](http://docs.scipy.org/doc/numpy/user/basics.broadcasting.html)
 
+#### Example:
+
+
+
+```python
+x = tf.constant([5, 4, 6])
+y = tf.constant([5])
+tf.math.less_equal(x, y) ==> [True, True, False]
+
+x = tf.constant([5, 4, 6])
+y = tf.constant([5, 6, 6])
+tf.math.less_equal(x, y) ==> [True, True, True]
+```
+
 #### Args:
+
 
 * <b>`x`</b>: A `Tensor`. Must be one of the following types: `float32`, `float64`, `int32`, `uint8`, `int16`, `int8`, `int64`, `bfloat16`, `uint16`, `half`, `uint32`, `uint64`.
 * <b>`y`</b>: A `Tensor`. Must have the same type as `x`.
@@ -618,6 +654,7 @@ Returns the truth value of (x <= y) element-wise.
 #### Returns:
 
 A `Tensor` of type `bool`.
+
 
 <h3 id="__lt__"><code>__lt__</code></h3>
 
@@ -634,7 +671,22 @@ Returns the truth value of (x < y) element-wise.
 *NOTE*: `math.less` supports broadcasting. More about broadcasting
 [here](http://docs.scipy.org/doc/numpy/user/basics.broadcasting.html)
 
+#### Example:
+
+
+
+```python
+x = tf.constant([5, 4, 6])
+y = tf.constant([5])
+tf.math.less(x, y) ==> [False, True, False]
+
+x = tf.constant([5, 4, 6])
+y = tf.constant([5, 6, 7])
+tf.math.less(x, y) ==> [False, True, True]
+```
+
 #### Args:
+
 
 * <b>`x`</b>: A `Tensor`. Must be one of the following types: `float32`, `float64`, `int32`, `uint8`, `int16`, `int8`, `int64`, `bfloat16`, `uint16`, `half`, `uint32`, `uint64`.
 * <b>`y`</b>: A `Tensor`. Must have the same type as `x`.
@@ -644,6 +696,7 @@ Returns the truth value of (x < y) element-wise.
 #### Returns:
 
 A `Tensor` of type `bool`.
+
 
 <h3 id="__matmul__"><code>__matmul__</code></h3>
 
@@ -658,8 +711,8 @@ __matmul__(
 Multiplies matrix `a` by matrix `b`, producing `a` * `b`.
 
 The inputs must, following any transpositions, be tensors of rank >= 2
-where the inner 2 dimensions specify valid matrix multiplication arguments,
-and any further outer dimensions match.
+where the inner 2 dimensions specify valid matrix multiplication dimensions,
+and any further outer dimensions specify matching batch size.
 
 Both matrices must be of the same type. The supported types are:
 `float16`, `float32`, `float64`, `int32`, `complex64`, `complex128`.
@@ -674,82 +727,99 @@ multiplication algorithm can be used by setting the corresponding
 This optimization is only available for plain matrices (rank-2 tensors) with
 datatypes `bfloat16` or `float32`.
 
-For example:
+A simple 2-D tensor matrix multiplication:
 
-```python
-# 2-D tensor `a`
-# [[1, 2, 3],
-#  [4, 5, 6]]
-a = tf.constant([1, 2, 3, 4, 5, 6], shape=[2, 3])
+```
+>>> a = tf.constant([1, 2, 3, 4, 5, 6], shape=[2, 3])
+>>> a  # 2-D tensor
+<tf.Tensor: shape=(2, 3), dtype=int32, numpy=
+array([[1, 2, 3],
+       [4, 5, 6]], dtype=int32)>
+>>> b = tf.constant([7, 8, 9, 10, 11, 12], shape=[3, 2])
+>>> b  # 2-D tensor
+<tf.Tensor: shape=(3, 2), dtype=int32, numpy=
+array([[ 7,  8],
+       [ 9, 10],
+       [11, 12]], dtype=int32)>
+>>> c = tf.matmul(a, b)
+>>> c  # `a` * `b`
+<tf.Tensor: shape=(2, 2), dtype=int32, numpy=
+array([[ 58,  64],
+       [139, 154]], dtype=int32)>
+```
 
-# 2-D tensor `b`
-# [[ 7,  8],
-#  [ 9, 10],
-#  [11, 12]]
-b = tf.constant([7, 8, 9, 10, 11, 12], shape=[3, 2])
+A batch matrix multiplication with batch shape [2]:
 
-# `a` * `b`
-# [[ 58,  64],
-#  [139, 154]]
-c = tf.matmul(a, b)
+```
+>>> a = tf.constant(np.arange(1, 13, dtype=np.int32), shape=[2, 2, 3])
+>>> a  # 3-D tensor
+<tf.Tensor: shape=(2, 2, 3), dtype=int32, numpy=
+array([[[ 1,  2,  3],
+        [ 4,  5,  6]],
+       [[ 7,  8,  9],
+        [10, 11, 12]]], dtype=int32)>
+>>> b = tf.constant(np.arange(13, 25, dtype=np.int32), shape=[2, 3, 2])
+>>> b  # 3-D tensor
+<tf.Tensor: shape=(2, 3, 2), dtype=int32, numpy=
+array([[[13, 14],
+        [15, 16],
+        [17, 18]],
+       [[19, 20],
+        [21, 22],
+        [23, 24]]], dtype=int32)>
+>>> c = tf.matmul(a, b)
+>>> c  # `a` * `b`
+<tf.Tensor: shape=(2, 2, 2), dtype=int32, numpy=
+array([[[ 94, 100],
+        [229, 244]],
+       [[508, 532],
+        [697, 730]]], dtype=int32)>
+```
 
+Since python >= 3.5 the @ operator is supported
+(see [PEP 465](https://www.python.org/dev/peps/pep-0465/)). In TensorFlow,
+it simply calls the `tf.matmul()` function, so the following lines are
+equivalent:
 
-# 3-D tensor `a`
-# [[[ 1,  2,  3],
-#   [ 4,  5,  6]],
-#  [[ 7,  8,  9],
-#   [10, 11, 12]]]
-a = tf.constant(np.arange(1, 13, dtype=np.int32),
-                shape=[2, 2, 3])
-
-# 3-D tensor `b`
-# [[[13, 14],
-#   [15, 16],
-#   [17, 18]],
-#  [[19, 20],
-#   [21, 22],
-#   [23, 24]]]
-b = tf.constant(np.arange(13, 25, dtype=np.int32),
-                shape=[2, 3, 2])
-
-# `a` * `b`
-# [[[ 94, 100],
-#   [229, 244]],
-#  [[508, 532],
-#   [697, 730]]]
-c = tf.matmul(a, b)
-
-# Since python >= 3.5 the @ operator is supported (see PEP 465).
-# In TensorFlow, it simply calls the `tf.matmul()` function, so the
-# following lines are equivalent:
-d = a @ b @ [[10.], [11.]]
-d = tf.matmul(tf.matmul(a, b), [[10.], [11.]])
+```
+>>> d = a @ b @ [[10], [11]]
+>>> d = tf.matmul(tf.matmul(a, b), [[10], [11]])
 ```
 
 #### Args:
 
-* <b>`a`</b>: `Tensor` of type `float16`, `float32`, `float64`, `int32`, `complex64`,
-    `complex128` and rank > 1.
-* <b>`b`</b>: `Tensor` with same type and rank as `a`.
+
+* <b>`a`</b>: `tf.Tensor` of type `float16`, `float32`, `float64`, `int32`,
+  `complex64`, `complex128` and rank > 1.
+* <b>`b`</b>: `tf.Tensor` with same type and rank as `a`.
 * <b>`transpose_a`</b>: If `True`, `a` is transposed before multiplication.
 * <b>`transpose_b`</b>: If `True`, `b` is transposed before multiplication.
 * <b>`adjoint_a`</b>: If `True`, `a` is conjugated and transposed before
-    multiplication.
+  multiplication.
 * <b>`adjoint_b`</b>: If `True`, `b` is conjugated and transposed before
-    multiplication.
-* <b>`a_is_sparse`</b>: If `True`, `a` is treated as a sparse matrix.
-* <b>`b_is_sparse`</b>: If `True`, `b` is treated as a sparse matrix.
+  multiplication.
+* <b>`a_is_sparse`</b>: If `True`, `a` is treated as a sparse matrix. Notice, this
+  **does not support `tf.sparse.SparseTensor`**, it just makes optimizations
+  that assume most values in `a` are zero.
+  See `tf.sparse.sparse_dense_matmul`
+  for some support for `tf.sparse.SparseTensor` multiplication.
+* <b>`b_is_sparse`</b>: If `True`, `b` is treated as a sparse matrix. Notice, this
+  **does not support `tf.sparse.SparseTensor`**, it just makes optimizations
+  that assume most values in `a` are zero.
+  See `tf.sparse.sparse_dense_matmul`
+  for some support for `tf.sparse.SparseTensor` multiplication.
 * <b>`name`</b>: Name for the operation (optional).
 
 
 #### Returns:
 
-A `Tensor` of the same type as `a` and `b` where each inner-most matrix is
-the product of the corresponding matrices in `a` and `b`, e.g. if all
+A `tf.Tensor` of the same type as `a` and `b` where each inner-most matrix
+is the product of the corresponding matrices in `a` and `b`, e.g. if all
 transpose or adjoint attributes are `False`:
 
-`output`[..., i, j] = sum_k (`a`[..., i, k] * `b`[..., k, j]),
-for all indices i, j.
+`output[..., i, j] = sum_k (a[..., i, k] * b[..., k, j])`,
+for all indices `i`, `j`.
+
 
 * <b>`Note`</b>: This is matrix product, not element-wise product.
 
@@ -757,8 +827,9 @@ for all indices i, j.
 
 #### Raises:
 
-* <b>`ValueError`</b>: If transpose_a and adjoint_a, or transpose_b and adjoint_b
-    are both set to True.
+
+* <b>`ValueError`</b>: If `transpose_a` and `adjoint_a`, or `transpose_b` and
+  `adjoint_b` are both set to `True`.
 
 <h3 id="__mod__"><code>__mod__</code></h3>
 
@@ -780,7 +851,8 @@ with a flooring divide. E.g. `floor(x / y) * y + mod(x, y) = x`.
 
 #### Args:
 
-* <b>`x`</b>: A `Tensor`. Must be one of the following types: `int32`, `int64`, `bfloat16`, `half`, `float32`, `float64`.
+
+* <b>`x`</b>: A `Tensor`. Must be one of the following types: `int32`, `int64`, `uint64`, `bfloat16`, `half`, `float32`, `float64`.
 * <b>`y`</b>: A `Tensor`. Must have the same type as `x`.
 * <b>`name`</b>: A name for the operation (optional).
 
@@ -788,6 +860,7 @@ with a flooring divide. E.g. `floor(x / y) * y + mod(x, y) = x`.
 #### Returns:
 
 A `Tensor`. Has the same type as `x`.
+
 
 <h3 id="__mul__"><code>__mul__</code></h3>
 
@@ -801,6 +874,7 @@ __mul__(
 
 Dispatches cwise mul for "Dense*Dense" and "Dense*Sparse".
 
+
 <h3 id="__ne__"><code>__ne__</code></h3>
 
 ``` python
@@ -808,6 +882,7 @@ __ne__(other)
 ```
 
 Compares two variables element-wise for equality.
+
 
 <h3 id="__neg__"><code>__neg__</code></h3>
 
@@ -825,7 +900,8 @@ I.e., \\(y = -x\\).
 
 #### Args:
 
-* <b>`x`</b>: A `Tensor`. Must be one of the following types: `bfloat16`, `half`, `float32`, `float64`, `int32`, `int64`, `complex64`, `complex128`.
+
+* <b>`x`</b>: A `Tensor`. Must be one of the following types: `bfloat16`, `half`, `float32`, `float64`, `int8`, `int16`, `int32`, `int64`, `complex64`, `complex128`.
 * <b>`name`</b>: A name for the operation (optional).
 
 
@@ -833,11 +909,13 @@ I.e., \\(y = -x\\).
 
 A `Tensor`. Has the same type as `x`.
 
+
 <h3 id="__nonzero__"><code>__nonzero__</code></h3>
 
 ``` python
 __nonzero__()
 ```
+
 
 
 
@@ -851,21 +929,8 @@ __or__(
 )
 ```
 
-Returns the truth value of x OR y element-wise.
-
-*NOTE*: `math.logical_or` supports broadcasting. More about broadcasting
-[here](http://docs.scipy.org/doc/numpy/user/basics.broadcasting.html)
-
-#### Args:
-
-* <b>`x`</b>: A `Tensor` of type `bool`.
-* <b>`y`</b>: A `Tensor` of type `bool`.
-* <b>`name`</b>: A name for the operation (optional).
 
 
-#### Returns:
-
-A `Tensor` of type `bool`.
 
 <h3 id="__pow__"><code>__pow__</code></h3>
 
@@ -890,16 +955,18 @@ tf.pow(x, y)  # [[256, 65536], [9, 27]]
 
 #### Args:
 
+
 * <b>`x`</b>: A `Tensor` of type `float16`, `float32`, `float64`, `int32`, `int64`,
-    `complex64`, or `complex128`.
+  `complex64`, or `complex128`.
 * <b>`y`</b>: A `Tensor` of type `float16`, `float32`, `float64`, `int32`, `int64`,
-    `complex64`, or `complex128`.
+  `complex64`, or `complex128`.
 * <b>`name`</b>: A name for the operation (optional).
 
 
 #### Returns:
 
 A `Tensor`.
+
 
 <h3 id="__radd__"><code>__radd__</code></h3>
 
@@ -911,7 +978,29 @@ __radd__(
 )
 ```
 
-Dispatches to add for strings and add_v2 for all other types.
+The operation invoked by the `Tensor.__add__` operator.
+
+  Purpose in the API:
+
+    This method is exposed in TensorFlow's API so that library developers
+    can register dispatching for `Tensor.__add__` to allow it to handle
+    custom composite tensors & other custom objects.
+
+    The API symbol is not intended to be called by users directly and does
+    appear in TensorFlow's generated documentation.
+
+#### Args:
+
+
+* <b>`x`</b>: The left-hand side of the `+` operator.
+* <b>`y`</b>: The right-hand side of the `+` operator.
+* <b>`name`</b>: an optional name for the operation.
+
+
+#### Returns:
+
+The result of the elementwise `+` operation.
+
 
 <h3 id="__rand__"><code>__rand__</code></h3>
 
@@ -923,21 +1012,8 @@ __rand__(
 )
 ```
 
-Returns the truth value of x AND y element-wise.
-
-*NOTE*: `math.logical_and` supports broadcasting. More about broadcasting
-[here](http://docs.scipy.org/doc/numpy/user/basics.broadcasting.html)
-
-#### Args:
-
-* <b>`x`</b>: A `Tensor` of type `bool`.
-* <b>`y`</b>: A `Tensor` of type `bool`.
-* <b>`name`</b>: A name for the operation (optional).
 
 
-#### Returns:
-
-A `Tensor` of type `bool`.
 
 <h3 id="__rdiv__"><code>__rdiv__</code></h3>
 
@@ -949,11 +1025,22 @@ __rdiv__(
 )
 ```
 
-Divide two values using Python 2 semantics.
+Divides x / y elementwise (using Python 2 division operator semantics). (deprecated)
 
-Used for Tensor.__div__.
+Warning: THIS FUNCTION IS DEPRECATED. It will be removed in a future version.
+Instructions for updating:
+Deprecated in favor of operator or tf.math.divide.
+
+NOTE: Prefer using the Tensor division operator or tf.divide which obey Python
+3 division operator semantics.
+
+This function divides `x` and `y`, forcing Python 2 semantics. That is, if `x`
+and `y` are both integers then the result will be an integer. This is in
+contrast to Python 3, where division with `/` is always a float while division
+with `//` is always an integer.
 
 #### Args:
+
 
 * <b>`x`</b>: `Tensor` numerator of real numeric type.
 * <b>`y`</b>: `Tensor` denominator of real numeric type.
@@ -963,6 +1050,7 @@ Used for Tensor.__div__.
 #### Returns:
 
 `x / y` returns the quotient of x and y.
+
 
 <h3 id="__rfloordiv__"><code>__rfloordiv__</code></h3>
 
@@ -988,6 +1076,7 @@ as well.
 
 #### Args:
 
+
 * <b>`x`</b>: `Tensor` numerator of real numeric type.
 * <b>`y`</b>: `Tensor` denominator of real numeric type.
 * <b>`name`</b>: A name for the operation (optional).
@@ -998,7 +1087,9 @@ as well.
 `x / y` rounded down.
 
 
+
 #### Raises:
+
 
 * <b>`TypeError`</b>: If the inputs are complex.
 
@@ -1015,8 +1106,8 @@ __rmatmul__(
 Multiplies matrix `a` by matrix `b`, producing `a` * `b`.
 
 The inputs must, following any transpositions, be tensors of rank >= 2
-where the inner 2 dimensions specify valid matrix multiplication arguments,
-and any further outer dimensions match.
+where the inner 2 dimensions specify valid matrix multiplication dimensions,
+and any further outer dimensions specify matching batch size.
 
 Both matrices must be of the same type. The supported types are:
 `float16`, `float32`, `float64`, `int32`, `complex64`, `complex128`.
@@ -1031,82 +1122,99 @@ multiplication algorithm can be used by setting the corresponding
 This optimization is only available for plain matrices (rank-2 tensors) with
 datatypes `bfloat16` or `float32`.
 
-For example:
+A simple 2-D tensor matrix multiplication:
 
-```python
-# 2-D tensor `a`
-# [[1, 2, 3],
-#  [4, 5, 6]]
-a = tf.constant([1, 2, 3, 4, 5, 6], shape=[2, 3])
+```
+>>> a = tf.constant([1, 2, 3, 4, 5, 6], shape=[2, 3])
+>>> a  # 2-D tensor
+<tf.Tensor: shape=(2, 3), dtype=int32, numpy=
+array([[1, 2, 3],
+       [4, 5, 6]], dtype=int32)>
+>>> b = tf.constant([7, 8, 9, 10, 11, 12], shape=[3, 2])
+>>> b  # 2-D tensor
+<tf.Tensor: shape=(3, 2), dtype=int32, numpy=
+array([[ 7,  8],
+       [ 9, 10],
+       [11, 12]], dtype=int32)>
+>>> c = tf.matmul(a, b)
+>>> c  # `a` * `b`
+<tf.Tensor: shape=(2, 2), dtype=int32, numpy=
+array([[ 58,  64],
+       [139, 154]], dtype=int32)>
+```
 
-# 2-D tensor `b`
-# [[ 7,  8],
-#  [ 9, 10],
-#  [11, 12]]
-b = tf.constant([7, 8, 9, 10, 11, 12], shape=[3, 2])
+A batch matrix multiplication with batch shape [2]:
 
-# `a` * `b`
-# [[ 58,  64],
-#  [139, 154]]
-c = tf.matmul(a, b)
+```
+>>> a = tf.constant(np.arange(1, 13, dtype=np.int32), shape=[2, 2, 3])
+>>> a  # 3-D tensor
+<tf.Tensor: shape=(2, 2, 3), dtype=int32, numpy=
+array([[[ 1,  2,  3],
+        [ 4,  5,  6]],
+       [[ 7,  8,  9],
+        [10, 11, 12]]], dtype=int32)>
+>>> b = tf.constant(np.arange(13, 25, dtype=np.int32), shape=[2, 3, 2])
+>>> b  # 3-D tensor
+<tf.Tensor: shape=(2, 3, 2), dtype=int32, numpy=
+array([[[13, 14],
+        [15, 16],
+        [17, 18]],
+       [[19, 20],
+        [21, 22],
+        [23, 24]]], dtype=int32)>
+>>> c = tf.matmul(a, b)
+>>> c  # `a` * `b`
+<tf.Tensor: shape=(2, 2, 2), dtype=int32, numpy=
+array([[[ 94, 100],
+        [229, 244]],
+       [[508, 532],
+        [697, 730]]], dtype=int32)>
+```
 
+Since python >= 3.5 the @ operator is supported
+(see [PEP 465](https://www.python.org/dev/peps/pep-0465/)). In TensorFlow,
+it simply calls the `tf.matmul()` function, so the following lines are
+equivalent:
 
-# 3-D tensor `a`
-# [[[ 1,  2,  3],
-#   [ 4,  5,  6]],
-#  [[ 7,  8,  9],
-#   [10, 11, 12]]]
-a = tf.constant(np.arange(1, 13, dtype=np.int32),
-                shape=[2, 2, 3])
-
-# 3-D tensor `b`
-# [[[13, 14],
-#   [15, 16],
-#   [17, 18]],
-#  [[19, 20],
-#   [21, 22],
-#   [23, 24]]]
-b = tf.constant(np.arange(13, 25, dtype=np.int32),
-                shape=[2, 3, 2])
-
-# `a` * `b`
-# [[[ 94, 100],
-#   [229, 244]],
-#  [[508, 532],
-#   [697, 730]]]
-c = tf.matmul(a, b)
-
-# Since python >= 3.5 the @ operator is supported (see PEP 465).
-# In TensorFlow, it simply calls the `tf.matmul()` function, so the
-# following lines are equivalent:
-d = a @ b @ [[10.], [11.]]
-d = tf.matmul(tf.matmul(a, b), [[10.], [11.]])
+```
+>>> d = a @ b @ [[10], [11]]
+>>> d = tf.matmul(tf.matmul(a, b), [[10], [11]])
 ```
 
 #### Args:
 
-* <b>`a`</b>: `Tensor` of type `float16`, `float32`, `float64`, `int32`, `complex64`,
-    `complex128` and rank > 1.
-* <b>`b`</b>: `Tensor` with same type and rank as `a`.
+
+* <b>`a`</b>: `tf.Tensor` of type `float16`, `float32`, `float64`, `int32`,
+  `complex64`, `complex128` and rank > 1.
+* <b>`b`</b>: `tf.Tensor` with same type and rank as `a`.
 * <b>`transpose_a`</b>: If `True`, `a` is transposed before multiplication.
 * <b>`transpose_b`</b>: If `True`, `b` is transposed before multiplication.
 * <b>`adjoint_a`</b>: If `True`, `a` is conjugated and transposed before
-    multiplication.
+  multiplication.
 * <b>`adjoint_b`</b>: If `True`, `b` is conjugated and transposed before
-    multiplication.
-* <b>`a_is_sparse`</b>: If `True`, `a` is treated as a sparse matrix.
-* <b>`b_is_sparse`</b>: If `True`, `b` is treated as a sparse matrix.
+  multiplication.
+* <b>`a_is_sparse`</b>: If `True`, `a` is treated as a sparse matrix. Notice, this
+  **does not support `tf.sparse.SparseTensor`**, it just makes optimizations
+  that assume most values in `a` are zero.
+  See `tf.sparse.sparse_dense_matmul`
+  for some support for `tf.sparse.SparseTensor` multiplication.
+* <b>`b_is_sparse`</b>: If `True`, `b` is treated as a sparse matrix. Notice, this
+  **does not support `tf.sparse.SparseTensor`**, it just makes optimizations
+  that assume most values in `a` are zero.
+  See `tf.sparse.sparse_dense_matmul`
+  for some support for `tf.sparse.SparseTensor` multiplication.
 * <b>`name`</b>: Name for the operation (optional).
 
 
 #### Returns:
 
-A `Tensor` of the same type as `a` and `b` where each inner-most matrix is
-the product of the corresponding matrices in `a` and `b`, e.g. if all
+A `tf.Tensor` of the same type as `a` and `b` where each inner-most matrix
+is the product of the corresponding matrices in `a` and `b`, e.g. if all
 transpose or adjoint attributes are `False`:
 
-`output`[..., i, j] = sum_k (`a`[..., i, k] * `b`[..., k, j]),
-for all indices i, j.
+`output[..., i, j] = sum_k (a[..., i, k] * b[..., k, j])`,
+for all indices `i`, `j`.
+
 
 * <b>`Note`</b>: This is matrix product, not element-wise product.
 
@@ -1114,8 +1222,9 @@ for all indices i, j.
 
 #### Raises:
 
-* <b>`ValueError`</b>: If transpose_a and adjoint_a, or transpose_b and adjoint_b
-    are both set to True.
+
+* <b>`ValueError`</b>: If `transpose_a` and `adjoint_a`, or `transpose_b` and
+  `adjoint_b` are both set to `True`.
 
 <h3 id="__rmod__"><code>__rmod__</code></h3>
 
@@ -1137,7 +1246,8 @@ with a flooring divide. E.g. `floor(x / y) * y + mod(x, y) = x`.
 
 #### Args:
 
-* <b>`x`</b>: A `Tensor`. Must be one of the following types: `int32`, `int64`, `bfloat16`, `half`, `float32`, `float64`.
+
+* <b>`x`</b>: A `Tensor`. Must be one of the following types: `int32`, `int64`, `uint64`, `bfloat16`, `half`, `float32`, `float64`.
 * <b>`y`</b>: A `Tensor`. Must have the same type as `x`.
 * <b>`name`</b>: A name for the operation (optional).
 
@@ -1145,6 +1255,7 @@ with a flooring divide. E.g. `floor(x / y) * y + mod(x, y) = x`.
 #### Returns:
 
 A `Tensor`. Has the same type as `x`.
+
 
 <h3 id="__rmul__"><code>__rmul__</code></h3>
 
@@ -1158,6 +1269,7 @@ __rmul__(
 
 Dispatches cwise mul for "Dense*Dense" and "Dense*Sparse".
 
+
 <h3 id="__ror__"><code>__ror__</code></h3>
 
 ``` python
@@ -1168,21 +1280,8 @@ __ror__(
 )
 ```
 
-Returns the truth value of x OR y element-wise.
-
-*NOTE*: `math.logical_or` supports broadcasting. More about broadcasting
-[here](http://docs.scipy.org/doc/numpy/user/basics.broadcasting.html)
-
-#### Args:
-
-* <b>`x`</b>: A `Tensor` of type `bool`.
-* <b>`y`</b>: A `Tensor` of type `bool`.
-* <b>`name`</b>: A name for the operation (optional).
 
 
-#### Returns:
-
-A `Tensor` of type `bool`.
 
 <h3 id="__rpow__"><code>__rpow__</code></h3>
 
@@ -1207,16 +1306,18 @@ tf.pow(x, y)  # [[256, 65536], [9, 27]]
 
 #### Args:
 
+
 * <b>`x`</b>: A `Tensor` of type `float16`, `float32`, `float64`, `int32`, `int64`,
-    `complex64`, or `complex128`.
+  `complex64`, or `complex128`.
 * <b>`y`</b>: A `Tensor` of type `float16`, `float32`, `float64`, `int32`, `int64`,
-    `complex64`, or `complex128`.
+  `complex64`, or `complex128`.
 * <b>`name`</b>: A name for the operation (optional).
 
 
 #### Returns:
 
 A `Tensor`.
+
 
 <h3 id="__rsub__"><code>__rsub__</code></h3>
 
@@ -1235,7 +1336,8 @@ Returns x - y element-wise.
 
 #### Args:
 
-* <b>`x`</b>: A `Tensor`. Must be one of the following types: `bfloat16`, `half`, `float32`, `float64`, `uint8`, `int8`, `uint16`, `int16`, `int32`, `int64`, `complex64`, `complex128`.
+
+* <b>`x`</b>: A `Tensor`. Must be one of the following types: `bfloat16`, `half`, `float32`, `float64`, `uint8`, `int8`, `uint16`, `int16`, `int32`, `int64`, `complex64`, `complex128`, `uint32`.
 * <b>`y`</b>: A `Tensor`. Must have the same type as `x`.
 * <b>`name`</b>: A name for the operation (optional).
 
@@ -1243,6 +1345,7 @@ Returns x - y element-wise.
 #### Returns:
 
 A `Tensor`. Has the same type as `x`.
+
 
 <h3 id="__rtruediv__"><code>__rtruediv__</code></h3>
 
@@ -1254,7 +1357,40 @@ __rtruediv__(
 )
 ```
 
+Divides x / y elementwise (using Python 3 division operator semantics).
 
+NOTE: Prefer using the Tensor operator or tf.divide which obey Python
+division operator semantics.
+
+This function forces Python 3 division operator semantics where all integer
+arguments are cast to floating types first.   This op is generated by normal
+`x / y` division in Python 3 and in Python 2.7 with
+`from __future__ import division`.  If you want integer division that rounds
+down, use `x // y` or `tf.math.floordiv`.
+
+`x` and `y` must have the same numeric type.  If the inputs are floating
+point, the output will have the same type.  If the inputs are integral, the
+inputs are cast to `float32` for `int8` and `int16` and `float64` for `int32`
+and `int64` (matching the behavior of Numpy).
+
+#### Args:
+
+
+* <b>`x`</b>: `Tensor` numerator of numeric type.
+* <b>`y`</b>: `Tensor` denominator of numeric type.
+* <b>`name`</b>: A name for the operation (optional).
+
+
+#### Returns:
+
+`x / y` evaluated in floating point.
+
+
+
+#### Raises:
+
+
+* <b>`TypeError`</b>: If `x` and `y` have different dtypes.
 
 <h3 id="__rxor__"><code>__rxor__</code></h3>
 
@@ -1266,31 +1402,8 @@ __rxor__(
 )
 ```
 
-Logical XOR function.
-
-x ^ y = (x | y) & ~(x & y)
-
-Inputs are tensor and if the tensors contains more than one element, an
-element-wise logical XOR is computed.
-
-Usage:
-
-```python
-x = tf.constant([False, False, True, True], dtype = tf.bool)
-y = tf.constant([False, True, False, True], dtype = tf.bool)
-z = tf.logical_xor(x, y, name="LogicalXor")
-#  here z = [False  True  True False]
-```
-
-#### Args:
-
-* <b>`x`</b>: A `Tensor` type bool.
-* <b>`y`</b>: A `Tensor` of type bool.
 
 
-#### Returns:
-
-A `Tensor` of type bool with the same size as that of x or y.
 
 <h3 id="__sub__"><code>__sub__</code></h3>
 
@@ -1309,7 +1422,8 @@ Returns x - y element-wise.
 
 #### Args:
 
-* <b>`x`</b>: A `Tensor`. Must be one of the following types: `bfloat16`, `half`, `float32`, `float64`, `uint8`, `int8`, `uint16`, `int16`, `int32`, `int64`, `complex64`, `complex128`.
+
+* <b>`x`</b>: A `Tensor`. Must be one of the following types: `bfloat16`, `half`, `float32`, `float64`, `uint8`, `int8`, `uint16`, `int16`, `int32`, `int64`, `complex64`, `complex128`, `uint32`.
 * <b>`y`</b>: A `Tensor`. Must have the same type as `x`.
 * <b>`name`</b>: A name for the operation (optional).
 
@@ -1317,6 +1431,7 @@ Returns x - y element-wise.
 #### Returns:
 
 A `Tensor`. Has the same type as `x`.
+
 
 <h3 id="__truediv__"><code>__truediv__</code></h3>
 
@@ -1328,7 +1443,40 @@ __truediv__(
 )
 ```
 
+Divides x / y elementwise (using Python 3 division operator semantics).
 
+NOTE: Prefer using the Tensor operator or tf.divide which obey Python
+division operator semantics.
+
+This function forces Python 3 division operator semantics where all integer
+arguments are cast to floating types first.   This op is generated by normal
+`x / y` division in Python 3 and in Python 2.7 with
+`from __future__ import division`.  If you want integer division that rounds
+down, use `x // y` or `tf.math.floordiv`.
+
+`x` and `y` must have the same numeric type.  If the inputs are floating
+point, the output will have the same type.  If the inputs are integral, the
+inputs are cast to `float32` for `int8` and `int16` and `float64` for `int32`
+and `int64` (matching the behavior of Numpy).
+
+#### Args:
+
+
+* <b>`x`</b>: `Tensor` numerator of numeric type.
+* <b>`y`</b>: `Tensor` denominator of numeric type.
+* <b>`name`</b>: A name for the operation (optional).
+
+
+#### Returns:
+
+`x / y` evaluated in floating point.
+
+
+
+#### Raises:
+
+
+* <b>`TypeError`</b>: If `x` and `y` have different dtypes.
 
 <h3 id="__xor__"><code>__xor__</code></h3>
 
@@ -1340,31 +1488,8 @@ __xor__(
 )
 ```
 
-Logical XOR function.
-
-x ^ y = (x | y) & ~(x & y)
-
-Inputs are tensor and if the tensors contains more than one element, an
-element-wise logical XOR is computed.
-
-Usage:
-
-```python
-x = tf.constant([False, False, True, True], dtype = tf.bool)
-y = tf.constant([False, True, False, True], dtype = tf.bool)
-z = tf.logical_xor(x, y, name="LogicalXor")
-#  here z = [False  True  True False]
-```
-
-#### Args:
-
-* <b>`x`</b>: A `Tensor` type bool.
-* <b>`y`</b>: A `Tensor` of type bool.
 
 
-#### Returns:
-
-A `Tensor` of type bool with the same size as that of x or y.
 
 <h3 id="assign"><code>assign</code></h3>
 
@@ -1379,13 +1504,15 @@ assign(
 
 Assigns a new value to this variable.
 
+
 #### Args:
+
 
 * <b>`value`</b>: A `Tensor`. The new value for this variable.
 * <b>`use_locking`</b>: If `True`, use locking during the assignment.
 * <b>`name`</b>: The name to use for the assignment.
 * <b>`read_value`</b>: A `bool`. Whether to read and return the new value of the
-      variable or not.
+  variable or not.
 
 
 #### Returns:
@@ -1394,6 +1521,7 @@ If `read_value` is `True`, this method will return the new value of the
 variable after the assignment has completed. Otherwise, when in graph mode
 it will return the `Operation` that does the assignment, and when in eager
 mode it will return `None`.
+
 
 <h3 id="assign_add"><code>assign_add</code></h3>
 
@@ -1408,13 +1536,15 @@ assign_add(
 
 Adds a value to this variable.
 
+
 #### Args:
+
 
 * <b>`delta`</b>: A `Tensor`. The value to add to this variable.
 * <b>`use_locking`</b>: If `True`, use locking during the operation.
 * <b>`name`</b>: The name to use for the operation.
 * <b>`read_value`</b>: A `bool`. Whether to read and return the new value of the
-      variable or not.
+  variable or not.
 
 
 #### Returns:
@@ -1423,6 +1553,7 @@ If `read_value` is `True`, this method will return the new value of the
 variable after the assignment has completed. Otherwise, when in graph mode
 it will return the `Operation` that does the assignment, and when in eager
 mode it will return `None`.
+
 
 <h3 id="assign_sub"><code>assign_sub</code></h3>
 
@@ -1437,13 +1568,15 @@ assign_sub(
 
 Subtracts a value from this variable.
 
+
 #### Args:
+
 
 * <b>`delta`</b>: A `Tensor`. The value to subtract from this variable.
 * <b>`use_locking`</b>: If `True`, use locking during the operation.
 * <b>`name`</b>: The name to use for the operation.
 * <b>`read_value`</b>: A `bool`. Whether to read and return the new value of the
-      variable or not.
+  variable or not.
 
 
 #### Returns:
@@ -1452,6 +1585,7 @@ If `read_value` is `True`, this method will return the new value of the
 variable after the assignment has completed. Otherwise, when in graph mode
 it will return the `Operation` that does the assignment, and when in eager
 mode it will return `None`.
+
 
 <h3 id="batch_scatter_update"><code>batch_scatter_update</code></h3>
 
@@ -1463,7 +1597,7 @@ batch_scatter_update(
 )
 ```
 
-Assigns <a href="../../tf/IndexedSlices.md"><code>tf.IndexedSlices</code></a> to this variable batch-wise.
+Assigns `tf.IndexedSlices` to this variable batch-wise.
 
 Analogous to `batch_gather`. This assumes that this variable and the
 sparse_delta IndexedSlices have a series of leading dimensions that are the
@@ -1497,18 +1631,20 @@ efficient than this implementation.
 
 #### Args:
 
-* <b>`sparse_delta`</b>: <a href="../../tf/IndexedSlices.md"><code>tf.IndexedSlices</code></a> to be assigned to this variable.
+
+* <b>`sparse_delta`</b>: `tf.IndexedSlices` to be assigned to this variable.
 * <b>`use_locking`</b>: If `True`, use locking during the operation.
 * <b>`name`</b>: the name of the operation.
 
 
 #### Returns:
 
-A `Tensor` that will hold the new value of this variable after
-the scattered subtraction has completed.
+The updated variable.
+
 
 
 #### Raises:
+
 
 * <b>`TypeError`</b>: if `sparse_delta` is not an `IndexedSlices`.
 
@@ -1535,6 +1671,7 @@ This is essentially a shortcut for `count_up_to(self, limit)`.
 
 #### Args:
 
+
 * <b>`limit`</b>: value at which incrementing the variable raises an error.
 
 
@@ -1544,6 +1681,7 @@ A `Tensor` that will hold the variable value before the increment. If no
 other Op modifies this variable, the values produced will all be
 distinct.
 
+
 <h3 id="eval"><code>eval</code></h3>
 
 ``` python
@@ -1552,63 +1690,23 @@ eval(session=None)
 
 Evaluates and returns the value of this variable.
 
+
 <h3 id="experimental_ref"><code>experimental_ref</code></h3>
 
 ``` python
 experimental_ref()
 ```
 
-Returns a hashable reference object to this Variable.
+DEPRECATED FUNCTION
 
-Warning: Experimental API that could be changed or removed.
-
-The primary usecase for this API is to put variables in a set/dictionary.
-We can't put variables in a set/dictionary as `variable.__hash__()` is no
-longer available starting Tensorflow 2.0.
-
-```python
-import tensorflow as tf
-
-x = tf.Variable(5)
-y = tf.Variable(10)
-z = tf.Variable(10)
-
-# The followings will raise an exception starting 2.0
-# TypeError: Variable is unhashable if Variable equality is enabled.
-variable_set = {x, y, z}
-variable_dict = {x: 'five', y: 'ten'}
-```
-
-Instead, we can use `variable.experimental_ref()`.
-
-```python
-variable_set = {x.experimental_ref(),
-                y.experimental_ref(),
-                z.experimental_ref()}
-
-print(x.experimental_ref() in variable_set)
-==> True
-
-variable_dict = {x.experimental_ref(): 'five',
-                 y.experimental_ref(): 'ten',
-                 z.experimental_ref(): 'ten'}
-
-print(variable_dict[y.experimental_ref()])
-==> ten
-```
-
-Also, the reference object provides `.deref()` function that returns the
-original Variable.
-
-```python
-x = tf.Variable(5)
-print(x.experimental_ref().deref())
-==> <tf.Variable 'Variable:0' shape=() dtype=int32, numpy=5>
-```
+Warning: THIS FUNCTION IS DEPRECATED. It will be removed in a future version.
+Instructions for updating:
+Use ref() instead.
 
 <h3 id="from_proto"><code>from_proto</code></h3>
 
 ``` python
+@staticmethod
 from_proto(
     variable_def,
     import_scope=None
@@ -1616,6 +1714,7 @@ from_proto(
 ```
 
 Returns a `Variable` object created from `variable_def`.
+
 
 <h3 id="gather_nd"><code>gather_nd</code></h3>
 
@@ -1628,6 +1727,7 @@ gather_nd(
 
 Reads the value of this variable sparsely, using `gather_nd`.
 
+
 <h3 id="get_shape"><code>get_shape</code></h3>
 
 ``` python
@@ -1635,6 +1735,7 @@ get_shape()
 ```
 
 Alias of `Variable.shape`.
+
 
 <h3 id="initialized_value"><code>initialized_value</code></h3>
 
@@ -1665,6 +1766,7 @@ w = tf.Variable(v.initialized_value() * 2.0)
 A `Tensor` holding the value of this variable after its initializer
 has run.
 
+
 <h3 id="is_initialized"><code>is_initialized</code></h3>
 
 ``` python
@@ -1677,12 +1779,14 @@ Outputs boolean scalar indicating whether the tensor has been initialized.
 
 #### Args:
 
+
 * <b>`name`</b>: A name for the operation (optional).
 
 
 #### Returns:
 
 A `Tensor` of type `bool`.
+
 
 <h3 id="load"><code>load</code></h3>
 
@@ -1723,12 +1827,14 @@ with tf.compat.v1.Session() as sess:
 
 #### Args:
 
+
 * <b>`value`</b>: New variable value
 * <b>`session`</b>: The session to use to evaluate this variable. If none, the
-      default session is used.
+  default session is used.
 
 
 #### Raises:
+
 
 * <b>`ValueError`</b>: Session is not passed and no default session
 
@@ -1740,7 +1846,10 @@ numpy()
 
 
 
+
 <h3 id="prefetch_values"><code>prefetch_values</code></h3>
+
+<a target="_blank" href="https://github.com/tensorflow/recommenders-addons/tree/master/tensorflow_recommenders_addons/dynamic_embedding/python/ops/dynamic_embedding_ops.py">View source</a>
 
 ``` python
 prefetch_values()
@@ -1748,7 +1857,10 @@ prefetch_values()
 
 
 
+
 <h3 id="read_value"><code>read_value</code></h3>
+
+<a target="_blank" href="https://github.com/tensorflow/recommenders-addons/tree/master/tensorflow_recommenders_addons/dynamic_embedding/python/ops/dynamic_embedding_ops.py">View source</a>
 
 ``` python
 read_value(do_prefetch=True)
@@ -1758,14 +1870,61 @@ Constructs an op which reads the value of this variable.
 
 Should be used when there are multiple reads, or when it is desirable to
 read the value only after some condition is true.
-#### Args:
-
-* <b>`do_prefetch`</b>: get value from `params` before reading, if True
-
+Args:
+  do_prefetch: get value from `params` before reading, if True
 
 #### Returns:
 
 the read operation.
+
+
+<h3 id="ref"><code>ref</code></h3>
+
+``` python
+ref()
+```
+
+Returns a hashable reference object to this Variable.
+
+The primary use case for this API is to put variables in a set/dictionary.
+We can't put variables in a set/dictionary as `variable.__hash__()` is no
+longer available starting Tensorflow 2.0.
+
+The following will raise an exception starting 2.0
+
+```
+>>> x = tf.Variable(5)
+>>> y = tf.Variable(10)
+>>> z = tf.Variable(10)
+>>> variable_set = {x, y, z}
+Traceback (most recent call last):
+  ...
+TypeError: Variable is unhashable. Instead, use tensor.ref() as the key.
+>>> variable_dict = {x: 'five', y: 'ten'}
+Traceback (most recent call last):
+  ...
+TypeError: Variable is unhashable. Instead, use tensor.ref() as the key.
+```
+
+Instead, we can use `variable.ref()`.
+
+```
+>>> variable_set = {x.ref(), y.ref(), z.ref()}
+>>> x.ref() in variable_set
+True
+>>> variable_dict = {x.ref(): 'five', y.ref(): 'ten', z.ref(): 'ten'}
+>>> variable_dict[y.ref()]
+'ten'
+```
+
+Also, the reference object provides `.deref()` function that returns the
+original Variable.
+
+```
+>>> x = tf.Variable(5)
+>>> x.ref().deref()
+<tf.Variable 'Variable:0' shape=() dtype=int32, numpy=5>
+```
 
 <h3 id="scatter_add"><code>scatter_add</code></h3>
 
@@ -1777,22 +1936,25 @@ scatter_add(
 )
 ```
 
-Adds <a href="../../tf/IndexedSlices.md"><code>tf.IndexedSlices</code></a> to this variable.
+Adds `tf.IndexedSlices` to this variable.
+
 
 #### Args:
 
-* <b>`sparse_delta`</b>: <a href="../../tf/IndexedSlices.md"><code>tf.IndexedSlices</code></a> to be added to this variable.
+
+* <b>`sparse_delta`</b>: `tf.IndexedSlices` to be added to this variable.
 * <b>`use_locking`</b>: If `True`, use locking during the operation.
 * <b>`name`</b>: the name of the operation.
 
 
 #### Returns:
 
-A `Tensor` that will hold the new value of this variable after
-the scattered addition has completed.
+The updated variable.
+
 
 
 #### Raises:
+
 
 * <b>`TypeError`</b>: if `sparse_delta` is not an `IndexedSlices`.
 
@@ -1806,22 +1968,25 @@ scatter_div(
 )
 ```
 
-Divide this variable by <a href="../../tf/IndexedSlices.md"><code>tf.IndexedSlices</code></a>.
+Divide this variable by `tf.IndexedSlices`.
+
 
 #### Args:
 
-* <b>`sparse_delta`</b>: <a href="../../tf/IndexedSlices.md"><code>tf.IndexedSlices</code></a> to divide this variable by.
+
+* <b>`sparse_delta`</b>: `tf.IndexedSlices` to divide this variable by.
 * <b>`use_locking`</b>: If `True`, use locking during the operation.
 * <b>`name`</b>: the name of the operation.
 
 
 #### Returns:
 
-A `Tensor` that will hold the new value of this variable after
-the scattered division has completed.
+The updated variable.
+
 
 
 #### Raises:
+
 
 * <b>`TypeError`</b>: if `sparse_delta` is not an `IndexedSlices`.
 
@@ -1835,23 +2000,26 @@ scatter_max(
 )
 ```
 
-Updates this variable with the max of <a href="../../tf/IndexedSlices.md"><code>tf.IndexedSlices</code></a> and itself.
+Updates this variable with the max of `tf.IndexedSlices` and itself.
+
 
 #### Args:
 
-* <b>`sparse_delta`</b>: <a href="../../tf/IndexedSlices.md"><code>tf.IndexedSlices</code></a> to use as an argument of max
-    with this variable.
+
+* <b>`sparse_delta`</b>: `tf.IndexedSlices` to use as an argument of max with this
+  variable.
 * <b>`use_locking`</b>: If `True`, use locking during the operation.
 * <b>`name`</b>: the name of the operation.
 
 
 #### Returns:
 
-A `Tensor` that will hold the new value of this variable after
-the scattered maximization has completed.
+The updated variable.
+
 
 
 #### Raises:
+
 
 * <b>`TypeError`</b>: if `sparse_delta` is not an `IndexedSlices`.
 
@@ -1865,23 +2033,26 @@ scatter_min(
 )
 ```
 
-Updates this variable with the min of <a href="../../tf/IndexedSlices.md"><code>tf.IndexedSlices</code></a> and itself.
+Updates this variable with the min of `tf.IndexedSlices` and itself.
+
 
 #### Args:
 
-* <b>`sparse_delta`</b>: <a href="../../tf/IndexedSlices.md"><code>tf.IndexedSlices</code></a> to use as an argument of min
-    with this variable.
+
+* <b>`sparse_delta`</b>: `tf.IndexedSlices` to use as an argument of min with this
+  variable.
 * <b>`use_locking`</b>: If `True`, use locking during the operation.
 * <b>`name`</b>: the name of the operation.
 
 
 #### Returns:
 
-A `Tensor` that will hold the new value of this variable after
-the scattered minimization has completed.
+The updated variable.
+
 
 
 #### Raises:
+
 
 * <b>`TypeError`</b>: if `sparse_delta` is not an `IndexedSlices`.
 
@@ -1895,22 +2066,25 @@ scatter_mul(
 )
 ```
 
-Multiply this variable by <a href="../../tf/IndexedSlices.md"><code>tf.IndexedSlices</code></a>.
+Multiply this variable by `tf.IndexedSlices`.
+
 
 #### Args:
 
-* <b>`sparse_delta`</b>: <a href="../../tf/IndexedSlices.md"><code>tf.IndexedSlices</code></a> to multiply this variable by.
+
+* <b>`sparse_delta`</b>: `tf.IndexedSlices` to multiply this variable by.
 * <b>`use_locking`</b>: If `True`, use locking during the operation.
 * <b>`name`</b>: the name of the operation.
 
 
 #### Returns:
 
-A `Tensor` that will hold the new value of this variable after
-the scattered multiplication has completed.
+The updated variable.
+
 
 
 #### Raises:
+
 
 * <b>`TypeError`</b>: if `sparse_delta` is not an `IndexedSlices`.
 
@@ -1957,10 +2131,11 @@ The resulting update to ref would look like this:
 
     [1, 13, 3, 14, 14, 6, 7, 20]
 
-See <a href="../../tf/scatter_nd.md"><code>tf.scatter_nd</code></a> for more details about how to make updates to
+See `tf.scatter_nd` for more details about how to make updates to
 slices.
 
 #### Args:
+
 
 * <b>`indices`</b>: The indices to be used in the operation.
 * <b>`updates`</b>: The values to be used in the operation.
@@ -1969,8 +2144,94 @@ slices.
 
 #### Returns:
 
-A `Tensor` that will hold the new value of this variable after
-the scattered subtraction has completed.
+The updated variable.
+
+
+<h3 id="scatter_nd_max"><code>scatter_nd_max</code></h3>
+
+``` python
+scatter_nd_max(
+    indices,
+    updates,
+    name=None
+)
+```
+
+Updates this variable with the max of `tf.IndexedSlices` and itself.
+
+`ref` is a `Tensor` with rank `P` and `indices` is a `Tensor` of rank `Q`.
+
+`indices` must be integer tensor, containing indices into `ref`.
+It must be shape `[d_0, ..., d_{Q-2}, K]` where `0 < K <= P`.
+
+The innermost dimension of `indices` (with length `K`) corresponds to
+indices into elements (if `K = P`) or slices (if `K < P`) along the `K`th
+dimension of `ref`.
+
+`updates` is `Tensor` of rank `Q-1+P-K` with shape:
+
+```
+[d_0, ..., d_{Q-2}, ref.shape[K], ..., ref.shape[P-1]].
+```
+
+See `tf.scatter_nd` for more details about how to make updates to
+slices.
+
+#### Args:
+
+
+* <b>`indices`</b>: The indices to be used in the operation.
+* <b>`updates`</b>: The values to be used in the operation.
+* <b>`name`</b>: the name of the operation.
+
+
+#### Returns:
+
+The updated variable.
+
+
+<h3 id="scatter_nd_min"><code>scatter_nd_min</code></h3>
+
+``` python
+scatter_nd_min(
+    indices,
+    updates,
+    name=None
+)
+```
+
+Updates this variable with the min of `tf.IndexedSlices` and itself.
+
+`ref` is a `Tensor` with rank `P` and `indices` is a `Tensor` of rank `Q`.
+
+`indices` must be integer tensor, containing indices into `ref`.
+It must be shape `[d_0, ..., d_{Q-2}, K]` where `0 < K <= P`.
+
+The innermost dimension of `indices` (with length `K`) corresponds to
+indices into elements (if `K = P`) or slices (if `K < P`) along the `K`th
+dimension of `ref`.
+
+`updates` is `Tensor` of rank `Q-1+P-K` with shape:
+
+```
+[d_0, ..., d_{Q-2}, ref.shape[K], ..., ref.shape[P-1]].
+```
+
+See `tf.scatter_nd` for more details about how to make updates to
+slices.
+
+#### Args:
+
+
+* <b>`indices`</b>: The indices to be used in the operation.
+* <b>`updates`</b>: The values to be used in the operation.
+* <b>`name`</b>: the name of the operation.
+
+
+#### Returns:
+
+The updated variable.
+
 
 <h3 id="scatter_nd_sub"><code>scatter_nd_sub</code></h3>
 
@@ -2015,10 +2276,11 @@ The resulting update to ref would look like this:
 
     [1, -9, 3, -6, -6, 6, 7, -4]
 
-See <a href="../../tf/scatter_nd.md"><code>tf.scatter_nd</code></a> for more details about how to make updates to
+See `tf.scatter_nd` for more details about how to make updates to
 slices.
 
 #### Args:
+
 
 * <b>`indices`</b>: The indices to be used in the operation.
 * <b>`updates`</b>: The values to be used in the operation.
@@ -2027,8 +2289,8 @@ slices.
 
 #### Returns:
 
-A `Tensor` that will hold the new value of this variable after
-the scattered subtraction has completed.
+The updated variable.
+
 
 <h3 id="scatter_nd_update"><code>scatter_nd_update</code></h3>
 
@@ -2073,10 +2335,11 @@ The resulting update to ref would look like this:
 
     [1, 11, 3, 10, 9, 6, 7, 12]
 
-See <a href="../../tf/scatter_nd.md"><code>tf.scatter_nd</code></a> for more details about how to make updates to
+See `tf.scatter_nd` for more details about how to make updates to
 slices.
 
 #### Args:
+
 
 * <b>`indices`</b>: The indices to be used in the operation.
 * <b>`updates`</b>: The values to be used in the operation.
@@ -2085,8 +2348,8 @@ slices.
 
 #### Returns:
 
-A `Tensor` that will hold the new value of this variable after
-the scattered subtraction has completed.
+The updated variable.
+
 
 <h3 id="scatter_sub"><code>scatter_sub</code></h3>
 
@@ -2098,22 +2361,25 @@ scatter_sub(
 )
 ```
 
-Subtracts <a href="../../tf/IndexedSlices.md"><code>tf.IndexedSlices</code></a> from this variable.
+Subtracts `tf.IndexedSlices` from this variable.
+
 
 #### Args:
 
-* <b>`sparse_delta`</b>: <a href="../../tf/IndexedSlices.md"><code>tf.IndexedSlices</code></a> to be subtracted from this variable.
+
+* <b>`sparse_delta`</b>: `tf.IndexedSlices` to be subtracted from this variable.
 * <b>`use_locking`</b>: If `True`, use locking during the operation.
 * <b>`name`</b>: the name of the operation.
 
 
 #### Returns:
 
-A `Tensor` that will hold the new value of this variable after
-the scattered subtraction has completed.
+The updated variable.
+
 
 
 #### Raises:
+
 
 * <b>`TypeError`</b>: if `sparse_delta` is not an `IndexedSlices`.
 
@@ -2127,22 +2393,25 @@ scatter_update(
 )
 ```
 
-Assigns <a href="../../tf/IndexedSlices.md"><code>tf.IndexedSlices</code></a> to this variable.
+Assigns `tf.IndexedSlices` to this variable.
+
 
 #### Args:
 
-* <b>`sparse_delta`</b>: <a href="../../tf/IndexedSlices.md"><code>tf.IndexedSlices</code></a> to be assigned to this variable.
+
+* <b>`sparse_delta`</b>: `tf.IndexedSlices` to be assigned to this variable.
 * <b>`use_locking`</b>: If `True`, use locking during the operation.
 * <b>`name`</b>: the name of the operation.
 
 
 #### Returns:
 
-A `Tensor` that will hold the new value of this variable after
-the scattered subtraction has completed.
+The updated variable.
+
 
 
 #### Raises:
+
 
 * <b>`TypeError`</b>: if `sparse_delta` is not an `IndexedSlices`.
 
@@ -2152,13 +2421,22 @@ the scattered subtraction has completed.
 set_shape(shape)
 ```
 
-Unsupported.
+Overrides the shape for this variable.
+
+
+#### Args:
+
+
+* <b>`shape`</b>: the `TensorShape` representing the overridden shape.
 
 <h3 id="size"><code>size</code></h3>
+
+<a target="_blank" href="https://github.com/tensorflow/recommenders-addons/tree/master/tensorflow_recommenders_addons/dynamic_embedding/python/ops/dynamic_embedding_ops.py">View source</a>
 
 ``` python
 size()
 ```
+
 
 
 
@@ -2173,6 +2451,7 @@ sparse_read(
 
 Reads the value of this variable sparsely, using `gather`.
 
+
 <h3 id="to_proto"><code>to_proto</code></h3>
 
 ``` python
@@ -2181,12 +2460,15 @@ to_proto(export_scope=None)
 
 Converts a `ResourceVariable` to a `VariableDef` protocol buffer.
 
+
 #### Args:
+
 
 * <b>`export_scope`</b>: Optional `string`. Name scope to remove.
 
 
 #### Raises:
+
 
 * <b>`RuntimeError`</b>: If run in EAGER mode.
 
@@ -2196,7 +2478,10 @@ Converts a `ResourceVariable` to a `VariableDef` protocol buffer.
 A `VariableDef` protocol buffer, or `None` if the `Variable` is not
 in the specified name scope.
 
+
 <h3 id="transform"><code>transform</code></h3>
+
+<a target="_blank" href="https://github.com/tensorflow/recommenders-addons/tree/master/tensorflow_recommenders_addons/dynamic_embedding/python/ops/dynamic_embedding_ops.py">View source</a>
 
 ``` python
 transform(result)
@@ -2204,11 +2489,15 @@ transform(result)
 
 
 
+
 <h3 id="update_op"><code>update_op</code></h3>
+
+<a target="_blank" href="https://github.com/tensorflow/recommenders-addons/tree/master/tensorflow_recommenders_addons/dynamic_embedding/python/ops/dynamic_embedding_ops.py">View source</a>
 
 ``` python
 update_op()
 ```
+
 
 
 
@@ -2222,7 +2511,4 @@ A cached operation which reads the value of this variable.
 
 
 
-## Class Members
-
-<h3 id="__array_priority__"><code>__array_priority__</code></h3>
 

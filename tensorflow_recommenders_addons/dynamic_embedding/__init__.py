@@ -14,31 +14,52 @@
 # ==============================================================================
 """Export dynamic_embedding APIs."""
 
+__all__ = [
+    'CuckooHashTable',
+    'Variable',
+    'TrainableWrapper',
+    'DynamicEmbeddingOptimizer',
+    'GraphKeys',
+    'ModelMode',
+    'RestrictPolicy',
+    'TimestampRestrictPolicy',
+    'FrequencyRestrictPolicy',
+    'get_variable',
+    'embedding_lookup',
+    'embedding_lookup_sparse',
+    'embedding_lookup_unique',
+    'safe_embedding_lookup_sparse',
+    'enable_inference_mode',
+    'enable_train_mode',
+    'get_model_mode',
+    'math',
+]
+
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops import math_ops as math
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.cuckoo_hashtable_ops import (
     CuckooHashTable,)
-from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_optimizer import (
-    create_slots,)
-from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_optimizer import (
-    DynamicEmbeddingOptimizer,)
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_ops import (
     embedding_lookup,)
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_ops import (
-    embedding_lookup_unique,)
-from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_ops import (
     embedding_lookup_sparse,)
+from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_ops import (
+    embedding_lookup_unique,)
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_ops import (
     safe_embedding_lookup_sparse,)
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_ops import (
-    enable_train_mode,)
-from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_ops import (
     enable_inference_mode,)
+from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_ops import (
+    enable_train_mode,)
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_ops import (
     get_model_mode,)
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_ops import (
     ModelMode,)
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_ops import (
     TrainableWrapper,)
+from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_optimizer import (
+    create_slots,)
+from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_optimizer import (
+    DynamicEmbeddingOptimizer,)
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_variable import (
     get_variable,)
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_variable import (
