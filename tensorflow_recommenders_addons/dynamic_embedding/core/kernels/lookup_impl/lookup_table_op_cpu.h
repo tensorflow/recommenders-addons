@@ -28,12 +28,10 @@ limitations under the License.
 #include "tensorflow/core/framework/variant.h"
 #include "tensorflow/core/lib/gtl/inlined_vector.h"
 #include "tensorflow_recommenders_addons/dynamic_embedding/core/lib/cuckoo/cuckoohash_map.hh"
+#include "tensorflow_recommenders_addons/dynamic_embedding/core/utils/types.h"
 
 namespace tensorflow {
 namespace recommenders_addons {
-
-typedef std::string tstring;
-
 namespace lookup {
 namespace cpu {
 

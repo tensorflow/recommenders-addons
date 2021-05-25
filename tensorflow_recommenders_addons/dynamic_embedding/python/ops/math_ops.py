@@ -22,16 +22,12 @@ import functools
 import tensorflow as tf
 
 from tensorflow.python.eager import context
-from tensorflow.python.framework import config
 from tensorflow.python.framework import errors
-from tensorflow.python.framework import ops
 from tensorflow.python.platform import tf_logging
-from tensorflow.python.training.saver import BaseSaverBuilder
 
-from tensorflow_recommenders_addons.utils.resource_loader import LazySO
-from tensorflow_recommenders_addons.dynamic_embedding.python.ops import math_grad
+from tensorflow_recommenders_addons.utils import resource_loader
 
-segment_reduction_ops = LazySO(
+segment_reduction_ops = resource_loader.LazySO(
     "dynamic_embedding/core/_segment_reduction_ops.so").ops
 
 
@@ -62,7 +58,7 @@ def sparse_segment_sum(data,
     has size `k`, the number of segments specified via `num_segments` or
     inferred for the last element in `segments_ids`.
   """
-  gpu_devices = config.list_physical_devices('GPU')
+  gpu_devices = resource_loader.get_devices('GPU')
   if gpu_devices:
     if context.executing_eagerly():
       try:

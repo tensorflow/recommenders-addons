@@ -24,6 +24,7 @@ from tensorflow.python.ops import array_ops
 
 from tensorflow_recommenders_addons.utils.resource_loader import decorate_op_name
 
+
 @ops.RegisterGradient(decorate_op_name("SparseSegmentSum"))
 def _TfraSparseSegmentSumGrad(op, grad):
   """Gradient for TFRA>SparseSegmentSum."""

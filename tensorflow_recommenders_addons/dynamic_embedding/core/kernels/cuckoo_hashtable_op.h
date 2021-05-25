@@ -29,19 +29,10 @@ limitations under the License.
 #include "tensorflow/core/platform/macros.h"
 #include "tensorflow/core/platform/thread_annotations.h"
 #include "tensorflow/core/util/env_var.h"
+#include "tensorflow_recommenders_addons/dynamic_embedding/core/utils/types.h"
 
 namespace tensorflow {
 namespace recommenders_addons {
-
-typedef std::string tstring;
-
-#ifndef TF_GUARDED_BY
-#define TF_GUARDED_BY(ml)
-#endif
-
-#ifndef TF_EXCLUSIVE_LOCKS_REQUIRED
-#define TF_EXCLUSIVE_LOCKS_REQUIRED(ml)
-#endif
 
 using tensorflow::OpKernelContext;
 using tensorflow::lookup::CheckTableDataTypes;

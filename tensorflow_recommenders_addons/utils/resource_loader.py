@@ -27,6 +27,24 @@ abi_warning_already_raised = False
 SKIP_CUSTOM_OPS = False
 
 
+def get_devices(device_type="GPU"):
+  if hasattr(tf.config, "list_physical_devices"):
+    return tf.config.list_physical_devices(device_type)
+  elif hasattr(tf.config, "experimental_list_devices"):
+    devices_list = tf.config.experimental_list_devices()
+    return [d for d in devices_list if ":{}".format(device_type.upper()) in d]
+  else:
+    warnings.warn(
+        "You are currently using TensorFlow {} which TFRA cann't get the devices correctly.\n"
+        "So we strongly recommend that you use the version supported by the TFRA statement "
+        "To do that, refer to the readme: "
+        "https://github.com/tensorflow/recommenders-addons"
+        "".format(tf.__version__,),
+        UserWarning,
+    )
+    return []
+
+
 def get_project_root():
   """Returns project root folder."""
   return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

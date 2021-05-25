@@ -23,7 +23,7 @@ export CC_OPT_FLAGS='-mavx'
 python -m pip install -r tools/install_deps/pytest.txt -e ./
 python ./configure.py
 bash tools/install_so_files.sh
-python -c "import tensorflow as tf; print(tf.config.list_physical_devices())"
+python -c "import tensorflow as tf; print(tf.config.experimental_list_devices())"
 
 # use 10 workers if a gpu is available, otherwise,
 # one worker per cpu core. Kokoro has 38 cores, that'd be too much
