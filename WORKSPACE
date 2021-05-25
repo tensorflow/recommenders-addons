@@ -79,8 +79,8 @@ package(default_visibility = ["//visibility:public"])
 load("@bazel_skylib//lib:collections.bzl", "collections")
 cc_import(
     name = "HIREDIS",
-    hdrs = collections.uniq(glob(["include/hiredis/*.h"])+glob(["include/hiredis/**/*.h"])) ,
-    shared_library = "lib/x86_64-linux-gnu/libhiredis.so",
+    hdrs = collections.uniq(glob(["local/include/hiredis/*.h"])+glob(["local/include/hiredis/**/*.h"])) ,
+    static_library = "local/lib/libhiredis_static.a",
 )
 cc_import(
     name = "REDIS++",

@@ -42,15 +42,15 @@ namespace sw::redis
 			int host_port = 26379;
 			std::string password = "redis";
 			int db = 0;
-			int connect_timeout = 100000; // milliseconds
-			int socket_timeout = 100000;  // milliseconds
+			int connect_timeout = 1000; // milliseconds
+			int socket_timeout = 1000;  // milliseconds
 			// connection_pool_options
-			int size = 10;
-			int wait_timeout = 100000;		  // milliseconds
-			int connection_lifetime = 10; // minutes
+			int size = 20;
+			int wait_timeout = 100000000;		  // milliseconds
+			int connection_lifetime = 100; // minutes
 			// sentinel_connection_options
-			int sentinel_connect_timeout = 200; // milliseconds
-			int sentinel_socket_timeout = 200;	// milliseconds
+			int sentinel_connect_timeout = 1000; // milliseconds
+			int sentinel_socket_timeout = 1000;	// milliseconds
 			//  model_tag for version and any other information
      		std::string model_tag = "test";
 

@@ -15,6 +15,8 @@ limitations under the License.
 
 #include <type_traits>
 #include <utility>
+#include <csignal>
+#include <signal.h>
 
 #include "tensorflow/core/kernels/lookup_table_op.h"
 #include "tensorflow/core/util/work_sharder.h"
@@ -27,7 +29,14 @@ using sw::redis::Redis;
 using sw::redis::RedisCluster;
 using namespace sw::redis::redis_connection;
 
-#define kv_pairs_default_size 1024*8
+constexpr int kv_pairs_default_size = 1024*8;
+/*
+In the code, Redis limits the size of arguments that command can set to 1024*1024. 
+For example, mset can only set 524287 {(1024*1024-2)/2} keys every times.
+The source code is shown in the following link:
+https://github.com/redis/redis/blob/be6ce8a92a9acbecfaaa6c57a45037fc1018fefe/src/networking.c#L1851
+*/
+constexpr long long multi_redis_cmd_max_argc = 1024 * 1024; 
 
 namespace tensorflow
 {
@@ -59,44 +68,46 @@ namespace tensorflow
                         const Tensor &keys, Tensor *values, const Tensor &default_value,
                         int64 value_dim0)
         {
-          int64 total = keys.dim_size(0);
-          bool is_full_default = (total == value_dim0);
+          auto &worker_threads2 = *context->device()->tensorflow_cpu_worker_threads();
+          const int &num_threads = worker_threads2.num_threads;
 
-          if (static_cast<int64>(ptrs_Find.size()) != total + 1) {
-            ptrs_Find.reserve(total + 1);
-            sizes_Find.reserve(total + 1);
-            std::cout << ptrs_Find.size() << " " << ptrs_Find.max_size() << " " << ptrs_Find.capacity() << std::endl;
-            std::cout << sizes_Find.size() << " " << sizes_Find.max_size() << " " << sizes_Find.capacity() << std::endl;
+          const int64 &total = keys.dim_size(0);
+          const bool is_full_default = (total == value_dim0);
+
+          if (static_cast<int64>(ptrs_Find.size()) < total + num_threads + 1) {
+            ptrs_Find.resize(total + num_threads + 1/*max_num_thread for inserting mget into vector*/);
+            sizes_Find.resize(total + num_threads + 1/*max_num_thread for inserting mget into vector*/);
           }
 
           std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply;
           auto cmd = [](::sw::redis::Connection &connection, const int64 &total, const Tensor &keys,
                         std::vector<const char *> &ptrs, std::vector<std::size_t> &sizes)
           {
-            const int argc = total + 1;
-            
-            std::vector<const char *>::iterator ptrs_iter = ptrs.begin();
-            *ptrs_iter = "mget";
-            ++ptrs_iter;
+            const int argc = total + 1;            
 
-            // const char **ptrs_=ptrs.data();
-            // ptrs_[0] = "mget";
-            // ptrs_++;
+            static const char *redis_command = "mget";
+
+            const char **ptrs_iter = &ptrs[0];
+            *ptrs_iter = redis_command;
+            ++ptrs_iter;
 
             // const int64 dim0_size = keys.dim_size(0);
             // const int64 elems_per_dim0 = keys.NumElements() / dim0_size;
             // const std::size_t key_byte_size = elems_per_dim0 * sizeof(K);
 
-            char *pk = reinterpret_cast<char *>(keys.data());
-            // for (; ptrs_ != &ptrs[argc]; pk += sizeof(K), ptrs_++)
-            for (; &(*ptrs_iter) != &ptrs[argc]; pk += sizeof(K), ptrs_iter++)
+            const char *pk = reinterpret_cast<const char *>(keys.data());
+
+            const auto iter_end_addr = &ptrs[argc];
+
+            for (; ptrs_iter != iter_end_addr; pk += sizeof(K) )
             {
               *ptrs_iter = pk; // Direct access to Tensor data in TensorFlow
+              ++ptrs_iter;
             }
 
             sizes[0] = 4;
             std::fill(sizes.begin() + 1, sizes.end(), sizeof(K));
-                        
+            // raise(SIGTRAP);  /* To continue from here in GDB: "signal 0". */
             connection.send(argc, ptrs.data(), sizes.data());
           };
 
@@ -110,6 +121,10 @@ namespace tensorflow
           const V * const defautV_base_ptr = reinterpret_cast<V *>(default_value.data());
           auto shard2 = [this, &reply, &values_base_ptr, &defautV_base_ptr, &is_full_default, &total, &elems_per_dim0, &tmp_size](int64 begin2, int64 end2)
           {
+            // for each ptr in ptrs_Find....
+            // if ptr != redis_command:
+            //    dst_idx = (ptr - keys.data()) / sizeof(K)
+            //    memcpy(tensor[dst_idx * num_elements_emb * sizeof(V)], reply->element[i], tmp_size)
             const auto max_i = std::min(end2, total);
             for (auto i = begin2, offset = begin2 * elems_per_dim0; i < max_i; ++i, offset += elems_per_dim0)
             {
@@ -134,9 +149,8 @@ namespace tensorflow
               }
             }
           };
-          auto &worker_threads2 = *context->device()->tensorflow_cpu_worker_threads();
-          int64 slices2 = static_cast<int64>(total / worker_threads2.num_threads) + 1;
-          Shard(worker_threads2.num_threads, worker_threads2.workers, total, slices2,
+          int64 slices2 = static_cast<int64>(total / num_threads) + 1;
+          Shard(num_threads, worker_threads2.workers, total, slices2,
                 shard2);
 
         }
@@ -144,71 +158,73 @@ namespace tensorflow
         void launchInsert(OpKernelContext *context, std::shared_ptr<void> table_conn,
                           const Tensor &keys, const Tensor &values)
         {
-          int64 total = keys.dim_size(0);
+          auto &worker_threads = *context->device()->tensorflow_cpu_worker_threads();
+          const int &num_threads = worker_threads.num_threads;
 
-          if (static_cast<int64>(ptrs_Insert.size()) != total * 2 + 1) {
-            ptrs_Insert.reserve(total * 2 + 1);
-            sizes_Insert.reserve(total * 2 + 1);
-            std::cout << ptrs_Insert.size() << " ins " << ptrs_Insert.max_size() << " " << ptrs_Insert.capacity() << std::endl;
-            std::cout << sizes_Insert.size() << " ins " << sizes_Insert.max_size() << " " << sizes_Insert.capacity() << std::endl;
+          const int64 &total = keys.dim_size(0);
+
+          if (static_cast<int64>(ptrs_Insert.size()) < (total << 1) + num_threads + 1) {
+            ptrs_Insert.resize((total << 1) + num_threads + 1/*max_num_thread for inserting mset into vector*/);
+            sizes_Insert.resize((total << 1) + num_threads + 1/*max_num_thread for inserting mset into vector*/);
           }
           
-          auto cmd = [](::sw::redis::Connection &connection, const int64 &total, const Tensor &keys, const Tensor &values,
-                        std::vector<const char *> &ptrs, std::vector<std::size_t> &sizes)
+          std::atomic_llong slice_length(0);
+          auto shard = [this, &total, &keys, &values, &slice_length](int64 begin, int64 end)
           {
-            const int argc = total*2 + 1;
+            const int64 max_i = std::min(total, end);
+            int64 vector_slice_begin = std::atomic_fetch_add_explicit(&slice_length, (max_i-begin)*2+1, std::memory_order_relaxed);
+            assert(vector_slice_begin + slice_length <= ptrs_Insert.size());
 
-            // const char **ptrs_ = ptrs.data();
-            // ptrs_[0] = "mset";
-            // ptrs_++;
-            // sizes[0] = 4;
-
-            std::vector<const char *>::iterator ptrs_iter=ptrs.begin();
-            std::vector<std::size_t>::iterator size_iter=sizes.begin();
-
-            *ptrs_iter = "mset";
-            ++ptrs_iter;
-            *size_iter = 4;
-            ++size_iter;
-
-            // const int64 Kdim0_size = keys.dim_size(0);
-            // const int64 Kelems_per_dim0 = keys.NumElements() / Kdim0_size;
-            // const std::size_t K_byte_size = Kelems_per_dim0 * sizeof(K);
-
-            const int64 Vdim0_size = values.dim_size(0);
-            //const int64 Velems_per_dim0 = values.NumElements() / Vdim0_size;
-            const std::size_t V_byte_size = values.NumElements() / Vdim0_size * sizeof(V);
-
-            char *pk = reinterpret_cast<char *>(keys.data());            
-            char *pv = reinterpret_cast<char *>(values.data());
-
-            // const auto ptrs_end = &ptrs_[total*2];
-            // for ( std::vector<std::size_t>::iterator size_iter=sizes.begin()+1; 
-            //       ptrs_ != ptrs_end; 
-            //       pk += sizeof(K), 
-            //       pv += V_byte_size)
-            for ( ;&(*size_iter) != &sizes[argc]; pk += sizeof(K), pv += V_byte_size)
+            auto cmd = [](::sw::redis::Connection &connection, const int64 &total, const Tensor &keys, const Tensor &values,
+                          std::vector<const char *> &ptrs, std::vector<std::size_t> &sizes, 
+                          const int64 &begin, const int64 &max_i, const int64 &vector_slice_begin)
             {
-              // *ptrs_ = pk; // Direct access to Tensor data in TensorFlow  (const char* == the name of the value)
-              // *(++ptrs_) = pv; // Direct access to Tensor data in TensorFlow (whatever bits of the value)
-              // ++ptrs_;
-              *ptrs_iter = pk; // Direct access to Tensor data in TensorFlow  (const char* == the name of the value)
-              *(++ptrs_iter) = pv; // Direct access to Tensor data in TensorFlow (whatever bits of the value)
+              const int argc = (max_i - begin)*2 + 1;
+              const static char *redis_command = "mset";
+              constexpr static std::size_t redis_command_byte = 4;
+
+              const char **ptrs_iter=&ptrs[vector_slice_begin];
+              std::size_t *size_iter=&sizes[vector_slice_begin];
+
+              *ptrs_iter = redis_command;
               ++ptrs_iter;
-              
-              *size_iter = sizeof(K);  // length of key-string
-              *(++size_iter) = V_byte_size;  // number of value-bytes
+              *size_iter = redis_command_byte;
               ++size_iter;
-            }
-            std::cout << " REIN fuck!" << std::endl;
 
-            connection.send(argc, ptrs.data(), sizes.data());
+              const int64 Vdim0_size = values.dim_size(0);
+              //const int64 Velems_per_dim0 = values.NumElements() / Vdim0_size;
+              const std::size_t V_byte_size = values.NumElements() / Vdim0_size * sizeof(V);
+
+              const char *pk = reinterpret_cast<const char *>(keys.data());            
+              const char *pv = reinterpret_cast<const char *>(values.data());
+
+              const auto iter_end_addr = &sizes[vector_slice_begin+argc];
+
+              for (; size_iter != iter_end_addr; pk += sizeof(K), pv += V_byte_size)
+              {
+                *ptrs_iter = pk; // Direct access to Tensor data in TensorFlow  (const char* == the name of the value)
+                *(++ptrs_iter) = pv; // Direct access to Tensor data in TensorFlow (whatever bits of the value)
+                ++ptrs_iter;
+                
+                *size_iter = sizeof(K);  // length of key-string
+                *(++size_iter) = V_byte_size;  // number of value-bytes
+                ++size_iter;
+              }
+
+              assert(ptrs[vector_slice_begin]==redis_command);
+              // raise(SIGTRAP);  /* To continue from here in GDB: "signal 0". */
+              connection.send(argc, &ptrs[vector_slice_begin], &sizes[vector_slice_begin]);
+            };
+
+            SWITCH_REDIS_MODE_noCluster(redis_connection_params.connection_mode, , command, cmd, total, keys, values, ptrs_Insert, sizes_Insert, 
+                                                                                                  begin, max_i, vector_slice_begin);
+            // SWITCH_REDIS_MODE_noCluster(redis_connection_params.connection_mode, , wait, 1, 0);
           };
+          const int64 KVpairs_slices_size = multi_redis_cmd_max_argc >> 1;
+          int64 slices_size = std::min( total, KVpairs_slices_size - 1 );
+          Shard((total/KVpairs_slices_size)+1, worker_threads.workers, total, slices_size,
+                shard);
 
-          std::cout << " REIN !" << std::endl;
-          SWITCH_REDIS_MODE_noCluster(redis_connection_params.connection_mode, , command, cmd, total, keys, values, ptrs_Insert, sizes_Insert);
-          std::cout << " RAUS !" << std::endl;
-          // SWITCH_REDIS_MODE_noCluster(redis_connection_params.connection_mode, , wait, 1, 0);
         }
 
       public:
@@ -238,10 +254,10 @@ namespace tensorflow
           }
           runtime_dim_ = value_shape_.dim_size(0);
 
-          ptrs_Find.resize(init_size_);
-          sizes_Find.resize(init_size_);
-          ptrs_Insert.resize(init_size_);
-          sizes_Insert.resize(init_size_);
+          ptrs_Find.reserve(init_size_);
+          sizes_Find.reserve(init_size_);
+          ptrs_Insert.reserve(init_size_);
+          sizes_Insert.reserve(init_size_);
 
           switch (redis_connection_params.connection_mode)
           {
