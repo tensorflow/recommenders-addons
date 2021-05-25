@@ -2,6 +2,10 @@
 
 # TensorFlow Recommenders-Addons, a TensorFlow library for building recommender systems.
 licenses(["notice"])  # Apache 2.0
+load(
+    "@local_config_cuda//cuda:build_defs.bzl",
+    "if_cuda",
+)
 
 package(default_visibility = ["//visibility:public"])
 

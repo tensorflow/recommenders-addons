@@ -24,7 +24,7 @@ sudo apt install clang-format-9
 
 format all with:
 ```bash
-clang-format-9 -i --style=google **/*.cc **/*.h
+clang-format-9 -i --style=google ./tensorflow_recommenders-addons/**/*.cc ./tensorflow_recommenders-addons/**/*.h
 ```
 
 Install Clang-format for MacOS:

@@ -2,6 +2,7 @@
 ARG TF_VERSION
 ARG PY_VERSION
 ARG TF_NEED_CUDA
+ARG TF_NAME
 FROM gcr.io/tensorflow-testing/nosla-cuda11.0-cudnn8-ubuntu18.04-manylinux2010-multipython as base_install
 
 # Required for setuptools v50.0.0
@@ -21,13 +22,11 @@ RUN ln -sf /usr/local/bin/python$PY_VERSION /usr/bin/python
 # Use devtoolset-7 as tool chain
 RUN rm -r /usr/bin/gcc*
 ENV PATH=/dt7/usr/bin:${PATH}
-# ENV LD_LIBRARY_PATH=/dt7/usr/lib:${LD_LIBRARY_PATH}
-# ENV LD_LIBRARY_PATH=/dt7/usr/lib64:${LD_LIBRARY_PATH}
-# ENV MANPATH=/dt7/usr/share/man${LD_LIBRARY_PATH}
-# ENV INFOPATH=/dt7/usr/share/info:${LD_LIBRARY_PATH}
 
 ARG TF_VERSION
-RUN python -m pip install --default-timeout=1000 tensorflow==$TF_VERSION
+ARG TF_NAME
+
+RUN python -m pip install --default-timeout=1000 $TF_NAME==$TF_VERSION
 
 COPY tools/install_deps/ /install_deps
 RUN python -m pip install -r /install_deps/pytest.txt
@@ -70,7 +69,8 @@ RUN ls -al wheelhouse/
 FROM python:$PY_VERSION as test_wheel_in_fresh_environment
 
 ARG TF_VERSION
-RUN python -m pip install --default-timeout=1000 tensorflow==$TF_VERSION
+ARG TF_NAME
+RUN python -m pip install --default-timeout=1000 $TF_NAME==$TF_VERSION
 
 COPY --from=make_wheel /recommenders-addons/wheelhouse/ /recommenders-addons/wheelhouse/
 RUN pip install /recommenders-addons/wheelhouse/*.whl

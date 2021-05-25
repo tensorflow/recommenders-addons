@@ -21,10 +21,6 @@ limitations under the License.
 namespace tensorflow {
 namespace recommenders_addons {
 
-#ifndef tstring;
-typedef std::string tstring;
-#endif
-
 #ifndef TF_GUARDED_BY
 #define TF_GUARDED_BY(ml)
 #endif
