@@ -9,13 +9,3 @@ py_library(
         "//tensorflow_recommenders_addons:conftest.py",
     ],
 )
-
-py_test(
-    name = "keras_utils_test",
-    size = "small",
-    srcs = glob(["tests/*"]),
-    main = "tests/run_all_test.py",
-    deps = [
-        ":utils",
-    ],
-)
