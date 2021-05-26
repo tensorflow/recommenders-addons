@@ -19,10 +19,10 @@ import os
 import warnings
 import tensorflow as tf
 
-from tensorflow_recommenders_addons.version import MIN_TF_VERSION, MAX_TF_VERSION
+from tensorflow_recommenders_addons import version
 
-MIN_TF_VERSION_FOR_ABI_COMPATIBILITY = MIN_TF_VERSION
-MAX_TF_VERSION_FOR_ABI_COMPATIBILITY = MAX_TF_VERSION
+MIN_TF_VERSION_FOR_ABI_COMPATIBILITY = version.MIN_TF_VERSION
+MAX_TF_VERSION_FOR_ABI_COMPATIBILITY = version.MAX_TF_VERSION
 abi_warning_already_raised = False
 SKIP_CUSTOM_OPS = False
 

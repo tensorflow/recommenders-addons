@@ -47,6 +47,9 @@ jobs:
           # excludes cuda on macOS
           - os: 'macos-latest'
             tf-need-cuda: '1'
+          # excludes TF1.15.2 on py38
+          - py-version: '3.8'
+            tf-version: '1.15.2'
       fail-fast: false
     steps:
       - uses: actions/github-script@0.3.0

@@ -11,7 +11,7 @@ else
   export TF_NAME='tensorflow'
 fi
 
-DOCKER_BUILDKIT=1 docker build \
+DOCKER_BUILDKIT=1 docker build --no-cache \
     -f tools/docker/build_wheel.Dockerfile \
     --output type=local,dest=wheelhouse \
     --build-arg PY_VERSION \

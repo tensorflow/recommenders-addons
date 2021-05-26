@@ -65,7 +65,7 @@ RUN python run-clang-format.py \
                -r \
                --cli-args=--style=google \
                --clang-format-executable ./clang-format/clang-format9 \
-               /recommenders-addons
+               /recommenders-addons/tensorflow_recommenders_addons
 RUN touch /ok.txt
 
 # -------------------------------
