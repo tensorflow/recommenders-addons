@@ -150,6 +150,8 @@ def create_build_configuration():
   # TODO(Lifann) write them to enviroment variables.
   write_action_env("TF_VERSION", tf_version)
 
+  write_action_env("FOR_TF_SERVING", os.getenv("FOR_TF_SERVING", "0"))
+
   write("build --spawn_strategy=standalone")
   write("build --strategy=Genrule=standalone")
   write("build -c opt")
