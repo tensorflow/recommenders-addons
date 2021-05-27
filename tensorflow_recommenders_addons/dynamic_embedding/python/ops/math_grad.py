@@ -19,8 +19,9 @@ from __future__ import division
 from __future__ import print_function
 
 from tensorflow.python.framework import ops
-from tensorflow.python.ops import math_ops
 from tensorflow.python.ops import array_ops
+from tensorflow.python.ops import gen_sparse_ops
+from tensorflow.python.ops import math_ops
 
 
 @ops.RegisterGradient("TFRA>SparseSegmentSum")
@@ -38,3 +39,17 @@ def _TfraSparseSegmentSumWithNumSegmentsGrad(op, grad):
   return (math_ops.unsorted_segment_sum(array_ops.gather(grad, op.inputs[2]),
                                         op.inputs[1],
                                         input_rows), None, None, None)
+
+
+@ops.RegisterGradient("TfraSparseFillEmptyRows")
+def _SparseFillEmptyRowsGrad(op, unused_grad_output_indices, output_grad_values,
+                             unused_grad_empty_row_indicator,
+                             unused_grad_reverse_index_map):
+  """Gradients for TfraSparseFillEmptyRows."""
+  reverse_index_map = op.outputs[3]
+
+  d_values, d_default_value = gen_sparse_ops.sparse_fill_empty_rows_grad(
+      reverse_index_map=reverse_index_map, grad_values=output_grad_values)
+
+  # d_indices, d_values, d_dense_shape, d_default_value.
+  return [None, d_values, None, d_default_value]

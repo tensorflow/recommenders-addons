@@ -115,4 +115,65 @@ REGISTER_OP("TFRA>SparseSegmentSumWithNumSegments")
     .SetShapeFn(SparseSegmentReductionWithNumSegmentsShapeFn);
 #endif  // GOOGLE_CUDA || TENSORFLOW_USE_ROCM
 
+#if GOOGLE_CUDA
+REGISTER_OP("TfraSparseFillEmptyRows")
+    .Input("indices: int64")
+    .Input("values: T")
+    .Input("dense_shape: int64")
+    .Input("default_value: T")
+    .Output("output_indices: int64")
+    .Output("output_values: T")
+    .Output("empty_row_indicator: bool")
+    .Output("reverse_index_map: int64")
+    .Attr("T: type")
+    .SetShapeFn([](InferenceContext* c) {
+      ShapeHandle input_indices = c->input(0);
+      TF_RETURN_IF_ERROR(c->WithRank(input_indices, 2, &input_indices));
+      ShapeHandle input_values = c->input(1);
+      TF_RETURN_IF_ERROR(c->WithRank(input_values, 1, &input_values));
+      ShapeHandle input_shape = c->input(2);
+      TF_RETURN_IF_ERROR(c->WithRank(input_shape, 1, &input_shape));
+      ShapeHandle default_value = c->input(3);
+      TF_RETURN_IF_ERROR(c->WithRank(default_value, 0, &default_value));
+      DimensionHandle N = c->Dim(input_indices, 0);
+      TF_RETURN_IF_ERROR(c->Merge(N, c->Dim(input_values, 0), &N));
+      DimensionHandle unused_dim;
+      TF_RETURN_IF_ERROR(c->Merge(c->Dim(input_indices, 1),
+                                  c->Dim(input_shape, 0), &unused_dim));
+      ShapeHandle output_indices =
+          c->Matrix(InferenceContext::kUnknownDim, c->NumElements(input_shape));
+      ShapeHandle output_values = c->Vector(InferenceContext::kUnknownDim);
+      ShapeHandle constant_input_shape;
+      TF_RETURN_IF_ERROR(c->MakeShapeFromShapeTensor(2, &constant_input_shape));
+      ShapeHandle empty_row_indicator =
+          c->Vector(c->Dim(constant_input_shape, 0));
+      ShapeHandle reverse_index_map = c->Vector(N);
+      c->set_output(0, output_indices);
+      c->set_output(1, output_values);
+      c->set_output(2, empty_row_indicator);
+      c->set_output(3, reverse_index_map);
+      return Status::OK();
+    });
+
+REGISTER_OP("TfraSparseReshape")
+    .Input("input_indices: int64")
+    .Input("input_shape: int64")
+    .Input("new_shape: int64")
+    .Output("output_indices: int64")
+    .Output("output_shape: int64")
+    .SetShapeFn([](InferenceContext* c) {
+      ShapeHandle indices;
+      ShapeHandle unused;
+      ShapeHandle new_shape;
+
+      TF_RETURN_IF_ERROR(c->WithRank(c->input(0), 2, &indices));
+      TF_RETURN_IF_ERROR(c->WithRank(c->input(1), 1, &unused));
+      TF_RETURN_IF_ERROR(c->WithRank(c->input(2), 1, &new_shape));
+
+      c->set_output(0, c->Matrix(c->Dim(indices, 0), c->Dim(new_shape, 0)));
+      c->set_output(1, new_shape);
+      return Status::OK();
+    });
+#endif  // GOOGLE_CUDA
+
 }  // namespace tensorflow

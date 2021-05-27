@@ -28,15 +28,23 @@ custom_op_library(
 )
 
 custom_op_library(
-    name = "_segment_reduction_ops.so",
+    name = "_math_ops.so",
     srcs = [
         "kernels/segment_reduction_ops.h",
         "kernels/segment_reduction_ops_impl.cc",
         "kernels/segment_reduction_ops_impl.h",
+        "kernels/sparse_fill_empty_rows_op.cc",
+        "kernels/sparse_fill_empty_rows_op.h",
+        "kernels/sparse_reshape_op.cc",
+        "kernels/sparse_reshape_op.h",
         "ops/math_ops.cc",
     ],
     cuda_srcs = [
         "kernels/segment_reduction_ops.h",
         "kernels/segment_reduction_ops_gpu.cu.cc",
+        "kernels/sparse_fill_empty_rows_op.h",
+        "kernels/sparse_fill_empty_rows_op.cu.cc",
+        "kernels/sparse_reshape_op.h",
+        "kernels/sparse_reshape_op.cu.cc",
     ],
 )

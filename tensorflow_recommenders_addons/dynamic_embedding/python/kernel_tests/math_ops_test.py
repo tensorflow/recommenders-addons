@@ -18,15 +18,19 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import numpy as np
+
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops import math_ops as de_math
 
 from tensorflow.core.protobuf import config_pb2
 from tensorflow.python.framework import constant_op
 from tensorflow.python.framework import dtypes
-from tensorflow.python.framework import test_util
 from tensorflow.python.framework import errors
+from tensorflow.python.framework import sparse_tensor
+from tensorflow.python.framework import test_util
 from tensorflow.python.ops import array_ops
 from tensorflow.python.ops import math_ops
+from tensorflow.python.ops import sparse_ops
 from tensorflow.python.platform import test
 
 default_config = config_pb2.ConfigProto(
@@ -106,6 +110,68 @@ class SparseSegmentSumWithNumSegmentsGpuTest(test.TestCase,
                                               num_segments=num_segments)
 
       self.assertAllEqual(self.evaluate(result), self.evaluate(expected))
+
+
+class SparseFillEmptyRowsGpuTest(test.TestCase):
+
+  def _SparseTensor_5x6(self):
+    ind = np.array([[0, 0], [1, 0], [1, 3], [1, 4], [3, 2], [3, 3]])
+    val = np.array([0, 10, 13, 14, 32, 33])
+    shape = np.array([5, 6])
+    return sparse_tensor.SparseTensor(constant_op.constant(ind, dtypes.int64),
+                                      constant_op.constant(val, dtypes.int32),
+                                      constant_op.constant(shape, dtypes.int64))
+
+  def forward_compute(self, sp_input, default_value):
+    result_output, result_indicator = de_math.sparse_fill_empty_rows(
+        sp_input, default_value)
+    expected_output, expected_indicator = sparse_ops.sparse_fill_empty_rows(
+        sp_input, default_value)
+    return result_output, result_indicator, expected_output, expected_indicator
+
+  @test_util.run_in_graph_and_eager_modes
+  def test_value(self):
+    with self.session(use_gpu=use_gpu, config=default_config):
+      result_output, result_indicator, expected_output, expected_indicator = self.forward_compute(
+          self._SparseTensor_5x6(), -1)
+      result_output, result_indicator, expected_output, expected_indicator = self.evaluate(
+          [
+              result_output, result_indicator, expected_output,
+              expected_indicator
+          ])
+      self.assertAllEqual(result_output.indices, expected_output.indices)
+      self.assertAllEqual(result_output.values, expected_output.values)
+      self.assertAllEqual(result_output.dense_shape,
+                          expected_output.dense_shape)
+      self.assertAllEqual(result_indicator, expected_indicator)
+
+
+class SparseReshapeGpuTest(test.TestCase):
+
+  def _SparseTensor_5x6(self):
+    ind = np.array([[0, 0], [1, 0], [1, 3], [1, 4], [3, 2], [3, 3]])
+    val = np.array([0, 10, 13, 14, 32, 33])
+    shape = np.array([5, 6])
+    return sparse_tensor.SparseTensor(constant_op.constant(ind, dtypes.int64),
+                                      constant_op.constant(val, dtypes.int32),
+                                      constant_op.constant(shape, dtypes.int64))
+
+  def forward_compute(self, sp_input, shape):
+    result_output = de_math.sparse_reshape(sp_input, shape)
+    expected_output = sparse_ops.sparse_reshape(sp_input, shape)
+    return result_output, expected_output
+
+  @test_util.run_in_graph_and_eager_modes
+  def test_value(self):
+    with self.session(use_gpu=use_gpu, config=default_config):
+      result_output, expected_output = self.forward_compute(
+          self._SparseTensor_5x6(), (2, 15))
+      result_output, expected_output = self.evaluate(
+          [result_output, expected_output])
+      self.assertAllEqual(result_output.indices, expected_output.indices)
+      self.assertAllEqual(result_output.values, expected_output.values)
+      self.assertAllEqual(result_output.dense_shape,
+                          expected_output.dense_shape)
 
 
 if __name__ == "__main__":

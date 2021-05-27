@@ -18,14 +18,18 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import numpy as np
+
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops import math_ops as de_math
 
 from tensorflow.core.protobuf import config_pb2
 from tensorflow.python.eager import backprop
 from tensorflow.python.framework import constant_op
 from tensorflow.python.framework import dtypes
+from tensorflow.python.framework import sparse_tensor
 from tensorflow.python.framework import test_util
 from tensorflow.python.ops import math_ops
+from tensorflow.python.ops import sparse_ops
 from tensorflow.python.platform import test
 
 default_config = config_pb2.ConfigProto(
@@ -84,6 +88,34 @@ class SparseSegmentSumGpuGradTest(test.TestCase,
                                                segment_ids,
                                                num_segments=num_segments)
 
+      self.assertAllEqual(self.evaluate(result), self.evaluate(expected))
+
+
+class SparseFillEmptyRowsGpuGradTest(test.TestCase):
+
+  def _SparseTensor_5x6(self):
+    ind = np.array([[0, 0], [1, 0], [1, 3], [1, 4], [3, 2], [3, 3]])
+    val = np.array([0, 10, 13, 14, 32, 33])
+    shape = np.array([5, 6])
+    return sparse_tensor.SparseTensor(constant_op.constant(ind, dtypes.int64),
+                                      constant_op.constant(val, dtypes.float32),
+                                      constant_op.constant(shape, dtypes.int64))
+
+  def backward_compute(self, sp_input, default_value):
+    with backprop.GradientTape(persistent=True) as tape:
+      tape.watch(sp_input)
+      result_output, result_indicator = de_math.sparse_fill_empty_rows(
+          sp_input, default_value)
+      expected_output, expected_indicator = sparse_ops.sparse_fill_empty_rows(
+          sp_input, default_value)
+    result = tape.gradient(result_output.values, sp_input.values)
+    expected = tape.gradient(expected_output.values, sp_input.values)
+    return result, expected
+
+  @test_util.run_in_graph_and_eager_modes
+  def test_value(self):
+    with self.session(use_gpu=use_gpu, config=default_config):
+      result, expected = self.backward_compute(self._SparseTensor_5x6(), -1)
       self.assertAllEqual(self.evaluate(result), self.evaluate(expected))
 
 
