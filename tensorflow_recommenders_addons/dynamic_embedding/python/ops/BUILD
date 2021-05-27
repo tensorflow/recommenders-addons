@@ -13,7 +13,7 @@ py_library(
     srcs = glob(["*.py"]),
     data = [
         "//tensorflow_recommenders_addons/dynamic_embedding/core:_cuckoo_hashtable_ops.so",
-        "//tensorflow_recommenders_addons/dynamic_embedding/core:_segment_reduction_ops.so",
+        "//tensorflow_recommenders_addons/dynamic_embedding/core:_math_ops.so",
     ],
     srcs_version = "PY2AND3",
 )
