@@ -304,7 +304,7 @@ class HashTableFindOp : public HashTableOpKernel {
 };
 
 REGISTER_KERNEL_BUILDER(
-    Name(DECORATE_OP_NAME(CuckooHashTableFind)).Device(DEVICE_CPU),
+    Name("TFRA>CuckooHashTableFind").Device(DEVICE_CPU),
     HashTableFindOp);
 
 // Table insert op.
@@ -426,25 +426,25 @@ class HashTableImportOp : public HashTableOpKernel {
 };
 
 REGISTER_KERNEL_BUILDER(
-    Name(DECORATE_OP_NAME(CuckooHashTableInsert)).Device(DEVICE_CPU),
+    Name("TFRA>CuckooHashTableInsert").Device(DEVICE_CPU),
     HashTableInsertOp);
 REGISTER_KERNEL_BUILDER(
-    Name(DECORATE_OP_NAME(CuckooHashTableRemove)).Device(DEVICE_CPU),
+    Name("TFRA>CuckooHashTableRemove").Device(DEVICE_CPU),
     HashTableRemoveOp);
 REGISTER_KERNEL_BUILDER(
-    Name(DECORATE_OP_NAME(CuckooHashTableSize)).Device(DEVICE_CPU),
+    Name("TFRA>CuckooHashTableSize").Device(DEVICE_CPU),
     HashTableSizeOp);
 REGISTER_KERNEL_BUILDER(
-    Name(DECORATE_OP_NAME(CuckooHashTableExport)).Device(DEVICE_CPU),
+    Name("TFRA>CuckooHashTableExport").Device(DEVICE_CPU),
     HashTableExportOp);
 REGISTER_KERNEL_BUILDER(
-    Name(DECORATE_OP_NAME(CuckooHashTableImport)).Device(DEVICE_CPU),
+    Name("TFRA>CuckooHashTableImport").Device(DEVICE_CPU),
     HashTableImportOp);
 
 // Register the CuckooMutableHashTableOfTensors op.
 #define REGISTER_KERNEL(key_dtype, value_dtype)                             \
   REGISTER_KERNEL_BUILDER(                                                  \
-      Name(DECORATE_OP_NAME(CuckooHashTableOfTensors))                      \
+      Name("TFRA>CuckooHashTableOfTensors")                      \
           .Device(DEVICE_CPU)                                               \
           .TypeConstraint<key_dtype>("key_dtype")                           \
           .TypeConstraint<value_dtype>("value_dtype"),                      \

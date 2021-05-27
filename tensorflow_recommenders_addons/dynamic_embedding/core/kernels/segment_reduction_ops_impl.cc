@@ -22,7 +22,7 @@ namespace tensorflow {
 
 #if GOOGLE_CUDA || TENSORFLOW_USE_ROCM
 #define REGISTER_GPU_SORTED_KERNELS(type, index_type)                        \
-  REGISTER_KERNEL_BUILDER(Name(DECORATE_OP_NAME(SparseSegmentSum))           \
+  REGISTER_KERNEL_BUILDER(Name("TFRA>SparseSegmentSum")           \
                               .Device(DEVICE_GPU)                            \
                               .TypeConstraint<type>("T")                     \
                               .TypeConstraint<index_type>("Tidx"),           \
@@ -40,7 +40,7 @@ TF_CALL_GPU_NUMBER_TYPES(REGISTER_GPU_SORTED_KERNELS_ALL);
 
 #define REGISTER_GPU_SORTED_KERNELS(type, index_type)         \
   REGISTER_KERNEL_BUILDER(                                    \
-      Name(DECORATE_OP_NAME(SparseSegmentSumWithNumSegments)) \
+      Name("TFRA>SparseSegmentSumWithNumSegments") \
           .Device(DEVICE_GPU)                                 \
           .HostMemory("num_segments")                         \
           .TypeConstraint<type>("T")                          \

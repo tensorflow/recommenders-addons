@@ -352,7 +352,7 @@ class HashTableFindGpuOp : public OpKernel {
 };
 
 REGISTER_KERNEL_BUILDER(
-    Name(DECORATE_OP_NAME(CuckooHashTableFind)).Device(DEVICE_GPU),
+    Name("TFRA>CuckooHashTableFind").Device(DEVICE_GPU),
     HashTableFindGpuOp);
 
 // Table insert op.
@@ -379,7 +379,7 @@ class HashTableInsertGpuOp : public OpKernel {
 };
 
 REGISTER_KERNEL_BUILDER(
-    Name(DECORATE_OP_NAME(CuckooHashTableInsert)).Device(DEVICE_GPU),
+    Name("TFRA>CuckooHashTableInsert").Device(DEVICE_GPU),
     HashTableInsertGpuOp);
 
 // Table remove op.
@@ -404,7 +404,7 @@ class HashTableRemoveGpuOp : public OpKernel {
 };
 
 REGISTER_KERNEL_BUILDER(
-    Name(DECORATE_OP_NAME(CuckooHashTableRemove)).Device(DEVICE_GPU),
+    Name("TFRA>CuckooHashTableRemove").Device(DEVICE_GPU),
     HashTableRemoveGpuOp);
 
 // Op that returns the size of the given table.
@@ -433,7 +433,7 @@ class HashTableSizeGpuOp : public OpKernel {
 };
 
 REGISTER_KERNEL_BUILDER(
-    Name(DECORATE_OP_NAME(CuckooHashTableSize)).Device(DEVICE_GPU),
+    Name("TFRA>CuckooHashTableSize").Device(DEVICE_GPU),
     HashTableSizeGpuOp);
 
 // Op that outputs tensors of all keys and all values.
@@ -451,7 +451,7 @@ class HashTableExportGpuOp : public OpKernel {
 };
 
 REGISTER_KERNEL_BUILDER(
-    Name(DECORATE_OP_NAME(CuckooHashTableExport)).Device(DEVICE_GPU),
+    Name("TFRA>CuckooHashTableExport").Device(DEVICE_GPU),
     HashTableExportGpuOp);
 
 // Clear the table and insert data.
@@ -478,13 +478,13 @@ class HashTableImportGpuOp : public OpKernel {
 };
 
 REGISTER_KERNEL_BUILDER(
-    Name(DECORATE_OP_NAME(CuckooHashTableImport)).Device(DEVICE_GPU),
+    Name("TFRA>CuckooHashTableImport").Device(DEVICE_GPU),
     HashTableImportGpuOp);
 
 // Register the CuckooHashTableOfTensors op.
 #define REGISTER_KERNEL(key_dtype, value_dtype)                        \
   REGISTER_KERNEL_BUILDER(                                             \
-      Name(DECORATE_OP_NAME(CuckooHashTableOfTensors))                 \
+      Name("TFRA>CuckooHashTableOfTensors")                 \
           .Device(DEVICE_GPU)                                          \
           .TypeConstraint<key_dtype>("key_dtype")                      \
           .TypeConstraint<value_dtype>("value_dtype"),                 \

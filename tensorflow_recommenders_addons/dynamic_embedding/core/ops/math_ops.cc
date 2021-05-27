@@ -93,7 +93,7 @@ Status SparseSegmentReductionWithNumSegmentsShapeFn(InferenceContext* c) {
 }  // namespace
 
 #if GOOGLE_CUDA || TENSORFLOW_USE_ROCM
-REGISTER_OP(DECORATE_OP_NAME(SparseSegmentSum))
+REGISTER_OP("TFRA>SparseSegmentSum")
     .Input("data: T")
     .Input("indices: Tidx")
     .Input("segment_ids: Tsegmentids")
@@ -103,7 +103,7 @@ REGISTER_OP(DECORATE_OP_NAME(SparseSegmentSum))
     .Attr("Tsegmentids: {int32, int64} = DT_INT32")
     .SetShapeFn(SparseSegmentReductionShapeFn);
 
-REGISTER_OP(DECORATE_OP_NAME(SparseSegmentSumWithNumSegments))
+REGISTER_OP("TFRA>SparseSegmentSumWithNumSegments")
     .Input("data: T")
     .Input("indices: Tidx")
     .Input("segment_ids: Tsegmentids")

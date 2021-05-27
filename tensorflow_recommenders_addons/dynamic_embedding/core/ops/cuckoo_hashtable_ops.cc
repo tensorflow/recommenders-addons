@@ -131,7 +131,7 @@ Status CuckooHashTableShape(InferenceContext* c, const ShapeHandle& key,
   return Status::OK();
 }
 
-REGISTER_OP(DECORATE_OP_NAME(CuckooHashTableFind))
+REGISTER_OP("TFRA>CuckooHashTableFind")
     .Input("table_handle: resource")
     .Input("keys: Tin")
     .Input("default_value: Tout")
@@ -154,7 +154,7 @@ REGISTER_OP(DECORATE_OP_NAME(CuckooHashTableFind))
       return Status::OK();
     });
 
-REGISTER_OP(DECORATE_OP_NAME(CuckooHashTableInsert))
+REGISTER_OP("TFRA>CuckooHashTableInsert")
     .Input("table_handle: resource")
     .Input("keys: Tin")
     .Input("values: Tout")
@@ -168,7 +168,7 @@ REGISTER_OP(DECORATE_OP_NAME(CuckooHashTableInsert))
       return Status::OK();
     });
 
-REGISTER_OP(DECORATE_OP_NAME(CuckooHashTableRemove))
+REGISTER_OP("TFRA>CuckooHashTableRemove")
     .Input("table_handle: resource")
     .Input("keys: Tin")
     .Attr("Tin: type")
@@ -181,12 +181,12 @@ REGISTER_OP(DECORATE_OP_NAME(CuckooHashTableRemove))
       return Status::OK();
     });
 
-REGISTER_OP(DECORATE_OP_NAME(CuckooHashTableSize))
+REGISTER_OP("TFRA>CuckooHashTableSize")
     .Input("table_handle: resource")
     .Output("size: int64")
     .SetShapeFn(ScalarAndTwoElementVectorInputsAndScalarOutputs);
 
-REGISTER_OP(DECORATE_OP_NAME(CuckooHashTableExport))
+REGISTER_OP("TFRA>CuckooHashTableExport")
     .Input("table_handle: resource")
     .Output("keys: Tkeys")
     .Output("values: Tvalues")
@@ -208,7 +208,7 @@ REGISTER_OP(DECORATE_OP_NAME(CuckooHashTableExport))
       return Status::OK();
     });
 
-REGISTER_OP(DECORATE_OP_NAME(CuckooHashTableImport))
+REGISTER_OP("TFRA>CuckooHashTableImport")
     .Input("table_handle: resource")
     .Input("keys: Tin")
     .Input("values: Tout")
@@ -224,7 +224,7 @@ REGISTER_OP(DECORATE_OP_NAME(CuckooHashTableImport))
       return Status::OK();
     });
 
-REGISTER_OP(DECORATE_OP_NAME(CuckooHashTableOfTensors))
+REGISTER_OP("TFRA>CuckooHashTableOfTensors")
     .Output("table_handle: resource")
     .Attr("container: string = ''")
     .Attr("shared_name: string = ''")
