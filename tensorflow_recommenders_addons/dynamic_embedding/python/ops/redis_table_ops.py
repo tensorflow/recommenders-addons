@@ -152,7 +152,6 @@ class RedisTable(LookupInterface):
     # training to work correctly. Use the node name if no shared_name has been
     # explicitly specified.
     use_node_name_sharing = self._checkpoint and self._shared_name is None
-
     table_ref = redis_table_ops.tfra_redis_table_of_tensors(
         shared_name=self._shared_name,
         use_node_name_sharing=use_node_name_sharing,
@@ -160,7 +159,7 @@ class RedisTable(LookupInterface):
         value_dtype=self._value_dtype,
         value_shape=self._default_value.get_shape(),
         init_size=self._init_size,
-        name=self._name,
+        embedding_name=self._name,
     )
 
     if context.executing_eagerly():

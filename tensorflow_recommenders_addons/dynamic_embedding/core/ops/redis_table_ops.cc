@@ -232,6 +232,7 @@ REGISTER_OP("TFRA>RedisTableOfTensors")
     .Attr("value_dtype: type")
     .Attr("value_shape: shape = {}")
     .Attr("init_size: int = 0")
+    .Attr("embedding_name: string = ''")
     .SetIsStateful()
     .SetShapeFn([](InferenceContext* c) {
       PartialTensorShape value_p;

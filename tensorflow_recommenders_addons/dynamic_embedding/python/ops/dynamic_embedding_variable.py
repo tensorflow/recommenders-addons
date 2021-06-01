@@ -300,7 +300,11 @@ class Variable(trackable.TrackableResource):
     raise NotImplementedError
 
   def _make_name(self, table_idx):
-    return "{}_mht_{}of{}".format(self.name.replace("/", "_"), table_idx + 1,
+    if(":" in self.name):
+      raise("Disallow the use of colons(:) as embedding table names!")
+    elif(len(self.name)==0):
+      raise("embedding table names shold not be empty!")
+    return "{}:mht:{}of{}".format(self.name.replace("/", ":"), table_idx + 1,
                                   self.shard_num)
 
   def upsert(self, keys, values, name=None):
