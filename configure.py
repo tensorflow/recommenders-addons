@@ -24,6 +24,9 @@ import tensorflow as tf
 
 _TFRA_BAZELRC = ".bazelrc"
 
+# Maping TensorFlow version to valid Bazel version.
+_VALID_BAZEL_VERSION = {"1.15.2": "0.26.1", "2.4.1": "3.1.0"}
+
 
 # Writes variables to bazelrc file
 def write(line):
@@ -52,17 +55,18 @@ def is_raspi_arm():
 
 
 def get_tf_header_dir():
-  import tensorflow as tf
-
-  tf_header_dir = tf.sysconfig.get_compile_flags()[0][2:]
-  if is_windows():
-    tf_header_dir = tf_header_dir.replace("\\", "/")
+  if int(get_tf_version()) >= 2000:
+    tf_header_dir = tf.sysconfig.get_compile_flags()[0][2:]
+    if is_windows():
+      tf_header_dir = tf_header_dir.replace("\\", "/")
+  else:
+    current_path = os.path.dirname(os.path.abspath(__file__))
+    tf_header_dir = "{}/build_deps/tf_header/{}/tensorflow".format(
+        current_path, tf.__version__)
   return tf_header_dir
 
 
 def get_tf_shared_lib_dir():
-  import tensorflow as tf
-
   # OS Specific parsing
   if is_windows():
     tf_shared_lib_dir = tf.sysconfig.get_compile_flags()[0][2:-7] + "python"
@@ -75,12 +79,10 @@ def get_tf_shared_lib_dir():
 
 # Converts the linkflag namespec to the full shared library name
 def get_shared_lib_name():
-  import tensorflow as tf
-
   namespec = tf.sysconfig.get_link_flags()
   if is_macos():
     # MacOS
-    return "lib" + namespec[1][2:] + ".dylib"
+    return "libtensorflow_framework.dylib"
   elif is_windows():
     # Windows
     return "_pywrap_tensorflow_internal.lib"
@@ -131,13 +133,40 @@ def get_tf_version():
   return tf_version_num
 
 
+def check_bazel_version():
+  stream = os.popen('bazel version |grep label')
+  output = stream.read()
+  installed_bazel_version = str(output).split(":")[1].strip()
+  valid_bazel_version = _VALID_BAZEL_VERSION[tf.__version__]
+  if installed_bazel_version != valid_bazel_version:
+    raise ValueError('Bazel version is {}, but {} is needed.'.format(
+        installed_bazel_version, valid_bazel_version))
+
+
+def extract_tf_header():
+  tf_header_dir = get_tf_header_dir()
+  tf_version_integer = get_tf_version()
+  if int(tf_version_integer) < 2000:
+    _output_dir = tf_header_dir[:-(len("1.15.2/tensorflow"))]
+    _tar_path = tf_header_dir.replace("/tensorflow", ".tar.gz")
+    _cmd = "tar -zxvf {} --directory {} >/dev/null 2>&1".format(
+        _tar_path, _output_dir)
+    ret = os.system(_cmd)
+    if ret != 0:
+      raise ValueError(
+          'Error happened when decompressing TF headers tar file:{}.'.format(
+              _tar_path))
+
+
 def create_build_configuration():
   print()
   print("Configuring TensorFlow Recommenders-Addons to be built from source...")
 
   if os.path.isfile(_TFRA_BAZELRC):
     os.remove(_TFRA_BAZELRC)
-
+  if is_linux():
+    check_bazel_version()
+  extract_tf_header()
   logging.disable(logging.WARNING)
 
   write_action_env("TF_HEADER_DIR", get_tf_header_dir())
@@ -145,10 +174,11 @@ def create_build_configuration():
   write_action_env("TF_SHARED_LIBRARY_NAME", get_shared_lib_name())
   write_action_env("TF_CXX11_ABI_FLAG", tf.sysconfig.CXX11_ABI_FLAG)
 
-  tf_version = get_tf_version()
+  tf_version_integer = get_tf_version()
   # This is used to trace the difference between Tensorflow versions.
-  # TODO(Lifann) write them to enviroment variables.
-  write_action_env("TF_VERSION", tf_version)
+  # TF_VERSION_INTEGER is used for compiling and
+  # TF_VERSION for building CI docker images.
+  write_action_env("TF_VERSION_INTEGER", tf_version_integer)
 
   write_action_env("FOR_TF_SERVING", os.getenv("FOR_TF_SERVING", "0"))
 

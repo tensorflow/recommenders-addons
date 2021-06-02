@@ -14,13 +14,15 @@ limitations under the License.
 ==============================================================================*/
 
 // See docs in ../ops/math_ops.cc.
-#include "segment_reduction_ops_impl.h"
+#include "tensorflow_recommenders_addons/dynamic_embedding/core/kernels/segment_reduction_ops_impl.h"
+
+#include "tensorflow_recommenders_addons/dynamic_embedding/core/utils/utils.h"
 
 namespace tensorflow {
 
 #if GOOGLE_CUDA || TENSORFLOW_USE_ROCM
 #define REGISTER_GPU_SORTED_KERNELS(type, index_type)                        \
-  REGISTER_KERNEL_BUILDER(Name("TFRA>SparseSegmentSum")                      \
+  REGISTER_KERNEL_BUILDER(Name(DECORATE_OP_NAME(SparseSegmentSum))           \
                               .Device(DEVICE_GPU)                            \
                               .TypeConstraint<type>("T")                     \
                               .TypeConstraint<index_type>("Tidx"),           \
@@ -36,14 +38,15 @@ TF_CALL_GPU_NUMBER_TYPES(REGISTER_GPU_SORTED_KERNELS_ALL);
 #undef REGISTER_GPU_SORTED_KERNELS
 #undef REGISTER_GPU_SORTED_KERNELS_ALL
 
-#define REGISTER_GPU_SORTED_KERNELS(type, index_type)                        \
-  REGISTER_KERNEL_BUILDER(Name("TFRA>SparseSegmentSumWithNumSegments")       \
-                              .Device(DEVICE_GPU)                            \
-                              .HostMemory("num_segments")                    \
-                              .TypeConstraint<type>("T")                     \
-                              .TypeConstraint<index_type>("Tidx"),           \
-                          SparseSegmentSumGpuOp<GPUDevice, type, index_type, \
-                                                /*has_num_segments=*/true>)
+#define REGISTER_GPU_SORTED_KERNELS(type, index_type)         \
+  REGISTER_KERNEL_BUILDER(                                    \
+      Name(DECORATE_OP_NAME(SparseSegmentSumWithNumSegments)) \
+          .Device(DEVICE_GPU)                                 \
+          .HostMemory("num_segments")                         \
+          .TypeConstraint<type>("T")                          \
+          .TypeConstraint<index_type>("Tidx"),                \
+      SparseSegmentSumGpuOp<GPUDevice, type, index_type,      \
+                            /*has_num_segments=*/true>)
 
 #define REGISTER_GPU_SORTED_KERNELS_ALL(type) \
   REGISTER_GPU_SORTED_KERNELS(type, int32);   \

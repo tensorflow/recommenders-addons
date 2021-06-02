@@ -17,6 +17,7 @@ on:
 env:
   MIN_PY_VERSION: '3.6'
   MAX_PY_VERSION: '3.8'
+  USE_BAZEL_VERSION: "3.1.0"
 
 jobs:
   test-with-bazel:
@@ -41,12 +42,35 @@ jobs:
         # TODO: add back 'windows-latest' when it can be compiled.
         os: ['macos-latest', 'ubuntu-18.04']
         py-version: ['3.6', '3.7', '3.8']
-        tf-version: ['2.4.1']
+        tf-version: ['1.15.2', '2.4.1']
         tf-need-cuda: ['1', '0']
+        tf-cuda-version: ['10.0', '11.0']
+        tf-cudnn-version: ['7', '8']
         exclude:
           # excludes cuda on macOS
           - os: 'macos-latest'
             tf-need-cuda: '1'
+          # excludes TF1.15.2 on py38
+          - py-version: '3.8'
+            tf-version: '1.15.2'
+          # excludes TF1.15.2 with cuda 11.0
+          - os: 'ubuntu-18.04'
+            tf-version: '1.15.2'
+            tf-cuda-version: '11.0'
+          # excludes TF2.4.1 with cuda 10.0
+          - tf-version: '2.4.1'
+            tf-cuda-version: '10.0'
+          # excludes cudnn 8 with cuda 10.0
+          - tf-cuda-version: '11.0'
+            tf-cudnn-version: '7'
+          # excludes cudnn 7 with cuda 11.0
+          - tf-cuda-version: '10.0'
+            tf-cudnn-version: '8'
+          # excludes some unnecessary step on no cuda
+          - tf-need-cuda: '0'
+            tf-cuda-version: '10.0'
+          - tf-need-cuda: '0'
+            tf-cudnn-version: '7'
       fail-fast: false
     steps:
       - uses: actions/github-script@0.3.0
@@ -73,6 +97,8 @@ jobs:
           PY_VERSION: ${{ matrix.py-version }}
           TF_VERSION: ${{ matrix.tf-version }}
           TF_NEED_CUDA: ${{ matrix.tf-need-cuda }}
+          TF_CUDA_VERSION: ${{ matrix.tf-cuda-version }}
+          TF_CUDNN_VERSION: ${{ matrix.tf-cudnn-version }}
           NIGHTLY_TIME: ${{ steps.author-date.outputs.result }}
         shell: bash
         run: bash .github/workflows/make_wheel_${OS}.sh

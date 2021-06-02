@@ -14,16 +14,55 @@
 # ==============================================================================
 """Utilities similar to tf.python.platform.resource_loader."""
 
-from distutils.version import LooseVersion
 import os
+import pkg_resources
+import tensorflow as tf
 import warnings
 
-import tensorflow as tf
-
-MIN_TF_VERSION_FOR_ABI_COMPATIBILITY = "2.4.1"
-MAX_TF_VERSION_FOR_ABI_COMPATIBILITY = "2.4.1"
 abi_warning_already_raised = False
 SKIP_CUSTOM_OPS = False
+
+
+def get_required_tf_version():
+  try:
+    pkg = pkg_resources.get_distribution("tensorflow-recommenders-addons")
+  except pkg_resources.DistributionNotFound:
+    try:
+      pkg = pkg_resources.get_distribution("tensorflow-recommenders-addons-gpu")
+    except pkg_resources.DistributionNotFound:
+      # Force return for 'Test with bazel' on CI.
+      warnings.warn(
+          "Fail to get TFRA package information, if you are running on "
+          "bazel test mode, please ignore this warning, \nor you should check "
+          "TFRA installation.",
+          UserWarning,
+      )
+      return tf.__version__
+
+  pkg_info = pkg.requires()
+  for x in pkg_info:
+    if x.name in ["tensorflow", "tensorflow-gpu"]:
+      return x.specs[0][1]
+  assert False, "Fail to get required TensorFlow version of TFRA!"
+
+
+def get_devices(device_type="GPU"):
+  if hasattr(tf.config, "list_physical_devices"):
+    return tf.config.list_physical_devices(device_type)
+  elif hasattr(tf.config, "experimental_list_devices"):
+    # for compatible with TensorFlow1.x
+    devices_list = tf.config.experimental_list_devices()
+    return [d for d in devices_list if ":{}".format(device_type.upper()) in d]
+  else:
+    warnings.warn(
+        "You are currently using TensorFlow {} which TFRA cann't get the devices correctly.\n"
+        "So we strongly recommend that you use the version supported by the TFRA statement "
+        "To do that, refer to the readme: "
+        "https://github.com/tensorflow/recommenders-addons"
+        "".format(tf.__version__,),
+        UserWarning,
+    )
+    return []
 
 
 def get_project_root():
@@ -67,11 +106,11 @@ class LazySO:
     global abi_warning_already_raised
     if abi_is_compatible() or abi_warning_already_raised:
       return
-
+    required_tf_version = get_required_tf_version()
     warnings.warn(
         "You are currently using TensorFlow {} and trying to load a custom op ({})."
         "\n"
-        "TensorFlow Recommenders Addons has compiled its custom ops against TensorFlow {}, "
+        "TFRA has compiled its custom ops against TensorFlow {}, "
         "and there are no compatibility guarantees between the two versions. "
         "\n"
         "This means that you might get 'Symbol not found' when loading the custom op, "
@@ -91,8 +130,8 @@ class LazySO:
         "".format(
             tf.__version__,
             self.relative_path,
-            MIN_TF_VERSION_FOR_ABI_COMPATIBILITY,
-            MIN_TF_VERSION_FOR_ABI_COMPATIBILITY,
+            required_tf_version,
+            required_tf_version,
         ),
         UserWarning,
     )
@@ -103,6 +142,26 @@ def abi_is_compatible():
   if "dev" in tf.__version__:
     return False
 
-  min_version = LooseVersion(MIN_TF_VERSION_FOR_ABI_COMPATIBILITY)
-  max_version = LooseVersion(MAX_TF_VERSION_FOR_ABI_COMPATIBILITY)
-  return min_version <= LooseVersion(tf.__version__) <= max_version
+  required_tf_version = get_required_tf_version()
+  return tf.__version__ == required_tf_version
+
+
+def decorate_op_name(op_name):
+  """
+  In order to keep compatibility of existing models,
+  we cannot change the OP naming rule directly by replacing "TFRA>" to "Tfra",
+  So we had to add prefix to OP name according to the TF verison.
+
+  Args:
+    op_name: original OP name
+  Returns:
+    OP name with prefix
+  """
+  major_tf_version = int(tf.__version__.split(".")[0])
+  _prefix = "TFRA>" if major_tf_version >= 2 else "Tfra"
+  return _prefix + op_name
+
+
+def get_tf_version():
+  tf_versions = tf.__version__.split(".")
+  return tf_versions

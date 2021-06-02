@@ -27,6 +27,8 @@ from __future__ import print_function
 import numpy as np
 import os
 
+import tensorflow as tf
+
 from tensorflow.python.client import session
 from tensorflow.python.framework import errors
 from tensorflow.python.framework import ops
@@ -54,9 +56,11 @@ from tensorflow_recommenders_addons.embedding_variable.python.ops import embeddi
 from tensorflow_recommenders_addons.embedding_variable.python.optimizers import gradient_descent
 
 
+# TODO(Candy.ding): Remove `run_v2_only` after EV is compatible with TF1.x
 @test_util.run_all_in_graph_and_eager_modes
 class EmbeddingVariableTest(test.TestCase):
 
+  @test_util.run_v2_only()
   def testEmbeddingVariableForTypeNotMatch(self):
     with self.assertRaises(errors.InvalidArgumentError):
       ev = embedding_variable_ops.EmbeddingVariable(
@@ -66,6 +70,7 @@ class EmbeddingVariableTest(test.TestCase):
       emb = embedding_ops.embedding_lookup(
           ev, math_ops.cast([0, 1, 2, 5, 6, 7], dtypes.int64))
 
+  @test_util.run_v2_only()
   def testEmbeddingVariableForGetShape(self):
     ev = embedding_variable_ops.EmbeddingVariable(
         embedding_dim=3, initializer=init_ops.ones_initializer(dtypes.float32))
@@ -77,6 +82,7 @@ class EmbeddingVariableTest(test.TestCase):
     self.evaluate(emb)
     self.assertAllEqual([6, 3], self.evaluate(shape))
 
+  @test_util.run_v2_only()
   def testEmbeddingVariableForGeneralConstInitializer(self):
     ev = embedding_variable_ops.EmbeddingVariable(
         embedding_dim=3,
@@ -88,6 +94,7 @@ class EmbeddingVariableTest(test.TestCase):
     self.assertEqual(None, self.evaluate(init))
     self.assertAllEqual([[1., 1., 1.]] * 2, self.evaluate(emb))
 
+  @test_util.run_v2_only()
   def testEmbeddingVariableForGradientDescent(self):
     ev = embedding_variable_ops.EmbeddingVariable(
         embedding_dim=3,
@@ -118,6 +125,7 @@ class EmbeddingVariableTest(test.TestCase):
         self.assertAlmostEqual(2., grad_result.values[i][j], delta=1e-05)
 
   @test_util.deprecated_graph_mode_only
+  @test_util.run_v2_only()
   def testEmbeddingVariableForSaveRestore(self):
     ev = embedding_variable_ops.EmbeddingVariable(
         embedding_dim=2,

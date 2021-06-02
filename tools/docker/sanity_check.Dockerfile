@@ -21,8 +21,8 @@ RUN --mount=type=cache,id=cache_pip,target=/root/.cache/pip \
     -r pytest.txt
 
 RUN apt-get update && apt-get install -y sudo rsync
-COPY tools/install_deps/install_bazelisk.sh .bazelversion ./
-RUN bash install_bazelisk.sh
+COPY tools/docker/install/install_bazel.sh ./
+RUN ./install_bazel.sh "3.1.0"
 
 COPY ./ /recommenders-addons
 RUN pip install -e /recommenders-addons
@@ -42,8 +42,8 @@ COPY tools/install_deps/tensorflow-cpu.txt ./
 RUN pip install --default-timeout=1000 -r tensorflow-cpu.txt
 
 RUN apt-get update && apt-get install sudo
-COPY tools/install_deps/install_bazelisk.sh .bazelversion ./
-RUN bash install_bazelisk.sh
+COPY tools/docker/install/install_bazel.sh ./
+RUN ./install_bazel.sh "3.1.0"
 
 COPY ./ /recommenders-addons
 WORKDIR /recommenders-addons
@@ -65,7 +65,7 @@ RUN python run-clang-format.py \
                -r \
                --cli-args=--style=google \
                --clang-format-executable ./clang-format/clang-format9 \
-               /recommenders-addons
+               /recommenders-addons/tensorflow_recommenders_addons
 RUN touch /ok.txt
 
 # -------------------------------
@@ -92,8 +92,8 @@ COPY tools/install_deps/doc_requirements.txt ./
 RUN pip install -r doc_requirements.txt
 
 RUN apt-get update && apt-get install -y sudo rsync
-COPY tools/install_deps/install_bazelisk.sh .bazelversion ./
-RUN bash install_bazelisk.sh
+COPY tools/docker/install/install_bazel.sh ./
+RUN ./install_bazel.sh "3.1.0"
 
 COPY ./ /recommenders-addons
 WORKDIR /recommenders-addons
@@ -118,8 +118,8 @@ COPY tools/install_deps/pytest.txt ./
 RUN pip install -r pytest.txt
 
 RUN apt-get update && apt-get install -y sudo rsync
-COPY tools/install_deps/install_bazelisk.sh .bazelversion ./
-RUN bash install_bazelisk.sh
+COPY tools/docker/install/install_bazel.sh ./
+RUN ./install_bazel.sh "3.1.0"
 
 COPY ./ /recommenders-addons
 WORKDIR /recommenders-addons

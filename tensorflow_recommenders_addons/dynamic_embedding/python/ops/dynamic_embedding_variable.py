@@ -24,7 +24,11 @@ from __future__ import print_function
 
 from tensorflow_recommenders_addons import dynamic_embedding as de
 
-from tensorflow.python import _pywrap_util_port
+try:
+  from tensorflow.python import _pywrap_util_port as pywrap
+except:
+  from tensorflow.python import pywrap_tensorflow as pywrap
+
 from tensorflow.python.client import device_lib
 from tensorflow.python.eager import context
 from tensorflow.python.framework import constant_op
@@ -89,7 +93,7 @@ def default_partition_fn(keys, shard_num):
         represents the corresponding partition-ids of keys.
     """
   keys_op = ops.convert_to_tensor(keys, name="keys")
-  gpu_mode = _pywrap_util_port.IsGoogleCudaEnabled()
+  gpu_mode = pywrap.IsGoogleCudaEnabled()
 
   with ops.colocate_with(keys_op):
     if keys_op.dtype == dtypes.int64 and gpu_mode:

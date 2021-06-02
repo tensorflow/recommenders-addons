@@ -26,6 +26,7 @@ from tensorflow.python.ops.lookup_ops import LookupInterface
 from tensorflow.python.training.saver import BaseSaverBuilder
 
 from tensorflow_recommenders_addons.utils.resource_loader import LazySO
+from tensorflow_recommenders_addons.utils.resource_loader import decorate_op_name
 
 cuckoo_hashtable_ops = LazySO(
     "dynamic_embedding/core/_cuckoo_hashtable_ops.so").ops
@@ -311,4 +312,4 @@ class CuckooHashTable(LookupInterface):
           )
 
 
-ops.NotDifferentiable("TFRA>CuckooHashTableOfTensors")
+ops.NotDifferentiable(decorate_op_name("CuckooHashTableOfTensors"))
