@@ -23,6 +23,7 @@ from __future__ import division
 from __future__ import print_function
 
 from tensorflow_recommenders_addons import dynamic_embedding as de
+from tensorflow_recommenders_addons.utils.resource_loader import get_tf_version_triple
 
 from tensorflow.core.framework import attr_value_pb2
 from tensorflow.python.eager import context
@@ -211,7 +212,11 @@ class TrainableWrapper(resource_variable_ops.ResourceVariable):
           # When in eager mode use a uid for the shared_name, to prevent
           # accidental sharing.
           unique_id = "%s_%d" % (handle_name, ops.uid())
-          shared_name = None  # Never shared
+          tf_major_version, _, _ = get_tf_version_triple()
+          if int(tf_major_version) >= 2:
+            shared_name = None  # Never shared
+          else:
+            shared_name = context.shared_name()
         # Use attr_scope and device(None) to simulate the behavior of
         # colocate_with when the variable we want to colocate with doesn't
         # yet exist.

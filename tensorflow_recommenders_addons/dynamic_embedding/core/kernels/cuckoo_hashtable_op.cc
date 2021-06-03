@@ -24,6 +24,8 @@ limitations under the License.
 #include "tensorflow/core/kernels/lookup_table_op.h"
 #include "tensorflow/core/util/work_sharder.h"
 #include "tensorflow_recommenders_addons/dynamic_embedding/core/kernels/lookup_impl/lookup_table_op_cpu.h"
+#include "tensorflow_recommenders_addons/dynamic_embedding/core/utils/types.h"
+#include "tensorflow_recommenders_addons/dynamic_embedding/core/utils/utils.h"
 
 namespace tensorflow {
 namespace recommenders_addons {
@@ -229,6 +231,27 @@ class HashTableOpKernel : public OpKernel {
     return ctx->resource_manager()->Lookup<LookupInterface, false>(
         p.container(), p.name(), value);
   }
+
+  Status GetTableHandle(StringPiece input_name, OpKernelContext* ctx,
+                        string* container, string* table_handle) {
+    {
+      mutex* mu;
+      TF_RETURN_IF_ERROR(ctx->input_ref_mutex(input_name, &mu));
+      mutex_lock l(*mu);
+      Tensor tensor;
+      TF_RETURN_IF_ERROR(ctx->mutable_input(input_name, &tensor, true));
+      if (tensor.NumElements() != 2) {
+        return errors::InvalidArgument(
+            "Lookup table handle must be scalar, but had shape: ",
+            tensor.shape().DebugString());
+      }
+      auto h = tensor.flat<tstring>();
+      *container = h(0);
+      *table_handle = h(1);
+    }
+    return Status::OK();
+  }
+
   Status GetResourceHashTable(StringPiece input_name, OpKernelContext* ctx,
                               LookupInterface** table) {
     const Tensor* handle_tensor;
@@ -236,11 +259,21 @@ class HashTableOpKernel : public OpKernel {
     const ResourceHandle& handle = handle_tensor->scalar<ResourceHandle>()();
     return this->LookupResource(ctx, handle, table);
   }
+
+  Status GetReferenceLookupTable(StringPiece input_name, OpKernelContext* ctx,
+                                 LookupInterface** table) {
+    string container;
+    string table_handle;
+    TF_RETURN_IF_ERROR(
+        this->GetTableHandle(input_name, ctx, &container, &table_handle));
+    return ctx->resource_manager()->Lookup(container, table_handle, table);
+  }
+
   Status GetTable(OpKernelContext* ctx, LookupInterface** table) {
     if (expected_input_0_ == DT_RESOURCE) {
       return this->GetResourceHashTable("table_handle", ctx, table);
     } else {
-      return GetReferenceLookupTable("table_handle", ctx, table);
+      return this->GetReferenceLookupTable("table_handle", ctx, table);
     }
   }
 
@@ -274,9 +307,6 @@ class HashTableFindOp : public HashTableOpKernel {
   }
 };
 
-REGISTER_KERNEL_BUILDER(Name("TFRA>CuckooHashTableFind").Device(DEVICE_CPU),
-                        HashTableFindOp);
-
 // Table insert op.
 class HashTableInsertOp : public HashTableOpKernel {
  public:
@@ -307,9 +337,6 @@ class HashTableInsertOp : public HashTableOpKernel {
   }
 };
 
-REGISTER_KERNEL_BUILDER(Name("TFRA>CuckooHashTableInsert").Device(DEVICE_CPU),
-                        HashTableInsertOp);
-
 // Table remove op.
 class HashTableRemoveOp : public HashTableOpKernel {
  public:
@@ -338,9 +365,6 @@ class HashTableRemoveOp : public HashTableOpKernel {
   }
 };
 
-REGISTER_KERNEL_BUILDER(Name("TFRA>CuckooHashTableRemove").Device(DEVICE_CPU),
-                        HashTableRemoveOp);
-
 // Op that returns the size of the given table.
 class HashTableSizeOp : public HashTableOpKernel {
  public:
@@ -357,9 +381,6 @@ class HashTableSizeOp : public HashTableOpKernel {
   }
 };
 
-REGISTER_KERNEL_BUILDER(Name("TFRA>CuckooHashTableSize").Device(DEVICE_CPU),
-                        HashTableSizeOp);
-
 // Op that outputs tensors of all keys and all values.
 class HashTableExportOp : public HashTableOpKernel {
  public:
@@ -373,9 +394,6 @@ class HashTableExportOp : public HashTableOpKernel {
     OP_REQUIRES_OK(ctx, table->ExportValues(ctx));
   }
 };
-
-REGISTER_KERNEL_BUILDER(Name("TFRA>CuckooHashTableExport").Device(DEVICE_CPU),
-                        HashTableExportOp);
 
 // Clear the table and insert data.
 class HashTableImportOp : public HashTableOpKernel {
@@ -407,13 +425,29 @@ class HashTableImportOp : public HashTableOpKernel {
   }
 };
 
-REGISTER_KERNEL_BUILDER(Name("TFRA>CuckooHashTableImport").Device(DEVICE_CPU),
-                        HashTableImportOp);
+REGISTER_KERNEL_BUILDER(
+    Name(PREFIX_OP_NAME(CuckooHashTableFind)).Device(DEVICE_CPU),
+    HashTableFindOp);
+REGISTER_KERNEL_BUILDER(
+    Name(PREFIX_OP_NAME(CuckooHashTableInsert)).Device(DEVICE_CPU),
+    HashTableInsertOp);
+REGISTER_KERNEL_BUILDER(
+    Name(PREFIX_OP_NAME(CuckooHashTableRemove)).Device(DEVICE_CPU),
+    HashTableRemoveOp);
+REGISTER_KERNEL_BUILDER(
+    Name(PREFIX_OP_NAME(CuckooHashTableSize)).Device(DEVICE_CPU),
+    HashTableSizeOp);
+REGISTER_KERNEL_BUILDER(
+    Name(PREFIX_OP_NAME(CuckooHashTableExport)).Device(DEVICE_CPU),
+    HashTableExportOp);
+REGISTER_KERNEL_BUILDER(
+    Name(PREFIX_OP_NAME(CuckooHashTableImport)).Device(DEVICE_CPU),
+    HashTableImportOp);
 
 // Register the CuckooMutableHashTableOfTensors op.
 #define REGISTER_KERNEL(key_dtype, value_dtype)                             \
   REGISTER_KERNEL_BUILDER(                                                  \
-      Name("TFRA>CuckooHashTableOfTensors")                                 \
+      Name(PREFIX_OP_NAME(CuckooHashTableOfTensors))                        \
           .Device(DEVICE_CPU)                                               \
           .TypeConstraint<key_dtype>("key_dtype")                           \
           .TypeConstraint<value_dtype>("value_dtype"),                      \

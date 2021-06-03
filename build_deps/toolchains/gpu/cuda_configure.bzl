@@ -50,15 +50,21 @@ _TF_DOWNLOAD_CLANG = "TF_DOWNLOAD_CLANG"
 
 _PYTHON_BIN_PATH = "PYTHON_BIN_PATH"
 
-_DEFAULT_CUDA_COMPUTE_CAPABILITIES = [
-    "3.5",
-    "5.2",
-    "6.0",
-    "6.1",
-    "7.0",
-    "7.5",
-    "8.0",
-]
+_DEFAULT_CUDA_COMPUTE_CAPABILITIES = {
+    "11.0": [
+        "6.0",
+        "6.1",
+        "7.0",
+        "7.5",
+        "8.0",
+    ],
+    "10.0": [
+        "6.0",
+        "6.1",
+        "7.0",
+        "7.5",
+    ],
+}
 
 def _get_python_bin(repository_ctx):
     """Gets the python bin path."""
@@ -428,8 +434,11 @@ def find_cuda_define(repository_ctx, header_dir, header_file, define):
 
 def compute_capabilities(repository_ctx):
     """Returns a list of strings representing cuda compute capabilities."""
+    _tf_cuda_version = get_env_var(repository_ctx, _TF_CUDA_VERSION, "11.0")
+    _default_cuda_compute_cap = \
+        _DEFAULT_CUDA_COMPUTE_CAPABILITIES[_tf_cuda_version]
     if _TF_CUDA_COMPUTE_CAPABILITIES not in repository_ctx.os.environ:
-        return _DEFAULT_CUDA_COMPUTE_CAPABILITIES
+        return _default_cuda_compute_cap
     capabilities_str = repository_ctx.os.environ[_TF_CUDA_COMPUTE_CAPABILITIES]
     capabilities = capabilities_str.split(",")
     for capability in capabilities:

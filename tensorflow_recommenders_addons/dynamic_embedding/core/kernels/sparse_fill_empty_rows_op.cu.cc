@@ -23,8 +23,6 @@ limitations under the License.
 #include <utility>
 #include <vector>
 
-#include "cub/device/device_scan.cuh"
-#include "sparse_fill_empty_rows_op.h"
 #include "tensorflow/core/framework/op_kernel.h"
 #include "tensorflow/core/framework/register_types.h"
 #include "tensorflow/core/framework/tensor.h"
@@ -32,6 +30,8 @@ limitations under the License.
 #include "tensorflow/core/framework/types.h"
 #include "tensorflow/core/lib/gtl/inlined_vector.h"
 #include "tensorflow/core/util/gpu_kernel_helper.h"
+#include "tensorflow_recommenders_addons/dynamic_embedding/core/kernels/sparse_fill_empty_rows_op.h"
+#include "tensorflow_recommenders_addons/dynamic_embedding/core/lib/nvhash/cub/cub/device/device_scan.cuh"
 
 namespace tensorflow {
 
@@ -45,8 +45,6 @@ __global__ void SparseFillEmptyRowCountKernel(
     int64* output_row_offset  // size: num_rows + 1
 ) {
   GPU_1D_KERNEL_LOOP(idx, nnz) {
-    const int64 num_rows = input_shape[0];
-
     int64 _row = indices[idx * 2];
     atomicAdd(row_nnz_count + _row, 1);
   }
@@ -269,7 +267,7 @@ TF_CALL_int8(DEFINE_GPU_KERNELS);
 TF_CALL_int32(DEFINE_GPU_KERNELS);
 TF_CALL_half(DEFINE_GPU_KERNELS);
 TF_CALL_float(DEFINE_GPU_KERNELS);
-
+TF_CALL_int64(DEFINE_GPU_KERNELS);
 }  // namespace functor
 }  // namespace tensorflow
 

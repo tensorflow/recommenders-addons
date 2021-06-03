@@ -49,11 +49,11 @@ limitations under the License.
 #endif  // GOOGLE_CUDA || TENSORFLOW_USE_ROCM
 
 #if GOOGLE_CUDA
-#if TF_VERSION >= 2040  // 2.4.0
+#if TF_VERSION_INTEGER >= 2040  // 2.4.0
 #include "tensorflow/core/util/cuda_solvers.h"
 #else
 #include "tensorflow/core/kernels/cuda_solvers.h"
-#endif  // TF_VERSION >= 2040
+#endif  // TF_VERSION_INTEGER >= 2040
 #include "tensorflow/stream_executor/cuda/cuda_activation.h"
 
 using stream_executor::cuda::ScopedActivateExecutorContext;
@@ -103,8 +103,8 @@ class SparseSegmentSumGpuOp : public AsyncOpKernel {
       const Tensor& num_segments = context->input(3);
       output_rows_host.tensor().CopyFrom(num_segments, num_segments.shape());
     } else {
-      se::DeviceMemoryBase last_segment_id_on_device(
-          reinterpret_cast<Tindex*>(segment_ids.data()) + num_indices - 1);
+      se::DeviceMemoryBase last_segment_id_on_device(const_cast<Tindex*>(
+          segment_ids.template flat<Tindex>().data() + num_indices - 1));
       OP_REQUIRES_ASYNC(
           context,
           stream

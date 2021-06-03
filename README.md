@@ -104,26 +104,45 @@ is compiled differently. A typical example of this would be `conda`-installed Te
 
 | TFRA | TensorFlow | Compiler  | CUDA | CUDNN | Compute Capability |
 |:----------------------- |:---- |:---------| :------------ | :---- | :------------ |
-| 0.2.0 | 2.4.1  | GCC 7.3.1 | 11.0 | 8.0 | 3.5, 5.2, 6.0, 6.1, 7.0, 7.5, 8.0 |
+| 0.2.0 | 2.4.1  | GCC 7.3.1 | 11.0 | 8.0 | 6.0, 6.1, 7.0, 7.5, 8.0 |
+| 0.2.0 | 1.15.2  | GCC 7.3.1 | 10.0 | 7.6 | 6.0, 6.1, 7.0, 7.5 |
 | 0.1.0 | 2.4.1  | GCC 7.3.1 | - | - | - |
 
 Check [nvidia-support-matrix](https://docs.nvidia.com/deeplearning/cudnn/support-matrix/index.html) for more details.
 
+**NOTICE**
+- The release packages have strict version binding relationship with TensorFlow. 
+- Due to the significant changes in the Tensorflow API, we can only ensure compatibility with TF1.15.2 on CPU & GPU, 
+  but **there are no official releases**, you can only get it through compiling by the following:
+```shell
+PY_VERSION="3.6" \
+TF_VERSION="1.15.2" \
+TF_NEED_CUDA=1 \
+TF_CUDA_VERSION=10.0 \
+TF_CUDNN_VERSION=7.6 \
+sh .github/workflows/make_wheel_Linux.sh
 
-**NOTICE**：The release packages have strict version binding relationship with TensorFlow. 
-If you need to work with other versions of TensorFlow, we recommend you installing from source.
+# .whl file will be created in ./wheelhouse/
+```
 
+- If you need to work with TensorFlow 1.14.x or older version, we suggest you give up,
+but maybe this doc can help you : [Extract headers from TensorFlow compiling dirctory](./build_deps/tf_header/README.md).
+At the same time, we find some OPs used by TRFA have better performance, so we highly recommend you update TensorFlow to 2.x.
 
 #### Installing from Source
 ##### CPU Only
-You can also install from source. This requires the [Bazel](https://bazel.build/) build system (version == 3.7.2).
+You can also install from source. This requires the [Bazel](https://bazel.build/) build system (version == 3.1.0).
+Please install a TensorFlow on your compiling machine, The compiler needs to know the version of Tensorflow and 
+its headers according to the installed TensorFlow. 
 
 ```
+pip install tensorflow[-gpu]==[2.4.1, 1.15.2]
+
 git clone https://github.com/tensorflow/recommenders-addons.git
 cd recommenders-addons
 
 # This script links project with TensorFlow dependency
-python3 ./configure.py
+python configure.py
 
 bazel build --enable_runfiles build_pip_pkg
 bazel-bin/build_pip_pkg artifacts
@@ -134,9 +153,10 @@ pip install artifacts/tensorflow_recommenders_addons-*.whl
 ##### GPU Support
 Only `TF_NEED_CUDA=1` is required and other environment variables are optional:
 ```shell
+PY_VERSION="3.6" \
 TF_NEED_CUDA=1 \
 TF_CUDA_VERSION=11.0 \
-TF_CUDNN_VERSION=8 \
+TF_CUDNN_VERSION=8.0 \
 CUDA_TOOLKIT_PATH="/usr/local/cuda" \
 CUDNN_INSTALL_PATH="/usr/lib/x86_64-linux-gnu" \
 python configure.py
@@ -174,7 +194,9 @@ de = tfra.dynamic_embedding.get_variable("VariableOnGpu",
 ```
 
 **Usage restrictions on GPU**
-- Considering the size of the whl file, currently `dim` only supports less than or equal to 200, if you need longer `dim`, please submit an issue.
+- Only work on Nvidia GPU with cuda compute capability 6.0 or higher.
+- Considering the size of the .whl file, currently `dim` only supports less than or equal to 200, if you need longer `dim`, please submit an issue.
+- Only `dynamic_embedding` APIs and relative OPs support running on GPU.
 - For GPU HashTables manage GPU memory independently, TensorFlow should be configured to allow GPU memory growth by the following:
 ```python
 sess_config.gpu_options.allow_growth = True
@@ -185,7 +207,8 @@ sess_config.gpu_options.allow_growth = True
 #### Compatibility Matrix
 | TFRA | TensorFlow | Serving | Compiler  | CUDA | CUDNN | Compute Capability |
 |:----- |:---- |:---- |:---------| :------------ | :---- | :------------ |
-| 0.2.0 | 2.4.1  | 2.4.0  | GCC 7.3.1 | 11.0 | 8.0 | 3.5, 5.2, 6.0, 6.1, 7.0, 7.5, 8.0 |
+| 0.2.0 | 2.4.1  | 2.4.0  | GCC 7.3.1 | 11.0 | 8.0 | 6.0, 6.1, 7.0, 7.5, 8.0 |
+| 0.2.0 | 1.15.2  | 1.15.0  | GCC 7.3.1 | 10.0 | 7.6 | 6.0, 6.1, 7.0, 7.5 |
 | 0.1.0 | 2.4.1  | 2.4.0  | GCC 7.3.1 | - | - | - |
 
 **NOTICE**：Reference documents: https://www.tensorflow.org/tfx/serving/custom_op
