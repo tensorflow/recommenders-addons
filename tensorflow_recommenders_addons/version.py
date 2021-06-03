@@ -22,8 +22,8 @@ MAX_TF_VERSION = os.getenv("TF_VERSION", "2.4.1")
 
 # We follow Semantic Versioning (https://semver.org/)
 _MAJOR_VERSION = "0"
-_MINOR_VERSION = "0"
-_PATCH_VERSION = "1"
+_MINOR_VERSION = "2"
+_PATCH_VERSION = "0"
 
 # When building releases, we can update this value on the release branch to
 # reflect the current release candidate ('rc0', 'rc1') or, finally, the official
