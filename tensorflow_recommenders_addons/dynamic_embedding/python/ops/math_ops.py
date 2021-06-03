@@ -111,15 +111,17 @@ def sparse_segment_sum(data,
                                        segment_ids,
                                        name=name,
                                        num_segments=num_segments)
-      use_origin = True
+
+      use_origin = False
       if predef.device == '':
         tf_logging.warn(
-            'Haven\'t specify devices while GPU devices are'
-            'available: {}, use CPU by default.'.format(gpu_devices))
+            'SparseSegmentSum({}) has not been assigned device, '
+            'while GPU are available: {}, so use GPU by default.'.format(
+                predef.name, gpu_devices))
       else:
         device_type = predef.device.split(':')[-2][-3:].lower()
-        if device_type == 'gpu':
-          use_origin = False
+        if 'gpu' in device_type:
+          use_origin = True
 
       if use_origin:
         return tf.sparse.segment_sum(data,
@@ -197,15 +199,17 @@ def sparse_fill_empty_rows(sp_input, default_value, name=None):
 
     else:
       predef = _sparse_fill_empty_rows_gpu(sp_input, default_value, name=name)
-      use_origin = True
+
+      use_origin = False
       if predef[0].values.device == '':
         tf_logging.warn(
-            'Haven\'t specify devices while GPU devices are'
-            'available: {}, use CPU by default.'.format(gpu_devices))
+            'SparseFillEmptyRows({}) has not been assigned device, '
+            'while GPU are available: {}, so use GPU by default.'.format(
+                predef[0].values.name, gpu_devices))
       else:
         device_type = predef[0].values.device.split(':')[-2][-3:].lower()
-        if device_type == 'gpu':
-          use_origin = False
+        if 'gpu' in device_type:
+          use_origin = True
 
       if use_origin:
         return tf.sparse.fill_empty_rows(sp_input, default_value, name=name)
@@ -267,15 +271,17 @@ def sparse_reshape(sp_input, shape, name=None):
 
     else:
       predef = _sparse_reshape_gpu(sp_input, shape, name=name)
-      use_origin = True
+
+      use_origin = False
       if predef.values.device == '':
         tf_logging.warn(
-            'Haven\'t specify devices while GPU devices are'
-            'available: {}, use CPU by default.'.format(gpu_devices))
+            'SparseReshape({}) has not been assigned device, '
+            'while GPU are available: {}, so use GPU by default.'.format(
+                predef.values.name, gpu_devices))
       else:
         device_type = predef.values.device.split(':')[-2][-3:].lower()
-        if device_type == 'gpu':
-          use_origin = False
+        if 'gpu' in device_type:
+          use_origin = True
 
       if use_origin:
         return tf.sparse.reshape(sp_input, shape, name=name)
