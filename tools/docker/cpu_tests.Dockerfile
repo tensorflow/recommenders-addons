@@ -2,11 +2,13 @@
 FROM python:3.6 as build_wheel
 
 ARG TF_VERSION=2.4.1
+ARG USE_BAZEL_VERSION=3.1.0
+
 RUN pip install --default-timeout=1000 tensorflow-cpu==$TF_VERSION
 
 RUN apt-get update && apt-get install -y sudo rsync
-COPY tools/install_deps/install_bazelisk.sh .bazelversion ./
-RUN bash install_bazelisk.sh
+COPY tools/docker/install/install_bazel.sh ./
+RUN ./install_bazel.sh $USE_BAZEL_VERSION
 
 COPY requirements.txt ./
 RUN pip install -r requirements.txt

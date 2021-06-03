@@ -103,7 +103,7 @@ class SparseFillEmptyRowsGpuGradTest(test.TestCase):
 
   def backward_compute(self, sp_input, default_value):
     with backprop.GradientTape(persistent=True) as tape:
-      tape.watch(sp_input)
+      tape.watch(sp_input.values)
       result_output, result_indicator = de_math.sparse_fill_empty_rows(
           sp_input, default_value)
       expected_output, expected_indicator = sparse_ops.sparse_fill_empty_rows(

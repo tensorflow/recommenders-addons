@@ -710,7 +710,7 @@ class EmbeddingLookupUniqueTest(test.TestCase):
 
     with self.session(use_gpu=test_util.is_gpu_available(),
                       config=default_config):
-      self.evaluate(embeddings_de.upsert(range(n), embeddings_np))
+      self.evaluate(embeddings_de.upsert(list(range(n)), embeddings_np))
       embedded_np = embeddings_np[ids]
       embedded_de = de.embedding_lookup_unique(embeddings_de, ids).eval()
 

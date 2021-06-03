@@ -4,5 +4,7 @@
 # DOCKER_BUILDKIT=0 bash tools/run_build.sh
 set -e
 
-export DOCKER_BUILDKIT=1
-docker build -f tools/docker/sanity_check.Dockerfile --target=${1} ./
+DOCKER_BUILDKIT=1 docker build \
+    -f tools/docker/sanity_check.Dockerfile \
+    --build-arg USE_BAZEL_VERSION=${USE_BAZEL_VERSION:-"3.1.0"} \
+    --target=${1} ./

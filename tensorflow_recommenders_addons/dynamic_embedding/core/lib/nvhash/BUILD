@@ -9,5 +9,5 @@ cc_library(
         "cudf/managed_allocator.cuh",
         "nv_hashtable.cuh",
         "nv_util.h",
-    ],
+    ] + glob(["cub/cub/**/*cuh"]),
 )
