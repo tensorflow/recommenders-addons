@@ -185,6 +185,24 @@ class CuckooHashTable(LookupInterface):
 
     return op
 
+  def clear(self, name=None):
+    """clear all keys and values in the table.
+
+    Args:
+      name: A name for the operation (optional).
+
+    Returns:
+      The created Operation.
+    """
+    with ops.name_scope(name, "%s_lookup_table_clear" % self.name,
+                        (self.resource_handle, self._default_value)):
+      op = cuckoo_hashtable_ops.tfra_cuckoo_hash_table_clear(
+          self.resource_handle,
+          key_dtype=self._key_dtype,
+          value_dtype=self._value_dtype)
+
+    return op
+
   def lookup(self, keys, dynamic_default_values=None, name=None):
     """Looks up `keys` in a table, outputs the corresponding values.
 

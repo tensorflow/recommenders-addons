@@ -64,6 +64,7 @@ class TableWrapperBase {
   virtual size_t get_size(cudaStream_t stream) const {}
   virtual size_t get_capacity() const {}
   virtual void remove(const K* d_keys, size_t len, cudaStream_t stream) {}
+  virtual void clear(cudaStream_t stream) {}
 };
 
 template <class K, class V, size_t DIM>
@@ -106,6 +107,8 @@ class TableWrapper final : public TableWrapperBase<K, V> {
   void remove(const K* d_keys, size_t len, cudaStream_t stream) override {
     table_->remove(d_keys, len, stream);
   }
+
+  void clear(cudaStream_t stream) override { table_->clear(stream); }
 
  private:
   size_t max_size_;

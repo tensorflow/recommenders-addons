@@ -185,6 +185,11 @@ class CuckooHashTableOfTensors final : public LookupInterface {
     return Status::OK();
   }
 
+  Status Clear(OpKernelContext* ctx) {
+    table_->clear();
+    return Status::OK();
+  }
+
   Status ImportValues(OpKernelContext* ctx, const Tensor& keys,
                       const Tensor& values) override {
     return DoInsert(true, ctx, keys, values);
@@ -365,6 +370,31 @@ class HashTableRemoveOp : public HashTableOpKernel {
   }
 };
 
+// Table clear op.
+template <class K, class V>
+class HashTableClearOp : public HashTableOpKernel {
+ public:
+  using HashTableOpKernel::HashTableOpKernel;
+
+  void Compute(OpKernelContext* ctx) override {
+    LookupInterface* table;
+    OP_REQUIRES_OK(ctx, GetTable(ctx, &table));
+    core::ScopedUnref unref_me(table);
+
+    lookup::CuckooHashTableOfTensors<K, V>* table_cuckoo =
+        (lookup::CuckooHashTableOfTensors<K, V>*)table;
+    int64 memory_used_before = 0;
+    if (ctx->track_allocations()) {
+      memory_used_before = table->MemoryUsed();
+    }
+    OP_REQUIRES_OK(ctx, table_cuckoo->Clear(ctx));
+    if (ctx->track_allocations()) {
+      ctx->record_persistent_memory_allocation(table->MemoryUsed() -
+                                               memory_used_before);
+    }
+  }
+};
+
 // Op that returns the size of the given table.
 class HashTableSizeOp : public HashTableOpKernel {
  public:
@@ -452,7 +482,12 @@ REGISTER_KERNEL_BUILDER(
           .TypeConstraint<key_dtype>("key_dtype")                           \
           .TypeConstraint<value_dtype>("value_dtype"),                      \
       HashTableOp<lookup::CuckooHashTableOfTensors<key_dtype, value_dtype>, \
-                  key_dtype, value_dtype>)
+                  key_dtype, value_dtype>);                                 \
+  REGISTER_KERNEL_BUILDER(Name(PREFIX_OP_NAME(CuckooHashTableClear))        \
+                              .Device(DEVICE_CPU)                           \
+                              .TypeConstraint<key_dtype>("key_dtype")       \
+                              .TypeConstraint<value_dtype>("value_dtype"),  \
+                          HashTableClearOp<key_dtype, value_dtype>)
 
 REGISTER_KERNEL(int32, double);
 REGISTER_KERNEL(int32, float);
