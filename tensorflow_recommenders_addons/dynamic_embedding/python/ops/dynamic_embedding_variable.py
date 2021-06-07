@@ -390,6 +390,21 @@ class Variable(trackable.TrackableResource):
 
     return control_flow_ops.group(ops_)
 
+  def clear(self, name=None):
+    """clear all keys and values in the table.
+
+    Args:
+      name: A name for the operation (optional).
+
+    Returns:
+      The created Operation.
+    """
+    ops_ = []
+    for idx in range(len(self.devices)):
+      with ops.device(self.devices[idx]):
+        ops_.append(self._tables[idx].clear(name=name))
+    return control_flow_ops.group(ops_)
+
   def _create_default_values_by_initializer(self, keys):
     if self.initializer is None:
       return None

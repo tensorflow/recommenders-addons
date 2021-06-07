@@ -231,6 +231,19 @@ class CuckooHashTableOfTensorsGpu final : public LookupInterface {
     return Status::OK();
   }
 
+  Status Clear(OpKernelContext* ctx) {
+    cudaStream_t _stream;
+    CUDA_CHECK(cudaStreamCreate(&_stream));
+    {
+      mutex_lock l(mu_);
+      table_->clear(_stream);
+      RehashIfNeeded(_stream);
+      CUDA_CHECK(cudaStreamSynchronize(_stream));
+    }
+    CUDA_CHECK(cudaStreamDestroy(_stream));
+    return Status::OK();
+  }
+
   Status ImportValues(OpKernelContext* ctx, const Tensor& keys,
                       const Tensor& values) override {
     size_t len = keys.flat<K>().size();
@@ -408,6 +421,22 @@ REGISTER_KERNEL_BUILDER(
     Name(PREFIX_OP_NAME(CuckooHashTableRemove)).Device(DEVICE_GPU),
     HashTableRemoveGpuOp);
 
+// Table clear op.
+template <class K, class V>
+class HashTableClearGpuOp : public OpKernel {
+ public:
+  explicit HashTableClearGpuOp(OpKernelConstruction* ctx) : OpKernel(ctx) {}
+
+  void Compute(OpKernelContext* ctx) override {
+    lookup::LookupInterface* table;
+    OP_REQUIRES_OK(ctx, GetLookupTable("table_handle", ctx, &table));
+    core::ScopedUnref unref_me(table);
+    lookup::CuckooHashTableOfTensorsGpu<K, V>* table_cuckoo =
+        (lookup::CuckooHashTableOfTensorsGpu<K, V>*)table;
+    OP_REQUIRES_OK(ctx, table_cuckoo->Clear(ctx));
+  }
+};
+
 // Op that returns the size of the given table.
 class HashTableSizeGpuOp : public OpKernel {
  public:
@@ -483,15 +512,21 @@ REGISTER_KERNEL_BUILDER(
     HashTableImportGpuOp);
 
 // Register the CuckooHashTableOfTensors op.
-#define REGISTER_KERNEL(key_dtype, value_dtype)                        \
-  REGISTER_KERNEL_BUILDER(                                             \
-      Name(PREFIX_OP_NAME(CuckooHashTableOfTensors))                   \
-          .Device(DEVICE_GPU)                                          \
-          .TypeConstraint<key_dtype>("key_dtype")                      \
-          .TypeConstraint<value_dtype>("value_dtype"),                 \
-      HashTableGpuOp<                                                  \
-          lookup::CuckooHashTableOfTensorsGpu<key_dtype, value_dtype>, \
-          key_dtype, value_dtype>)
+
+#define REGISTER_KERNEL(key_dtype, value_dtype)                            \
+  REGISTER_KERNEL_BUILDER(                                                 \
+      Name(PREFIX_OP_NAME(CuckooHashTableOfTensors))                       \
+          .Device(DEVICE_GPU)                                              \
+          .TypeConstraint<key_dtype>("key_dtype")                          \
+          .TypeConstraint<value_dtype>("value_dtype"),                     \
+      HashTableGpuOp<                                                      \
+          lookup::CuckooHashTableOfTensorsGpu<key_dtype, value_dtype>,     \
+          key_dtype, value_dtype>);                                        \
+  REGISTER_KERNEL_BUILDER(Name(PREFIX_OP_NAME(CuckooHashTableClear))       \
+                              .Device(DEVICE_GPU)                          \
+                              .TypeConstraint<key_dtype>("key_dtype")      \
+                              .TypeConstraint<value_dtype>("value_dtype"), \
+                          HashTableClearGpuOp<key_dtype, value_dtype>)
 
 REGISTER_KERNEL(int64, float);
 REGISTER_KERNEL(int64, Eigen::half);

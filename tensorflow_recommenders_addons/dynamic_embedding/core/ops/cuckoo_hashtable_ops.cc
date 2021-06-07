@@ -181,6 +181,11 @@ REGISTER_OP(PREFIX_OP_NAME(CuckooHashTableRemove))
       return Status::OK();
     });
 
+REGISTER_OP(PREFIX_OP_NAME(CuckooHashTableClear))
+    .Input("table_handle: resource")
+    .Attr("key_dtype: type")
+    .Attr("value_dtype: type");
+
 REGISTER_OP(PREFIX_OP_NAME(CuckooHashTableSize))
     .Input("table_handle: resource")
     .Output("size: int64")
