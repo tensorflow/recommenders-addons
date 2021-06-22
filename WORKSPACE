@@ -80,12 +80,14 @@ load("@bazel_skylib//lib:collections.bzl", "collections")
 cc_import(
     name = "HIREDIS",
     hdrs = collections.uniq(glob(["local/include/hiredis/*.h"])+glob(["local/include/hiredis/**/*.h"])) ,
-    static_library = "local/lib/libhiredis_static.a",
+    static_library = "local/lib/libhiredis.a",
+    shared_library = "local/lib/libhiredis.so",
 )
 cc_import(
     name = "REDIS++",
     hdrs = glob(["local/include/sw/redis++/*.h"]) ,
     static_library = "local/lib/libredis++.a",
+    shared_library = "local/lib/libredis++.so",
 )
 """
 )

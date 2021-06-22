@@ -18,10 +18,16 @@ limitations under the License.
 #include <csignal>
 #include <signal.h>
 
+extern "C"
+{
+#include <hiredis/sds.h>
+}
+
 #include "tensorflow/core/kernels/lookup_table_op.h"
 #include "tensorflow/core/util/work_sharder.h"
 
 #include "redis_impl/redis_connection_pool.hpp"
+#include "redis_impl/redis_cluster_connection_pool.hpp"
 #include "redis_table_op.h"
 
 using sw::redis::OptionalString;
@@ -36,7 +42,8 @@ For example, mset can only set 524287 {(1024*1024-2)/2} keys every times.
 The source code is shown in the following link:
 https://github.com/redis/redis/blob/be6ce8a92a9acbecfaaa6c57a45037fc1018fefe/src/networking.c#L1851
 */
-constexpr long long multi_redis_cmd_max_argc = 1024 * 1024; 
+// constexpr long long multi_redis_cmd_max_argc = 1024 * 1024; 
+constexpr long long multi_redis_cmd_max_argc = 1024 * 8; // For better parallelism performance
 
 namespace tensorflow
 {
@@ -54,399 +61,98 @@ namespace tensorflow
         size_t init_size_;
         std::string embedding_name;
         std::string keys_prefix_name;
+        std::vector<std::string> keys_prefix_name_slices;
         std::array<unsigned char, 16> keys_prefix_name_md5;
 
-        std::shared_ptr<void> _table_instance;
-        std::shared_ptr<void> _table_conn;
+        std::shared_ptr<RedisVirtualWrapper> _table_instance;
 
-        std::vector<const char *> ptrs_Find = std::vector<const char *>(kv_pairs_default_size);
-        std::vector<char> ptrs_Find_K_data = std::vector<char>(kv_pairs_default_size * (sizeof(K)+16));
-        std::vector<std::size_t> sizes_Find = std::vector<std::size_t>(kv_pairs_default_size);
-        std::vector<const char *> ptrs_Insert = std::vector<const char *>(kv_pairs_default_size);
-        std::vector<char> ptrs_Insert_K_data = std::vector<char>(kv_pairs_default_size * (sizeof(K)+16));
-        std::vector<std::size_t> sizes_Insert = std::vector<std::size_t>(kv_pairs_default_size);
+        std::vector<ThreadContext> threads_Find;
+        std::vector<ThreadContext> threads_Insert;
 
       public:
         Redis_Connection_Params redis_connection_params;
 
       private:
-        void launchFind_overflow(OpKernelContext *context, std::shared_ptr<void> table_conn,
+        void launchFind_parallel(OpKernelContext *context, std::vector<std::string> &keys_prefix_name_slices,
                         const Tensor &keys, Tensor *values, const Tensor &default_value,
                         const int64 &total, const int64 &value_dim0, 
-                        std::vector<const char *> &ptrs_, std::vector<std::size_t> &sizes_, 
-                        std::vector<char> &ptrs_K_data)
+                        std::vector<ThreadContext> &threads_Find)
         {
           const bool is_full_default = (total == value_dim0);
 
-          const int64 KVpairs_slices_size = multi_redis_cmd_max_argc;
+          const int64 max_parallelism = (total / multi_redis_cmd_max_argc) + 1;
 
-          const int64 max_parallelism = (total / KVpairs_slices_size) + 1;
-          if (static_cast<int64>(ptrs_.size()) < total + KVpairs_slices_size + 1) {
-            ptrs_.resize(total + KVpairs_slices_size + 1/*max_num_thread for inserting mget into vector*/);
-            sizes_.resize(total + KVpairs_slices_size + 1/*max_num_thread for inserting mget into vector*/);
-            ptrs_K_data.resize(total * (sizeof(K)+17) + 1);
-          }
+          threads_Find.reserve(max_parallelism);
           
-          static const char *redis_command = "mget";
-
-          std::atomic_llong slice_begin_pos(0);
-          auto shard = [this, &total, &keys, &values, &default_value, &is_full_default, &ptrs_, &sizes_, 
-                              &ptrs_K_data, &slice_begin_pos](int64 begin, int64 end)
+          std::atomic_uint thread_id_a(0);
+          auto shard = [this, &total, &keys_prefix_name_slices, &keys, &values, &default_value, &is_full_default, &threads_Find, &thread_id_a]
+          (int64 begin, int64 end)
           {
             const int64 max_i = std::min(total, end);
-            const int64 current_slice_begin_pos = (max_i-begin)*2+1;
-            int64 vector_slice_begin = slice_begin_pos.load(std::memory_order_relaxed);
-            slice_begin_pos.store(vector_slice_begin+current_slice_begin_pos, std::memory_order_consume);
-            assert(vector_slice_begin + slice_begin_pos <= ptrs_.size());
+            unsigned thread_id = thread_id_a.load(std::memory_order_relaxed);
+            thread_id_a.store(thread_id+1, std::memory_order_consume); 
 
-            std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply;
-            auto cmd = [](::sw::redis::Connection &connection, const int64 &total, const Tensor &keys,
-                          std::vector<const char *> &ptrs, std::vector<std::size_t> &sizes,
-                          std::vector<char> &ptrs_K_data, const std::array<unsigned char, 16> &keys_prefix_name_md5)
-            {
-              const int argc = total + 1;            
+            auto reply = _table_instance->MGET_COMMAND(keys, threads_Find[thread_id], begin, max_i, keys_prefix_name_slices);
+            
+            assert(reply->size == redis_connection_params.storage_slice); // #define REDIS_REPLY_ARRAY 2
 
-              const char **ptrs_iter = ptrs.data();
-              *ptrs_iter = redis_command;
-              ++ptrs_iter;
-
-              // const int64 dim0_size = keys.dim_size(0);
-              // const int64 elems_per_dim0 = keys.NumElements() / dim0_size;
-              // const std::size_t key_byte_size = elems_per_dim0 * sizeof(K);
-
-              char *K_data_iter = ptrs_K_data.data();
-              char *K_data_iter_tmp = K_data_iter;
-
-              const char *pk = reinterpret_cast<const char *>(keys.data());
-
-              const auto iter_end_addr = &ptrs[argc];
-
-              for (; ptrs_iter != iter_end_addr; pk += sizeof(K) )
-              {
-                K_data_iter_tmp = K_data_iter;
-                memcpy(K_data_iter, keys_prefix_name_md5.data(), 16);
-                K_data_iter += 16;
-                *K_data_iter = ':';
-                ++K_data_iter;
-                memcpy(K_data_iter, pk, sizeof(K));
-                K_data_iter += sizeof(K);
-                // *ptrs_iter = pk; // Direct access to Tensor data in TensorFlow
-                *ptrs_iter = K_data_iter_tmp; // access Tensor data in TensorFlow combined with prefix name
-                ++ptrs_iter;
-              }
-
-              sizes[0] = 4;
-              std::fill(sizes.begin() + 1, sizes.end(), sizeof(K) + 17);
-              // raise(SIGTRAP);  /* To continue from here in GDB: "signal 0". */
-              connection.send(argc, ptrs.data(), sizes.data());
-            };
-
-            // SWITCH_REDIS_MODE_noCluster(redis_connection_params.connection_mode, , wait, 1, 0);
-            SWITCH_REDIS_MODE_noCluster(redis_connection_params.connection_mode, reply =, command, cmd, total, keys, ptrs_, sizes_, 
-                                                                                          ptrs_K_data, keys_prefix_name_md5);
-
-            assert(reply->type == 2); // #define REDIS_REPLY_ARRAY 2
-
-            const int64 dim0_size = values->dim_size(0);
-            const int64 elems_per_dim0 = values->NumElements() / dim0_size;
-            const int64 tmp_size = sizeof(V) * elems_per_dim0;
-            V * const values_base_ptr = reinterpret_cast<V *>(values->data());
-            const V * const defautV_base_ptr = reinterpret_cast<V *>(default_value.data());
-
-            for (auto i = begin, offset = begin * elems_per_dim0; i < max_i; ++i, offset += elems_per_dim0)
-            {
-              if (reply->element[i]->type == 1) // #define REDIS_REPLY_STRING 1
-              {
-                memcpy(reinterpret_cast<void *>(values_base_ptr + offset), reply->element[i]->str, tmp_size); // Direct access to Tensor data in TensorFlow
-              }
-              else
-              {
-                if (is_full_default)
-                {
-                  memcpy(reinterpret_cast<void *>(values_base_ptr + offset),
-                         reinterpret_cast<const void *>(defautV_base_ptr + offset),
-                         tmp_size); // Direct access to Tensor data in TensorFlow
-                }
-                else
-                {
-                  memcpy(reinterpret_cast<void *>(values_base_ptr + offset),
-                         reinterpret_cast<const void *>(defautV_base_ptr),
-                         tmp_size); // Direct access to Tensor data in TensorFlow
-                }
-              }
-            }
-
+            _table_instance->MGET_to_Tensor(values, default_value, is_full_default, threads_Find[thread_id], reply, begin, max_i);
           };
-          int64 slices_size = std::min( total, KVpairs_slices_size - 1 );
+          int64 slices_size = std::min( total, multi_redis_cmd_max_argc - 1 );
           auto &worker_threads = *context->device()->tensorflow_cpu_worker_threads();
           Shard(max_parallelism, worker_threads.workers, total, slices_size,
                 shard);
 
         }
 
-        void launchFind(OpKernelContext *context, std::shared_ptr<void> table_conn,
+        void launchFind(OpKernelContext *context, std::vector<std::string> &keys_prefix_name_slices,
                         const Tensor &keys, Tensor *values, const Tensor &default_value,
                         const int64 &total, const int64 &value_dim0, 
-                        std::vector<const char *> &ptrs_, std::vector<std::size_t> &sizes_, 
-                        std::vector<char> &ptrs_K_data)
+                        std::vector<ThreadContext> &threads_Find)
         {
           const bool is_full_default = (total == value_dim0);
 
-          if (static_cast<int64>(ptrs_.size()) < total + 1) {
-            ptrs_.resize(total + 1);
-            sizes_.resize(total + 1);
-            ptrs_K_data.resize(total * (sizeof(K)+17) + 1);
-          }
+          threads_Find.reserve(1);
           
-          static const char *redis_command = "mget";
-
-          std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply;
-          auto cmd = [](::sw::redis::Connection &connection, const int64 &total, const Tensor &keys,
-                        std::vector<const char *> &ptrs, std::vector<std::size_t> &sizes,
-                        std::vector<char> &ptrs_K_data, const std::array<unsigned char, 16> &keys_prefix_name_md5)
-          {
-            const int argc = total + 1;            
-
-            const char **ptrs_iter = ptrs.data();
-            *ptrs_iter = redis_command;
-            ++ptrs_iter;
-
-            // const int64 dim0_size = keys.dim_size(0);
-            // const int64 elems_per_dim0 = keys.NumElements() / dim0_size;
-            // const std::size_t key_byte_size = elems_per_dim0 * sizeof(K);
-
-            char *K_data_iter = ptrs_K_data.data();
-            char *K_data_iter_tmp = K_data_iter;
-
-            const char *pk = reinterpret_cast<const char *>(keys.data());
-
-            const auto iter_end_addr = &ptrs[argc];
-
-            for (; ptrs_iter != iter_end_addr; pk += sizeof(K) )
-            {
-              K_data_iter_tmp = K_data_iter;
-              memcpy(K_data_iter, keys_prefix_name_md5.data(), 16);
-              K_data_iter += 16;
-              *K_data_iter = ':';
-              ++K_data_iter;
-              memcpy(K_data_iter, pk, sizeof(K));
-              K_data_iter += sizeof(K);
-              // *ptrs_iter = pk; // Direct access to Tensor data in TensorFlow
-              *ptrs_iter = K_data_iter_tmp; // access Tensor data in TensorFlow combined with prefix name
-              ++ptrs_iter;
-            }
-
-            sizes[0] = 4;
-            // std::fill(sizes.begin() + 1, sizes.end(), sizeof(K));
-            std::fill(sizes.begin() + 1, sizes.end(), (sizeof(K)+17));
-            // raise(SIGTRAP);  /* To continue from here in GDB: "signal 0". */
-            connection.send(argc, ptrs.data(), sizes.data());
-          };
-
-          // SWITCH_REDIS_MODE_noCluster(redis_connection_params.connection_mode, , wait, 1, 0);
-          SWITCH_REDIS_MODE_noCluster(redis_connection_params.connection_mode, reply =, command, cmd, total, keys, ptrs_, sizes_, 
-                                                                                          ptrs_K_data, keys_prefix_name_md5);
-
-          assert(reply->type == 2); // #define REDIS_REPLY_ARRAY 2
+          auto reply = _table_instance->MGET_COMMAND(keys, threads_Find[0], 0, total, keys_prefix_name_slices);
           
-          const int64 dim0_size = values->dim_size(0);
-          const int64 elems_per_dim0 = values->NumElements() / dim0_size;
-          const int64 tmp_size = sizeof(V) * elems_per_dim0;
-          V * const values_base_ptr = reinterpret_cast<V *>(values->data());
-          const V * const defautV_base_ptr = reinterpret_cast<V *>(default_value.data());
-          auto shard2 = [this, &reply, &values_base_ptr, &defautV_base_ptr, &is_full_default, &total, &elems_per_dim0, &tmp_size](int64 begin2, int64 end2)
-          {
-            const auto max_i = std::min(end2, total);
-            for (auto i = begin2, offset = begin2 * elems_per_dim0; i < max_i; ++i, offset += elems_per_dim0)
-            {
-              if (reply->element[i]->type == 1) // #define REDIS_REPLY_STRING 1
-              {
-                memcpy(reinterpret_cast<void *>(values_base_ptr + offset), reply->element[i]->str, tmp_size); // Direct access to Tensor data in TensorFlow
-              }
-              else
-              {
-                if (is_full_default)
-                {
-                  memcpy(reinterpret_cast<void *>(values_base_ptr + offset),
-                         reinterpret_cast<const void *>(defautV_base_ptr + offset),
-                         tmp_size); // Direct access to Tensor data in TensorFlow
-                }
-                else
-                {
-                  memcpy(reinterpret_cast<void *>(values_base_ptr + offset),
-                         reinterpret_cast<const void *>(defautV_base_ptr),
-                         tmp_size); // Direct access to Tensor data in TensorFlow
-                }
-              }
-            }
-          };
-          auto &worker_threads2 = *context->device()->tensorflow_cpu_worker_threads();
-          const int &num_threads = worker_threads2.num_threads;
-          int64 slices2 = static_cast<int64>(total / num_threads) + 1;
-          Shard(num_threads, worker_threads2.workers, total, slices2,
-                shard2);
+          assert(reply->size == redis_connection_params.storage_slice); // #define REDIS_REPLY_ARRAY 2
 
+          _table_instance->MGET_to_Tensor(values, default_value, is_full_default, threads_Find[0], reply, 0, total);     
         }
 
-        void launchInsert_overflow(OpKernelContext *context, std::shared_ptr<void> table_conn,
+        void launchInsert_parallel(OpKernelContext *context, std::vector<std::string> &keys_prefix_name_slices,
                           const Tensor &keys, const Tensor &values, const int64 &total, 
-                          std::vector<const char *> &ptrs_, std::vector<std::size_t> &sizes_, 
-                          std::vector<char> &ptrs_K_data)
+                          std::vector<ThreadContext> &threads_Find)
         {
-          const int64 KVpairs_slices_size = multi_redis_cmd_max_argc >> 1;
+          const int64 max_parallelism = (total / multi_redis_cmd_max_argc) + 1;
 
-          const int64 max_parallelism = (total / KVpairs_slices_size) + 1;
-          if (static_cast<int64>(ptrs_.size()) < (total << 1) + max_parallelism + 1) {
-            ptrs_.resize((total << 1) + max_parallelism + 1/*max_num_thread for inserting mset into vector*/);
-            sizes_.resize((total << 1) + max_parallelism + 1/*max_num_thread for inserting mset into vector*/);
-            ptrs_K_data.resize((total << 1) * (sizeof(K)+17) + 1);
-          }
+          threads_Find.reserve(max_parallelism);
           
-          const static char *redis_command = "mset";
-          constexpr static std::size_t redis_command_byte = 4;
-
-          std::atomic_llong slice_begin_pos(0);
-          auto shard = [this, &total, &keys, &values, &ptrs_, &sizes_, &ptrs_K_data, &slice_begin_pos](int64 begin, int64 end)
+          std::atomic_uint thread_id_a(0);
+          auto shard = [this, &total, &keys_prefix_name_slices, &keys, &values, &threads_Find, &thread_id_a]
+          (int64 begin, int64 end)
           {
             const int64 max_i = std::min(total, end);
-            const int64 current_slice_begin_pos = (max_i-begin)*2+1;
-            int64 vector_slice_begin = slice_begin_pos.load(std::memory_order_relaxed);
-            slice_begin_pos.store(vector_slice_begin+current_slice_begin_pos, std::memory_order_consume);
-            assert(vector_slice_begin + slice_begin_pos <= ptrs_.size());
+            unsigned thread_id = thread_id_a.load(std::memory_order_relaxed);
+            thread_id_a.store(thread_id+1, std::memory_order_consume); 
 
-            auto cmd = [](::sw::redis::Connection &connection, const int64 &total, const Tensor &keys, const Tensor &values,
-                          std::vector<const char *> &ptrs, std::vector<std::size_t> &sizes, 
-                          const int64 &begin, const int64 &max_i, const int64 &vector_slice_begin,
-                          std::vector<char> &ptrs_K_data, const std::array<unsigned char, 16> &keys_prefix_name_md5)
-            {
-              const int argc = (max_i - begin)*2 + 1;
-
-              const char **ptrs_iter=&ptrs[vector_slice_begin];
-              std::size_t *size_iter=&sizes[vector_slice_begin];
-
-              *ptrs_iter = redis_command;
-              ++ptrs_iter;
-              *size_iter = redis_command_byte;
-              ++size_iter;
-
-              const int64 Vdim0_size = values.dim_size(0);
-              //const int64 Velems_per_dim0 = values.NumElements() / Vdim0_size;
-              const std::size_t V_byte_size = values.NumElements() / Vdim0_size * sizeof(V);
-
-              char *K_data_iter = ptrs_K_data.data();
-              char *K_data_iter_tmp = K_data_iter;
-
-              const char *pk = reinterpret_cast<const char *>(keys.data());            
-              const char *pv = reinterpret_cast<const char *>(values.data());
-
-              const auto iter_end_addr = &sizes[vector_slice_begin+argc];
-
-              for (; size_iter != iter_end_addr; pk += sizeof(K), pv += V_byte_size)
-              {
-                K_data_iter_tmp = K_data_iter;
-                memcpy(K_data_iter, keys_prefix_name_md5.data(), 16);
-                K_data_iter += 16;
-                *K_data_iter = ':';
-                ++K_data_iter;
-                memcpy(K_data_iter, pk, sizeof(K));
-                K_data_iter += sizeof(K);
-                // *ptrs_iter = pk; // Direct access to Tensor data in TensorFlow  (const char* == the name of the value)
-                *ptrs_iter = K_data_iter_tmp; // access Tensor data in TensorFlow combined with prefix name
-                *(++ptrs_iter) = pv; // Direct access to Tensor data in TensorFlow (whatever bits of the value)
-                ++ptrs_iter;
-                
-                *size_iter = sizeof(K) + 17;  // length of key-string
-                *(++size_iter) = V_byte_size;  // number of value-bytes
-                ++size_iter;
-              }
-
-              assert(ptrs[vector_slice_begin]==redis_command);
-              assert(sizes[vector_slice_begin]==redis_command_byte);
-              // raise(SIGTRAP);  /* To continue from here in GDB: "signal 0". */
-              connection.send(argc, &ptrs[vector_slice_begin], &sizes[vector_slice_begin]);
-            };
-
-            SWITCH_REDIS_MODE_noCluster(redis_connection_params.connection_mode, , command, cmd, total, keys, values, ptrs_, sizes_, 
-                                                                                    begin, max_i, vector_slice_begin, 
-                                                                                    ptrs_K_data, keys_prefix_name_md5);
-            // SWITCH_REDIS_MODE_noCluster(redis_connection_params.connection_mode, , wait, 1, 0);
+            _table_instance->MSET_COMMAND(keys, values, threads_Find[thread_id], begin, max_i, keys_prefix_name_slices);
           };
-          int64 slices_size = std::min( total, KVpairs_slices_size - 1 );
+          int64 slices_size = std::min( total, multi_redis_cmd_max_argc - 1 );
           auto &worker_threads = *context->device()->tensorflow_cpu_worker_threads();
           Shard(max_parallelism, worker_threads.workers, total, slices_size,
                 shard);
 
         }
 
-        void launchInsert(OpKernelContext *context, std::shared_ptr<void> table_conn,
+        void launchInsert(OpKernelContext *context, std::vector<std::string> &keys_prefix_name_slices,
                           const Tensor &keys, const Tensor &values, const int64 &total, 
-                          std::vector<const char *> &ptrs_, std::vector<std::size_t> &sizes_, 
-                          std::vector<char> &ptrs_K_data)
+                          std::vector<ThreadContext> &threads_Find)
         {
-          if (static_cast<int64>(ptrs_.size()) < (total << 1) + 1) {
-            ptrs_.resize((total << 1) + 1);
-            sizes_.resize((total << 1) + 1);
-            ptrs_K_data.resize((total << 1) * (sizeof(K)+16) + 1);
-          }
-          
-          const static char *redis_command = "mset";
-          constexpr static std::size_t redis_command_byte = 4;
+          threads_Find.reserve(1);
 
-          auto cmd = [](::sw::redis::Connection &connection, const int64 &total, const Tensor &keys, const Tensor &values,
-                        std::vector<const char *> &ptrs, std::vector<std::size_t> &sizes,
-                        std::vector<char> &ptrs_K_data, const std::array<unsigned char, 16> &keys_prefix_name_md5)
-          {
-            const int argc = total*2 + 1;
-
-            const char **ptrs_iter=ptrs.data();
-            std::size_t *size_iter=sizes.data();
-
-            *ptrs_iter = redis_command;
-            ++ptrs_iter;
-            *size_iter = redis_command_byte;
-            ++size_iter;
-
-            const int64 Vdim0_size = values.dim_size(0);
-            //const int64 Velems_per_dim0 = values.NumElements() / Vdim0_size;
-            const std::size_t V_byte_size = values.NumElements() / Vdim0_size * sizeof(V);
-
-            char *K_data_iter = ptrs_K_data.data();
-            char *K_data_iter_tmp = K_data_iter;
-
-            const char *pk = reinterpret_cast<const char *>(keys.data());            
-            const char *pv = reinterpret_cast<const char *>(values.data());
-
-            const auto iter_end_addr = &sizes[argc];
-
-            for (; size_iter != iter_end_addr; pk += sizeof(K), pv += V_byte_size)
-            {
-              K_data_iter_tmp = K_data_iter;
-              memcpy(K_data_iter, keys_prefix_name_md5.data(), 16);
-              K_data_iter += 16;
-              *K_data_iter = ':';
-              ++K_data_iter;
-              memcpy(K_data_iter, pk, sizeof(K));
-              K_data_iter += sizeof(K);
-              // *ptrs_iter = pk; // Direct access to Tensor data in TensorFlow  (const char* == the name of the value)
-              *ptrs_iter = K_data_iter_tmp; // access Tensor data in TensorFlow combined with prefix name
-              *(++ptrs_iter) = pv; // Direct access to Tensor data in TensorFlow (whatever bits of the value)
-              ++ptrs_iter;
-              
-              *size_iter = sizeof(K) + 17;  // length of key-string
-              *(++size_iter) = V_byte_size;  // number of value-bytes
-              ++size_iter;
-            }
-
-            assert(ptrs[0]==redis_command);
-            assert(sizes[0]==redis_command_byte);
-            // raise(SIGTRAP);  /* To continue from here in GDB: "signal 0". */
-            connection.send(argc, ptrs.data(), sizes.data());
-          };
-
-          SWITCH_REDIS_MODE_noCluster(redis_connection_params.connection_mode, , command, cmd, total, keys, values, ptrs_, sizes_, 
-                                                                                  ptrs_K_data, keys_prefix_name_md5);
-          // SWITCH_REDIS_MODE_noCluster(redis_connection_params.connection_mode, , wait, 1, 0);
-
+          _table_instance->MSET_COMMAND(keys, values, threads_Find[0], 0, total, keys_prefix_name_slices);
         }
 
       public:
@@ -480,42 +186,54 @@ namespace tensorflow
 
           OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "embedding_name", &tmp_embedding_name));
           embedding_name = static_cast<std::string>(strtok(const_cast<char *>(tmp_embedding_name.data()), ":"));
-          keys_prefix_name = redis_connection_params.model_tag+":"+embedding_name;
-          keys_prefix_name_md5 = ::sw::redis::redis_connection::MD5(keys_prefix_name);
 
-          std::string md5_string;
-          char *md5_view_in_redis = sdscatrepr(sdsempty(), reinterpret_cast<char*>(keys_prefix_name_md5.data()), 16);
-          char tmp[3];
-          for( int i = 0; i < 16; ++i )
-          {   
-            memset( tmp, 0x00, sizeof( tmp ) );
-            sprintf( tmp, "%02X", keys_prefix_name_md5[i] );
-            md5_string += tmp;
+          if(redis_connection_params.using_MD5_prefix_name)
+          {
+            const std::string tmp_keys_prefix_name = redis_connection_params.model_tag+":"+embedding_name;
+            keys_prefix_name_md5 = ::sw::redis::redis_connection::MD5(tmp_keys_prefix_name);
+
+            std::string md5_string;
+            char *md5_view_in_redis = sdscatrepr(sdsempty(), reinterpret_cast<char*>(keys_prefix_name_md5.data()), 16);
+            char tmp[3];
+            for( int i = 0; i < 16; ++i )
+            {   
+              memset( tmp, 0x00, sizeof( tmp ) );
+              sprintf( tmp, "%02X", keys_prefix_name_md5[i] );
+              md5_string += tmp;
+            }
+            LOG(INFO) << "Init table tensor, now prefix name for keys namespace is " << keys_prefix_name << \
+              ". The MD5 of prefix name for keys is " << md5_string << \
+              ". And Its characters view in redis namespace is " << md5_view_in_redis << \
+              ". This MD5 is used to store keys for distinguishing between different model and table names" << std::endl;
+
+            const std::string tmp_char2string(reinterpret_cast<char*>(keys_prefix_name_md5.data()),16);
+            keys_prefix_name = tmp_char2string;
           }
-          LOG(INFO) << "Init table tensor, now prefix name for keys namespace is " << keys_prefix_name << \
-            ". The MD5 of prefix name for keys is " << md5_string << \
-            ". And Its characters view in redis namespace is " << md5_view_in_redis << \
-            ". This MD5 is used to store keys for distinguishing between different model and table names" << std::endl;
-
-          ptrs_Find.reserve(init_size_);
-          sizes_Find.reserve(init_size_);
-          ptrs_Insert.reserve(init_size_);
-          sizes_Insert.reserve(init_size_);
+          else
+          {
+            keys_prefix_name = redis_connection_params.model_tag+":"+embedding_name;
+          }
+          const unsigned storage_slice = redis_connection_params.storage_slice;
+          keys_prefix_name_slices.reserve(storage_slice);
+          for (unsigned i = 0; i < storage_slice; ++i)
+          {
+            keys_prefix_name_slices[i] = keys_prefix_name + std::to_string(storage_slice);
+          }
 
           switch (redis_connection_params.connection_mode)
           {
           case ClusterMode:
           {
-            _table_instance = RedisWrapper<RedisCluster>::get_instance();
-            std::static_pointer_cast<RedisWrapper<RedisCluster>>(_table_instance)->set_params(redis_connection_params);
-            _table_conn = std::static_pointer_cast<RedisWrapper<RedisCluster>>(_table_instance)->conn();
+            _table_instance = RedisWrapper<RedisCluster, K, V>::get_instance();
+            _table_instance->set_params(redis_connection_params);
+            _table_instance->conn();
             break;
           }
           case SentinelMode:
           {
-            _table_instance = RedisWrapper<Redis>::get_instance();
-            std::static_pointer_cast<RedisWrapper<Redis>>(_table_instance)->set_params(redis_connection_params);
-            _table_conn = std::static_pointer_cast<RedisWrapper<Redis>>(_table_instance)->conn();
+            _table_instance = RedisWrapper<RedisCluster, K, V>::get_instance();
+            _table_instance->set_params(redis_connection_params);
+            _table_instance->conn();
             break;
           }
           case StreamMode:
@@ -535,14 +253,13 @@ namespace tensorflow
 
         ~RedisTableOfTensors()
         {
-          _table_conn.reset();
           _table_instance.reset();
         }
 
         size_t size() const override
         {
           std::string info_result;
-          SWITCH_REDIS_MODE_noCluster(redis_connection_params.connection_mode, info_result =, info, "memory");
+          // SWITCH_REDIS_MODE_noCluster(redis_connection_params.connection_mode, info_result =, info, "memory");
           auto tmp1 = strtok(const_cast<char *>(info_result.data()), "\n");
           tmp1 = strtok(NULL, "\n");
           tmp1 = strtok(tmp1, ":");
@@ -558,12 +275,12 @@ namespace tensorflow
           // raise(SIGTRAP);  /* To continue from here in GDB: "signal 0". */
           if( total < (multi_redis_cmd_max_argc - 1) )
           {
-            launchFind(ctx, _table_conn, keys, values, default_value, total, value_dim, ptrs_Find, sizes_Find, ptrs_Find_K_data);
+            launchFind(ctx, keys_prefix_name_slices, keys, values, default_value, total, value_dim, threads_Find);
           }
           else
           {
-            // redis commmand args > 1024*1024
-            launchFind_overflow(ctx, _table_conn, keys, values, default_value, total, value_dim, ptrs_Find, sizes_Find, ptrs_Find_K_data); 
+            // redis commmand args > multi_redis_cmd_max_argc
+            launchFind_parallel(ctx, keys_prefix_name_slices, keys, values, default_value, total, value_dim, threads_Find); 
           }
 
           return Status::OK();
@@ -577,15 +294,15 @@ namespace tensorflow
 
           if (clear)
           {
-            SWITCH_REDIS_MODE_noCluster(redis_connection_params.connection_mode, , flushall, false);
+            // SWITCH_REDIS_MODE_noCluster(redis_connection_params.connection_mode, , flushall, false);
           }
-          if( total < ((multi_redis_cmd_max_argc>>1) - 1) )
+          if( total < (multi_redis_cmd_max_argc - 1) )
           {
-            launchInsert(ctx, _table_conn, keys, values, total, ptrs_Insert, sizes_Insert, ptrs_Insert_K_data);
+            launchInsert(ctx, keys_prefix_name_slices, keys, values, total, threads_Find);      
           }
           else
           {
-            launchInsert_overflow(ctx, _table_conn, keys, values, total, ptrs_Insert, sizes_Insert, ptrs_Insert_K_data); // redis commmand args > 1024*1024
+            launchInsert_parallel(ctx, keys_prefix_name_slices, keys, values, total, threads_Find); // redis commmand args > multi_redis_cmd_max_argc
           }
           
 
@@ -603,7 +320,7 @@ namespace tensorflow
           // mutex_lock l(mu_);
           for (int64 i = 0; i < keys.dim_size(0); ++i)
           {
-            SWITCH_REDIS_MODE(redis_connection_params.connection_mode, , del, keys.SubSlice(i).tensor_data().data());
+            // SWITCH_REDIS_MODE(redis_connection_params.connection_mode, , del, keys.SubSlice(i).tensor_data().data());
           }
           return Status::OK();
         }
@@ -628,7 +345,7 @@ namespace tensorflow
             return Status(tensorflow::error::UNAVAILABLE, err1);
           }
 
-          SWITCH_REDIS_MODE_noCluster(redis_connection_params.connection_mode, size =, dbsize);
+          // SWITCH_REDIS_MODE_noCluster(redis_connection_params.connection_mode, size =, dbsize);
 
           TF_RETURN_IF_ERROR(
               ctx->allocate_output("keys", TensorShape({size}), &keys));
@@ -636,10 +353,10 @@ namespace tensorflow
               "values", TensorShape({size, value_dim}), &values));
 
           std::vector<std::string> redis_keys(size);
-          SWITCH_REDIS_MODE_noCluster(redis_connection_params.connection_mode, , keys, "*", std::back_inserter(redis_keys));
+          // SWITCH_REDIS_MODE_noCluster(redis_connection_params.connection_mode, , keys, "*", std::back_inserter(redis_keys));
 
           std::vector<std::string> redis_vals(size);
-          SWITCH_REDIS_MODE(redis_connection_params.connection_mode, , mget, redis_keys.begin(), redis_keys.end(), std::back_inserter(redis_vals));
+          // SWITCH_REDIS_MODE(redis_connection_params.connection_mode, , mget, redis_keys.begin(), redis_keys.end(), std::back_inserter(redis_vals));
 
           auto shard = [this, keys, values, &redis_keys, &redis_vals, &size](int64 begin, int64 end)
           {
@@ -925,9 +642,6 @@ namespace tensorflow
       REGISTER_KERNEL(tstring, Eigen::half);
 
 #undef REGISTER_KERNEL
-
-#undef SWITCH_REDIS_MODE
-#undef SWITCH_REDIS_MODE_noCluster
 
     } // namespace redis_lookup
   }   // namespace recommenders_addons
