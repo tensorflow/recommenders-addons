@@ -96,7 +96,7 @@ namespace sw::redis
         return nullptr;
       }
 
-      virtual void conn()
+      virtual void conn() override
       {
         if (isRedisConnect == false)
         {
@@ -137,14 +137,48 @@ namespace sw::redis
           if(thread_context.slots[i].ptrs.size() >= size_check)
           {
             ::sw::redis::StringView hkey(thread_context.slots[i].ptrs[1],thread_context.slots[i].sizes[1]);
-            replies[i] = redis_conn->command(cmd, hkey, thread_context.slots[i].ptrs, thread_context.slots[i].sizes);
+            replies.push_back(redis_conn->command(cmd, hkey, thread_context.slots[i].ptrs, thread_context.slots[i].sizes));
           }
           else
           {
-            replies[i] = nullptr;
+            replies.push_back(nullptr);
           }
         }
         return replies;
+      }
+
+    public:
+      virtual size_t table_size_in_slots(const std::vector<std::string> &keys_prefix_name_slices) override
+      {
+        std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply;
+        std::string redis_command("hlen ");
+        std::string command_string;
+        auto cmd = [](::sw::redis::Connection &connection, char *str) {connection.send(str);};
+        size_t size = 0;
+        for (unsigned i = 0; i < redis_connection_params.storage_slice; ++i)
+        {
+          command_string.clear();
+          command_string = command_string + redis_command + keys_prefix_name_slices[i];
+          reply = redis_conn->command(cmd, command_string.data());
+          size += std::strtoumax(reply->element[0]->str, nullptr, 10); // decimal
+        }
+        
+        return size;
+      }
+
+      virtual void remove_hkeys_in_slots(const std::vector<std::string> &keys_prefix_name_slices) override
+      {
+        // std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply;
+        std::string redis_command("del ");
+        std::string command_string;
+        auto cmd = [](::sw::redis::Connection &connection, char *str) {connection.send(str);};
+        size_t size = 0;
+        for (unsigned i = 0; i < redis_connection_params.storage_slice; ++i)
+        {
+          command_string.clear();
+          command_string = command_string + redis_command + keys_prefix_name_slices[i];
+          /*reply=*/redis_conn->command(cmd, command_string.data());
+        }
       }
 
     public:
@@ -172,7 +206,7 @@ namespace sw::redis
         const ::tensorflow::Tensor &keys, ThreadContext &thread_context,
         const ::tensorflow::int64 &begin, const ::tensorflow::int64 &max_i,
         const std::vector<std::string> &keys_prefix_name_slices
-      ) 
+      ) override
       {
         const int total = max_i - begin;
         const int argc = total + 2; 
@@ -229,7 +263,7 @@ namespace sw::redis
         ::tensorflow::Tensor *values, const ::tensorflow::Tensor &default_value, const bool &is_full_default,
         ThreadContext &thread_context,std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>> &reply,
         const ::tensorflow::int64 &begin, const ::tensorflow::int64 &max_i
-      ) 
+      ) override
       {
         const ::tensorflow::int64 Velems_per_dim0 = values->NumElements() / values->dim_size(0);
         V *pv_raw = reinterpret_cast<V*>(values->data()) + begin*Velems_per_dim0;
@@ -271,7 +305,7 @@ namespace sw::redis
         ThreadContext &thread_context,
         const ::tensorflow::int64 &begin, const ::tensorflow::int64 &max_i,
         const std::vector<std::string> &keys_prefix_name_slices
-      ) 
+      ) override
       {
         const int total = max_i - begin;
         const int argc = total*2 + 2;
@@ -309,7 +343,7 @@ namespace sw::redis
         for (; pk_raw != pk_raw_end; ++pk_raw,pv_raw+=Velems_per_dim0 )
         { 
           VCATS_temp = VContentAndTypeSize<V>(VCATS_temp, Velems_per_dim0, V_byte_size, pv_raw, buff_temp);
-          key_slot_locs = KSlotNum<K>(pk_raw, storage_slice);
+          key_slot_locs = KSlotNum<K>(pk_raw, storage_slice); // TODO: change it to AVX512
 
           // Direct access to ::tensorflow::Tensor data in TensorFlow
           thread_context.HandlePushBack(key_slot_locs, KContentPointer<K>(pk_raw), KTypeSize<K>(pk_raw));  

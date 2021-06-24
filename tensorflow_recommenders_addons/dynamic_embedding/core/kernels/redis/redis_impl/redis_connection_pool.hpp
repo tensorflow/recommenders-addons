@@ -135,24 +135,23 @@ namespace sw::redis
       }
     
     public:
-      virtual size_t size(const std::vector<std::string> &keys_prefix_name_slices)
+
+      virtual size_t table_size_in_slots(const std::vector<std::string> &keys_prefix_name_slices) override
       {
-        std::weak_ptr<redisReply, ::sw::redis::ReplyDeleter> reply;
-        long long cursor_send=0,cursor_return=999;
-        size_t total=0;
-        std::string redis_command("hscan ");
-        std::string command_string;
+        constexpr std::string redis_command = "hlen " + keys_prefix_name_slices[0];
         auto cmd = [](::sw::redis::Connection &connection, char *str) {connection.send(str);};
-        while(cursor_return!=0)
-        {
-          command_string.clear();
-          command_string = command_string + redis_command + keys_prefix_name_slices[0] + std::to_string(cursor_send);
-          reply = redis_conn->command(cmd, command_string.data()); // by default, return 10 keys at most every times.
-          cursor_return = std::atol(reply->element[0]->str);
-          total = reply->element[1]->elements;
-          cursor_send = cursor_return;
-        }
-        return total;
+        std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply = redis_conn->command(cmd, redis_command.data());
+        size_t size = std::strtoumax(reply->element[0]->str, nullptr, 10); // decimal
+        
+        return size;
+      }
+
+      virtual void remove_hkeys_in_slots(const std::vector<std::string> &keys_prefix_name_slices) override
+      {
+        // std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply;
+        constexpr std::string redis_command = "del " + keys_prefix_name_slices[0];
+        auto cmd = [](::sw::redis::Connection &connection, char *str) {connection.send(str);};
+        /*reply=*/redis_conn->command(cmd, redis_command.data());
       }
 
     public:
@@ -180,7 +179,7 @@ namespace sw::redis
         const ::tensorflow::Tensor &keys, ThreadContext &thread_context,
         const ::tensorflow::int64 &begin, const ::tensorflow::int64 &max_i,
         const std::vector<std::string> &keys_prefix_name_slices
-      ) 
+      )
       {
         const int argc = (max_i - begin) + 2; 
 
@@ -232,7 +231,7 @@ namespace sw::redis
 
         std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>> reply;
         reply.reserve(1);
-        reply[0]=redis_conn->command(cmd, argc, ptrs_0, sizes_0);
+        reply.push_back(redis_conn->command(cmd, argc, ptrs_0, sizes_0));
 
         return reply;
       }

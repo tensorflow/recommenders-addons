@@ -217,7 +217,7 @@ namespace tensorflow
           keys_prefix_name_slices.reserve(storage_slice);
           for (unsigned i = 0; i < storage_slice; ++i)
           {
-            keys_prefix_name_slices[i] = keys_prefix_name + std::to_string(storage_slice);
+            keys_prefix_name_slices.push_back(keys_prefix_name + std::to_string(storage_slice));
           }
 
           switch (redis_connection_params.connection_mode)
@@ -258,13 +258,7 @@ namespace tensorflow
 
         size_t size() const override
         {
-          std::string info_result;
-          // SWITCH_REDIS_MODE_noCluster(redis_connection_params.connection_mode, info_result =, info, "memory");
-          auto tmp1 = strtok(const_cast<char *>(info_result.data()), "\n");
-          tmp1 = strtok(NULL, "\n");
-          tmp1 = strtok(tmp1, ":");
-          tmp1 = strtok(NULL, ":");
-          return std::stoi(tmp1);
+          return _table_instance->table_size_in_slots(keys_prefix_name_slices);
         }
 
         Status Find(OpKernelContext *ctx, const Tensor &keys, Tensor *values,
@@ -294,7 +288,7 @@ namespace tensorflow
 
           if (clear)
           {
-            // SWITCH_REDIS_MODE_noCluster(redis_connection_params.connection_mode, , flushall, false);
+            _table_instance->remove_hkeys_in_slots(keys_prefix_name_slices);
           }
           if( total < (multi_redis_cmd_max_argc - 1) )
           {
@@ -318,10 +312,8 @@ namespace tensorflow
         Status Remove(OpKernelContext *ctx, const Tensor &keys) override
         {
           // mutex_lock l(mu_);
-          for (int64 i = 0; i < keys.dim_size(0); ++i)
-          {
-            // SWITCH_REDIS_MODE(redis_connection_params.connection_mode, , del, keys.SubSlice(i).tensor_data().data());
-          }
+          _table_instance->remove_hkeys_in_slots(keys_prefix_name_slices);
+          
           return Status::OK();
         }
 
@@ -389,7 +381,7 @@ namespace tensorflow
         int64 MemoryUsed() const override
         {
           int64 ret = 0;
-          ret = (int64)size();
+          ret = (int64)(size() * (sizeof(K)+sizeof(V)));
           return sizeof(RedisTableOfTensors) + ret;
         }
       };

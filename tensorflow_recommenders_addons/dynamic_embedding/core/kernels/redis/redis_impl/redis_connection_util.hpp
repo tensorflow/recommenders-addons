@@ -94,7 +94,7 @@ namespace sw::redis
       unsigned storage_slice_log2 = 0; // For fast calculation.
       std::string model_tag = "test";
       bool using_MD5_prefix_name = false;
-      std::string model_abs_dir = "/tmp";
+      std::string model_lib_abs_dir = "/tmp";
 
       Redis_Connection_Params &operator=(const Redis_Connection_Params &x)
       {
@@ -115,7 +115,7 @@ namespace sw::redis
         storage_slice = 1 << storage_slice_log2;
         model_tag = x.model_tag;
         using_MD5_prefix_name = x.using_MD5_prefix_name;
-        model_abs_dir = x.model_abs_dir;
+        model_lib_abs_dir = x.model_lib_abs_dir;
         return *this;
       }
     };
@@ -161,22 +161,24 @@ namespace sw::redis
         this->redis_connection_params = conn_params_input;
       }
 
-      virtual void conn(){};
+      virtual void conn() override {};
 
-      virtual size_t size(const std::vector<std::string> &keys_prefix_name_slices){return 0;}
+      virtual size_t table_size_in_slots(const std::vector<std::string> &keys_prefix_name_slices) override {return 0;}
+
+      virtual void remove_hkeys_in_slots(const std::vector<std::string> &keys_prefix_name_slices) override {return 0;}
 
       virtual std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>> MGET_COMMAND(
         const ::tensorflow::Tensor &keys, ThreadContext &thread_context,
         const ::tensorflow::int64 &begin, const ::tensorflow::int64 &max_i,
-        const std::vector<std::string> &keys_prefix_name_slices) 
+        const std::vector<std::string> &keys_prefix_name_slices) override
         {std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>> nothing;return nothing;}
 
       virtual void MGET_to_Tensor(::tensorflow::Tensor *values, const ::tensorflow::Tensor &default_value, const bool &is_full_default,
         ThreadContext &thread_context,std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>> &reply,
-        const ::tensorflow::int64 &begin, const ::tensorflow::int64 &max_i) {};
+        const ::tensorflow::int64 &begin, const ::tensorflow::int64 &max_i) override {};
 
       virtual void MSET_COMMAND(const ::tensorflow::Tensor &keys, const ::tensorflow::Tensor &values, ThreadContext &thread_context,
-        const ::tensorflow::int64 &begin, const ::tensorflow::int64 &max_i, const std::vector<std::string> &keys_prefix_name_slices) {};
+        const ::tensorflow::int64 &begin, const ::tensorflow::int64 &max_i, const std::vector<std::string> &keys_prefix_name_slices) override {};
     };
 
     template <typename RedisInstance, typename K, typename V, typename = void>
@@ -191,44 +193,44 @@ namespace sw::redis
     };
 
     template <typename T>
-    constexpr size_t KTypeSize(const T *in)
+    constexpr inline size_t KTypeSize(const T *in)
     {
       return sizeof(T);
     }
 
     template <>
-    size_t KTypeSize<::tensorflow::tstring>(const ::tensorflow::tstring *in)
+    inline size_t KTypeSize<::tensorflow::tstring>(const ::tensorflow::tstring *in)
     {
       return in->size();
     }
 
     template <typename T>
-    constexpr const char *KContentPointer(const T *in)
+    constexpr inline const char *KContentPointer(const T *in)
     {
       return reinterpret_cast<const char *>(in);
     }
 
     template <>
-    const char *KContentPointer<::tensorflow::tstring>(const ::tensorflow::tstring *in)
+    inline const char *KContentPointer<::tensorflow::tstring>(const ::tensorflow::tstring *in)
     {
       return in->data();
     }
 
     template <typename T>
-    unsigned KSlotNum(const T *in, const unsigned storage_slice)
+    inline unsigned KSlotNum(const T *in, const unsigned storage_slice)
     {
       return static_cast<const int>(*in) & (storage_slice - 1);
     }
 
     template <>
-    unsigned KSlotNum<::tensorflow::tstring>(const ::tensorflow::tstring *in, const unsigned storage_slice)
+    inline unsigned KSlotNum<::tensorflow::tstring>(const ::tensorflow::tstring *in, const unsigned storage_slice)
     {
       const auto tem_char = *(reinterpret_cast<const unsigned char *>(in));
       return (_mm_crc32_u8(0xffffffff, tem_char) & (storage_slice - 1));
     }
 
     template <typename T>
-    const VContentAndTypeSizeResult &VContentAndTypeSize(
+    constexpr inline const VContentAndTypeSizeResult &VContentAndTypeSize(
         VContentAndTypeSizeResult &_VContentAndTypeSizeResult,
         const ::tensorflow::int64 &Velems_per_dim0, const std::size_t &V_byte_size, const T *in, std::vector<char> &buff)
     {
@@ -243,7 +245,7 @@ namespace sw::redis
       [str_size,string[...],str_size,string[...],str_size,string[...],...]
     */
     template <>
-    const VContentAndTypeSizeResult &VContentAndTypeSize<::tensorflow::tstring>(
+    inline const VContentAndTypeSizeResult &VContentAndTypeSize<::tensorflow::tstring>(
         VContentAndTypeSizeResult &_VContentAndTypeSizeResult,
         const ::tensorflow::int64 &Velems_per_dim0, const std::size_t &V_byte_size, const ::tensorflow::tstring *in, std::vector<char> &buff)
     {
