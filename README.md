@@ -136,7 +136,8 @@ Please install a TensorFlow on your compiling machine, The compiler needs to kno
 its headers according to the installed TensorFlow. 
 
 ```
-pip install tensorflow[-gpu]==[2.4.1, 1.15.2]
+export TF_VERSION=["2.4.1", "1.15.2"]
+pip install tensorflow[-gpu]==$TF_VERSION
 
 git clone https://github.com/tensorflow/recommenders-addons.git
 cd recommenders-addons
