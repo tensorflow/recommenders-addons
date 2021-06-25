@@ -92,7 +92,7 @@ class RedisTable(LookupInterface):
           key_dtype: the type of the key tensors.
           value_dtype: the type of the value tensors.
           default_value: The value to use if a key is missing in the table.
-          name: A name for the operation (optional).
+          name: A name for the operation (optional, usually it's embedding table name).
           checkpoint: if True, the contents of the table are saved to and restored
             from checkpoints. If `shared_name` is empty for a checkpointed table, it
             is shared using the table node name.
@@ -114,13 +114,13 @@ class RedisTable(LookupInterface):
     self._init_size = init_size
     self._name = name
 
-    self._default_redis_params = self.default_redis_params.copy()
-    self._default_redis_params = {k:v for k, v in params.items() if k in self._default_redis_params}
+    self._redis_params = self.default_redis_params.copy()
+    self._redis_params = {k:v for k, v in params[name].items() if k in self._default_redis_params}
 
-    for k, v in self._default_redis_params.items():
-      if not isinstance(v, str):
-        v = str(v)
-      os.environ[k]=v
+    # for k, v in self._redis_params.items():
+    #   if not isinstance(v, str):
+    #     v = str(v)
+    #   os.environ[k]=v
 
     self._shared_name = None
     if context.executing_eagerly():

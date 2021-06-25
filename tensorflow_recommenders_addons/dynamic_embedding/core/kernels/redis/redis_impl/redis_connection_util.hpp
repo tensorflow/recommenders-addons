@@ -163,6 +163,8 @@ namespace sw::redis
 
       virtual void conn() override {};
 
+      virtual bool check_slices_num(const std::vector<std::string> &keys_prefix_name_slices) override {return false;}
+
       virtual size_t table_size_in_slots(const std::vector<std::string> &keys_prefix_name_slices) override {return 0;}
 
       virtual void remove_hkeys_in_slots(const std::vector<std::string> &keys_prefix_name_slices) override {return 0;}

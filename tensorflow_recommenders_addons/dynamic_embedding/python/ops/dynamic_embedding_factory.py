@@ -36,7 +36,7 @@ class KVcreator(object,metaclass=Singleton):
     }
   
   table_fn_instance='CuckooHashTable'
-  table_params_dict={}
+  table_params_dict={{}}
 
   def __new__(
     cls,

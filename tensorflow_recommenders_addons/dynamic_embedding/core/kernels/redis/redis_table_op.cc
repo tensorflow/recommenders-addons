@@ -213,6 +213,7 @@ namespace tensorflow
           {
             keys_prefix_name = redis_connection_params.model_tag+":"+embedding_name;
           }
+
           const unsigned storage_slice = redis_connection_params.storage_slice;
           keys_prefix_name_slices.reserve(storage_slice);
           for (unsigned i = 0; i < storage_slice; ++i)
@@ -220,6 +221,7 @@ namespace tensorflow
             keys_prefix_name_slices.push_back(keys_prefix_name + std::to_string(storage_slice));
           }
 
+          // creat redis instance
           switch (redis_connection_params.connection_mode)
           {
           case ClusterMode:
@@ -248,6 +250,15 @@ namespace tensorflow
             throw(redis_connection_params.connection_mode);
             break;
           }
+          }
+
+          if(_table_instance->check_slices_num(keys_prefix_name) == false)
+          {
+            LOG(ERROR) << "The embedding table prefix name " << keys_prefix_name << "has already been saved in the Redis Servers. " << \
+              "And its number of slices is not equal to the number you putted in the setting. Please change the storage_slice in redis_connection_params.";
+            OP_REQUIRES(ctx, false, 
+              errors::InvalidArgument("storage_slice must be set properly equaling to the slices number in the Redis, got prefix storage_slice ", 
+              redis_connection_params.storage_slice)); 
           }
         }
 

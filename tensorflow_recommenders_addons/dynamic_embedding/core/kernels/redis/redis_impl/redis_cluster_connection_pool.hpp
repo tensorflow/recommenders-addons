@@ -148,6 +148,48 @@ namespace sw::redis
       }
 
     public:
+
+      virtual bool check_slices_num(const std::string &keys_prefix_name) override 
+      {
+        constexpr std::string redis_command = "keys " + '*' + keys_prefix_name+ '*';
+        auto cmd_per_server = [](::sw::redis::Connection &connection) {connection.send("cluster slots");};
+        std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply = redis_conn->command(cmd, redis_command.data());
+        std::vector<std::string> IP_set;
+        siez_t servers_num = reply->elements;
+        IP_set.reserve(servers_num);
+        for (size_t i = 0; i < servers_num; ++i)
+        {
+          IP_set.emplace_back(std::string(reply->element[i]->element[2]->element[0]->str, reply->element[i]->element[2]->element[0]->len));
+        }
+        
+        std::unique_ptr<Redis> redis_client;
+        std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply_server;
+        ConnectionOptions connection_options;
+        size_t slices_in_redis = 0;
+        for (size_t i = 0; i < iterator_IP_set.size(); ++i)
+        {
+          connection_options.host = IP_set[i];  // Required.
+          connection_options.port = redis_connection_params.host_port; // Optional. The default port is 6379.
+          connection_options.password = redis_connection_params.password;   // Optional. No password by default.
+          connection_options.db = redis_connection_params.db;  // Optional. Use the 0th database by default.
+          redis_client.reset(new Redis(connection_options));
+          auto cmd_per_server = [](::sw::redis::Connection &connection, char *str) {connection.send(str);};
+          reply_server.reset(redis_client->command(cmd_per_server, redis_command.data()));
+          slices_in_redis += reply_server->elements;
+        }
+        
+        if (slices_in_redis != redis_connection_params.storage_slice)
+        {
+          std::errc << "storage_slice in redis_connection_params did not equal to the slices number of this keys_prefix_name in the Redis server" <<std::endl;
+          return false;
+        }
+        else
+        {
+          return true;
+        }
+        return false;
+      }
+
       virtual size_t table_size_in_slots(const std::vector<std::string> &keys_prefix_name_slices) override
       {
         std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply;
@@ -159,7 +201,7 @@ namespace sw::redis
         {
           command_string.clear();
           command_string = command_string + redis_command + keys_prefix_name_slices[i];
-          reply = redis_conn->command(cmd, command_string.data());
+          reply.reset(redis_conn->command(cmd, command_string.data()));
           size += std::strtoumax(reply->element[0]->str, nullptr, 10); // decimal
         }
         

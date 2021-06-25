@@ -136,6 +136,23 @@ namespace sw::redis
     
     public:
 
+      virtual bool check_slices_num(const std::string &keys_prefix_name) override 
+      {
+        constexpr std::string redis_command = "keys " + '*' + keys_prefix_name+ '*';
+        auto cmd = [](::sw::redis::Connection &connection, char *str) {connection.send(str);};
+        std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply = redis_conn->command(cmd, redis_command.data());
+        if (reply->elements != redis_connection_params.storage_slice)
+        {
+          std::errc << "storage_slice in redis_connection_params did not equal to the slices number of this keys_prefix_name in the Redis server" <<std::endl;
+          return false;
+        }
+        else
+        {
+          return true;
+        }
+        return false;
+      }
+
       virtual size_t table_size_in_slots(const std::vector<std::string> &keys_prefix_name_slices) override
       {
         constexpr std::string redis_command = "hlen " + keys_prefix_name_slices[0];
