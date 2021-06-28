@@ -69,6 +69,12 @@ namespace tensorflow
         std::vector<ThreadContext> threads_Find;
         std::vector<ThreadContext> threads_Insert;
 
+        std::vector<aiocb> IMPORT_content;
+        std::vector<int> IMPORT_fds;
+        std::vector<unsigned long> IMPORT_fds_sizes;
+        std::vector<aiocb> EXPORT_content;
+        std::vector<int> EXPORT_fds;
+
       public:
         Redis_Connection_Params redis_connection_params;
 
@@ -335,53 +341,47 @@ namespace tensorflow
         Status ImportValues(OpKernelContext *ctx, const Tensor &keys,
                             const Tensor &values) override
         {
-          return DoInsert(true, ctx, keys, values);
+          // return DoInsert(true, ctx, keys, values);
+          std::string file_name;
+          const &&storage_slice = redis_connection_params.storage_slice;
+
+          IMPORT_content.resize(storage_slice);
+          IMPORT_fds.reserve(storage_slice);
+          IMPORT_fds.clear();
+          IMPORT_fds_sizes.reserve(storage_slice);
+          IMPORT_fds_sizes.clear();
+
+          for (size_t i = 0; i < storage_slice; ++i)
+          {
+            file_name = redis_connection_params.model_lib_abs_dir+keys_prefix_name_slices[0]+".rdb";
+            if (_access(file_name.c_str(), 0) == -1) throw("file" + file_name + "doesn't exist");
+            IMPORT_fds.push_back(open(file_name,O_WRONLY));
+            IMPORT_fds_sizes.push_back(get_file_size(file_name));
+          }
+          
+          _table_instance->restore_from_disk(keys_prefix_name_slices, IMPORT_content, IMPORT_fds, IMPORT_fds_sizes);
+
+          return Status::OK();
         }
 
         Status ExportValues(OpKernelContext *ctx) override
         {
-          int64 value_dim = value_shape_.dim_size(0);
-          int64 size;
+          std::string file_name;
+          const &&storage_slice = redis_connection_params.storage_slice;
 
-          Tensor *keys;
-          Tensor *values;
+          EXPORT_content.resize(storage_slice);
+          EXPORT_fds.reserve(storage_slice);
+          EXPORT_fds.clear();
 
-          if (redis_connection_params.connection_mode != SentinelMode)
+          for (size_t i = 0; i < storage_slice; ++i)
           {
-            std::string err1 = "Sorry! Cluster mode It's still being finished ExportValues function.";
-            return Status(tensorflow::error::UNAVAILABLE, err1);
+            file_name = redis_connection_params.model_lib_abs_dir+keys_prefix_name_slices[0]+".rdb";
+            if (_access(file_name.c_str(), 0) == -1) remove(file_name);
+            IMPORT_fds.push_back(open(file_name,O_WRONLY));
           }
 
-          // SWITCH_REDIS_MODE_noCluster(redis_connection_params.connection_mode, size =, dbsize);
-
-          TF_RETURN_IF_ERROR(
-              ctx->allocate_output("keys", TensorShape({size}), &keys));
-          TF_RETURN_IF_ERROR(ctx->allocate_output(
-              "values", TensorShape({size, value_dim}), &values));
-
-          std::vector<std::string> redis_keys(size);
-          // SWITCH_REDIS_MODE_noCluster(redis_connection_params.connection_mode, , keys, "*", std::back_inserter(redis_keys));
-
-          std::vector<std::string> redis_vals(size);
-          // SWITCH_REDIS_MODE(redis_connection_params.connection_mode, , mget, redis_keys.begin(), redis_keys.end(), std::back_inserter(redis_vals));
-
-          auto shard = [this, keys, values, &redis_keys, &redis_vals, &size](int64 begin, int64 end)
-          {
-            for (int64 i = begin; i < end; ++i)
-            {
-              if (i >= size)
-              {
-                break;
-              }
-              keys->SubSlice(i).tensor_data() = redis_keys[i];
-              values->SubSlice(i).tensor_data() = redis_vals[i];
-            }
-          };
-          auto &worker_threads = *ctx->device()->tensorflow_cpu_worker_threads();
-          int64 slices = static_cast<int64>(size / worker_threads.num_threads) + 1;
-          Shard(worker_threads.num_threads, worker_threads.workers, size, slices,
-                shard);
-
+          _table_instance->dump_to_disk(keys_prefix_name_slices, EXPORT_content, EXPORT_fds);
+          
           return Status::OK();
         }
 
