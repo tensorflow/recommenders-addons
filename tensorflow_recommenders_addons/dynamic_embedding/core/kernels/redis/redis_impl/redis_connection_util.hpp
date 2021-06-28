@@ -14,6 +14,10 @@ limitations under the License.
 ==============================================================================*/
 #pragma once
 #include <unistd.h>
+#include <io.h>
+#include <aio.h>
+#include <sys/stat.h>  
+#include <direct.h>
 #include <iostream>
 #include <cmath>
 
@@ -51,6 +55,58 @@ namespace sw::redis
       int bitlen = 1 + static_cast<int>(std::log2(v));
       // v = 1 << bitlen; //number_round_next_power_two
       return bitlen;
+    }
+
+    inline unsigned long get_file_size(const std::string path)  
+    {  
+        unsigned long filesize = -1;      
+        struct stat statbuff;  
+        if(stat(path.data(), &statbuff) < 0){ 
+            throw("The file "+ path +" does not exist"); 
+            return filesize;  
+        }else{  
+            filesize = statbuff.st_size;  
+        }  
+        return filesize;  
+    }
+
+    inline int createDirectory(const std::string path)
+    {
+      int len = path.length();
+      char tmpDirPath[1024] = { 0 };
+      for (int i = 0; i < len; i++)
+      {
+        tmpDirPath[i] = path[i];
+        if (tmpDirPath[i] == '\\' || tmpDirPath[i] == '/')
+        {
+          if (_access(tmpDirPath, 0) == -1)
+          {
+            int ret = _mkdir(tmpDirPath);
+            if (ret == -1) return ret;
+          }
+        }
+      }
+      return 0;
+    }
+
+    inline std::string check_dir(const std::string path_in)
+    {
+      std::string path = path_in;
+      if(path.back()!='/')
+      {
+        path.push_back('/');
+      }
+      if (_access(path.c_str(), 0) == -1)	//if folder doesn't exist
+        std::cout << "folder" << path << "doesn't exist" << std::endl;
+		    if (createDirectory(path) == 0)
+        {
+          std::cout << "folder" << path << "was created" << std::endl;
+        }
+        else
+        {
+          std::cout << "folder" << path << "failed to create" << std::endl;
+        }
+      return path;
     }
 
     std::array<unsigned char, 16> MD5(const std::string &src)
@@ -115,7 +171,7 @@ namespace sw::redis
         storage_slice = 1 << storage_slice_log2;
         model_tag = x.model_tag;
         using_MD5_prefix_name = x.using_MD5_prefix_name;
-        model_lib_abs_dir = x.model_lib_abs_dir;
+        model_lib_abs_dir = check_dir(x.model_lib_abs_dir);
         return *this;
       }
     };
@@ -167,7 +223,12 @@ namespace sw::redis
 
       virtual size_t table_size_in_slots(const std::vector<std::string> &keys_prefix_name_slices) override {return 0;}
 
-      virtual void remove_hkeys_in_slots(const std::vector<std::string> &keys_prefix_name_slices) override {return 0;}
+      virtual void remove_hkeys_in_slots(const std::vector<std::string> &keys_prefix_name_slices) override {};
+
+      virtual void dump_to_disk(const std::vector<std::string> &keys_prefix_name_slices, std::vector<aiocb> &wrs, const std::vector<int> &fds) override {};
+
+      virtual void restore_from_disk(const std::vector<std::string> &keys_prefix_name_slices, std::vector<aiocb> &rds, 
+        const std::vector<int> &fds, const std::vector<unsigned long> &buf_sizes) override {};
 
       virtual std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>> MGET_COMMAND(
         const ::tensorflow::Tensor &keys, ThreadContext &thread_context,

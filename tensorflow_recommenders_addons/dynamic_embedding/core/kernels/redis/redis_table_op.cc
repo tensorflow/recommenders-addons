@@ -35,7 +35,7 @@ using sw::redis::Redis;
 using sw::redis::RedisCluster;
 using namespace sw::redis::redis_connection;
 
-constexpr int kv_pairs_default_size = 1024*8;
+// constexpr int kv_pairs_default_size = 1024*8;
 /*
 In the code, Redis limits the size of arguments that command can set to 1024*1024. 
 For example, mset can only set 524287 {(1024*1024-2)/2} keys every times.
@@ -58,7 +58,7 @@ namespace tensorflow
       private:
         TensorShape value_shape_;
         size_t runtime_dim_;
-        size_t init_size_;
+        // size_t init_size_;
         std::string embedding_name;
         std::string keys_prefix_name;
         std::vector<std::string> keys_prefix_name_slices;
@@ -169,19 +169,23 @@ namespace tensorflow
               ctx, TensorShapeUtils::IsVector(value_shape_),
               errors::InvalidArgument("Default value must be a vector, got shape ",
                                       value_shape_.DebugString()));
-          //The init_size and embedding vector shape are useless for the initialization of Redis.
-          init_size_ = static_cast<size_t>(init_size);
-          if (init_size_ == 0)
-          {
-            Status status = ReadInt64FromEnvVar("TF_HASHTABLE_INIT_SIZE",
-                                                kv_pairs_default_size, // 8192 KV pairs by default
-                                                &env_var);
-            if (!status.ok())
-            {
-              LOG(ERROR) << "Error parsing TF_HASHTABLE_INIT_SIZE: " << status;
-            }
-            init_size_ = env_var;
-          }
+
+          // //The init_size and embedding vector shape are useless for the initialization of Redis.
+          // 
+          // init_size_ = static_cast<size_t>(init_size);
+          // if (init_size_ == 0)
+          // {
+          //   Status status = ReadInt64FromEnvVar("TF_HASHTABLE_INIT_SIZE",
+          //                                       kv_pairs_default_size, // 8192 KV pairs by default
+          //                                       &env_var);
+          //   if (!status.ok())
+          //   {
+          //     LOG(ERROR) << "Error parsing TF_HASHTABLE_INIT_SIZE: " << status;
+          //   }
+          //   init_size_ = env_var;
+          // }
+          // 
+
           runtime_dim_ = value_shape_.dim_size(0);
 
           OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "embedding_name", &tmp_embedding_name));
@@ -189,7 +193,7 @@ namespace tensorflow
 
           if(redis_connection_params.using_MD5_prefix_name)
           {
-            const std::string tmp_keys_prefix_name = redis_connection_params.model_tag+":"+embedding_name;
+            const std::string &&tmp_keys_prefix_name = redis_connection_params.model_tag+":"+embedding_name;
             keys_prefix_name_md5 = ::sw::redis::redis_connection::MD5(tmp_keys_prefix_name);
 
             std::string md5_string;
@@ -214,11 +218,11 @@ namespace tensorflow
             keys_prefix_name = redis_connection_params.model_tag+":"+embedding_name;
           }
 
-          const unsigned storage_slice = redis_connection_params.storage_slice;
+          const unsigned &&storage_slice = redis_connection_params.storage_slice;
           keys_prefix_name_slices.reserve(storage_slice);
           for (unsigned i = 0; i < storage_slice; ++i)
           {
-            keys_prefix_name_slices.push_back(keys_prefix_name + std::to_string(storage_slice));
+            keys_prefix_name_slices.push_back(keys_prefix_name + std::to_string(i));
           }
 
           // creat redis instance
