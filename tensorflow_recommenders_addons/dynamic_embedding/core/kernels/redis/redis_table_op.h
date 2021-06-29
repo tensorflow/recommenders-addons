@@ -175,3 +175,5 @@ namespace tensorflow
     } // namespace redis_lookup
   }   // namespace recommenders_addons
 } // namespace tensorflow
+
+#endif // TFRA_CORE_KERNELS_REDIS_LOOKUP_TABLE_OP_H_

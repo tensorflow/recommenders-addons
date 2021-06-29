@@ -18,236 +18,263 @@ limitations under the License.
 #include "tensorflow/core/framework/op_def_builder.h"
 #include "tensorflow/core/framework/shape_inference.h"
 
-namespace tensorflow {
+namespace tensorflow
+{
 
-using shape_inference::DimensionHandle;
-using shape_inference::InferenceContext;
-using shape_inference::ShapeAndType;
-using shape_inference::ShapeHandle;
+  using shape_inference::DimensionHandle;
+  using shape_inference::InferenceContext;
+  using shape_inference::ShapeAndType;
+  using shape_inference::ShapeHandle;
 
-namespace {
+  namespace
+  {
 
-Status ScalarAndTwoElementVectorInputsAndScalarOutputs(InferenceContext* c) {
-  ShapeHandle handle;
-  DimensionHandle unused_handle;
-  TF_RETURN_IF_ERROR(c->WithRank(c->input(0), 0, &handle));
-  for (int i = 1; i < c->num_inputs(); ++i) {
-    TF_RETURN_IF_ERROR(c->WithRank(c->input(i), 1, &handle));
-    TF_RETURN_IF_ERROR(c->WithValue(c->Dim(handle, 0), 2, &unused_handle));
-  }
-  for (int i = 0; i < c->num_outputs(); ++i) {
-    c->set_output(i, c->Scalar());
-  }
-  return Status::OK();
-}
-
-}  // namespace
-
-Status ValidateTableResourceHandle(InferenceContext* c, ShapeHandle keys,
-                                   const string& key_dtype_attr,
-                                   const string& value_dtype_attr,
-                                   bool is_lookup,
-                                   ShapeAndType* output_shape_and_type) {
-  auto* handle_data = c->input_handle_shapes_and_types(0);
-  if (handle_data == nullptr || handle_data->size() != 2) {
-    output_shape_and_type->shape = c->UnknownShape();
-    output_shape_and_type->dtype = DT_INVALID;
-  } else {
-    const ShapeAndType& key_shape_and_type = (*handle_data)[0];
-    const ShapeAndType& value_shape_and_type = (*handle_data)[1];
-    DataType key_dtype;
-    TF_RETURN_IF_ERROR(c->GetAttr(key_dtype_attr, &key_dtype));
-    if (key_shape_and_type.dtype != key_dtype) {
-      return errors::InvalidArgument(
-          "Trying to read value with wrong dtype. "
-          "Expected ",
-          DataTypeString(key_shape_and_type.dtype), " got ",
-          DataTypeString(key_dtype));
-    }
-    DataType value_dtype;
-    TF_RETURN_IF_ERROR(c->GetAttr(value_dtype_attr, &value_dtype));
-    if (value_shape_and_type.dtype != value_dtype) {
-      return errors::InvalidArgument(
-          "Trying to read value with wrong dtype. "
-          "Expected ",
-          DataTypeString(value_shape_and_type.dtype), " got ",
-          DataTypeString(value_dtype));
-    }
-    output_shape_and_type->dtype = value_shape_and_type.dtype;
-
-    if (is_lookup) {
-      if (c->RankKnown(key_shape_and_type.shape) && c->RankKnown(keys)) {
-        int keys_rank = c->Rank(keys);
-        int key_suffix_rank = c->Rank(key_shape_and_type.shape);
-        if (keys_rank < key_suffix_rank) {
-          return errors::InvalidArgument(
-              "Expected keys to have suffix ",
-              c->DebugString(key_shape_and_type.shape),
-              " but saw shape: ", c->DebugString(keys));
-        }
-        for (int d = 0; d < key_suffix_rank; d++) {
-          // Ensure the suffix of keys match what's in the Table.
-          DimensionHandle dim = c->Dim(key_shape_and_type.shape, d);
-          TF_RETURN_IF_ERROR(
-              c->ReplaceDim(keys, keys_rank - key_suffix_rank + d, dim, &keys));
-        }
-        std::vector<DimensionHandle> keys_prefix_vec;
-        keys_prefix_vec.reserve(keys_rank - key_suffix_rank);
-        for (int d = 0; d < keys_rank - key_suffix_rank; ++d) {
-          keys_prefix_vec.push_back(c->Dim(keys, d));
-        }
-        ShapeHandle keys_prefix = c->MakeShape(keys_prefix_vec);
-        TF_RETURN_IF_ERROR(c->Concatenate(keys_prefix,
-                                          value_shape_and_type.shape,
-                                          &output_shape_and_type->shape));
-      } else {
-        output_shape_and_type->shape = c->UnknownShape();
+    Status ScalarAndTwoElementVectorInputsAndScalarOutputs(InferenceContext *c)
+    {
+      ShapeHandle handle;
+      DimensionHandle unused_handle;
+      TF_RETURN_IF_ERROR(c->WithRank(c->input(0), 0, &handle));
+      for (int i = 1; i < c->num_inputs(); ++i)
+      {
+        TF_RETURN_IF_ERROR(c->WithRank(c->input(i), 1, &handle));
+        TF_RETURN_IF_ERROR(c->WithValue(c->Dim(handle, 0), 2, &unused_handle));
       }
-    } else {
-      TF_RETURN_IF_ERROR(c->Concatenate(keys, value_shape_and_type.shape,
-                                        &output_shape_and_type->shape));
+      for (int i = 0; i < c->num_outputs(); ++i)
+      {
+        c->set_output(i, c->Scalar());
+      }
+      return Status::OK();
     }
+
+  } // namespace
+
+  Status ValidateTableResourceHandle(InferenceContext *c, ShapeHandle keys,
+                                     const string &key_dtype_attr,
+                                     const string &value_dtype_attr,
+                                     bool is_lookup,
+                                     ShapeAndType *output_shape_and_type)
+  {
+    auto *handle_data = c->input_handle_shapes_and_types(0);
+    if (handle_data == nullptr || handle_data->size() != 2)
+    {
+      output_shape_and_type->shape = c->UnknownShape();
+      output_shape_and_type->dtype = DT_INVALID;
+    }
+    else
+    {
+      const ShapeAndType &key_shape_and_type = (*handle_data)[0];
+      const ShapeAndType &value_shape_and_type = (*handle_data)[1];
+      DataType key_dtype;
+      TF_RETURN_IF_ERROR(c->GetAttr(key_dtype_attr, &key_dtype));
+      if (key_shape_and_type.dtype != key_dtype)
+      {
+        return errors::InvalidArgument(
+            "Trying to read value with wrong dtype. "
+            "Expected ",
+            DataTypeString(key_shape_and_type.dtype), " got ",
+            DataTypeString(key_dtype));
+      }
+      DataType value_dtype;
+      TF_RETURN_IF_ERROR(c->GetAttr(value_dtype_attr, &value_dtype));
+      if (value_shape_and_type.dtype != value_dtype)
+      {
+        return errors::InvalidArgument(
+            "Trying to read value with wrong dtype. "
+            "Expected ",
+            DataTypeString(value_shape_and_type.dtype), " got ",
+            DataTypeString(value_dtype));
+      }
+      output_shape_and_type->dtype = value_shape_and_type.dtype;
+
+      if (is_lookup)
+      {
+        if (c->RankKnown(key_shape_and_type.shape) && c->RankKnown(keys))
+        {
+          int keys_rank = c->Rank(keys);
+          int key_suffix_rank = c->Rank(key_shape_and_type.shape);
+          if (keys_rank < key_suffix_rank)
+          {
+            return errors::InvalidArgument(
+                "Expected keys to have suffix ",
+                c->DebugString(key_shape_and_type.shape),
+                " but saw shape: ", c->DebugString(keys));
+          }
+          for (int d = 0; d < key_suffix_rank; d++)
+          {
+            // Ensure the suffix of keys match what's in the Table.
+            DimensionHandle dim = c->Dim(key_shape_and_type.shape, d);
+            TF_RETURN_IF_ERROR(
+                c->ReplaceDim(keys, keys_rank - key_suffix_rank + d, dim, &keys));
+          }
+          std::vector<DimensionHandle> keys_prefix_vec;
+          keys_prefix_vec.reserve(keys_rank - key_suffix_rank);
+          for (int d = 0; d < keys_rank - key_suffix_rank; ++d)
+          {
+            keys_prefix_vec.push_back(c->Dim(keys, d));
+          }
+          ShapeHandle keys_prefix = c->MakeShape(keys_prefix_vec);
+          TF_RETURN_IF_ERROR(c->Concatenate(keys_prefix,
+                                            value_shape_and_type.shape,
+                                            &output_shape_and_type->shape));
+        }
+        else
+        {
+          output_shape_and_type->shape = c->UnknownShape();
+        }
+      }
+      else
+      {
+        TF_RETURN_IF_ERROR(c->Concatenate(keys, value_shape_and_type.shape,
+                                          &output_shape_and_type->shape));
+      }
+    }
+    return Status::OK();
   }
-  return Status::OK();
-}
 
-REGISTER_OP("TFRA>RedisTableFind")
-    .Input("table_handle: resource")
-    .Input("keys: Tin")
-    .Input("default_value: Tout")
-    .Output("values: Tout")
-    .Attr("Tin: type")
-    .Attr("Tout: type")
-    .SetShapeFn([](InferenceContext* c) {
-      ShapeHandle handle;
-      TF_RETURN_IF_ERROR(c->WithRank(c->input(0), 0, &handle));
+  REGISTER_OP("TFRA>RedisTableFind")
+      .Input("table_handle: resource")
+      .Input("keys: Tin")
+      .Input("default_value: Tout")
+      .Output("values: Tout")
+      .Attr("Tin: type")
+      .Attr("Tout: type")
+      .SetShapeFn([](InferenceContext *c)
+                  {
+                    ShapeHandle handle;
+                    TF_RETURN_IF_ERROR(c->WithRank(c->input(0), 0, &handle));
 
-      ShapeAndType value_shape_and_type;
-      TF_RETURN_IF_ERROR(ValidateTableResourceHandle(
-          c,
-          /*keys=*/c->input(1),
-          /*key_dtype_attr=*/"Tin",
-          /*value_dtype_attr=*/"Tout",
-          /*is_lookup=*/true, &value_shape_and_type));
-      c->set_output(0, value_shape_and_type.shape);
+                    ShapeAndType value_shape_and_type;
+                    TF_RETURN_IF_ERROR(ValidateTableResourceHandle(
+                        c,
+                        /*keys=*/c->input(1),
+                        /*key_dtype_attr=*/"Tin",
+                        /*value_dtype_attr=*/"Tout",
+                        /*is_lookup=*/true, &value_shape_and_type));
+                    c->set_output(0, value_shape_and_type.shape);
 
-      return Status::OK();
-    });
+                    return Status::OK();
+                  });
 
-REGISTER_OP("TFRA>RedisTableInsert")
-    .Input("table_handle: resource")
-    .Input("keys: Tin")
-    .Input("values: Tout")
-    .Attr("Tin: type")
-    .Attr("Tout: type")
-    .SetShapeFn([](InferenceContext* c) {
-      ShapeHandle handle;
-      TF_RETURN_IF_ERROR(c->WithRank(c->input(0), 0, &handle));
+  REGISTER_OP("TFRA>RedisTableInsert")
+      .Input("table_handle: resource")
+      .Input("keys: Tin")
+      .Input("values: Tout")
+      .Attr("Tin: type")
+      .Attr("Tout: type")
+      .SetShapeFn([](InferenceContext *c)
+                  {
+                    ShapeHandle handle;
+                    TF_RETURN_IF_ERROR(c->WithRank(c->input(0), 0, &handle));
 
-      // TODO: Validate keys and values shape.
-      return Status::OK();
-    });
+                    // TODO: Validate keys and values shape.
+                    return Status::OK();
+                  });
 
-REGISTER_OP("TFRA>RedisTableRemove")
-    .Input("table_handle: resource")
-    .Input("keys: Tin")
-    .Attr("Tin: type")
-    .SetShapeFn([](InferenceContext* c) {
-      ShapeHandle handle;
-      TF_RETURN_IF_ERROR(c->WithRank(c->input(0), 0, &handle));
-      TF_RETURN_IF_ERROR(c->WithRankAtLeast(c->input(1), 1, &handle));
+  REGISTER_OP("TFRA>RedisTableRemove")
+      .Input("table_handle: resource")
+      .Input("keys: Tin")
+      .Attr("Tin: type")
+      .SetShapeFn([](InferenceContext *c)
+                  {
+                    ShapeHandle handle;
+                    TF_RETURN_IF_ERROR(c->WithRank(c->input(0), 0, &handle));
+                    TF_RETURN_IF_ERROR(c->WithRankAtLeast(c->input(1), 1, &handle));
 
-      // TODO(turboale): Validate keys shape.
-      return Status::OK();
-    });
+                    // TODO(turboale): Validate keys shape.
+                    return Status::OK();
+                  });
 
-REGISTER_OP("TFRA>RedisTableSize")
-    .Input("table_handle: resource")
-    .Output("size: int64")
-    .SetShapeFn(ScalarAndTwoElementVectorInputsAndScalarOutputs);
+  REGISTER_OP("TFRA>RedisTableSize")
+      .Input("table_handle: resource")
+      .Output("size: int64")
+      .SetShapeFn(ScalarAndTwoElementVectorInputsAndScalarOutputs);
 
-REGISTER_OP("TFRA>RedisTableExport")
-    .Input("table_handle: resource")
-    .Output("keys: Tkeys")
-    .Output("values: Tvalues")
-    .Attr("Tkeys: type")
-    .Attr("Tvalues: type")
-    .SetShapeFn([](InferenceContext* c) {
-      ShapeHandle handle;
-      TF_RETURN_IF_ERROR(c->WithRank(c->input(0), 0, &handle));
-      ShapeHandle keys = c->UnknownShapeOfRank(1);
-      ShapeAndType value_shape_and_type;
-      TF_RETURN_IF_ERROR(ValidateTableResourceHandle(
-          c,
-          /*keys=*/keys,
-          /*key_dtype_attr=*/"Tkeys",
-          /*value_dtype_attr=*/"Tvalues",
-          /*is_lookup=*/false, &value_shape_and_type));
-      c->set_output(0, keys);
-      c->set_output(1, value_shape_and_type.shape);
-      return Status::OK();
-    });
+  REGISTER_OP("TFRA>RedisTableExport")
+      .Input("table_handle: resource")
+      .Output("keys: Tkeys")
+      .Output("values: Tvalues")
+      .Attr("Tkeys: type")
+      .Attr("Tvalues: type")
+      .SetShapeFn([](InferenceContext *c)
+                  {
+                    ShapeHandle handle;
+                    TF_RETURN_IF_ERROR(c->WithRank(c->input(0), 0, &handle));
+                    ShapeHandle keys = c->UnknownShapeOfRank(1);
+                    ShapeAndType value_shape_and_type;
+                    TF_RETURN_IF_ERROR(ValidateTableResourceHandle(
+                        c,
+                        /*keys=*/keys,
+                        /*key_dtype_attr=*/"Tkeys",
+                        /*value_dtype_attr=*/"Tvalues",
+                        /*is_lookup=*/false, &value_shape_and_type));
+                    c->set_output(0, keys);
+                    c->set_output(1, value_shape_and_type.shape);
+                    return Status::OK();
+                  });
 
-REGISTER_OP("TFRA>RedisTableImport")
-    .Input("table_handle: resource")
-    .Input("keys: Tin")
-    .Input("values: Tout")
-    .Attr("Tin: type")
-    .Attr("Tout: type")
-    .SetShapeFn([](InferenceContext* c) {
-      ShapeHandle handle;
-      TF_RETURN_IF_ERROR(c->WithRank(c->input(0), 0, &handle));
+  REGISTER_OP("TFRA>RedisTableImport")
+      .Input("table_handle: resource")
+      .Input("keys: Tin")
+      .Input("values: Tout")
+      .Attr("Tin: type")
+      .Attr("Tout: type")
+      .SetShapeFn([](InferenceContext *c)
+                  {
+                    ShapeHandle handle;
+                    TF_RETURN_IF_ERROR(c->WithRank(c->input(0), 0, &handle));
 
-      ShapeHandle keys;
-      TF_RETURN_IF_ERROR(c->WithRank(c->input(1), 1, &keys));
-      TF_RETURN_IF_ERROR(c->Merge(keys, c->input(2), &keys));
-      return Status::OK();
-    });
+                    ShapeHandle keys;
+                    TF_RETURN_IF_ERROR(c->WithRank(c->input(1), 1, &keys));
+                    TF_RETURN_IF_ERROR(c->Merge(keys, c->input(2), &keys));
+                    return Status::OK();
+                  });
 
-Status RedisTableShape(InferenceContext* c, const ShapeHandle& key,
-                            const ShapeHandle& value) {
-  c->set_output(0, c->Scalar());
+  Status RedisTableShape(InferenceContext *c, const ShapeHandle &key,
+                         const ShapeHandle &value)
+  {
+    c->set_output(0, c->Scalar());
 
-  ShapeHandle key_s;
-  TF_RETURN_IF_ERROR(c->WithRankAtMost(key, 1, &key_s));
+    ShapeHandle key_s;
+    TF_RETURN_IF_ERROR(c->WithRankAtMost(key, 1, &key_s));
 
-  DataType key_t;
-  TF_RETURN_IF_ERROR(c->GetAttr("key_dtype", &key_t));
+    DataType key_t;
+    TF_RETURN_IF_ERROR(c->GetAttr("key_dtype", &key_t));
 
-  DataType value_t;
-  TF_RETURN_IF_ERROR(c->GetAttr("value_dtype", &value_t));
+    DataType value_t;
+    TF_RETURN_IF_ERROR(c->GetAttr("value_dtype", &value_t));
 
-  c->set_output_handle_shapes_and_types(
-      0, std::vector<ShapeAndType>{{key_s, key_t}, {value, value_t}});
+    c->set_output_handle_shapes_and_types(
+        0, std::vector<ShapeAndType>{{key_s, key_t}, {value, value_t}});
 
-  return Status::OK();
-}
+    return Status::OK();
+  }
 
-REGISTER_OP("TFRA>RedisTableOfTensors")
-    .Output("table_handle: resource")
-    .Attr("container: string = ''")
-    .Attr("shared_name: string = ''")
-    .Attr("use_node_name_sharing: bool = false")
-    .Attr("key_dtype: type")
-    .Attr("value_dtype: type")
-    .Attr("value_shape: shape = {}")
-    .Attr("embedding_name: string = ''")
-    .Attr("connection_mode: int = 1")
-    .Attr("master_name: string = ''")
-    .Attr("host_ip: string = ''")
-    .Attr("host_port: int = 26379")
-    .Attr("password: string = ''")
-    .Attr("db: int = 0")
-    .Attr("storage_slice: int = 0")
-    .Attr("model_tag: string = ''")
-    .Attr("using_MD5_prefix_name: bool = false")
-    .Attr("model_lib_abs_dir: string = ''")
-    .SetIsStateful()
-    .SetShapeFn([](InferenceContext* c) {
-      PartialTensorShape value_p;
-      TF_RETURN_IF_ERROR(c->GetAttr("value_shape", &value_p));
-      ShapeHandle value_s;
-      TF_RETURN_IF_ERROR(c->MakeShapeFromPartialTensorShape(value_p, &value_s));
-      return RedisTableShape(c, /*key=*/c->Scalar(), /*value=*/value_s);
-    });
-}  // namespace tensorflow
+  REGISTER_OP("TFRA>RedisTableOfTensors")
+      .Output("table_handle: resource")
+      .Attr("container: string = ''")
+      .Attr("shared_name: string = ''")
+      .Attr("use_node_name_sharing: bool = false")
+      .Attr("key_dtype: type")
+      .Attr("value_dtype: type")
+      .Attr("value_shape: shape = {}")
+      .Attr("embedding_name: string = ''")
+      .Attr("connection_mode: int = 1")
+      .Attr("master_name: string = ''")
+      .Attr("host_ip: string = ''")
+      .Attr("host_port: int = 26379")
+      .Attr("password: string = ''")
+      .Attr("db: int = 0")
+      .Attr("storage_slice: int = 0")
+      .Attr("model_tag: string = ''")
+      .Attr("using_MD5_prefix_name: bool = false")
+      .Attr("model_lib_abs_dir: string = ''")
+      .SetIsStateful()
+      .SetShapeFn([](InferenceContext *c)
+                  {
+                    PartialTensorShape value_p;
+                    TF_RETURN_IF_ERROR(c->GetAttr("value_shape", &value_p));
+                    ShapeHandle value_s;
+                    TF_RETURN_IF_ERROR(c->MakeShapeFromPartialTensorShape(value_p, &value_s));
+                    return RedisTableShape(c, /*key=*/c->Scalar(), /*value=*/value_s);
+                  });
+} // namespace tensorflow

@@ -56,23 +56,26 @@ namespace sw::redis
       return bitlen;
     }
 
-    inline unsigned long get_file_size(const std::string path)  
-    {  
-        unsigned long filesize = -1;      
-        struct stat statbuff;  
-        if(stat(path.data(), &statbuff) < 0){ 
-            throw("The file "+ path +" does not exist"); 
-            return filesize;  
-        }else{  
-            filesize = statbuff.st_size;  
-        }  
-        return filesize;  
+    inline unsigned long get_file_size(const std::string path)
+    {
+      unsigned long filesize = -1;
+      struct stat statbuff;
+      if (stat(path.data(), &statbuff) < 0)
+      {
+        throw("The file " + path + " does not exist");
+        return filesize;
+      }
+      else
+      {
+        filesize = statbuff.st_size;
+      }
+      return filesize;
     }
 
     inline int createDirectory(const std::string path)
     {
       int len = path.length();
-      char tmpDirPath[1024] = { 0 };
+      char tmpDirPath[1024] = {0};
       for (int i = 0; i < len; i++)
       {
         tmpDirPath[i] = path[i];
@@ -81,7 +84,8 @@ namespace sw::redis
           if (access(tmpDirPath, 0) == -1)
           {
             int ret = mkdir(tmpDirPath, S_IRWXU | S_IRWXG | S_IRWXO);
-            if (ret == -1) return ret;
+            if (ret == -1)
+              return ret;
           }
         }
       }
@@ -91,35 +95,37 @@ namespace sw::redis
     inline std::string check_dir(const std::string path_in)
     {
       std::string path = path_in;
-      if(path.back()!='/')
+      if (path.back() != '/')
       {
         path.push_back('/');
       }
-      if (access(path.c_str(), 0) == -1)	//if folder doesn't exist
+      if (access(path.c_str(), 0) == -1) //if folder doesn't exist
         std::cout << "folder" << path << "doesn't exist" << std::endl;
-		    if (createDirectory(path) == 0)
-        {
-          std::cout << "folder" << path << "was created" << std::endl;
-        }
-        else
-        {
-          std::cout << "folder" << path << "failed to create" << std::endl;
-        }
+      if (createDirectory(path) == 0)
+      {
+        std::cout << "folder" << path << "was created" << std::endl;
+      }
+      else
+      {
+        std::cout << "folder" << path << "failed to create" << std::endl;
+      }
       return path;
     }
 
-    inline int ReadInt32FromEnvVar(const std::string &env_var_name, const int &default_val, int *value) {
-      const char* _env_var_val = getenv(env_var_name.c_str());
-      if (_env_var_val == nullptr) {
+    inline int ReadInt32FromEnvVar(const std::string &env_var_name, const int &default_val, int *value)
+    {
+      const char *_env_var_val = getenv(env_var_name.c_str());
+      if (_env_var_val == nullptr)
+      {
         return 0;
       }
       *value = std::stoi(_env_var_val);
-      if (static_cast<long long>(*value) == std::stol(_env_var_val)) {
+      if (static_cast<long long>(*value) == std::stol(_env_var_val))
+      {
         return 0;
       }
       *value = default_val;
-      std::cerr << "Failed to parse the env-var ${" << env_var_name << "} into int32: " << \
-          _env_var_val << ". Use the default value: " << default_val << std::endl;
+      std::cerr << "Failed to parse the env-var ${" << env_var_name << "} into int32: " << _env_var_val << ". Use the default value: " << default_val << std::endl;
       return -1;
     }
 
@@ -163,7 +169,7 @@ namespace sw::redis
       // Below there is user-defined parameters in this custom op, not Redis setting parameters
       unsigned storage_slice = 1;      // For deciding hash tag, which usually is how many Redis instance may be used in the trainning.
       unsigned storage_slice_log2 = 0; // For fast calculation.
-      std::string model_tag = "test"; //  model_tag for version and any other information
+      std::string model_tag = "test";  //  model_tag for version and any other information
       bool using_MD5_prefix_name = false;
       std::string model_lib_abs_dir = "/tmp/";
 
@@ -191,17 +197,19 @@ namespace sw::redis
       }
     };
 
-    struct SlotContext {
+    struct SlotContext
+    {
       std::vector<const char *> ptrs;
       std::vector<std::size_t> sizes;
     };
-    
-    struct ThreadContext {
+
+    struct ThreadContext
+    {
       std::vector<SlotContext> slots;
       std::vector<unsigned> slot_locs;
 
       void HandleReserve(const unsigned &storage_slice, const unsigned &vector_len, const int &keys_num)
-      { 
+      {
         this->slots.reserve(storage_slice);
         for (unsigned i = 0; i < storage_slice; ++i)
         {
@@ -232,34 +240,33 @@ namespace sw::redis
         this->redis_connection_params = conn_params_input;
       }
 
-      virtual void conn() override {};
+      virtual void conn() override{};
 
-      virtual bool check_slices_num(const std::vector<std::string> &keys_prefix_name_slices) {return false;}
+      virtual bool check_slices_num(const std::vector<std::string> &keys_prefix_name_slices) = 0;
 
-      virtual size_t table_size_in_slots(const std::vector<std::string> &keys_prefix_name_slices) {return 0;}
+      virtual size_t table_size_in_slots(const std::vector<std::string> &keys_prefix_name_slices) = 0;
 
-      virtual void remove_hkeys_in_slots(const std::vector<std::string> &keys_prefix_name_slices) {};
+      virtual void remove_hkeys_in_slots(const std::vector<std::string> &keys_prefix_name_slices) = 0;
 
-      virtual void dump_to_disk(const std::vector<std::string> &keys_prefix_name_slices, std::vector<aiocb> &wrs, const std::vector<int> &fds) {};
+      virtual void dump_to_disk(const std::vector<std::string> &keys_prefix_name_slices, std::vector<aiocb> &wrs, const std::vector<int> &fds) = 0;
 
-      virtual void restore_from_disk(const std::vector<std::string> &keys_prefix_name_slices, std::vector<aiocb> &rds, 
-        const std::vector<int> &fds, const std::vector<unsigned long> &buf_sizes) {};
+      virtual void restore_from_disk(const std::vector<std::string> &keys_prefix_name_slices, std::vector<aiocb> &rds,
+                                     const std::vector<int> &fds, const std::vector<unsigned long> &buf_sizes) = 0;
 
       virtual std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>> MGET_COMMAND(
-        const ::tensorflow::Tensor &keys, ThreadContext &thread_context,
-        const ::tensorflow::int64 &begin, const ::tensorflow::int64 &max_i,
-        const std::vector<std::string> &keys_prefix_name_slices)
-        {std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>> nothing;return nothing;}
+          const ::tensorflow::Tensor &keys, ThreadContext &thread_context,
+          const ::tensorflow::int64 &begin, const ::tensorflow::int64 &max_i,
+          const std::vector<std::string> &keys_prefix_name_slices) = 0;
 
       virtual void MGET_to_Tensor(::tensorflow::Tensor *values, const ::tensorflow::Tensor &default_value, const bool &is_full_default,
-        ThreadContext &thread_context,std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>> &reply,
-        const ::tensorflow::int64 &begin, const ::tensorflow::int64 &max_i) {};
+                                  ThreadContext &thread_context, std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>> &reply,
+                                  const ::tensorflow::int64 &begin, const ::tensorflow::int64 &max_i) = 0;
 
       virtual void MSET_COMMAND(const ::tensorflow::Tensor &keys, const ::tensorflow::Tensor &values, ThreadContext &thread_context,
-        const ::tensorflow::int64 &begin, const ::tensorflow::int64 &max_i, const std::vector<std::string> &keys_prefix_name_slices) {};
+                                const ::tensorflow::int64 &begin, const ::tensorflow::int64 &max_i, const std::vector<std::string> &keys_prefix_name_slices) = 0;
 
       virtual void DEL_COMMAND(const ::tensorflow::Tensor &keys, ThreadContext &thread_context,
-        const ::tensorflow::int64 &begin, const ::tensorflow::int64 &max_i, const std::vector<std::string> &keys_prefix_name_slices) {};
+                               const ::tensorflow::int64 &begin, const ::tensorflow::int64 &max_i, const std::vector<std::string> &keys_prefix_name_slices) = 0;
     };
 
     template <typename RedisInstance, typename K, typename V, typename = void>
@@ -357,27 +364,27 @@ namespace sw::redis
     template <typename T>
     void default_memcpy_to_tensor(T *pv_raw, const T *dft, const ::tensorflow::int64 &Velems_per_dim0)
     {
-      memcpy(reinterpret_cast<void *>(pv_raw), reinterpret_cast<const void *>(dft), Velems_per_dim0*sizeof(T)); // Direct access to Tensor data in TensorFlow
+      memcpy(reinterpret_cast<void *>(pv_raw), reinterpret_cast<const void *>(dft), Velems_per_dim0 * sizeof(T)); // Direct access to Tensor data in TensorFlow
     }
 
     template <>
     void default_memcpy_to_tensor<::tensorflow::tstring>(
-      ::tensorflow::tstring *const pv_raw, const ::tensorflow::tstring *const dft, const ::tensorflow::int64 &Velems_per_dim0)
+        ::tensorflow::tstring *const pv_raw, const ::tensorflow::tstring *const dft, const ::tensorflow::int64 &Velems_per_dim0)
     {
       const ::tensorflow::tstring *const pv_raw_end = pv_raw + Velems_per_dim0;
       ::tensorflow::tstring *pv_it = pv_raw;
       const ::tensorflow::tstring *dft_it = dft;
-      for(;pv_it != pv_raw_end; 
-          ++pv_it, ++dft_it)
+      for (; pv_it != pv_raw_end;
+           ++pv_it, ++dft_it)
       {
-        *pv_it=*dft_it;
+        *pv_it = *dft_it;
       }
     }
 
     template <typename T>
     void reply_memcpy_to_tensor(T *pv_raw, const char *str, const ::tensorflow::int64 &Velems_per_dim0)
     {
-      memcpy(reinterpret_cast<void *>(pv_raw), str, Velems_per_dim0*sizeof(T)); // Direct access to Tensor data in TensorFlow
+      memcpy(reinterpret_cast<void *>(pv_raw), str, Velems_per_dim0 * sizeof(T)); // Direct access to Tensor data in TensorFlow
     }
 
     template <>
@@ -386,12 +393,12 @@ namespace sw::redis
       const ::tensorflow::tstring *const pv_raw_end = pv_raw + Velems_per_dim0;
       const char *char_view = str;
       int str_bytesize = 0;
-      for(::tensorflow::tstring *pv_it = pv_raw; pv_it != pv_raw_end; ++pv_it)
+      for (::tensorflow::tstring *pv_it = pv_raw; pv_it != pv_raw_end; ++pv_it)
       {
-        str_bytesize = *(reinterpret_cast<const int*>(char_view));
-        char_view+=sizeof(int);
+        str_bytesize = *(reinterpret_cast<const int *>(char_view));
+        char_view += sizeof(int);
         pv_it->assign(char_view, str_bytesize);
-        char_view+=str_bytesize;
+        char_view += str_bytesize;
       }
     }
 

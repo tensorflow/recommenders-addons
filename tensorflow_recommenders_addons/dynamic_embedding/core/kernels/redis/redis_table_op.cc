@@ -20,7 +20,7 @@ limitations under the License.
 // for posix operation
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <fcntl.h> 
+#include <fcntl.h>
 
 extern "C"
 {
@@ -46,7 +46,7 @@ For example, mset can only set 524287 {(1024*1024-2)/2} keys every times.
 The source code is shown in the following link:
 https://github.com/redis/redis/blob/be6ce8a92a9acbecfaaa6c57a45037fc1018fefe/src/networking.c#L1851
 */
-// constexpr long long multi_redis_cmd_max_argc = 1024 * 1024; 
+// constexpr long long multi_redis_cmd_max_argc = 1024 * 1024;
 constexpr long long multi_redis_cmd_max_argc = 1024 * 8; // For better parallelism performance
 
 namespace tensorflow
@@ -85,80 +85,76 @@ namespace tensorflow
 
       private:
         void launchFind_parallel(OpKernelContext *context, std::vector<std::string> &keys_prefix_name_slices,
-                        const Tensor &keys, Tensor *values, const Tensor &default_value,
-                        const int64 &total, const int64 &value_dim0, 
-                        std::vector<ThreadContext> &threads_Find)
+                                 const Tensor &keys, Tensor *values, const Tensor &default_value,
+                                 const int64 &total, const int64 &value_dim0,
+                                 std::vector<ThreadContext> &threads_Find)
         {
           const bool is_full_default = (total == value_dim0);
 
           const int64 max_parallelism = (total / multi_redis_cmd_max_argc) + 1;
 
           threads_Find.reserve(max_parallelism);
-          
+
           std::atomic_uint thread_id_a(0);
-          auto shard = [this, &total, &keys_prefix_name_slices, &keys, &values, &default_value, &is_full_default, &threads_Find, &thread_id_a]
-          (int64 begin, int64 end)
+          auto shard = [this, &total, &keys_prefix_name_slices, &keys, &values, &default_value, &is_full_default, &threads_Find, &thread_id_a](int64 begin, int64 end)
           {
             const int64 max_i = std::min(total, end);
             unsigned thread_id = thread_id_a.load(std::memory_order_relaxed);
-            thread_id_a.store(thread_id+1, std::memory_order_consume); 
+            thread_id_a.store(thread_id + 1, std::memory_order_consume);
 
             auto reply = _table_instance->MGET_COMMAND(keys, threads_Find[thread_id], begin, max_i, keys_prefix_name_slices);
-            
+
             assert(reply->size == redis_connection_params.storage_slice); // #define REDIS_REPLY_ARRAY 2
 
             _table_instance->MGET_to_Tensor(values, default_value, is_full_default, threads_Find[thread_id], reply, begin, max_i);
           };
-          int64 slices_size = std::min( total, multi_redis_cmd_max_argc - 1 );
+          int64 slices_size = std::min(total, multi_redis_cmd_max_argc - 1);
           auto &worker_threads = *context->device()->tensorflow_cpu_worker_threads();
           Shard(max_parallelism, worker_threads.workers, total, slices_size,
                 shard);
-
         }
 
         void launchFind(OpKernelContext *context, std::vector<std::string> &keys_prefix_name_slices,
                         const Tensor &keys, Tensor *values, const Tensor &default_value,
-                        const int64 &total, const int64 &value_dim0, 
+                        const int64 &total, const int64 &value_dim0,
                         std::vector<ThreadContext> &threads_Find)
         {
           const bool is_full_default = (total == value_dim0);
 
           threads_Find.reserve(1);
-          
+
           auto reply = _table_instance->MGET_COMMAND(keys, threads_Find[0], 0, total, keys_prefix_name_slices);
-          
+
           assert(reply->size == redis_connection_params.storage_slice); // #define REDIS_REPLY_ARRAY 2
 
-          _table_instance->MGET_to_Tensor(values, default_value, is_full_default, threads_Find[0], reply, 0, total);     
+          _table_instance->MGET_to_Tensor(values, default_value, is_full_default, threads_Find[0], reply, 0, total);
         }
 
         void launchInsert_parallel(OpKernelContext *context, std::vector<std::string> &keys_prefix_name_slices,
-                          const Tensor &keys, const Tensor &values, const int64 &total, 
-                          std::vector<ThreadContext> &threads_Find)
+                                   const Tensor &keys, const Tensor &values, const int64 &total,
+                                   std::vector<ThreadContext> &threads_Find)
         {
           const int64 max_parallelism = (total / multi_redis_cmd_max_argc) + 1;
 
           threads_Find.reserve(max_parallelism);
-          
+
           std::atomic_uint thread_id_a(0);
-          auto shard = [this, &total, &keys_prefix_name_slices, &keys, &values, &threads_Find, &thread_id_a]
-          (int64 begin, int64 end)
+          auto shard = [this, &total, &keys_prefix_name_slices, &keys, &values, &threads_Find, &thread_id_a](int64 begin, int64 end)
           {
             const int64 max_i = std::min(total, end);
             unsigned thread_id = thread_id_a.load(std::memory_order_relaxed);
-            thread_id_a.store(thread_id+1, std::memory_order_consume); 
+            thread_id_a.store(thread_id + 1, std::memory_order_consume);
 
             _table_instance->MSET_COMMAND(keys, values, threads_Find[thread_id], begin, max_i, keys_prefix_name_slices);
           };
-          int64 slices_size = std::min( total, multi_redis_cmd_max_argc - 1 );
+          int64 slices_size = std::min(total, multi_redis_cmd_max_argc - 1);
           auto &worker_threads = *context->device()->tensorflow_cpu_worker_threads();
           Shard(max_parallelism, worker_threads.workers, total, slices_size,
                 shard);
-
         }
 
         void launchInsert(OpKernelContext *context, std::vector<std::string> &keys_prefix_name_slices,
-                          const Tensor &keys, const Tensor &values, const int64 &total, 
+                          const Tensor &keys, const Tensor &values, const int64 &total,
                           std::vector<ThreadContext> &threads_Find)
         {
           threads_Find.reserve(1);
@@ -167,34 +163,32 @@ namespace tensorflow
         }
 
         void launchDelete_parallel(OpKernelContext *context, std::vector<std::string> &keys_prefix_name_slices,
-                        const Tensor &keys, const int64 &total, std::vector<ThreadContext> &threads_Find)
+                                   const Tensor &keys, const int64 &total, std::vector<ThreadContext> &threads_Find)
         {
           const int64 max_parallelism = (total / multi_redis_cmd_max_argc) + 1;
 
           threads_Find.reserve(max_parallelism);
-          
+
           std::atomic_uint thread_id_a(0);
-          auto shard = [this, &total, &keys_prefix_name_slices, &keys, &threads_Find, &thread_id_a]
-          (int64 begin, int64 end)
+          auto shard = [this, &total, &keys_prefix_name_slices, &keys, &threads_Find, &thread_id_a](int64 begin, int64 end)
           {
             const int64 max_i = std::min(total, end);
             unsigned thread_id = thread_id_a.load(std::memory_order_relaxed);
-            thread_id_a.store(thread_id+1, std::memory_order_consume); 
+            thread_id_a.store(thread_id + 1, std::memory_order_consume);
 
             _table_instance->MGET_COMMAND(keys, threads_Find[thread_id], begin, max_i, keys_prefix_name_slices);
           };
-          int64 slices_size = std::min( total, multi_redis_cmd_max_argc - 1 );
+          int64 slices_size = std::min(total, multi_redis_cmd_max_argc - 1);
           auto &worker_threads = *context->device()->tensorflow_cpu_worker_threads();
           Shard(max_parallelism, worker_threads.workers, total, slices_size,
                 shard);
-
         }
 
         void launchDelete(OpKernelContext *context, std::vector<std::string> &keys_prefix_name_slices,
-                        const Tensor &keys, const int64 &total, std::vector<ThreadContext> &threads_Find)
+                          const Tensor &keys, const int64 &total, std::vector<ThreadContext> &threads_Find)
         {
-          threads_Find.reserve(1); 
-          _table_instance->MGET_COMMAND(keys, threads_Find[0], 0, total, keys_prefix_name_slices);          
+          threads_Find.reserve(1);
+          _table_instance->MGET_COMMAND(keys, threads_Find[0], 0, total, keys_prefix_name_slices);
         }
 
       public:
@@ -206,14 +200,14 @@ namespace tensorflow
 
           OP_REQUIRES_OK(ctx,
                          GetNodeAttr(kernel->def(), "value_shape", &value_shape_));
-          OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "init_size", &init_size));
           OP_REQUIRES(
               ctx, TensorShapeUtils::IsVector(value_shape_),
               errors::InvalidArgument("Default value must be a vector, got shape ",
                                       value_shape_.DebugString()));
 
           // //The init_size and embedding vector shape are useless for the initialization of Redis.
-          // 
+          //
+          // OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "init_size", &init_size));
           // init_size_ = static_cast<size_t>(init_size);
           // if (init_size_ == 0)
           // {
@@ -226,23 +220,23 @@ namespace tensorflow
           //   }
           //   init_size_ = env_var;
           // }
-          // 
+          //
 
           int revn_status;
-          revn_status = ReadInt32FromEnvVar("connect_timeout",redis_connection_params.connect_timeout, \
-              &redis_connection_params.connect_timeout);
-          revn_status = ReadInt32FromEnvVar("socket_timeout",redis_connection_params.socket_timeout, \
-              &redis_connection_params.socket_timeout);
-          revn_status = ReadInt32FromEnvVar("pool_size",redis_connection_params.pool_size, \
-              &redis_connection_params.pool_size);
-          revn_status = ReadInt32FromEnvVar("wait_timeout",redis_connection_params.wait_timeout, \
-              &redis_connection_params.wait_timeout);
-          revn_status = ReadInt32FromEnvVar("connection_lifetime",redis_connection_params.connection_lifetime, \
-              &redis_connection_params.connection_lifetime);
-          revn_status = ReadInt32FromEnvVar("sentinel_connect_timeout",redis_connection_params.sentinel_connect_timeout, \
-              &redis_connection_params.sentinel_connect_timeout);
-          revn_status = ReadInt32FromEnvVar("sentinel_socket_timeout",redis_connection_params.sentinel_socket_timeout, \
-              &redis_connection_params.sentinel_socket_timeout);
+          revn_status = ReadInt32FromEnvVar("connect_timeout", redis_connection_params.connect_timeout,
+                                            &redis_connection_params.connect_timeout);
+          revn_status = ReadInt32FromEnvVar("socket_timeout", redis_connection_params.socket_timeout,
+                                            &redis_connection_params.socket_timeout);
+          revn_status = ReadInt32FromEnvVar("pool_size", redis_connection_params.pool_size,
+                                            &redis_connection_params.pool_size);
+          revn_status = ReadInt32FromEnvVar("wait_timeout", redis_connection_params.wait_timeout,
+                                            &redis_connection_params.wait_timeout);
+          revn_status = ReadInt32FromEnvVar("connection_lifetime", redis_connection_params.connection_lifetime,
+                                            &redis_connection_params.connection_lifetime);
+          revn_status = ReadInt32FromEnvVar("sentinel_connect_timeout", redis_connection_params.sentinel_connect_timeout,
+                                            &redis_connection_params.sentinel_connect_timeout);
+          revn_status = ReadInt32FromEnvVar("sentinel_socket_timeout", redis_connection_params.sentinel_socket_timeout,
+                                            &redis_connection_params.sentinel_socket_timeout);
 
           runtime_dim_ = value_shape_.dim_size(0);
 
@@ -262,31 +256,28 @@ namespace tensorflow
           OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "using_MD5_prefix_name", &redis_connection_params.using_MD5_prefix_name));
           OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "model_lib_abs_dir", &redis_connection_params.model_lib_abs_dir));
 
-          if(redis_connection_params.using_MD5_prefix_name)
+          if (redis_connection_params.using_MD5_prefix_name)
           {
-            const std::string &&tmp_keys_prefix_name = redis_connection_params.model_tag+":"+embedding_name;
+            const std::string &&tmp_keys_prefix_name = redis_connection_params.model_tag + ":" + embedding_name;
             keys_prefix_name_md5 = ::sw::redis::redis_connection::MD5(tmp_keys_prefix_name);
 
             std::string md5_string;
-            char *md5_view_in_redis = sdscatrepr(sdsempty(), reinterpret_cast<char*>(keys_prefix_name_md5.data()), 16);
+            char *md5_view_in_redis = sdscatrepr(sdsempty(), reinterpret_cast<char *>(keys_prefix_name_md5.data()), 16);
             char tmp[3];
-            for( int i = 0; i < 16; ++i )
-            {   
-              memset( tmp, 0x00, sizeof( tmp ) );
-              sprintf( tmp, "%02X", keys_prefix_name_md5[i] );
+            for (int i = 0; i < 16; ++i)
+            {
+              memset(tmp, 0x00, sizeof(tmp));
+              sprintf(tmp, "%02X", keys_prefix_name_md5[i]);
               md5_string += tmp;
             }
-            LOG(INFO) << "Init table tensor, now prefix name for keys namespace is " << keys_prefix_name << \
-              ". The MD5 of prefix name for keys is " << md5_string << \
-              ". And Its characters view in redis namespace is " << md5_view_in_redis << \
-              ". This MD5 is used to store keys for distinguishing between different model and table names" << std::endl;
+            LOG(INFO) << "Init table tensor, now prefix name for keys namespace is " << keys_prefix_name << ". The MD5 of prefix name for keys is " << md5_string << ". And Its characters view in redis namespace is " << md5_view_in_redis << ". This MD5 is used to store keys for distinguishing between different model and table names" << std::endl;
 
-            const std::string tmp_char2string(reinterpret_cast<char*>(keys_prefix_name_md5.data()),16);
+            const std::string tmp_char2string(reinterpret_cast<char *>(keys_prefix_name_md5.data()), 16);
             keys_prefix_name = tmp_char2string;
           }
           else
           {
-            keys_prefix_name = redis_connection_params.model_tag+":"+embedding_name;
+            keys_prefix_name = redis_connection_params.model_tag + ":" + embedding_name;
           }
 
           const unsigned &storage_slice = redis_connection_params.storage_slice;
@@ -327,13 +318,13 @@ namespace tensorflow
           }
           }
 
-          if(_table_instance->check_slices_num(keys_prefix_name_slices) == false)
+          if (_table_instance->check_slices_num(keys_prefix_name_slices) == false)
           {
-            LOG(ERROR) << "The embedding table prefix name " << keys_prefix_name << "has already been saved in the Redis Servers. " << \
-              "And its number of slices is not equal to the number you putted in the setting. Please change the storage_slice in redis_connection_params.";
-            OP_REQUIRES(ctx, false, 
-              errors::InvalidArgument("storage_slice must be set properly equaling to the slices number in the Redis, got prefix storage_slice ", 
-              redis_connection_params.storage_slice)); 
+            LOG(ERROR) << "The embedding table prefix name " << keys_prefix_name << "has already been saved in the Redis Servers. "
+                       << "And its number of slices is not equal to the number you putted in the setting. Please change the storage_slice in redis_connection_params.";
+            OP_REQUIRES(ctx, false,
+                        errors::InvalidArgument("storage_slice must be set properly equaling to the slices number in the Redis, got prefix storage_slice ",
+                                                redis_connection_params.storage_slice));
           }
         }
 
@@ -353,14 +344,14 @@ namespace tensorflow
           const static int64 value_dim = value_shape_.dim_size(0);
           int64 total = keys.dim_size(0);
           // raise(SIGTRAP);  /* To continue from here in GDB: "signal 0". */
-          if( total < (multi_redis_cmd_max_argc - 1) )
+          if (total < (multi_redis_cmd_max_argc - 1))
           {
             launchFind(ctx, keys_prefix_name_slices, keys, values, default_value, total, value_dim, threads_Find);
           }
           else
           {
             // redis commmand args > multi_redis_cmd_max_argc
-            launchFind_parallel(ctx, keys_prefix_name_slices, keys, values, default_value, total, value_dim, threads_Find); 
+            launchFind_parallel(ctx, keys_prefix_name_slices, keys, values, default_value, total, value_dim, threads_Find);
           }
 
           return Status::OK();
@@ -376,15 +367,14 @@ namespace tensorflow
           {
             _table_instance->remove_hkeys_in_slots(keys_prefix_name_slices);
           }
-          if( total < (multi_redis_cmd_max_argc - 1) )
+          if (total < (multi_redis_cmd_max_argc - 1))
           {
-            launchInsert(ctx, keys_prefix_name_slices, keys, values, total, threads_Find);      
+            launchInsert(ctx, keys_prefix_name_slices, keys, values, total, threads_Find);
           }
           else
           {
             launchInsert_parallel(ctx, keys_prefix_name_slices, keys, values, total, threads_Find); // redis commmand args > multi_redis_cmd_max_argc
           }
-          
 
           return Status::OK();
         }
@@ -397,16 +387,15 @@ namespace tensorflow
 
         Status Remove(OpKernelContext *ctx, const Tensor &keys) override
         {
-          const static int64 value_dim = value_shape_.dim_size(0);
           int64 total = keys.dim_size(0);
-          if( total < (multi_redis_cmd_max_argc - 1) )
+          if (total < (multi_redis_cmd_max_argc - 1))
           {
             launchDelete(ctx, keys_prefix_name_slices, keys, total, threads_Delete);
           }
           else
           {
             // redis commmand args > multi_redis_cmd_max_argc
-            launchDelete_parallel(ctx, keys_prefix_name_slices, keys, total, threads_Delete); 
+            launchDelete_parallel(ctx, keys_prefix_name_slices, keys, total, threads_Delete);
           }
 
           return Status::OK();
@@ -427,12 +416,13 @@ namespace tensorflow
 
           for (unsigned i = 0; i < storage_slice; ++i)
           {
-            file_name = redis_connection_params.model_lib_abs_dir+keys_prefix_name_slices[0]+".rdb";
-            if (access(file_name.c_str(), 0) == -1) throw("file" + file_name + "doesn't exist");
-            IMPORT_fds.push_back(open(file_name.c_str(),O_WRONLY));
+            file_name = redis_connection_params.model_lib_abs_dir + keys_prefix_name_slices[0] + ".rdb";
+            if (access(file_name.c_str(), 0) == -1)
+              throw("file" + file_name + "doesn't exist");
+            IMPORT_fds.push_back(open(file_name.c_str(), O_WRONLY));
             IMPORT_fds_sizes.push_back(get_file_size(file_name));
           }
-          
+
           _table_instance->restore_from_disk(keys_prefix_name_slices, IMPORT_content, IMPORT_fds, IMPORT_fds_sizes);
 
           return Status::OK();
@@ -449,13 +439,14 @@ namespace tensorflow
 
           for (unsigned i = 0; i < storage_slice; ++i)
           {
-            file_name = redis_connection_params.model_lib_abs_dir+keys_prefix_name_slices[0]+".rdb";
-            if (access(file_name.c_str(), 0) == -1) remove(file_name.c_str());
-            IMPORT_fds.push_back(open(file_name.c_str(),O_WRONLY));
+            file_name = redis_connection_params.model_lib_abs_dir + keys_prefix_name_slices[0] + ".rdb";
+            if (access(file_name.c_str(), 0) == -1)
+              remove(file_name.c_str());
+            IMPORT_fds.push_back(open(file_name.c_str(), O_WRONLY));
           }
 
           _table_instance->dump_to_disk(keys_prefix_name_slices, EXPORT_content, EXPORT_fds);
-          
+
           return Status::OK();
         }
 
@@ -470,7 +461,7 @@ namespace tensorflow
         int64 MemoryUsed() const override
         {
           int64 ret = 0;
-          ret = (int64)(size() * (sizeof(K)+sizeof(V)));
+          ret = (int64)(size() * (sizeof(K) + sizeof(V)));
           return sizeof(RedisTableOfTensors) + ret;
         }
       };
