@@ -100,14 +100,16 @@ namespace sw::redis
         path.push_back('/');
       }
       if (access(path.c_str(), 0) == -1) //if folder doesn't exist
+      {
         std::cout << "folder " << path << " doesn't exist" << std::endl;
-      if (createDirectory(path) == 0)
-      {
-        std::cout << "folder " << path << " was created" << std::endl;
-      }
-      else
-      {
-        std::cout << "folder " << path << " failed to create" << std::endl;
+        if (createDirectory(path) == 0)
+        {
+          std::cout << "folder " << path << " was created" << std::endl;
+        }
+        else
+        {
+          std::cout << "folder " << path << " failed to create" << std::endl;
+        }
       }
       return path;
     }
@@ -210,7 +212,8 @@ namespace sw::redis
 
       void HandleReserve(const unsigned &storage_slice, const unsigned &vector_len, const int &keys_num)
       {
-        this->slots.reserve(storage_slice);
+        if (storage_slice > this->slots.size()) 
+          this->slots.resize(storage_slice);
         for (unsigned i = 0; i < storage_slice; ++i)
         {
           this->slots[i].ptrs.clear();

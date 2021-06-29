@@ -93,7 +93,8 @@ namespace tensorflow
 
           const int64 max_parallelism = (total / multi_redis_cmd_max_argc) + 1;
 
-          threads_Find.reserve(max_parallelism);
+          if (max_parallelism > static_cast<int64>(threads_Find.size()))
+            threads_Find.resize(max_parallelism);
 
           std::atomic_uint thread_id_a(0);
           auto shard = [this, &total, &keys_prefix_name_slices, &keys, &values, &default_value, &is_full_default, &threads_Find, &thread_id_a](int64 begin, int64 end)
@@ -121,7 +122,8 @@ namespace tensorflow
         {
           const bool is_full_default = (total == value_dim0);
 
-          threads_Find.reserve(1);
+          if (1 > threads_Find.size())
+            threads_Find.resize(1);
 
           auto reply = _table_instance->MGET_COMMAND(keys, threads_Find[0], 0, total, keys_prefix_name_slices);
 
@@ -132,20 +134,21 @@ namespace tensorflow
 
         void launchInsert_parallel(OpKernelContext *context, std::vector<std::string> &keys_prefix_name_slices,
                                    const Tensor &keys, const Tensor &values, const int64 &total,
-                                   std::vector<ThreadContext> &threads_Find)
+                                   std::vector<ThreadContext> &threads_Insert)
         {
           const int64 max_parallelism = (total / multi_redis_cmd_max_argc) + 1;
 
-          threads_Find.reserve(max_parallelism);
+          if (max_parallelism > static_cast<int64>(threads_Insert.size()))
+            threads_Insert.resize(max_parallelism);
 
           std::atomic_uint thread_id_a(0);
-          auto shard = [this, &total, &keys_prefix_name_slices, &keys, &values, &threads_Find, &thread_id_a](int64 begin, int64 end)
+          auto shard = [this, &total, &keys_prefix_name_slices, &keys, &values, &threads_Insert, &thread_id_a](int64 begin, int64 end)
           {
             const int64 max_i = std::min(total, end);
             unsigned thread_id = thread_id_a.load(std::memory_order_relaxed);
             thread_id_a.store(thread_id + 1, std::memory_order_consume);
 
-            _table_instance->MSET_COMMAND(keys, values, threads_Find[thread_id], begin, max_i, keys_prefix_name_slices);
+            _table_instance->MSET_COMMAND(keys, values, threads_Insert[thread_id], begin, max_i, keys_prefix_name_slices);
           };
           int64 slices_size = std::min(total, multi_redis_cmd_max_argc - 1);
           auto &worker_threads = *context->device()->tensorflow_cpu_worker_threads();
@@ -155,28 +158,30 @@ namespace tensorflow
 
         void launchInsert(OpKernelContext *context, std::vector<std::string> &keys_prefix_name_slices,
                           const Tensor &keys, const Tensor &values, const int64 &total,
-                          std::vector<ThreadContext> &threads_Find)
+                          std::vector<ThreadContext> &threads_Insert)
         {
-          threads_Find.reserve(1);
+          if (1 > threads_Insert.size())
+            threads_Insert.resize(1);
 
-          _table_instance->MSET_COMMAND(keys, values, threads_Find[0], 0, total, keys_prefix_name_slices);
+          _table_instance->MSET_COMMAND(keys, values, threads_Insert[0], 0, total, keys_prefix_name_slices);
         }
 
-        void launcHDELete_parallel(OpKernelContext *context, std::vector<std::string> &keys_prefix_name_slices,
-                                   const Tensor &keys, const int64 &total, std::vector<ThreadContext> &threads_Find)
+        void launchDelete_parallel(OpKernelContext *context, std::vector<std::string> &keys_prefix_name_slices,
+                                   const Tensor &keys, const int64 &total, std::vector<ThreadContext> &threads_Delete)
         {
           const int64 max_parallelism = (total / multi_redis_cmd_max_argc) + 1;
-
-          threads_Find.reserve(max_parallelism);
+          
+          if (max_parallelism > static_cast<int64>(threads_Delete.size()))
+            threads_Delete.resize(max_parallelism);
 
           std::atomic_uint thread_id_a(0);
-          auto shard = [this, &total, &keys_prefix_name_slices, &keys, &threads_Find, &thread_id_a](int64 begin, int64 end)
+          auto shard = [this, &total, &keys_prefix_name_slices, &keys, &threads_Delete, &thread_id_a](int64 begin, int64 end)
           {
             const int64 max_i = std::min(total, end);
             unsigned thread_id = thread_id_a.load(std::memory_order_relaxed);
             thread_id_a.store(thread_id + 1, std::memory_order_consume);
 
-            _table_instance->MGET_COMMAND(keys, threads_Find[thread_id], begin, max_i, keys_prefix_name_slices);
+            _table_instance->DEL_COMMAND(keys, threads_Delete[thread_id], begin, max_i, keys_prefix_name_slices);
           };
           int64 slices_size = std::min(total, multi_redis_cmd_max_argc - 1);
           auto &worker_threads = *context->device()->tensorflow_cpu_worker_threads();
@@ -184,11 +189,12 @@ namespace tensorflow
                 shard);
         }
 
-        void launcHDELete(OpKernelContext *context, std::vector<std::string> &keys_prefix_name_slices,
-                          const Tensor &keys, const int64 &total, std::vector<ThreadContext> &threads_Find)
+        void launchDelete(OpKernelContext *context, std::vector<std::string> &keys_prefix_name_slices,
+                          const Tensor &keys, const int64 &total, std::vector<ThreadContext> &threads_Delete)
         {
-          threads_Find.reserve(1);
-          _table_instance->MGET_COMMAND(keys, threads_Find[0], 0, total, keys_prefix_name_slices);
+          if (1 > threads_Delete.size())
+            threads_Delete.resize(1);
+          _table_instance->DEL_COMMAND(keys, threads_Delete[0], 0, total, keys_prefix_name_slices);
         }
 
       public:
@@ -296,8 +302,8 @@ namespace tensorflow
           }
 
           const unsigned &storage_slice = redis_connection_params.storage_slice;
-          keys_prefix_name_slices.reserve(storage_slice);
           keys_prefix_name_slices.clear();
+          keys_prefix_name_slices.reserve(storage_slice);
           for (unsigned i = 0; i < storage_slice; ++i)
           {
             keys_prefix_name_slices.push_back(keys_prefix_name + std::to_string(i));
@@ -362,7 +368,7 @@ namespace tensorflow
         {
           const static int64 value_dim = value_shape_.dim_size(0);
           int64 total = keys.dim_size(0);
-          // raise(SIGTRAP);  /* To continue from here in GDB: "signal 0". */
+
           if (total < (multi_redis_cmd_max_argc - 1))
           {
             launchFind(ctx, keys_prefix_name_slices, keys, values, default_value, total, value_dim, threads_Find);
@@ -388,11 +394,11 @@ namespace tensorflow
           }
           if (total < (multi_redis_cmd_max_argc - 1))
           {
-            launchInsert(ctx, keys_prefix_name_slices, keys, values, total, threads_Find);
+            launchInsert(ctx, keys_prefix_name_slices, keys, values, total, threads_Insert);
           }
           else
           {
-            launchInsert_parallel(ctx, keys_prefix_name_slices, keys, values, total, threads_Find); // redis commmand args > multi_redis_cmd_max_argc
+            launchInsert_parallel(ctx, keys_prefix_name_slices, keys, values, total, threads_Insert); // redis commmand args > multi_redis_cmd_max_argc
           }
 
           return Status::OK();
@@ -409,12 +415,12 @@ namespace tensorflow
           int64 total = keys.dim_size(0);
           if (total < (multi_redis_cmd_max_argc - 1))
           {
-            launcHDELete(ctx, keys_prefix_name_slices, keys, total, threads_Delete);
+            launchDelete(ctx, keys_prefix_name_slices, keys, total, threads_Delete);
           }
           else
           {
             // redis commmand args > multi_redis_cmd_max_argc
-            launcHDELete_parallel(ctx, keys_prefix_name_slices, keys, total, threads_Delete);
+            launchDelete_parallel(ctx, keys_prefix_name_slices, keys, total, threads_Delete);
           }
 
           return Status::OK();

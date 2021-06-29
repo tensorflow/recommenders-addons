@@ -142,14 +142,15 @@ namespace sw::redis
          auto cmd = [](::sw::redis::Connection &connection, const char *str)
         { connection.send(str); };
         std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply = redis_conn->command(cmd, redis_command.data());
-        if (reply->elements != redis_connection_params.storage_slice)
+        if (reply->elements == redis_connection_params.storage_slice || reply->elements == 0)
         {
-          std::cerr << "storage_slice in redis_connection_params did not equal to the slices number of this keys_prefix_name in the Redis server" << std::endl;
-          return false;
+          return true;
         }
         else
         {
-          return true;
+          std::cerr << "storage_slice in redis_connection_params did not equal to the slices number of this keys_prefix_name in the single Redis server" \
+                    << std::endl;
+          return false;
         }
         return false;
       }
@@ -311,7 +312,7 @@ namespace sw::redis
         const static char *redis_command = "HMGET";
         const static std::size_t redis_command_byte = 5;
 
-        thread_context.HandleReserve(1, argc, 0);
+        thread_context.HandleReserve(1U, argc, 0);
 
         std::vector<const char *> &ptrs_0 = thread_context.slots[0].ptrs;
         std::vector<std::size_t> &sizes_0 = thread_context.slots[0].sizes;
@@ -405,7 +406,7 @@ namespace sw::redis
         const static char *redis_command = "HMSET";
         const static std::size_t redis_command_byte = 5;
 
-        thread_context.HandleReserve(1, argc, 0);
+        thread_context.HandleReserve(1U, argc, 0);
 
         std::vector<const char *> &ptrs_0 = thread_context.slots[0].ptrs;
         std::vector<std::size_t> &sizes_0 = thread_context.slots[0].sizes;
@@ -474,7 +475,7 @@ namespace sw::redis
         const static char *redis_command = "HDEL";
         const static std::size_t redis_command_byte = 4;
 
-        thread_context.HandleReserve(1, argc, 0);
+        thread_context.HandleReserve(1U, argc, 0);
 
         std::vector<const char *> &ptrs_0 = thread_context.slots[0].ptrs;
         std::vector<std::size_t> &sizes_0 = thread_context.slots[0].sizes;

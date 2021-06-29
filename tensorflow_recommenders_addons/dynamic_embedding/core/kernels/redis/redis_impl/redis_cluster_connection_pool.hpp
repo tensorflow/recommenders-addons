@@ -184,14 +184,15 @@ namespace sw::redis
           slices_in_redis += reply_server->elements;
         }
 
-        if (slices_in_redis != redis_connection_params.storage_slice)
+        if (slices_in_redis == redis_connection_params.storage_slice || slices_in_redis == 0)
         {
-          std::cerr << "storage_slice in redis_connection_params did not equal to the slices number of this keys_prefix_name in the Redis server" << std::endl;
-          return false;
+          return true;
         }
         else
         {
-          return true;
+          std::cerr << "storage_slice in redis_connection_params did not equal to the slices number of this keys_prefix_name in the Redis Cluster server" \
+                    << std::endl;
+          return false;
         }
         return false;
       }
