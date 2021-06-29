@@ -72,6 +72,7 @@ namespace tensorflow
 
         std::vector<ThreadContext> threads_Find;
         std::vector<ThreadContext> threads_Insert;
+        std::vector<ThreadContext> threads_Delete;
 
         std::vector<aiocb> IMPORT_content;
         std::vector<int> IMPORT_fds;
@@ -163,6 +164,37 @@ namespace tensorflow
           threads_Find.reserve(1);
 
           _table_instance->MSET_COMMAND(keys, values, threads_Find[0], 0, total, keys_prefix_name_slices);
+        }
+
+        void launchDelete_parallel(OpKernelContext *context, std::vector<std::string> &keys_prefix_name_slices,
+                        const Tensor &keys, const int64 &total, std::vector<ThreadContext> &threads_Find)
+        {
+          const int64 max_parallelism = (total / multi_redis_cmd_max_argc) + 1;
+
+          threads_Find.reserve(max_parallelism);
+          
+          std::atomic_uint thread_id_a(0);
+          auto shard = [this, &total, &keys_prefix_name_slices, &keys, &threads_Find, &thread_id_a]
+          (int64 begin, int64 end)
+          {
+            const int64 max_i = std::min(total, end);
+            unsigned thread_id = thread_id_a.load(std::memory_order_relaxed);
+            thread_id_a.store(thread_id+1, std::memory_order_consume); 
+
+            _table_instance->MGET_COMMAND(keys, threads_Find[thread_id], begin, max_i, keys_prefix_name_slices);
+          };
+          int64 slices_size = std::min( total, multi_redis_cmd_max_argc - 1 );
+          auto &worker_threads = *context->device()->tensorflow_cpu_worker_threads();
+          Shard(max_parallelism, worker_threads.workers, total, slices_size,
+                shard);
+
+        }
+
+        void launchDelete(OpKernelContext *context, std::vector<std::string> &keys_prefix_name_slices,
+                        const Tensor &keys, const int64 &total, std::vector<ThreadContext> &threads_Find)
+        {
+          threads_Find.reserve(1); 
+          _table_instance->MGET_COMMAND(keys, threads_Find[0], 0, total, keys_prefix_name_slices);          
         }
 
       public:
@@ -365,9 +397,18 @@ namespace tensorflow
 
         Status Remove(OpKernelContext *ctx, const Tensor &keys) override
         {
-          // mutex_lock l(mu_);
-          _table_instance->remove_hkeys_in_slots(keys_prefix_name_slices);
-          
+          const static int64 value_dim = value_shape_.dim_size(0);
+          int64 total = keys.dim_size(0);
+          if( total < (multi_redis_cmd_max_argc - 1) )
+          {
+            launchDelete(ctx, keys_prefix_name_slices, keys, total, threads_Delete);
+          }
+          else
+          {
+            // redis commmand args > multi_redis_cmd_max_argc
+            launchDelete_parallel(ctx, keys_prefix_name_slices, keys, total, threads_Delete); 
+          }
+
           return Status::OK();
         }
 

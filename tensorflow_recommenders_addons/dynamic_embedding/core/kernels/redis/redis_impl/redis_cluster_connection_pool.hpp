@@ -97,7 +97,7 @@ namespace sw::redis
         return nullptr;
       }
 
-      virtual void conn() 
+      virtual void conn() override
       {
         if (isRedisConnect == false)
         {
@@ -150,7 +150,7 @@ namespace sw::redis
 
     public:
 
-      virtual bool check_slices_num(const std::string &keys_prefix_name)  
+      virtual bool check_slices_num(const std::string &keys_prefix_name) override
       {
         std::string redis_command = "keys " + '*' + keys_prefix_name+ '*';
         auto cmd = [](::sw::redis::Connection &connection, ::sw::redis::StringView hkey) {connection.send("cluster slots");};
@@ -191,7 +191,7 @@ namespace sw::redis
         return false;
       }
 
-      virtual size_t table_size_in_slots(const std::vector<std::string> &keys_prefix_name_slices) 
+      virtual size_t table_size_in_slots(const std::vector<std::string> &keys_prefix_name_slices) override
       {
         std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply;
         std::string redis_command("hlen ");
@@ -209,7 +209,7 @@ namespace sw::redis
         return size;
       }
 
-      virtual void remove_hkeys_in_slots(const std::vector<std::string> &keys_prefix_name_slices) 
+      virtual void remove_hkeys_in_slots(const std::vector<std::string> &keys_prefix_name_slices) override
       {
         // std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply;
         std::string redis_command("del ");
@@ -227,7 +227,7 @@ namespace sw::redis
       /*
       fds are the return of POSIX open file function declared in <fcntl.h> 
       */
-      virtual void dump_to_disk(const std::vector<std::string> &keys_prefix_name_slices, std::vector<aiocb> &wrs, const std::vector<int> &fds) 
+      virtual void dump_to_disk(const std::vector<std::string> &keys_prefix_name_slices, std::vector<aiocb> &wrs, const std::vector<int> &fds) override
       {
         std::string redis_command;
         aiocb *wr;
@@ -280,7 +280,7 @@ namespace sw::redis
       }
 
       virtual void restore_from_disk(const std::vector<std::string> &keys_prefix_name_slices, std::vector<aiocb> &rds, 
-        const std::vector<int> &fds, const std::vector<unsigned long> &buf_sizes) 
+        const std::vector<int> &fds, const std::vector<unsigned long> &buf_sizes) override
       {
         // std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply;
         const unsigned &storage_slice = redis_connection_params.storage_slice;
@@ -380,7 +380,7 @@ namespace sw::redis
         const ::tensorflow::Tensor &keys, ThreadContext &thread_context,
         const ::tensorflow::int64 &begin, const ::tensorflow::int64 &max_i,
         const std::vector<std::string> &keys_prefix_name_slices
-      ) 
+      ) override
       {
         const int &&total = max_i - begin;
         const int &&argc = total + 2; 
@@ -437,7 +437,7 @@ namespace sw::redis
         ::tensorflow::Tensor *values, const ::tensorflow::Tensor &default_value, const bool &is_full_default,
         ThreadContext &thread_context,std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>> &reply,
         const ::tensorflow::int64 &begin, const ::tensorflow::int64 &max_i
-      ) 
+      ) override
       {
         const ::tensorflow::int64 Velems_per_dim0 = values->NumElements() / values->dim_size(0);
         V *pv_raw = reinterpret_cast<V*>(values->data()) + begin*Velems_per_dim0;
@@ -479,7 +479,7 @@ namespace sw::redis
         ThreadContext &thread_context,
         const ::tensorflow::int64 &begin, const ::tensorflow::int64 &max_i,
         const std::vector<std::string> &keys_prefix_name_slices
-      ) 
+      ) override
       {
         const int &&total = max_i - begin;
         const int &&argc = total*2 + 2;
@@ -535,6 +535,58 @@ namespace sw::redis
         };
 
         pipe_exec(cmd, storage_slice, 4U, thread_context);
+      }
+
+      virtual void DEL_COMMAND(
+        const ::tensorflow::Tensor &keys, ThreadContext &thread_context,
+        const ::tensorflow::int64 &begin, const ::tensorflow::int64 &max_i,
+        const std::vector<std::string> &keys_prefix_name_slices
+      ) override
+      {
+        const int &&total = max_i - begin;
+        const int &&argc = total + 2; 
+
+        const static char *redis_command = "hdel";
+        const static std::size_t &&redis_command_byte = 4; 
+
+        const K *const pk_raw_end = reinterpret_cast<K*>(keys.data()) + (total);
+        const K *pk_raw = reinterpret_cast<K*>(keys.data()) + begin;
+        
+        const unsigned &storage_slice = redis_connection_params.storage_slice;
+        const unsigned &&vector_len = (static_cast<::tensorflow::int64>(reinterpret_cast<int>(argc)) >> redis_connection_params.storage_slice_log2) + 2;
+
+        thread_context.HandleReserve(storage_slice, vector_len, total);
+
+        for (unsigned i = 0; i < storage_slice; ++i)
+        {
+          thread_context.HandlePushBack(i, redis_command, redis_command_byte);
+          thread_context.HandlePushBack(i, keys_prefix_name_slices[i].data(), keys_prefix_name_slices[i].size());
+        }
+        
+        unsigned *pslot_loc = thread_context.slot_locs.data();
+        unsigned key_slot_locs = 0;
+        for (; pk_raw != pk_raw_end; ++pk_raw )
+        { 
+          key_slot_locs = KSlotNum<K>(pk_raw, storage_slice);
+          // The slot to which the key belongs is recorded to facilitate future memory writes that do not recompute the hash
+          *pslot_loc=key_slot_locs;
+          ++pslot_loc;
+
+          // Direct access to ::tensorflow::Tensor data in TensorFlow
+          thread_context.HandlePushBack(key_slot_locs, KContentPointer<K>(pk_raw), KTypeSize<K>(pk_raw)); 
+        }
+
+        auto cmd = [](::sw::redis::Connection &connection, ::sw::redis::StringView hkey,
+                        const std::vector<const char *> &ptrs_i, const std::vector<std::size_t> &sizes_i)
+        {
+          assert(ptrs_i[0]=="hdel");
+          assert(sizes_i[0]==4);
+          assert(ptrs_i[1]==hkey);
+          // raise(SIGTRAP);  /* To continue from here in GDB: "signal 0". */   
+          connection.send(static_cast<int>(ptrs_i.size()), const_cast<const char **>(ptrs_i.data()), sizes_i.data());
+        };
+
+        pipe_exec(cmd, storage_slice, 3U, thread_context);
       }
 
     };

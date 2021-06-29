@@ -107,7 +107,7 @@ namespace sw::redis
         return nullptr;
       }
 
-      virtual void conn()
+      virtual void conn() override
       {
         if (isRedisConnect == false)
         {
@@ -137,7 +137,7 @@ namespace sw::redis
     
     public:
 
-      virtual bool check_slices_num(const std::string &keys_prefix_name)  
+      virtual bool check_slices_num(const std::string &keys_prefix_name) override
       {
         std::string redis_command = "keys " + '*' + keys_prefix_name+ '*';
         auto cmd = [](::sw::redis::Connection &connection, char *str) {connection.send(str);};
@@ -154,7 +154,7 @@ namespace sw::redis
         return false;
       }
 
-      virtual size_t table_size_in_slots(const std::vector<std::string> &keys_prefix_name_slices) 
+      virtual size_t table_size_in_slots(const std::vector<std::string> &keys_prefix_name_slices) override
       {
         std::string redis_command = "hlen " + keys_prefix_name_slices[0];
         auto cmd = [](::sw::redis::Connection &connection, char *str) {connection.send(str);};
@@ -164,7 +164,7 @@ namespace sw::redis
         return size;
       }
 
-      virtual void remove_hkeys_in_slots(const std::vector<std::string> &keys_prefix_name_slices) 
+      virtual void remove_hkeys_in_slots(const std::vector<std::string> &keys_prefix_name_slices) override
       {
         // std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply;
         std::string redis_command = "del " + keys_prefix_name_slices[0];
@@ -175,7 +175,7 @@ namespace sw::redis
       /*
       fds are the return of POSIX open file function declared in <fcntl.h> 
       */
-      virtual void dump_to_disk(const std::vector<std::string> &keys_prefix_name_slices, std::vector<aiocb> &wrs, const std::vector<int> &fds) 
+      virtual void dump_to_disk(const std::vector<std::string> &keys_prefix_name_slices, std::vector<aiocb> &wrs, const std::vector<int> &fds) override
       {
         std::string redis_command = "dump " + keys_prefix_name_slices[0];
         aiocb *wr = &wrs.front();
@@ -221,7 +221,7 @@ namespace sw::redis
       }
 
       virtual void restore_from_disk(const std::vector<std::string> &keys_prefix_name_slices, std::vector<aiocb> &rds, 
-        const std::vector<int> &fds, const std::vector<unsigned long> &buf_sizes) 
+        const std::vector<int> &fds, const std::vector<unsigned long> &buf_sizes) override
       {
         std::string redis_command;
         std::string tmp_redis_command = "restore " + keys_prefix_name_slices[0] + " 0";
@@ -296,7 +296,7 @@ namespace sw::redis
         const ::tensorflow::Tensor &keys, ThreadContext &thread_context,
         const ::tensorflow::int64 &begin, const ::tensorflow::int64 &max_i,
         const std::vector<std::string> &keys_prefix_name_slices
-      )
+      ) override
       {
         const int argc = (max_i - begin) + 2; 
 
@@ -392,7 +392,7 @@ namespace sw::redis
         ThreadContext &thread_context,
         const ::tensorflow::int64 &begin, const ::tensorflow::int64 &max_i,
         const std::vector<std::string> &keys_prefix_name_slices
-      ) 
+      ) override
       {
         const int &&argc = (max_i - begin)*2 + 2;
 
@@ -457,6 +457,58 @@ namespace sw::redis
 
         redis_conn->command(cmd, argc, ptrs_0, sizes_0);
 
+      }
+
+      virtual void DEL_COMMAND(
+        const ::tensorflow::Tensor &keys, ThreadContext &thread_context,
+        const ::tensorflow::int64 &begin, const ::tensorflow::int64 &max_i,
+        const std::vector<std::string> &keys_prefix_name_slices
+      ) override
+      {
+        const int argc = (max_i - begin) + 2; 
+
+        const static char *redis_command = "hdel";
+        const static std::size_t redis_command_byte = 4; 
+
+        thread_context.HandleReserve(1, argc, 0);
+
+        std::vector<const char *> &ptrs_0 = thread_context.slots[0].ptrs;
+        std::vector<std::size_t> &sizes_0 = thread_context.slots[0].sizes;
+
+        const K *const pk_raw_end = reinterpret_cast<K*>(keys.data()) + (max_i-begin);
+        const K *pk_raw = reinterpret_cast<K*>(keys.data()) + begin;
+
+        const char **ptrs_iter=&ptrs_0[0];
+        *ptrs_iter = redis_command;
+        ++ptrs_iter;
+        *ptrs_iter = keys_prefix_name_slices[0].data();
+        ++ptrs_iter;
+
+        std::size_t *sizes_iter=&sizes_0[0];
+        *sizes_iter = redis_command_byte;
+        ++sizes_iter;
+        *sizes_iter = keys_prefix_name_slices[0].size();
+        ++sizes_iter;
+
+        for (; pk_raw != pk_raw_end; ++pk_raw )
+        { 
+          *ptrs_iter = KContentPointer<K>(pk_raw); // Direct access to ::tensorflow::Tensor data in TensorFlow
+          ++ptrs_iter;
+          *sizes_iter = KTypeSize<K>(pk_raw); // key data char size
+          ++sizes_iter;
+        }
+
+        assert(ptrs_0[0]==redis_command);
+        assert(sizes_0[0]==redis_command_byte);
+
+        auto cmd = [](::sw::redis::Connection &connection, const int argc,
+                      std::vector<const char *> &ptrs_0, std::vector<std::size_t> &sizes_0)
+        {
+          // raise(SIGTRAP);  /* To continue from here in GDB: "signal 0". */ 
+          connection.send(argc, &ptrs_0[0], &sizes_0[0]);
+        };
+
+        /*auto reply=*/redis_conn->command(cmd, argc, ptrs_0, sizes_0);
       }
 
     };

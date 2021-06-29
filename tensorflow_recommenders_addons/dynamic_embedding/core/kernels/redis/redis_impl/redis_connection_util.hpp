@@ -257,6 +257,9 @@ namespace sw::redis
 
       virtual void MSET_COMMAND(const ::tensorflow::Tensor &keys, const ::tensorflow::Tensor &values, ThreadContext &thread_context,
         const ::tensorflow::int64 &begin, const ::tensorflow::int64 &max_i, const std::vector<std::string> &keys_prefix_name_slices) {};
+
+      virtual void DEL_COMMAND(const ::tensorflow::Tensor &keys, ThreadContext &thread_context,
+        const ::tensorflow::int64 &begin, const ::tensorflow::int64 &max_i, const std::vector<std::string> &keys_prefix_name_slices) {};
     };
 
     template <typename RedisInstance, typename K, typename V, typename = void>
