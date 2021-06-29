@@ -463,7 +463,7 @@ namespace sw::redis
         const unsigned storage_slice = redis_connection_params.storage_slice;
         unsigned slots_iters_nums[storage_slice];
         unsigned slot_loc;
-        memset(slots_iters_nums, 0, storage_slice);
+        memset(slots_iters_nums, 0U, sizeof(slots_iters_nums));
         redisReply *temp_reply;
         for (auto i = 0; i < (max_i - begin); ++i, pv_raw += Velems_per_dim0, dft_raw += Velems_per_dim0)
         {
