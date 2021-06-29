@@ -94,7 +94,7 @@ namespace sw::redis
 
     inline std::string check_dir(const std::string path_in)
     {
-      std::string path = path_in;
+      std::string path(path_in);
       if (path.back() != '/')
       {
         path.push_back('/');

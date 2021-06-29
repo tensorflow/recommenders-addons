@@ -138,7 +138,7 @@ namespace sw::redis
     public:
       virtual bool check_slices_num(const std::string &keys_prefix_name) override
       {
-        std::string redis_command = "keys " + '*' + keys_prefix_name + '*';
+        std::string redis_command = "keys *" + keys_prefix_name + "*";
          auto cmd = [](::sw::redis::Connection &connection, const char *str)
         { connection.send(str); };
         std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply = redis_conn->command(cmd, redis_command.data());

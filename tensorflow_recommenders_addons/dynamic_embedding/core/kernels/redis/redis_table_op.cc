@@ -104,7 +104,7 @@ namespace tensorflow
 
             auto reply = _table_instance->MGET_COMMAND(keys, threads_Find[thread_id], begin, max_i, keys_prefix_name_slices);
 
-            assert(reply->size == redis_connection_params.storage_slice); // #define REDIS_REPLY_ARRAY 2
+            assert(reply.size() == redis_connection_params.storage_slice); // #define REDIS_REPLY_ARRAY 2
 
             _table_instance->MGET_to_Tensor(values, default_value, is_full_default, threads_Find[thread_id], reply, begin, max_i);
           };
@@ -125,7 +125,7 @@ namespace tensorflow
 
           auto reply = _table_instance->MGET_COMMAND(keys, threads_Find[0], 0, total, keys_prefix_name_slices);
 
-          assert(reply->size == redis_connection_params.storage_slice); // #define REDIS_REPLY_ARRAY 2
+          assert(reply.size() == redis_connection_params.storage_slice); // #define REDIS_REPLY_ARRAY 2
 
           _table_instance->MGET_to_Tensor(values, default_value, is_full_default, threads_Find[0], reply, 0, total);
         }
@@ -254,8 +254,6 @@ namespace tensorflow
 
           runtime_dim_ = value_shape_.dim_size(0);
 
-          // OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "embedding_name", &tmp_embedding_name));
-          // embedding_name = static_cast<std::string>(strtok(const_cast<char *>(tmp_embedding_name.data()), ":"));
           OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "embedding_name", &embedding_name));
           OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "connection_mode", &redis_connection_params.connection_mode));
           OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "master_name", &redis_connection_params.master_name));
@@ -284,7 +282,11 @@ namespace tensorflow
               sprintf(tmp, "%02X", keys_prefix_name_md5[i]);
               md5_string += tmp;
             }
-            LOG(INFO) << "Init table tensor, now prefix name for keys namespace is " << keys_prefix_name << ". The MD5 of prefix name for keys is " << md5_string << ". And Its characters view in redis namespace is " << md5_view_in_redis << ". This MD5 is used to store keys for distinguishing between different model and table names" << std::endl;
+            LOG(INFO) << "Init table tensor, now prefix name for keys namespace is " << keys_prefix_name \
+                      << ". The MD5 of prefix name for keys is " << md5_string \
+                      << ". And Its characters view in redis namespace is " << md5_view_in_redis \
+                      << ". This MD5 is used to store keys for distinguishing between different model and table names" \
+                      << std::endl;
 
             keys_prefix_name = std::string(reinterpret_cast<char *>(keys_prefix_name_md5.data()), 16);
           }
@@ -295,48 +297,50 @@ namespace tensorflow
 
           const unsigned &storage_slice = redis_connection_params.storage_slice;
           keys_prefix_name_slices.reserve(storage_slice);
+          keys_prefix_name_slices.clear();
           for (unsigned i = 0; i < storage_slice; ++i)
           {
             keys_prefix_name_slices.push_back(keys_prefix_name + std::to_string(i));
           }
 
           // creat redis instance
-          std::cerr << "fuck" << embedding_name << std::endl;
-          std::cerr << "fuck" << redis_connection_params.connection_mode << std::endl;
           switch (redis_connection_params.connection_mode)
           {
-          case ClusterMode:
-          {
-            _table_instance = RedisWrapper<RedisCluster, K, V>::get_instance();
-            _table_instance->set_params(redis_connection_params);
-            _table_instance->conn();
-            break;
-          }
-          case SentinelMode:
-          {
-            _table_instance = RedisWrapper<Redis, K, V>::get_instance();
-            _table_instance->set_params(redis_connection_params);
-            _table_instance->conn();
-            break;
-          }
-          case StreamMode:
-          {
-            std::cerr << "Sorry! connection_mode=" << redis_connection_params.connection_mode << " The Stream connection mode is still being TODO." << std::endl;
-            throw(redis_connection_params.connection_mode);
-            break;
-          }
-          default:
-          {
-            std::cerr << "There are only three Redis connection modes, which Cluster=0/Sentinel=1/Stream=2." << std::endl;
-            throw(redis_connection_params.connection_mode);
-            break;
-          }
+            case ClusterMode:
+            {
+              _table_instance = RedisWrapper<RedisCluster, K, V>::get_instance();
+              _table_instance->set_params(redis_connection_params);
+              _table_instance->conn();
+              break;
+            }
+            case SentinelMode:
+            {
+              _table_instance = RedisWrapper<Redis, K, V>::get_instance();
+              _table_instance->set_params(redis_connection_params);
+              _table_instance->conn();
+              break;
+            }
+            case StreamMode:
+            {
+              std::cerr << "Sorry! connection_mode=" << redis_connection_params.connection_mode \
+                        << " The Stream connection mode is still being TODO." \
+                        << std::endl;
+              throw(redis_connection_params.connection_mode);
+              break;
+            }
+            default:
+            {
+              std::cerr << "There are only three Redis connection modes, which Cluster=0/Sentinel=1/Stream=2." << std::endl;
+              throw(redis_connection_params.connection_mode);
+              break;
+            }
           }
 
           if (_table_instance->check_slices_num(keys_prefix_name) == false)
           {
-            LOG(ERROR) << "The embedding table prefix name " << keys_prefix_name << "has already been saved in the Redis Servers. "
-                       << "And its number of slices is not equal to the number you putted in the setting. Please change the storage_slice in redis_connection_params.";
+            LOG(ERROR) << "The embedding table prefix name " << keys_prefix_name << "has already been saved in the Redis Servers. " \
+                       << "And its number of slices is not equal to the number you putted in the setting. " \
+                       << "Please change the storage_slice in redis_connection_params.";
             OP_REQUIRES(ctx, false,
                         errors::InvalidArgument("storage_slice must be set properly equaling to the slices number in the Redis, got prefix storage_slice ",
                                                 redis_connection_params.storage_slice));

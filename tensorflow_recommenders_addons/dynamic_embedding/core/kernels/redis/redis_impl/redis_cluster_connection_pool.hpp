@@ -150,7 +150,7 @@ namespace sw::redis
     public:
       virtual bool check_slices_num(const std::string &keys_prefix_name) override
       {
-        std::string redis_command = "keys " + '*' + keys_prefix_name + '*';
+        std::string redis_command = "keys *" + keys_prefix_name + "*";
 
         // get cluster info
         auto cmd = [](::sw::redis::Connection &connection, ::sw::redis::StringView hkey)
@@ -437,9 +437,9 @@ namespace sw::redis
         auto cmd = [](::sw::redis::Connection &connection, const ::sw::redis::StringView hkey,
                       const std::vector<const char *> &ptrs_i, const std::vector<std::size_t> &sizes_i)
         {
-          assert(ptrs_i[0] == "HMGET");
+          assert(strcmp(ptrs_i[0], "HMGET") == 0);
           assert(sizes_i[0] == 5);
-          assert(ptrs_i[1] == hkey);
+          assert(std::string(hkey.data()).compare(ptrs_i[1]) == 0);
           // raise(SIGTRAP);  /* To continue from here in GDB: "signal 0". */
           connection.send(static_cast<int>(ptrs_i.size()), const_cast<const char **>(ptrs_i.data()), sizes_i.data());
         };
@@ -539,9 +539,9 @@ namespace sw::redis
         auto cmd = [](::sw::redis::Connection &connection, const ::sw::redis::StringView &hkey,
                       const std::vector<const char *> &ptrs_i, const std::vector<std::size_t> &sizes_i)
         {
-          assert(ptrs_i[0] == "HMSET");
+          assert(strcmp(ptrs_i[0], "HMSET") == 0);
           assert(sizes_i[0] == 5);
-          assert(ptrs_i[1] == hkey);
+          assert(std::string(hkey.data()).compare(ptrs_i[1]) == 0);
           // raise(SIGTRAP);  /* To continue from here in GDB: "signal 0". */
           connection.send(static_cast<int>(ptrs_i.size()), const_cast<const char **>(ptrs_i.data()), sizes_i.data());
         };
@@ -590,9 +590,9 @@ namespace sw::redis
         auto cmd = [](::sw::redis::Connection &connection, const ::sw::redis::StringView hkey,
                       const std::vector<const char *> &ptrs_i, const std::vector<std::size_t> &sizes_i)
         {
-          assert(ptrs_i[0] == "HDEL");
+          assert(strcmp(ptrs_i[0], "HDEL") == 0);
           assert(sizes_i[0] == 4);
-          assert(ptrs_i[1] == hkey);
+          assert(std::string(hkey.data()).compare(ptrs_i[1]) == 0);
           // raise(SIGTRAP);  /* To continue from here in GDB: "signal 0". */
           connection.send(static_cast<int>(ptrs_i.size()), const_cast<const char **>(ptrs_i.data()), sizes_i.data());
         };
