@@ -364,7 +364,7 @@ namespace sw::redis
       virtual void MGET_to_Tensor(
           ::tensorflow::Tensor *values, const ::tensorflow::Tensor &default_value, const bool &is_full_default,
           ThreadContext &thread_context, std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>> &reply,
-          const ::tensorflow::int64 &begin, const ::tensorflow::int64 &max_i)
+          const ::tensorflow::int64 &begin, const ::tensorflow::int64 &max_i) override
       {
         const ::tensorflow::int64 &&Velems_per_dim0 = values->NumElements() / values->dim_size(0);
         V *pv_raw = reinterpret_cast<V *>(values->data()) + begin * Velems_per_dim0;

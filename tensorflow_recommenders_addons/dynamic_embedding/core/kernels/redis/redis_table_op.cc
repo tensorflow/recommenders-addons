@@ -318,7 +318,7 @@ namespace tensorflow
           }
           }
 
-          if (_table_instance->check_slices_num(keys_prefix_name_slices) == false)
+          if (_table_instance->check_slices_num(keys_prefix_name) == false)
           {
             LOG(ERROR) << "The embedding table prefix name " << keys_prefix_name << "has already been saved in the Redis Servers. "
                        << "And its number of slices is not equal to the number you putted in the setting. Please change the storage_slice in redis_connection_params.";

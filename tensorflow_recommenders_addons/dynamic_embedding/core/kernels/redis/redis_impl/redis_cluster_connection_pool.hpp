@@ -151,9 +151,13 @@ namespace sw::redis
       virtual bool check_slices_num(const std::string &keys_prefix_name) override
       {
         std::string redis_command = "keys " + '*' + keys_prefix_name + '*';
+
+        // get cluster info
         auto cmd = [](::sw::redis::Connection &connection, ::sw::redis::StringView hkey)
         { connection.send("cluster slots"); };
-        std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply = redis_conn->command(cmd, "0", redis_command.data());
+        ::sw::redis::StringView _hkey("0");
+        std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply = redis_conn->command(cmd, _hkey);
+
         std::vector<std::string> IP_set;
         size_t servers_num = reply->elements;
         IP_set.reserve(servers_num);
@@ -173,9 +177,10 @@ namespace sw::redis
           connection_options.password = redis_connection_params.password; // Optional. No password by default.
           connection_options.db = redis_connection_params.db;             // Optional. Use the 0th database by default.
           redis_client.reset(new Redis(connection_options));
-          auto cmd_per_server = [](::sw::redis::Connection &connection, char *str)
+          auto cmd_per_server = [](::sw::redis::Connection &connection, const char *str)
           { connection.send(str); };
-          reply_server.reset(redis_client->command(cmd_per_server, redis_command.data()));
+          reply_server.reset();
+          reply_server = redis_client->command(cmd_per_server, redis_command.data());
           slices_in_redis += reply_server->elements;
         }
 
@@ -196,14 +201,15 @@ namespace sw::redis
         std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply;
         std::string redis_command("hlen ");
         std::string command_string;
-        auto cmd = [](::sw::redis::Connection &connection, ::sw::redis::StringView hkey, char *str)
+        auto cmd = [](::sw::redis::Connection &connection, ::sw::redis::StringView hkey, const char *str)
         { connection.send(str); };
         size_t size = 0;
         for (unsigned i = 0; i < redis_connection_params.storage_slice; ++i)
         {
           command_string.clear();
           command_string = command_string + redis_command + keys_prefix_name_slices[i];
-          reply.reset(redis_conn->command(cmd, keys_prefix_name_slices[i], command_string.data()));
+          reply.reset();
+          reply = redis_conn->command(cmd, keys_prefix_name_slices[i], command_string.data());
           size += strtoumax(reply->element[0]->str, nullptr, 10); // decimal
         }
 
@@ -215,9 +221,8 @@ namespace sw::redis
         // std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply;
         std::string redis_command("del ");
         std::string command_string;
-        auto cmd = [](::sw::redis::Connection &connection, ::sw::redis::StringView hkey, char *str)
+        auto cmd = [](::sw::redis::Connection &connection, ::sw::redis::StringView hkey, const char *str)
         { connection.send(str); };
-        size_t size = 0;
         for (unsigned i = 0; i < redis_connection_params.storage_slice; ++i)
         {
           command_string.clear();
@@ -235,7 +240,7 @@ namespace sw::redis
         aiocb *wr;
         int ret; // int fd;
 
-        auto cmd = [](::sw::redis::Connection &connection, ::sw::redis::StringView hkey, char *str)
+        auto cmd = [](::sw::redis::Connection &connection, ::sw::redis::StringView hkey, const char *str)
         { connection.send(str); };
         std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply;
 
@@ -243,7 +248,8 @@ namespace sw::redis
         for (unsigned i = 0; i < redis_connection_params.storage_slice; ++i)
         {
           redis_command = "dump " + keys_prefix_name_slices[i];
-          reply.reset(redis_conn->command(cmd, keys_prefix_name_slices[i], redis_command.data()));
+          reply.reset();
+          reply = redis_conn->command(cmd, keys_prefix_name_slices[i], redis_command.data());
 
           // std::string file_name = redis_connection_params.model_lib_abs_dir+keys_prefix_name_slices[i]+".rdb";
           // fd = open(file_name,O_WRONLY | O_APPEND);
@@ -270,12 +276,12 @@ namespace sw::redis
               }
             }
           }
-          free(wr->aio_buf); // Dangerous behavior! Note that when creating AIOCB objects, you need to set aio_buf to nullptr!
+          free((void *)(wr->aio_buf)); // Dangerous behavior! Note that when creating AIOCB objects, you need to set aio_buf to nullptr!
           wr->aio_buf = nullptr;
           bzero(wr, sizeof(*wr));
           buf_len = reply->element[0]->len;
           wr->aio_buf = malloc(buf_len);
-          memcpy(wr->aio_buf, reply->element[0]->str, buf_len);
+          memcpy((void *)(wr->aio_buf), reply->element[0]->str, buf_len);
           wr->aio_nbytes = buf_len;
           wr->aio_fildes = fds[i];
           wr->aio_offset = 0;
@@ -297,7 +303,7 @@ namespace sw::redis
         aiocb *rd;
         int ret; // int fd;
 
-        auto cmd = [](::sw::redis::Connection &connection, ::sw::redis::StringView hkey, char *str)
+        auto cmd = [](::sw::redis::Connection &connection, ::sw::redis::StringView hkey, const char *str)
         { connection.send(str); };
 
         size_t buf_len;
@@ -428,7 +434,7 @@ namespace sw::redis
           thread_context.HandlePushBack(key_slot_locs, KContentPointer<K>(pk_raw), KTypeSize<K>(pk_raw));
         }
 
-        auto cmd = [](::sw::redis::Connection &connection, ::sw::redis::StringView hkey,
+        auto cmd = [](::sw::redis::Connection &connection, const ::sw::redis::StringView hkey,
                       const std::vector<const char *> &ptrs_i, const std::vector<std::size_t> &sizes_i)
         {
           assert(ptrs_i[0] == "hmget");
@@ -530,7 +536,7 @@ namespace sw::redis
           thread_context.HandlePushBack(key_slot_locs, VCATS_temp.VContentPointer, VCATS_temp.VTypeSize);
         }
 
-        auto cmd = [](::sw::redis::Connection &connection, ::sw::redis::StringView &hkey,
+        auto cmd = [](::sw::redis::Connection &connection, const ::sw::redis::StringView &hkey,
                       const std::vector<const char *> &ptrs_i, const std::vector<std::size_t> &sizes_i)
         {
           assert(ptrs_i[0] == "hmset");
@@ -581,7 +587,7 @@ namespace sw::redis
           thread_context.HandlePushBack(key_slot_locs, KContentPointer<K>(pk_raw), KTypeSize<K>(pk_raw));
         }
 
-        auto cmd = [](::sw::redis::Connection &connection, ::sw::redis::StringView hkey,
+        auto cmd = [](::sw::redis::Connection &connection, const ::sw::redis::StringView hkey,
                       const std::vector<const char *> &ptrs_i, const std::vector<std::size_t> &sizes_i)
         {
           assert(ptrs_i[0] == "hdel");

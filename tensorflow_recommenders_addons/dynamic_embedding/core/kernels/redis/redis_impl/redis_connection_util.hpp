@@ -240,9 +240,9 @@ namespace sw::redis
         this->redis_connection_params = conn_params_input;
       }
 
-      virtual void conn() override{};
+      virtual void conn() = 0;
 
-      virtual bool check_slices_num(const std::vector<std::string> &keys_prefix_name_slices) = 0;
+      virtual bool check_slices_num(const std::string &keys_prefix_name) = 0;
 
       virtual size_t table_size_in_slots(const std::vector<std::string> &keys_prefix_name_slices) = 0;
 
@@ -318,7 +318,7 @@ namespace sw::redis
     }
 
     template <typename T>
-    constexpr inline const VContentAndTypeSizeResult &VContentAndTypeSize(
+    inline const VContentAndTypeSizeResult &VContentAndTypeSize(
         VContentAndTypeSizeResult &_VContentAndTypeSizeResult,
         const ::tensorflow::int64 &Velems_per_dim0, const std::size_t &V_byte_size, const T *in, std::vector<char> &buff)
     {
