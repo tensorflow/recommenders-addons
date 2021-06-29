@@ -261,6 +261,7 @@ class CuckooHashTableOfTensorsGpu final : public LookupInterface {
                             sizeof(V) * runtime_dim_ * len, cudaMemcpyDefault));
       {
         mutex_lock l(mu_);
+        table_->clear(_stream);
         table_->upsert((const K*)d_keys,
                        (const gpu::ValueArrayBase<V>*)d_values, len, _stream);
         CUDA_CHECK(cudaStreamSynchronize(_stream));
