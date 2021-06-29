@@ -162,7 +162,7 @@ namespace tensorflow
           _table_instance->MSET_COMMAND(keys, values, threads_Find[0], 0, total, keys_prefix_name_slices);
         }
 
-        void launchDelete_parallel(OpKernelContext *context, std::vector<std::string> &keys_prefix_name_slices,
+        void launcHDELete_parallel(OpKernelContext *context, std::vector<std::string> &keys_prefix_name_slices,
                                    const Tensor &keys, const int64 &total, std::vector<ThreadContext> &threads_Find)
         {
           const int64 max_parallelism = (total / multi_redis_cmd_max_argc) + 1;
@@ -184,7 +184,7 @@ namespace tensorflow
                 shard);
         }
 
-        void launchDelete(OpKernelContext *context, std::vector<std::string> &keys_prefix_name_slices,
+        void launcHDELete(OpKernelContext *context, std::vector<std::string> &keys_prefix_name_slices,
                           const Tensor &keys, const int64 &total, std::vector<ThreadContext> &threads_Find)
         {
           threads_Find.reserve(1);
@@ -225,18 +225,32 @@ namespace tensorflow
           int revn_status;
           revn_status = ReadInt32FromEnvVar("connect_timeout", redis_connection_params.connect_timeout,
                                             &redis_connection_params.connect_timeout);
+          if (revn_status != 0)
+            LOG(INFO) << "ReadInt32FromEnvVar failed with connect_timeout." << std::endl;
           revn_status = ReadInt32FromEnvVar("socket_timeout", redis_connection_params.socket_timeout,
                                             &redis_connection_params.socket_timeout);
+          if (revn_status != 0)
+            LOG(INFO) << "ReadInt32FromEnvVar failed with socket_timeout." << std::endl;
           revn_status = ReadInt32FromEnvVar("pool_size", redis_connection_params.pool_size,
                                             &redis_connection_params.pool_size);
+          if (revn_status != 0)
+            LOG(INFO) << "ReadInt32FromEnvVar failed with pool_size." << std::endl;
           revn_status = ReadInt32FromEnvVar("wait_timeout", redis_connection_params.wait_timeout,
                                             &redis_connection_params.wait_timeout);
+          if (revn_status != 0)
+            LOG(INFO) << "ReadInt32FromEnvVar failed with wait_timeout." << std::endl;
           revn_status = ReadInt32FromEnvVar("connection_lifetime", redis_connection_params.connection_lifetime,
                                             &redis_connection_params.connection_lifetime);
+          if (revn_status != 0)
+            LOG(INFO) << "ReadInt32FromEnvVar failed with connection_lifetime." << std::endl;
           revn_status = ReadInt32FromEnvVar("sentinel_connect_timeout", redis_connection_params.sentinel_connect_timeout,
                                             &redis_connection_params.sentinel_connect_timeout);
+          if (revn_status != 0)
+            LOG(INFO) << "ReadInt32FromEnvVar failed with sentinel_connect_timeout." << std::endl;
           revn_status = ReadInt32FromEnvVar("sentinel_socket_timeout", redis_connection_params.sentinel_socket_timeout,
                                             &redis_connection_params.sentinel_socket_timeout);
+          if (revn_status != 0)
+            LOG(INFO) << "ReadInt32FromEnvVar failed with sentinel_socket_timeout." << std::endl;
 
           runtime_dim_ = value_shape_.dim_size(0);
 
@@ -272,8 +286,7 @@ namespace tensorflow
             }
             LOG(INFO) << "Init table tensor, now prefix name for keys namespace is " << keys_prefix_name << ". The MD5 of prefix name for keys is " << md5_string << ". And Its characters view in redis namespace is " << md5_view_in_redis << ". This MD5 is used to store keys for distinguishing between different model and table names" << std::endl;
 
-            const std::string tmp_char2string(reinterpret_cast<char *>(keys_prefix_name_md5.data()), 16);
-            keys_prefix_name = tmp_char2string;
+            keys_prefix_name = std::string(reinterpret_cast<char *>(keys_prefix_name_md5.data()), 16);
           }
           else
           {
@@ -288,6 +301,8 @@ namespace tensorflow
           }
 
           // creat redis instance
+          std::cerr << "fuck" << embedding_name << std::endl;
+          std::cerr << "fuck" << redis_connection_params.connection_mode << std::endl;
           switch (redis_connection_params.connection_mode)
           {
           case ClusterMode:
@@ -299,7 +314,7 @@ namespace tensorflow
           }
           case SentinelMode:
           {
-            _table_instance = RedisWrapper<RedisCluster, K, V>::get_instance();
+            _table_instance = RedisWrapper<Redis, K, V>::get_instance();
             _table_instance->set_params(redis_connection_params);
             _table_instance->conn();
             break;
@@ -390,12 +405,12 @@ namespace tensorflow
           int64 total = keys.dim_size(0);
           if (total < (multi_redis_cmd_max_argc - 1))
           {
-            launchDelete(ctx, keys_prefix_name_slices, keys, total, threads_Delete);
+            launcHDELete(ctx, keys_prefix_name_slices, keys, total, threads_Delete);
           }
           else
           {
             // redis commmand args > multi_redis_cmd_max_argc
-            launchDelete_parallel(ctx, keys_prefix_name_slices, keys, total, threads_Delete);
+            launcHDELete_parallel(ctx, keys_prefix_name_slices, keys, total, threads_Delete);
           }
 
           return Status::OK();

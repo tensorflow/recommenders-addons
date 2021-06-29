@@ -154,7 +154,7 @@ namespace sw::redis
 
         // get cluster info
         auto cmd = [](::sw::redis::Connection &connection, ::sw::redis::StringView hkey)
-        { connection.send("cluster slots"); };
+        { connection.send("CLUSTER SLOTS"); };
         ::sw::redis::StringView _hkey("0");
         std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply = redis_conn->command(cmd, _hkey);
 
@@ -199,7 +199,7 @@ namespace sw::redis
       virtual size_t table_size_in_slots(const std::vector<std::string> &keys_prefix_name_slices) override
       {
         std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply;
-        std::string redis_command("hlen ");
+        std::string redis_command("HLEN ");
         std::string command_string;
         auto cmd = [](::sw::redis::Connection &connection, ::sw::redis::StringView hkey, const char *str)
         { connection.send(str); };
@@ -219,7 +219,7 @@ namespace sw::redis
       virtual void remove_hkeys_in_slots(const std::vector<std::string> &keys_prefix_name_slices) override
       {
         // std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply;
-        std::string redis_command("del ");
+        std::string redis_command("DEL ");
         std::string command_string;
         auto cmd = [](::sw::redis::Connection &connection, ::sw::redis::StringView hkey, const char *str)
         { connection.send(str); };
@@ -247,7 +247,7 @@ namespace sw::redis
         size_t buf_len;
         for (unsigned i = 0; i < redis_connection_params.storage_slice; ++i)
         {
-          redis_command = "dump " + keys_prefix_name_slices[i];
+          redis_command = "DUMP " + keys_prefix_name_slices[i];
           reply.reset();
           reply = redis_conn->command(cmd, keys_prefix_name_slices[i], redis_command.data());
 
@@ -298,7 +298,7 @@ namespace sw::redis
         const unsigned &storage_slice = redis_connection_params.storage_slice;
         std::vector<std::string> redis_command(storage_slice);
         std::string tmp_redis_command;
-        // "restore "=8, '0'=1, reset for enough mem space, because keys_prefix_name_slices have different length.
+        // "RESTORE "=8, '0'=1, reset for enough mem space, because keys_prefix_name_slices have different length.
         size_t command_capacity = keys_prefix_name_slices[0].size() + 19;
         aiocb *rd;
         int ret; // int fd;
@@ -316,7 +316,7 @@ namespace sw::redis
 
           buf_len = buf_sizes[i];
 
-          tmp_redis_command = "restore " + keys_prefix_name_slices[i] + " 0";
+          tmp_redis_command = "RESTORE " + keys_prefix_name_slices[i] + " 0";
           tmp_redis_command_size = tmp_redis_command.size();
           redis_command[i].reserve(command_capacity + buf_len + 1);
           redis_command[i].replace(0, tmp_redis_command_size, tmp_redis_command);
@@ -399,7 +399,7 @@ namespace sw::redis
         const int &&total = max_i - begin;
         const int &&argc = total + 2;
 
-        const static char *redis_command = "hmget";
+        const static char *redis_command = "HMGET";
         const static std::size_t &&redis_command_byte = 5;
 
         // const ::tensorflow::int64 dim0_size = keys.dim_size(0);
@@ -437,7 +437,7 @@ namespace sw::redis
         auto cmd = [](::sw::redis::Connection &connection, const ::sw::redis::StringView hkey,
                       const std::vector<const char *> &ptrs_i, const std::vector<std::size_t> &sizes_i)
         {
-          assert(ptrs_i[0] == "hmget");
+          assert(ptrs_i[0] == "HMGET");
           assert(sizes_i[0] == 5);
           assert(ptrs_i[1] == hkey);
           // raise(SIGTRAP);  /* To continue from here in GDB: "signal 0". */
@@ -496,7 +496,7 @@ namespace sw::redis
         const int &&total = max_i - begin;
         const int &&argc = total * 2 + 2;
 
-        const static char *redis_command = "hmset";
+        const static char *redis_command = "HMSET";
         const static std::size_t &&redis_command_byte = 5;
 
         const K *const pk_raw_end = reinterpret_cast<K *>(keys.data()) + (total);
@@ -539,7 +539,7 @@ namespace sw::redis
         auto cmd = [](::sw::redis::Connection &connection, const ::sw::redis::StringView &hkey,
                       const std::vector<const char *> &ptrs_i, const std::vector<std::size_t> &sizes_i)
         {
-          assert(ptrs_i[0] == "hmset");
+          assert(ptrs_i[0] == "HMSET");
           assert(sizes_i[0] == 5);
           assert(ptrs_i[1] == hkey);
           // raise(SIGTRAP);  /* To continue from here in GDB: "signal 0". */
@@ -557,7 +557,7 @@ namespace sw::redis
         const int &&total = max_i - begin;
         const int &&argc = total + 2;
 
-        const static char *redis_command = "hdel";
+        const static char *redis_command = "HDEL";
         const static std::size_t &&redis_command_byte = 4;
 
         const K *const pk_raw_end = reinterpret_cast<K *>(keys.data()) + (total);
@@ -590,7 +590,7 @@ namespace sw::redis
         auto cmd = [](::sw::redis::Connection &connection, const ::sw::redis::StringView hkey,
                       const std::vector<const char *> &ptrs_i, const std::vector<std::size_t> &sizes_i)
         {
-          assert(ptrs_i[0] == "hdel");
+          assert(ptrs_i[0] == "HDEL");
           assert(sizes_i[0] == 4);
           assert(ptrs_i[1] == hkey);
           // raise(SIGTRAP);  /* To continue from here in GDB: "signal 0". */

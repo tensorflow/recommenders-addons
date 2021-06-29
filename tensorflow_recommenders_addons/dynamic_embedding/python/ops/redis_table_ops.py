@@ -52,7 +52,7 @@ class RedisTable(LookupInterface):
     """
 
   default_redis_params={
-    "connection_mode":1,
+    "connection_mode":1, # ClusterMode = 0, SentinelMode = 1, StreamMode = 2
     "master_name":"master",
     # connection_options
     "host_ip":"127.0.0.1",
@@ -113,9 +113,10 @@ class RedisTable(LookupInterface):
     self._key_dtype = key_dtype
     self._value_dtype = value_dtype
     self._name = name
+    self._embedding_name = (self._name.split(':',1))[0]
 
     self._redis_params = self.default_redis_params.copy()
-    self._redis_params = {k:v for k, v in params[name].items() if k in self._default_redis_params}
+    self._redis_params = {k:v for k, v in params[self._embedding_name].items() if k in self.default_redis_params}
 
     os.environ["connect_timeout"]=str(self._redis_params["connect_timeout"])
     os.environ["socket_timeout"]=str(self._redis_params["socket_timeout"])
@@ -155,7 +156,6 @@ class RedisTable(LookupInterface):
     # training to work correctly. Use the node name if no shared_name has been
     # explicitly specified.
     use_node_name_sharing = self._checkpoint and self._shared_name is None
-    self._embedding_name = (self._name.split(':',1))[0]
     table_ref = redis_table_ops.tfra_redis_table_of_tensors(
         shared_name=self._shared_name,
         use_node_name_sharing=use_node_name_sharing,

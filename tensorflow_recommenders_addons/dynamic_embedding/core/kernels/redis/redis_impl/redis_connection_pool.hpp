@@ -139,7 +139,7 @@ namespace sw::redis
       virtual bool check_slices_num(const std::string &keys_prefix_name) override
       {
         std::string redis_command = "keys " + '*' + keys_prefix_name + '*';
-        auto cmd = [](::sw::redis::Connection &connection, char *str)
+         auto cmd = [](::sw::redis::Connection &connection, const char *str)
         { connection.send(str); };
         std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply = redis_conn->command(cmd, redis_command.data());
         if (reply->elements != redis_connection_params.storage_slice)
@@ -156,8 +156,8 @@ namespace sw::redis
 
       virtual size_t table_size_in_slots(const std::vector<std::string> &keys_prefix_name_slices) override
       {
-        std::string redis_command = "hlen " + keys_prefix_name_slices[0];
-        auto cmd = [](::sw::redis::Connection &connection, char *str)
+        std::string redis_command = "HLEN " + keys_prefix_name_slices[0];
+         auto cmd = [](::sw::redis::Connection &connection, const char *str)
         { connection.send(str); };
         std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply = redis_conn->command(cmd, redis_command.data());
         size_t size = strtoumax(reply->element[0]->str, nullptr, 10); // decimal
@@ -168,8 +168,8 @@ namespace sw::redis
       virtual void remove_hkeys_in_slots(const std::vector<std::string> &keys_prefix_name_slices) override
       {
         // std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply;
-        std::string redis_command = "del " + keys_prefix_name_slices[0];
-        auto cmd = [](::sw::redis::Connection &connection, char *str)
+        std::string redis_command = "DEL " + keys_prefix_name_slices[0];
+         auto cmd = [](::sw::redis::Connection &connection, const char *str)
         { connection.send(str); };
         /*reply=*/redis_conn->command(cmd, redis_command.data());
       }
@@ -179,11 +179,11 @@ namespace sw::redis
       */
       virtual void dump_to_disk(const std::vector<std::string> &keys_prefix_name_slices, std::vector<aiocb> &wrs, const std::vector<int> &fds) override
       {
-        std::string redis_command = "dump " + keys_prefix_name_slices[0];
+        std::string redis_command = "DUMP " + keys_prefix_name_slices[0];
         aiocb *wr = &wrs.front();
         int ret; // int fd;
 
-        auto cmd = [](::sw::redis::Connection &connection, char *str)
+         auto cmd = [](::sw::redis::Connection &connection, const char *str)
         { connection.send(str); };
         std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply = redis_conn->command(cmd, redis_command.data());
 
@@ -212,12 +212,12 @@ namespace sw::redis
             }
           }
         }
-        free(wr->aio_buf); // Dangerous behavior! Note that when creating AIOCB objects, you need to set aio_buf to nullptr!
+        free((void *)(wr->aio_buf)); // Dangerous behavior! Note that when creating AIOCB objects, you need to set aio_buf to nullptr!
         wr->aio_buf = nullptr;
         bzero(wr, sizeof(*wr));
         buf_len = reply->element[0]->len;
         wr->aio_buf = malloc(buf_len);
-        memcpy(wr->aio_buf, reply->element[0]->str, buf_len);
+        memcpy((void *)(wr->aio_buf), reply->element[0]->str, buf_len);
         wr->aio_nbytes = buf_len;
         wr->aio_fildes = fds[0];
         wr->aio_offset = 0;
@@ -230,12 +230,12 @@ namespace sw::redis
                                      const std::vector<int> &fds, const std::vector<unsigned long> &buf_sizes) override
       {
         std::string redis_command;
-        std::string tmp_redis_command = "restore " + keys_prefix_name_slices[0] + " 0";
-        size_t command_capacity = keys_prefix_name_slices[0].size() + 19; // "restore "=8, '0'=1, reset for enough mem space.
+        std::string tmp_redis_command = "RESTORE " + keys_prefix_name_slices[0] + " 0";
+        size_t command_capacity = keys_prefix_name_slices[0].size() + 19; // "RESTORE "=8, '0'=1, reset for enough mem space.
         aiocb *rd = &rds.front();
         int ret; // int fd;
 
-        auto cmd = [](::sw::redis::Connection &connection, char *str)
+         auto cmd = [](::sw::redis::Connection &connection, const char *str)
         { connection.send(str); };
 
         size_t buf_len;
@@ -308,7 +308,7 @@ namespace sw::redis
       {
         const int argc = (max_i - begin) + 2;
 
-        const static char *redis_command = "hmget";
+        const static char *redis_command = "HMGET";
         const static std::size_t redis_command_byte = 5;
 
         thread_context.HandleReserve(1, argc, 0);
@@ -348,10 +348,10 @@ namespace sw::redis
         assert(sizes_0[0] == redis_command_byte);
 
         auto cmd = [](::sw::redis::Connection &connection, const int argc,
-                      std::vector<const char *> &ptrs_0, std::vector<std::size_t> &sizes_0)
+                      const std::vector<const char *> &ptrs_0, const std::vector<std::size_t> &sizes_0)
         {
           // raise(SIGTRAP);  /* To continue from here in GDB: "signal 0". */
-          connection.send(argc, &ptrs_0[0], &sizes_0[0]);
+          connection.send(argc, const_cast<const char **>(ptrs_0.data()), sizes_0.data());
         };
 
         std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>> reply;
@@ -402,7 +402,7 @@ namespace sw::redis
       {
         const int &&argc = (max_i - begin) * 2 + 2;
 
-        const static char *redis_command = "hmset";
+        const static char *redis_command = "HMSET";
         const static std::size_t redis_command_byte = 5;
 
         thread_context.HandleReserve(1, argc, 0);
@@ -455,10 +455,10 @@ namespace sw::redis
         assert(sizes_0[0] == redis_command_byte);
 
         auto cmd = [](::sw::redis::Connection &connection, const int argc,
-                      std::vector<const char *> &ptrs_0, std::vector<std::size_t> &sizes_0)
+                      const std::vector<const char *> &ptrs_0, const std::vector<std::size_t> &sizes_0)
         {
           // raise(SIGTRAP);  /* To continue from here in GDB: "signal 0". */
-          connection.send(argc, &ptrs_0[0], &sizes_0[0]);
+          connection.send(argc, const_cast<const char **>(ptrs_0.data()), sizes_0.data());
         };
 
         redis_conn->command(cmd, argc, ptrs_0, sizes_0);
@@ -471,7 +471,7 @@ namespace sw::redis
       {
         const int argc = (max_i - begin) + 2;
 
-        const static char *redis_command = "hdel";
+        const static char *redis_command = "HDEL";
         const static std::size_t redis_command_byte = 4;
 
         thread_context.HandleReserve(1, argc, 0);
@@ -506,10 +506,10 @@ namespace sw::redis
         assert(sizes_0[0] == redis_command_byte);
 
         auto cmd = [](::sw::redis::Connection &connection, const int argc,
-                      std::vector<const char *> &ptrs_0, std::vector<std::size_t> &sizes_0)
+                      const std::vector<const char *> &ptrs_0, const std::vector<std::size_t> &sizes_0)
         {
           // raise(SIGTRAP);  /* To continue from here in GDB: "signal 0". */
-          connection.send(argc, &ptrs_0[0], &sizes_0[0]);
+          connection.send(argc, const_cast<const char **>(ptrs_0.data()), sizes_0.data());
         };
 
         /*auto reply=*/redis_conn->command(cmd, argc, ptrs_0, sizes_0);

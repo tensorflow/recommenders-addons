@@ -100,14 +100,14 @@ namespace sw::redis
         path.push_back('/');
       }
       if (access(path.c_str(), 0) == -1) //if folder doesn't exist
-        std::cout << "folder" << path << "doesn't exist" << std::endl;
+        std::cout << "folder " << path << " doesn't exist" << std::endl;
       if (createDirectory(path) == 0)
       {
-        std::cout << "folder" << path << "was created" << std::endl;
+        std::cout << "folder " << path << " was created" << std::endl;
       }
       else
       {
-        std::cout << "folder" << path << "failed to create" << std::endl;
+        std::cout << "folder " << path << " failed to create" << std::endl;
       }
       return path;
     }
@@ -148,7 +148,7 @@ namespace sw::redis
 
     struct Redis_Connection_Params
     {
-      int connection_mode = 1;
+      int connection_mode = 1; // ClusterMode = 0, SentinelMode = 1, StreamMode = 2
       std::string master_name = "master";
       // connection_options
       std::string host_ip = "127.0.0.1";
