@@ -55,21 +55,24 @@ class RedisTable(LookupInterface):
     "connection_mode":1,
     "master_name":"master",
     # connection_options
-    "host_name":"127.0.0.1",
+    "host_ip":"127.0.0.1",
     "host_port":26379,
     "password":"",
     "db":0,
-		"connect_timeout":100,  # milliseconds
-		"socket_timeout":100,  #  milliseconds
-		#  connection_pool_options
-		"size":10,
-		"wait_timeout":100,		  #  milliseconds
-		"connection_lifetime":10,  # minutes
-		#  sentinel_connection_options
-		"sentinel_connect_timeout":200,  # milliseconds
-		"sentinel_socket_timeout":200,	#  milliseconds
-    #  model_tag for version and any other information
-    "model_tag":"test",
+    "connect_timeout":1000, # milliseconds
+    "socket_timeout":1000,  # milliseconds
+    # connection_pool_options
+    "pool_size":20,
+    "wait_timeout":100000000,  # milliseconds
+    "connection_lifetime":100, # minutes
+    # sentinel_connection_options
+    "sentinel_connect_timeout":1000, # milliseconds
+    "sentinel_socket_timeout":1000,  # milliseconds
+    # Below there is user-defined parameters in this custom op, not Redis setting parameters
+    "storage_slice":1, # For deciding hash tag, which usually is how many Redis instance may be used in the trainning.
+    "model_tag":"test", #  model_tag for version and any other information
+    "using_MD5_prefix_name":False, # 1=true, 0=false
+    "model_lib_abs_dir":"/tmp/",
   }
 
   def __init__(
@@ -96,8 +99,6 @@ class RedisTable(LookupInterface):
           checkpoint: if True, the contents of the table are saved to and restored
             from checkpoints. If `shared_name` is empty for a checkpointed table, it
             is shared using the table node name.
-          init_size: initial size for the Variable and initial size of each hash 
-            tables will be int(init_size / N), N is the number of the devices.
 
         Returns:
           A `RedisTable` object.
@@ -111,16 +112,18 @@ class RedisTable(LookupInterface):
     self._checkpoint = checkpoint
     self._key_dtype = key_dtype
     self._value_dtype = value_dtype
-    self._init_size = init_size
     self._name = name
 
     self._redis_params = self.default_redis_params.copy()
     self._redis_params = {k:v for k, v in params[name].items() if k in self._default_redis_params}
 
-    # for k, v in self._redis_params.items():
-    #   if not isinstance(v, str):
-    #     v = str(v)
-    #   os.environ[k]=v
+    os.environ["connect_timeout"]=str(self._redis_params["connect_timeout"])
+    os.environ["socket_timeout"]=str(self._redis_params["socket_timeout"])
+    os.environ["pool_size"]=str(self._redis_params["pool_size"])
+    os.environ["wait_timeout"]=str(self._redis_params["wait_timeout"])
+    os.environ["connection_lifetime"]=str(self._redis_params["connection_lifetime"])
+    os.environ["sentinel_connect_timeout"]=str(self._redis_params["sentinel_connect_timeout"])
+    os.environ["sentinel_socket_timeout"]=str(self._redis_params["sentinel_socket_timeout"])
 
     self._shared_name = None
     if context.executing_eagerly():
@@ -152,14 +155,24 @@ class RedisTable(LookupInterface):
     # training to work correctly. Use the node name if no shared_name has been
     # explicitly specified.
     use_node_name_sharing = self._checkpoint and self._shared_name is None
+    self._embedding_name = (self._name.split(':',1))[0]
     table_ref = redis_table_ops.tfra_redis_table_of_tensors(
         shared_name=self._shared_name,
         use_node_name_sharing=use_node_name_sharing,
         key_dtype=self._key_dtype,
         value_dtype=self._value_dtype,
         value_shape=self._default_value.get_shape(),
-        init_size=self._init_size,
-        embedding_name=self._name,
+        embedding_name=self._embedding_name,
+        connection_mode=self._redis_params["connection_mode"],
+        master_name=self._redis_params["master_name"],
+        host_ip=self._redis_params["host_ip"],
+        host_port=self._redis_params["host_port"],
+        password=self._redis_params["password"],
+        db=self._redis_params["db"],
+        storage_slice=self._redis_params["storage_slice"],
+        model_tag=self._redis_params["model_tag"],
+        using_MD5_prefix_name=self._redis_params["using_MD5_prefix_name"],
+        model_lib_abs_dir=self._redis_params["model_lib_abs_dir"],
     )
 
     if context.executing_eagerly():

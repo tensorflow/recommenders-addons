@@ -17,6 +17,10 @@ limitations under the License.
 #include <utility>
 #include <csignal>
 #include <signal.h>
+// for posix operation
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h> 
 
 extern "C"
 {
@@ -164,9 +168,9 @@ namespace tensorflow
       public:
         RedisTableOfTensors(OpKernelContext *ctx, OpKernel *kernel)
         {
-          int64 env_var = 0;
-          int64 init_size = 0;
-          std::string tmp_embedding_name;
+          // int64 env_var = 0;
+          // int64 init_size = 0;
+          // std::string tmp_embedding_name;
 
           OP_REQUIRES_OK(ctx,
                          GetNodeAttr(kernel->def(), "value_shape", &value_shape_));
@@ -192,10 +196,39 @@ namespace tensorflow
           // }
           // 
 
+          int revn_status;
+          revn_status = ReadInt32FromEnvVar("connect_timeout",redis_connection_params.connect_timeout, \
+              &redis_connection_params.connect_timeout);
+          revn_status = ReadInt32FromEnvVar("socket_timeout",redis_connection_params.socket_timeout, \
+              &redis_connection_params.socket_timeout);
+          revn_status = ReadInt32FromEnvVar("pool_size",redis_connection_params.pool_size, \
+              &redis_connection_params.pool_size);
+          revn_status = ReadInt32FromEnvVar("wait_timeout",redis_connection_params.wait_timeout, \
+              &redis_connection_params.wait_timeout);
+          revn_status = ReadInt32FromEnvVar("connection_lifetime",redis_connection_params.connection_lifetime, \
+              &redis_connection_params.connection_lifetime);
+          revn_status = ReadInt32FromEnvVar("sentinel_connect_timeout",redis_connection_params.sentinel_connect_timeout, \
+              &redis_connection_params.sentinel_connect_timeout);
+          revn_status = ReadInt32FromEnvVar("sentinel_socket_timeout",redis_connection_params.sentinel_socket_timeout, \
+              &redis_connection_params.sentinel_socket_timeout);
+
           runtime_dim_ = value_shape_.dim_size(0);
 
-          OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "embedding_name", &tmp_embedding_name));
-          embedding_name = static_cast<std::string>(strtok(const_cast<char *>(tmp_embedding_name.data()), ":"));
+          // OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "embedding_name", &tmp_embedding_name));
+          // embedding_name = static_cast<std::string>(strtok(const_cast<char *>(tmp_embedding_name.data()), ":"));
+          OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "embedding_name", &embedding_name));
+          OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "connection_mode", &redis_connection_params.connection_mode));
+          OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "master_name", &redis_connection_params.master_name));
+          OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "host_ip", &redis_connection_params.host_ip));
+          OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "host_port", &redis_connection_params.host_port));
+          OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "password", &redis_connection_params.password));
+          OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "db", &redis_connection_params.db));
+          int tem_storage_slice = 1;
+          OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "storage_slice", &tem_storage_slice));
+          redis_connection_params.storage_slice = *(reinterpret_cast<unsigned *>(&tem_storage_slice));
+          OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "model_tag", &redis_connection_params.model_tag));
+          OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "using_MD5_prefix_name", &redis_connection_params.using_MD5_prefix_name));
+          OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "model_lib_abs_dir", &redis_connection_params.model_lib_abs_dir));
 
           if(redis_connection_params.using_MD5_prefix_name)
           {
@@ -224,7 +257,7 @@ namespace tensorflow
             keys_prefix_name = redis_connection_params.model_tag+":"+embedding_name;
           }
 
-          const unsigned &&storage_slice = redis_connection_params.storage_slice;
+          const unsigned &storage_slice = redis_connection_params.storage_slice;
           keys_prefix_name_slices.reserve(storage_slice);
           for (unsigned i = 0; i < storage_slice; ++i)
           {
@@ -262,7 +295,7 @@ namespace tensorflow
           }
           }
 
-          if(_table_instance->check_slices_num(keys_prefix_name) == false)
+          if(_table_instance->check_slices_num(keys_prefix_name_slices) == false)
           {
             LOG(ERROR) << "The embedding table prefix name " << keys_prefix_name << "has already been saved in the Redis Servers. " << \
               "And its number of slices is not equal to the number you putted in the setting. Please change the storage_slice in redis_connection_params.";
@@ -343,7 +376,7 @@ namespace tensorflow
         {
           // return DoInsert(true, ctx, keys, values);
           std::string file_name;
-          const &&storage_slice = redis_connection_params.storage_slice;
+          const unsigned &storage_slice = redis_connection_params.storage_slice;
 
           IMPORT_content.resize(storage_slice);
           IMPORT_fds.reserve(storage_slice);
@@ -351,11 +384,11 @@ namespace tensorflow
           IMPORT_fds_sizes.reserve(storage_slice);
           IMPORT_fds_sizes.clear();
 
-          for (size_t i = 0; i < storage_slice; ++i)
+          for (unsigned i = 0; i < storage_slice; ++i)
           {
             file_name = redis_connection_params.model_lib_abs_dir+keys_prefix_name_slices[0]+".rdb";
-            if (_access(file_name.c_str(), 0) == -1) throw("file" + file_name + "doesn't exist");
-            IMPORT_fds.push_back(open(file_name,O_WRONLY));
+            if (access(file_name.c_str(), 0) == -1) throw("file" + file_name + "doesn't exist");
+            IMPORT_fds.push_back(open(file_name.c_str(),O_WRONLY));
             IMPORT_fds_sizes.push_back(get_file_size(file_name));
           }
           
@@ -367,17 +400,17 @@ namespace tensorflow
         Status ExportValues(OpKernelContext *ctx) override
         {
           std::string file_name;
-          const &&storage_slice = redis_connection_params.storage_slice;
+          const unsigned &storage_slice = redis_connection_params.storage_slice;
 
           EXPORT_content.resize(storage_slice);
           EXPORT_fds.reserve(storage_slice);
           EXPORT_fds.clear();
 
-          for (size_t i = 0; i < storage_slice; ++i)
+          for (unsigned i = 0; i < storage_slice; ++i)
           {
             file_name = redis_connection_params.model_lib_abs_dir+keys_prefix_name_slices[0]+".rdb";
-            if (_access(file_name.c_str(), 0) == -1) remove(file_name);
-            IMPORT_fds.push_back(open(file_name,O_WRONLY));
+            if (access(file_name.c_str(), 0) == -1) remove(file_name.c_str());
+            IMPORT_fds.push_back(open(file_name.c_str(),O_WRONLY));
           }
 
           _table_instance->dump_to_disk(keys_prefix_name_slices, EXPORT_content, EXPORT_fds);

@@ -14,6 +14,7 @@ limitations under the License.
 ==============================================================================*/
 
 #include <unistd.h>
+#include <inttypes.h>
 #include <chrono>
 #include <iostream>
 
@@ -73,7 +74,7 @@ namespace sw::redis
         conn_opts.connect_timeout = std::chrono::milliseconds(redis_connection_params.connect_timeout);
         conn_opts.socket_timeout = std::chrono::milliseconds(redis_connection_params.socket_timeout);
         // Redis connection pool options
-        pool_opts.size = redis_connection_params.size;
+        pool_opts.size = redis_connection_params.pool_size;
         pool_opts.wait_timeout = std::chrono::milliseconds(redis_connection_params.wait_timeout);
         pool_opts.connection_lifetime = std::chrono::minutes(redis_connection_params.connection_lifetime);
 
@@ -96,7 +97,7 @@ namespace sw::redis
         return nullptr;
       }
 
-      virtual void conn() override
+      virtual void conn() 
       {
         if (isRedisConnect == false)
         {
@@ -149,13 +150,13 @@ namespace sw::redis
 
     public:
 
-      virtual bool check_slices_num(const std::string &keys_prefix_name) override 
+      virtual bool check_slices_num(const std::string &keys_prefix_name)  
       {
         std::string redis_command = "keys " + '*' + keys_prefix_name+ '*';
-        auto cmd_per_server = [](::sw::redis::Connection &connection) {connection.send("cluster slots");};
-        std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply = redis_conn->command(cmd, redis_command.data());
+        auto cmd = [](::sw::redis::Connection &connection, ::sw::redis::StringView hkey) {connection.send("cluster slots");};
+        std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply = redis_conn->command(cmd, "0", redis_command.data());
         std::vector<std::string> IP_set;
-        siez_t servers_num = reply->elements;
+        size_t servers_num = reply->elements;
         IP_set.reserve(servers_num);
         for (size_t i = 0; i < servers_num; ++i)
         {
@@ -166,7 +167,7 @@ namespace sw::redis
         std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply_server;
         ConnectionOptions connection_options;
         size_t slices_in_redis = 0;
-        for (size_t i = 0; i < iterator_IP_set.size(); ++i)
+        for (size_t i = 0; i < IP_set.size(); ++i)
         {
           connection_options.host = IP_set[i];  // Required.
           connection_options.port = redis_connection_params.host_port; // Optional. The default port is 6379.
@@ -190,53 +191,56 @@ namespace sw::redis
         return false;
       }
 
-      virtual size_t table_size_in_slots(const std::vector<std::string> &keys_prefix_name_slices) override
+      virtual size_t table_size_in_slots(const std::vector<std::string> &keys_prefix_name_slices) 
       {
         std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply;
         std::string redis_command("hlen ");
         std::string command_string;
-        auto cmd = [](::sw::redis::Connection &connection, char *str) {connection.send(str);};
+        auto cmd = [](::sw::redis::Connection &connection, ::sw::redis::StringView hkey, char *str) {connection.send(str);};
         size_t size = 0;
         for (unsigned i = 0; i < redis_connection_params.storage_slice; ++i)
         {
           command_string.clear();
           command_string = command_string + redis_command + keys_prefix_name_slices[i];
-          reply.reset(redis_conn->command(cmd, command_string.data()));
-          size += std::strtoumax(reply->element[0]->str, nullptr, 10); // decimal
+          reply.reset(redis_conn->command(cmd, keys_prefix_name_slices[i], command_string.data()));
+          size += strtoumax(reply->element[0]->str, nullptr, 10); // decimal
         }
         
         return size;
       }
 
-      virtual void remove_hkeys_in_slots(const std::vector<std::string> &keys_prefix_name_slices) override
+      virtual void remove_hkeys_in_slots(const std::vector<std::string> &keys_prefix_name_slices) 
       {
         // std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply;
         std::string redis_command("del ");
         std::string command_string;
-        auto cmd = [](::sw::redis::Connection &connection, char *str) {connection.send(str);};
+        auto cmd = [](::sw::redis::Connection &connection, ::sw::redis::StringView hkey, char *str) {connection.send(str);};
         size_t size = 0;
         for (unsigned i = 0; i < redis_connection_params.storage_slice; ++i)
         {
           command_string.clear();
           command_string = command_string + redis_command + keys_prefix_name_slices[i];
-          /*reply=*/redis_conn->command(cmd, command_string.data());
+          /*reply=*/redis_conn->command(cmd, keys_prefix_name_slices[i], command_string.data());
         }
       }
 
-      virtual void dump_to_disk(const std::vector<std::string> &keys_prefix_name_slices, std::vector<aiocb> &wrs, const std::vector<int> &fds) override
+      /*
+      fds are the return of POSIX open file function declared in <fcntl.h> 
+      */
+      virtual void dump_to_disk(const std::vector<std::string> &keys_prefix_name_slices, std::vector<aiocb> &wrs, const std::vector<int> &fds) 
       {
-        std::string redis_command
-        struct aiocb *wr;
+        std::string redis_command;
+        aiocb *wr;
         int ret; // int fd;
 
-        auto cmd = [](::sw::redis::Connection &connection, char *str) {connection.send(str);};
+        auto cmd = [](::sw::redis::Connection &connection, ::sw::redis::StringView hkey, char *str) {connection.send(str);};
         std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply;
 
         size_t buf_len; 
         for (unsigned i = 0; i < redis_connection_params.storage_slice; ++i)
         {
           redis_command = "dump " + keys_prefix_name_slices[i];
-          reply.reset(redis_conn->command(cmd, redis_command.data()));
+          reply.reset(redis_conn->command(cmd, keys_prefix_name_slices[i], redis_command.data()));
 
           // std::string file_name = redis_connection_params.model_lib_abs_dir+keys_prefix_name_slices[i]+".rdb";
           // fd = open(file_name,O_WRONLY | O_APPEND);
@@ -276,18 +280,18 @@ namespace sw::redis
       }
 
       virtual void restore_from_disk(const std::vector<std::string> &keys_prefix_name_slices, std::vector<aiocb> &rds, 
-        const std::vector<int> &fds, const std::vector<unsigned long> &buf_sizes) override
+        const std::vector<int> &fds, const std::vector<unsigned long> &buf_sizes) 
       {
         // std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply;
-        auto &&storage_slice = redis_connection_params.storage_slice
+        const unsigned &storage_slice = redis_connection_params.storage_slice;
         std::vector<std::string> redis_command(storage_slice);
         std::string tmp_redis_command;
         // "restore "=8, '0'=1, reset for enough mem space, because keys_prefix_name_slices have different length.
         size_t command_capacity = keys_prefix_name_slices[0].size() + 19; 
-        struct aiocb *rd
+        aiocb *rd;
         int ret; // int fd;
 
-        auto cmd = [](::sw::redis::Connection &connection, char *str) {connection.send(str);};
+        auto cmd = [](::sw::redis::Connection &connection, ::sw::redis::StringView hkey, char *str) {connection.send(str);};
 
         size_t buf_len; 
         size_t tmp_redis_command_size;
@@ -299,7 +303,7 @@ namespace sw::redis
 
           buf_len = buf_sizes[i];
 
-          tmp_redis_command =  = "restore " + keys_prefix_name_slices[i] + " 0"
+          tmp_redis_command = "restore " + keys_prefix_name_slices[i] + " 0";
           tmp_redis_command_size = tmp_redis_command.size();
           redis_command[i].reserve(command_capacity + buf_len + 1); 
           redis_command[i].replace(0, tmp_redis_command_size, tmp_redis_command);
@@ -314,6 +318,7 @@ namespace sw::redis
         }
 
         size_t count_down = storage_slice;
+        std::vector<size_t> reread_countdown(storage_slice);
 
         while (count_down != 0)
         {
@@ -323,24 +328,26 @@ namespace sw::redis
 
             if (rd->aio_nbytes > 0)
             {
-              for (size_t j = 3; j > 0; --j)
+              if (aio_error(rd) != EINPROGRESS)
               {
-                while (aio_error(rd) == EINPROGRESS);
                 if ((ret = aio_return(rd)) > 0) 
                 {
                   std::cout << "File handle " << rd->aio_fildes << " finished reading last round." << std::endl;
-                  /*reply = */redis_conn->command(cmd, redis_command[i].data());
-                  redis_command[i].swap("");
+                  /*reply = */redis_conn->command(cmd, keys_prefix_name_slices[i], redis_command[i].data());
+                  redis_command[i].swap(std::string(""));
                   bzero(rd, sizeof(*rd));
                   --count_down;
-                  break;
                 } 
                 else 
                 {
                   std::cerr << "File handle " << rd->aio_fildes << " did not finish reading last round. " << \
-                              "Try to rdite " << j << " more times" << std::endl;
-                  ret = aio_read(rd);
-                  if(ret < 0) perror("aio_read");
+                              "Try to rdite " << reread_countdown[i] << " more times" << std::endl;
+                  if (reread_countdown[i] > 0)
+                  {
+                    ret = aio_read(rd);
+                    if(ret < 0) perror("aio_read");
+                    --reread_countdown[i];
+                  }
                 }
               }
             }
@@ -373,7 +380,7 @@ namespace sw::redis
         const ::tensorflow::Tensor &keys, ThreadContext &thread_context,
         const ::tensorflow::int64 &begin, const ::tensorflow::int64 &max_i,
         const std::vector<std::string> &keys_prefix_name_slices
-      ) override
+      ) 
       {
         const int &&total = max_i - begin;
         const int &&argc = total + 2; 
@@ -389,7 +396,7 @@ namespace sw::redis
         const K *pk_raw = reinterpret_cast<K*>(keys.data()) + begin;
         // const char *pk = reinterpret_cast<const char *>(pk_raw);
         
-        const unsigned &&storage_slice = redis_connection_params.storage_slice;
+        const unsigned &storage_slice = redis_connection_params.storage_slice;
         const unsigned &&vector_len = (static_cast<::tensorflow::int64>(reinterpret_cast<int>(argc)) >> redis_connection_params.storage_slice_log2) + 2;
 
         thread_context.HandleReserve(storage_slice, vector_len, total);
@@ -430,7 +437,7 @@ namespace sw::redis
         ::tensorflow::Tensor *values, const ::tensorflow::Tensor &default_value, const bool &is_full_default,
         ThreadContext &thread_context,std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>> &reply,
         const ::tensorflow::int64 &begin, const ::tensorflow::int64 &max_i
-      ) override
+      ) 
       {
         const ::tensorflow::int64 Velems_per_dim0 = values->NumElements() / values->dim_size(0);
         V *pv_raw = reinterpret_cast<V*>(values->data()) + begin*Velems_per_dim0;
@@ -472,7 +479,7 @@ namespace sw::redis
         ThreadContext &thread_context,
         const ::tensorflow::int64 &begin, const ::tensorflow::int64 &max_i,
         const std::vector<std::string> &keys_prefix_name_slices
-      ) override
+      ) 
       {
         const int &&total = max_i - begin;
         const int &&argc = total*2 + 2;
@@ -493,7 +500,7 @@ namespace sw::redis
         const V *pv_raw = reinterpret_cast<V*>(values.data()) + begin*Velems_per_dim0;
         // const char *pv = reinterpret_cast<const char *>(pv_raw);
         
-        const unsigned &&storage_slice = redis_connection_params.storage_slice;
+        const unsigned &storage_slice = redis_connection_params.storage_slice;
         const unsigned &&vector_len = (static_cast<::tensorflow::int64>(reinterpret_cast<int>(argc)) >> redis_connection_params.storage_slice_log2) + 2;
 
         thread_context.HandleReserve(storage_slice, vector_len, total);

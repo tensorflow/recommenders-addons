@@ -14,6 +14,7 @@ limitations under the License.
 ==============================================================================*/
 
 #include <unistd.h>
+#include <inttypes.h>
 #include <chrono>
 #include <iostream>
 
@@ -80,7 +81,7 @@ namespace sw::redis
         conn_opts.connect_timeout = std::chrono::milliseconds(redis_connection_params.connect_timeout);
         conn_opts.socket_timeout = std::chrono::milliseconds(redis_connection_params.socket_timeout);
         // Redis connection pool options
-        pool_opts.size = redis_connection_params.size;
+        pool_opts.size = redis_connection_params.pool_size;
         pool_opts.wait_timeout = std::chrono::milliseconds(redis_connection_params.wait_timeout);
         pool_opts.connection_lifetime = std::chrono::minutes(redis_connection_params.connection_lifetime);
 
@@ -136,7 +137,7 @@ namespace sw::redis
     
     public:
 
-      virtual bool check_slices_num(const std::string &keys_prefix_name) override 
+      virtual bool check_slices_num(const std::string &keys_prefix_name)  
       {
         std::string redis_command = "keys " + '*' + keys_prefix_name+ '*';
         auto cmd = [](::sw::redis::Connection &connection, char *str) {connection.send(str);};
@@ -153,28 +154,31 @@ namespace sw::redis
         return false;
       }
 
-      virtual size_t table_size_in_slots(const std::vector<std::string> &keys_prefix_name_slices) override
+      virtual size_t table_size_in_slots(const std::vector<std::string> &keys_prefix_name_slices) 
       {
         std::string redis_command = "hlen " + keys_prefix_name_slices[0];
         auto cmd = [](::sw::redis::Connection &connection, char *str) {connection.send(str);};
         std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply = redis_conn->command(cmd, redis_command.data());
-        size_t size = std::strtoumax(reply->element[0]->str, nullptr, 10); // decimal
+        size_t size = strtoumax(reply->element[0]->str, nullptr, 10); // decimal
         
         return size;
       }
 
-      virtual void remove_hkeys_in_slots(const std::vector<std::string> &keys_prefix_name_slices) override
+      virtual void remove_hkeys_in_slots(const std::vector<std::string> &keys_prefix_name_slices) 
       {
         // std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply;
         std::string redis_command = "del " + keys_prefix_name_slices[0];
         auto cmd = [](::sw::redis::Connection &connection, char *str) {connection.send(str);};
         /*reply=*/redis_conn->command(cmd, redis_command.data());
       }
-
-      virtual void dump_to_disk(const std::vector<std::string> &keys_prefix_name_slices, std::vector<aiocb> &wrs, const std::vector<int> &fds) override
+      
+      /*
+      fds are the return of POSIX open file function declared in <fcntl.h> 
+      */
+      virtual void dump_to_disk(const std::vector<std::string> &keys_prefix_name_slices, std::vector<aiocb> &wrs, const std::vector<int> &fds) 
       {
         std::string redis_command = "dump " + keys_prefix_name_slices[0];
-        struct aiocb *wr = &wrs.front();
+        aiocb *wr = &wrs.front();
         int ret; // int fd;
 
         auto cmd = [](::sw::redis::Connection &connection, char *str) {connection.send(str);};
@@ -217,12 +221,12 @@ namespace sw::redis
       }
 
       virtual void restore_from_disk(const std::vector<std::string> &keys_prefix_name_slices, std::vector<aiocb> &rds, 
-        const std::vector<int> &fds, const std::vector<unsigned long> &buf_sizes) override
+        const std::vector<int> &fds, const std::vector<unsigned long> &buf_sizes) 
       {
         std::string redis_command;
         std::string tmp_redis_command = "restore " + keys_prefix_name_slices[0] + " 0";
         size_t command_capacity = keys_prefix_name_slices[0].size() + 19; // "restore "=8, '0'=1, reset for enough mem space.
-        struct aiocb *rd = &rds.front();
+        aiocb *rd = &rds.front();
         int ret; // int fd;
 
         auto cmd = [](::sw::redis::Connection &connection, char *str) {connection.send(str);};

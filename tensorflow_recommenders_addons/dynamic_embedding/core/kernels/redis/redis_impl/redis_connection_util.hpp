@@ -14,10 +14,9 @@ limitations under the License.
 ==============================================================================*/
 #pragma once
 #include <unistd.h>
-#include <io.h>
 #include <aio.h>
-#include <sys/stat.h>  
-#include <direct.h>
+#include <sys/stat.h>
+#include <stdlib.h>
 #include <iostream>
 #include <cmath>
 
@@ -79,9 +78,9 @@ namespace sw::redis
         tmpDirPath[i] = path[i];
         if (tmpDirPath[i] == '\\' || tmpDirPath[i] == '/')
         {
-          if (_access(tmpDirPath, 0) == -1)
+          if (access(tmpDirPath, 0) == -1)
           {
-            int ret = _mkdir(tmpDirPath);
+            int ret = mkdir(tmpDirPath, S_IRWXU | S_IRWXG | S_IRWXO);
             if (ret == -1) return ret;
           }
         }
@@ -96,7 +95,7 @@ namespace sw::redis
       {
         path.push_back('/');
       }
-      if (_access(path.c_str(), 0) == -1)	//if folder doesn't exist
+      if (access(path.c_str(), 0) == -1)	//if folder doesn't exist
         std::cout << "folder" << path << "doesn't exist" << std::endl;
 		    if (createDirectory(path) == 0)
         {
@@ -107,6 +106,21 @@ namespace sw::redis
           std::cout << "folder" << path << "failed to create" << std::endl;
         }
       return path;
+    }
+
+    inline int ReadInt32FromEnvVar(const std::string &env_var_name, const int &default_val, int *value) {
+      const char* _env_var_val = getenv(env_var_name.c_str());
+      if (_env_var_val == nullptr) {
+        return 0;
+      }
+      *value = std::stoi(_env_var_val);
+      if (static_cast<long long>(*value) == std::stol(_env_var_val)) {
+        return 0;
+      }
+      *value = default_val;
+      std::cerr << "Failed to parse the env-var ${" << env_var_name << "} into int32: " << \
+          _env_var_val << ". Use the default value: " << default_val << std::endl;
+      return -1;
     }
 
     std::array<unsigned char, 16> MD5(const std::string &src)
@@ -135,22 +149,23 @@ namespace sw::redis
       int host_port = 26379;
       std::string password = "";
       int db = 0;
+      //
       int connect_timeout = 1000; // milliseconds
       int socket_timeout = 1000;  // milliseconds
       // connection_pool_options
-      int size = 20;
+      int pool_size = 20;
       int wait_timeout = 100000000;  // milliseconds
       int connection_lifetime = 100; // minutes
       // sentinel_connection_options
       int sentinel_connect_timeout = 1000; // milliseconds
       int sentinel_socket_timeout = 1000;  // milliseconds
-                                           //  model_tag for version and any other information
+      //
       // Below there is user-defined parameters in this custom op, not Redis setting parameters
       unsigned storage_slice = 1;      // For deciding hash tag, which usually is how many Redis instance may be used in the trainning.
       unsigned storage_slice_log2 = 0; // For fast calculation.
-      std::string model_tag = "test";
+      std::string model_tag = "test"; //  model_tag for version and any other information
       bool using_MD5_prefix_name = false;
-      std::string model_lib_abs_dir = "/tmp";
+      std::string model_lib_abs_dir = "/tmp/";
 
       Redis_Connection_Params &operator=(const Redis_Connection_Params &x)
       {
@@ -162,7 +177,7 @@ namespace sw::redis
         db = x.db;
         connect_timeout = x.connect_timeout; // milliseconds
         socket_timeout = x.socket_timeout;   // milliseconds
-        size = x.size;
+        pool_size = x.pool_size;
         wait_timeout = x.wait_timeout;                                     // milliseconds
         connection_lifetime = x.connection_lifetime;                       // minutes
         sentinel_connect_timeout = x.sentinel_connect_timeout;             // milliseconds
@@ -219,29 +234,29 @@ namespace sw::redis
 
       virtual void conn() override {};
 
-      virtual bool check_slices_num(const std::vector<std::string> &keys_prefix_name_slices) override {return false;}
+      virtual bool check_slices_num(const std::vector<std::string> &keys_prefix_name_slices) {return false;}
 
-      virtual size_t table_size_in_slots(const std::vector<std::string> &keys_prefix_name_slices) override {return 0;}
+      virtual size_t table_size_in_slots(const std::vector<std::string> &keys_prefix_name_slices) {return 0;}
 
-      virtual void remove_hkeys_in_slots(const std::vector<std::string> &keys_prefix_name_slices) override {};
+      virtual void remove_hkeys_in_slots(const std::vector<std::string> &keys_prefix_name_slices) {};
 
-      virtual void dump_to_disk(const std::vector<std::string> &keys_prefix_name_slices, std::vector<aiocb> &wrs, const std::vector<int> &fds) override {};
+      virtual void dump_to_disk(const std::vector<std::string> &keys_prefix_name_slices, std::vector<aiocb> &wrs, const std::vector<int> &fds) {};
 
       virtual void restore_from_disk(const std::vector<std::string> &keys_prefix_name_slices, std::vector<aiocb> &rds, 
-        const std::vector<int> &fds, const std::vector<unsigned long> &buf_sizes) override {};
+        const std::vector<int> &fds, const std::vector<unsigned long> &buf_sizes) {};
 
       virtual std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>> MGET_COMMAND(
         const ::tensorflow::Tensor &keys, ThreadContext &thread_context,
         const ::tensorflow::int64 &begin, const ::tensorflow::int64 &max_i,
-        const std::vector<std::string> &keys_prefix_name_slices) override
+        const std::vector<std::string> &keys_prefix_name_slices)
         {std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>> nothing;return nothing;}
 
       virtual void MGET_to_Tensor(::tensorflow::Tensor *values, const ::tensorflow::Tensor &default_value, const bool &is_full_default,
         ThreadContext &thread_context,std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>> &reply,
-        const ::tensorflow::int64 &begin, const ::tensorflow::int64 &max_i) override {};
+        const ::tensorflow::int64 &begin, const ::tensorflow::int64 &max_i) {};
 
       virtual void MSET_COMMAND(const ::tensorflow::Tensor &keys, const ::tensorflow::Tensor &values, ThreadContext &thread_context,
-        const ::tensorflow::int64 &begin, const ::tensorflow::int64 &max_i, const std::vector<std::string> &keys_prefix_name_slices) override {};
+        const ::tensorflow::int64 &begin, const ::tensorflow::int64 &max_i, const std::vector<std::string> &keys_prefix_name_slices) {};
     };
 
     template <typename RedisInstance, typename K, typename V, typename = void>
