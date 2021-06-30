@@ -20,7 +20,8 @@ from tensorflow_recommenders_addons.dynamic_embedding.python.ops.cuckoo_hashtabl
     CuckooHashTable,)
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_factory import (
     KVcreator,
-    KVcreatorMeta,
+    CuckooHashTableCreator,
+    RedisTableCreator,
     )
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_optimizer import (
     create_slots,)

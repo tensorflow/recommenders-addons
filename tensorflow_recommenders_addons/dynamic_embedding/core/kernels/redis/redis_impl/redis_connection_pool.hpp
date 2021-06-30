@@ -138,7 +138,7 @@ namespace sw::redis
     public:
       virtual bool check_slices_num(const std::string &keys_prefix_name) override
       {
-        std::string redis_command = "keys *" + keys_prefix_name + "*";
+        std::string redis_command = "keys " + keys_prefix_name + "[0123456789]";
          auto cmd = [](::sw::redis::Connection &connection, const char *str)
         { connection.send(str); };
         std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply = redis_conn->command(cmd, redis_command.data());
@@ -148,7 +148,8 @@ namespace sw::redis
         }
         else
         {
-          std::cerr << "storage_slice in redis_connection_params did not equal to the slices number of this keys_prefix_name in the single Redis server" \
+          std::cerr << "storage_slice in redis_connection_params which is " << redis_connection_params.storage_slice \
+                    << "did not equal to the slices number of this keys_prefix_name in the Redis Cluster server which is " << reply->elements \
                     << std::endl;
           return false;
         }
@@ -214,17 +215,26 @@ namespace sw::redis
           }
         }
         free((void *)(wr->aio_buf)); // Dangerous behavior! Note that when creating AIOCB objects, you need to set aio_buf to nullptr!
+        memset(wr, 0, sizeof(*wr));
         wr->aio_buf = nullptr;
-        bzero(wr, sizeof(*wr));
-        buf_len = reply->element[0]->len;
-        wr->aio_buf = malloc(buf_len);
-        memcpy((void *)(wr->aio_buf), reply->element[0]->str, buf_len);
-        wr->aio_nbytes = buf_len;
-        wr->aio_fildes = fds[0];
-        wr->aio_offset = 0;
-        ret = aio_write(wr);
-        if (ret < 0)
-          perror("aio_write");
+        if (reply->type == 1) // #define REDIS_REPLY_STRING 1
+        {
+          buf_len = reply->len;
+          wr->aio_buf = malloc(buf_len);
+          memcpy((void *)(wr->aio_buf), reply->str, buf_len);
+          wr->aio_nbytes = buf_len;
+          wr->aio_fildes = fds[0];
+          wr->aio_offset = 0;
+          ret = aio_write(wr);
+          if (ret < 0)
+            perror("aio_write");
+        }    
+        else
+        {
+          std::cerr << "HKEY " << keys_prefix_name_slices[0] << " does not exist in the Redis server. "
+                    << std::endl;
+        }
+        
       }
 
       virtual void restore_from_disk(const std::vector<std::string> &keys_prefix_name_slices, std::vector<aiocb> &rds,
@@ -242,7 +252,7 @@ namespace sw::redis
         size_t buf_len;
         buf_len = buf_sizes[0];
 
-        bzero(rd, sizeof(*rd));
+        memset(rd, 0, sizeof(*rd));
 
         size_t &&tmp_redis_command_size = tmp_redis_command.size();
         redis_command.reserve(command_capacity + buf_len + 1);

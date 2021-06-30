@@ -21,9 +21,11 @@ from __future__ import print_function
 import os
 import functools
 from hashlib import new
+from numpy.core.fromnumeric import ndim
 
+import tensorflow as tf 
 from tensorflow.python.eager import context
-from tensorflow.python.framework import ops
+from tensorflow.python.framework import dtypes, ops
 from tensorflow.python.keras.utils.generic_utils import default
 from tensorflow.python.ops.lookup_ops import LookupInterface
 from tensorflow.python.training.saver import BaseSaverBuilder
@@ -70,8 +72,9 @@ class RedisTable(LookupInterface):
     "sentinel_socket_timeout":1000,  # milliseconds
     # Below there is user-defined parameters in this custom op, not Redis setting parameters
     "storage_slice":1, # For deciding hash tag, which usually is how many Redis instance may be used in the trainning.
-    "model_tag":"test", #  model_tag for version and any other information
     "using_MD5_prefix_name":False, # 1=true, 0=false
+    "model_tag":"test", #  model_tag for version and any other information
+    "using_model_lib":True,
     "model_lib_abs_dir":"/tmp/",
   }
 
@@ -82,8 +85,7 @@ class RedisTable(LookupInterface):
       default_value,
       name="RedisTable",
       checkpoint=False,
-      init_size=0,
-      params={},
+      params_dict={},
   ):
     """Creates an empty `RedisTable` object.
 
@@ -97,8 +99,8 @@ class RedisTable(LookupInterface):
           default_value: The value to use if a key is missing in the table.
           name: A name for the operation (optional, usually it's embedding table name).
           checkpoint: if True, the contents of the table are saved to and restored
-            from checkpoints. If `shared_name` is empty for a checkpointed table, it
-            is shared using the table node name.
+            from a Redis binary dump files according to the directory "[model_lib_abs_dir]/[model_tag]/[name].rdb". 
+            If `shared_name` is empty for a checkpointed table, it is shared using the table node name.
 
         Returns:
           A `RedisTable` object.
@@ -113,10 +115,11 @@ class RedisTable(LookupInterface):
     self._key_dtype = key_dtype
     self._value_dtype = value_dtype
     self._name = name
-    self._embedding_name = (self._name.split(':',1))[0]
-
+    self._embedding_name = (self._name.split('_mht_',1))[0]
+    print(self._name)
+    print(self._embedding_name)
     self._redis_params = self.default_redis_params.copy()
-    self._redis_params = {k:v for k, v in params[self._embedding_name].items() if k in self.default_redis_params}
+    self._redis_params = {k:v for k, v in params_dict.items() if k in self.default_redis_params}
 
     os.environ["connect_timeout"]=str(self._redis_params["connect_timeout"])
     os.environ["socket_timeout"]=str(self._redis_params["socket_timeout"])
@@ -150,6 +153,9 @@ class RedisTable(LookupInterface):
         self.saveable = RedisTable._Saveable(self,
                                                   name=name,
                                                   full_name=name)
+    
+    if self._redis_params["using_model_lib"]:
+      RedisTable.import_from_flies(self,name="direct_import")
 
   def _create_resource(self):
     # The table must be shared if checkpointing is requested for multi-worker
@@ -170,9 +176,10 @@ class RedisTable(LookupInterface):
         password=self._redis_params["password"],
         db=self._redis_params["db"],
         storage_slice=self._redis_params["storage_slice"],
-        model_tag=self._redis_params["model_tag"],
         using_MD5_prefix_name=self._redis_params["using_MD5_prefix_name"],
-        model_lib_abs_dir=self._redis_params["model_lib_abs_dir"],
+        model_tag=self._redis_params["model_tag"],
+        using_model_lib=self._redis_params["using_model_lib"],
+        model_lib_abs_dir=self._redis_params["model_lib_abs_dir"]
     )
 
     if context.executing_eagerly():
@@ -294,8 +301,32 @@ class RedisTable(LookupInterface):
             self.resource_handle, keys, values)
     return op
 
+  def import_from_flies(self, name=None):
+    """restored from a Redis binary dump files which paths are directory "[model_lib_abs_dir]/[model_tag]/[name].rdb". 
+
+        Args:
+          name: A name for the operation (optional).
+
+        """
+    
+    with ops.name_scope(name, "%s_lookup_table_export_values" % self.name,
+                        [self.resource_handle]):
+      with ops.colocate_with(self.resource_handle):
+        ndims = self._default_value.get_shape().ndims
+        if ndims==1:
+          useless_keys = ops.convert_to_tensor(0,dtype=self.key_dtype)
+        else:
+          useless_keys = tf.zeros(shape=(self._default_value.get_shape()[0]),dtype=self.key_dtype)
+        useless_vals = tf.zeros(shape=self._default_value.get_shape(),dtype=self.value_dtype)
+        return redis_table_ops.tfra_redis_table_import(
+            self.resource_handle,
+            useless_keys,
+            useless_vals
+        )
+
   def export(self, name=None):
-    """Returns tensors of all keys and values in the table.
+    """Returns nothing in Redis Implement. It will dump some binary files
+        to model_lib_abs_dir.
 
         Args:
           name: A name for the operation (optional).

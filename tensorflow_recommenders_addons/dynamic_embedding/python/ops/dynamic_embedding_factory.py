@@ -27,68 +27,97 @@ class Singleton(type):
     return cls._instances[cls]
 
 class KVcreator(object,metaclass=Singleton):
-  '''
-  Use table_fn to create the corresponding sparse table.
-  '''
-  sparse_table = {
-    'CuckooHashTable': de.CuckooHashTable, 
-    'RedisTable': de.RedisTable,
-    }
-  
-  table_fn_instance='CuckooHashTable'
-  table_params_dict={}
 
-  def __new__(
+  def create_instance(
     cls,
-    *args,
+    key_dtype=None,
+    value_dtype=None,
+    default_value=None,
+    name=None,
+    checkpoint=None,
+    params_dict=None,
   ):
-    if(len(args)==2):
-      if(isinstance(args[0],str)):
-        cls.table_fn_instance=args[0]
-        cls.table_params_dict=args[1]
-      elif(isinstance(args[1],str)):
-        cls.table_fn_instance=args[1]
-        cls.table_params_dict=args[0]
-    else:
-      raise NotImplementedError("Please provide a string name for the table and a dictionary variable for the line of sight argument of the corresponding table")
+    raise NotImplementedError('create_instance function must be implemented')
 
-  @classmethod
-  def instance(
+  default_creat_instance_method = create_instance
+
+  def apply_method(cls, creat_instance_method):
+    cls.default_creat_instance_method = creat_instance_method
+
+  def create(
     cls, 
     key_dtype=None,
     value_dtype=None,
     default_value=None,
     name=None,
     checkpoint=None,
-    init_size=None,
-    ):
-    if cls.table_fn_instance in cls.sparse_table:
-      return cls.sparse_table[cls.table_fn_instance](
-                key_dtype=key_dtype,
-                value_dtype=value_dtype,
-                default_value=default_value,
-                name=name,
-                checkpoint=checkpoint,
-                init_size=init_size,
-                params=cls.table_params_dict,
+    params_dict=None,
+  ):
+    return cls.default_creat_instance_method(
+              key_dtype=key_dtype,
+              value_dtype=value_dtype,
+              default_value=default_value,
+              name=name,
+              checkpoint=checkpoint,
+              params_dict=params_dict,
             )
-    else:
-      raise NotImplementedError("There is no sparse table creator called ",cls.table_fn_instance)
+  
+class CuckooHashTableCreator(KVcreator):
+  def create_instance(
+    self,
+    key_dtype=None,
+    value_dtype=None,
+    default_value=None,
+    name=None,
+    checkpoint=None,
+    params_dict={},
+  ):
+    return de.CuckooHashTable(
+              key_dtype=key_dtype,
+              value_dtype=value_dtype,
+              default_value=default_value,
+              name=name,
+              checkpoint=checkpoint,
+              params_dict=params_dict,
+          )
 
+  def __init__(self):
+    _KVcreator = KVcreator()
+    _KVcreator.apply_method(self.create_instance)
 
+class RedisTableCreator(KVcreator):
+  def create_instance(
+    self,
+    key_dtype=None,
+    value_dtype=None,
+    default_value=None,
+    name=None,
+    checkpoint=None,
+    params_dict={},
+  ):
+    return de.RedisTable(
+              key_dtype=key_dtype,
+              value_dtype=value_dtype,
+              default_value=default_value,
+              name=name,
+              checkpoint=checkpoint,
+              params_dict=params_dict,
+          )
 
+  def __init__(self):
+    _KVcreator = KVcreator()
+    _KVcreator.apply_method(self.create_instance)
 
+# class KVcreatorMeta(type):
+#   '''It's not useless at the moment'''
+#   def __init__(self, name, bases, dic):
+#     super().__init__(name, bases, dic)
 
-class KVcreatorMeta(type):
-  '''It's not useless at the moment'''
-  def __init__(self, name, bases, dic):
-    super().__init__(name, bases, dic)
+#   def __new__(cls, *args, **kwargs):
+#     return type.__new__(cls, *args, **kwargs)
 
-  def __new__(cls, *args, **kwargs):
-    return type.__new__(cls, *args, **kwargs)
-
-  def __call__(cls, *args, **kwargs):
-    obj = cls.__new__(cls)
-    cls.__init__(cls, *args, **kwargs)
-    return obj
+#   def __call__(cls, *args, **kwargs):
+#     obj = cls.__new__(cls)
+#     cls.__init__(cls, *args, **kwargs)
+#     return obj
     

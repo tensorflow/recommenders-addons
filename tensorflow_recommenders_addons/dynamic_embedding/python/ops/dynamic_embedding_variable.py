@@ -145,7 +145,7 @@ class Variable(trackable.TrackableResource):
       initializer=None,
       trainable=True,
       checkpoint=True,
-      init_size=0,
+      params_dict={},
       restrict_policy=None,
   ):
     """Creates an empty `Variable` object.
@@ -222,8 +222,14 @@ class Variable(trackable.TrackableResource):
 
     self._tables = []
     self.size_ops = []
+    self.params_dict = params_dict
+
     self.shard_num = len(self.devices)
-    self.init_size = int(init_size / self.shard_num)
+    if "init_size" in self.params_dict:
+      self.params_dict["init_size"] = int(params_dict["init_size"] / self.shard_num)
+    else:
+      self.params_dict["init_size"] = 0
+
     if restrict_policy is not None:
       if not issubclass(restrict_policy, de.RestrictPolicy):
         raise TypeError('restrict_policy must be subclass of RestrictPolicy.')
@@ -256,13 +262,14 @@ class Variable(trackable.TrackableResource):
         for idx in range(len(self.devices)):
           with ops.device(self.devices[idx]):
             mht = None
-            mht = de.KVcreator.instance(
+            KVcreator = de.KVcreator()
+            mht = KVcreator.create(
                 key_dtype=self.key_dtype,
                 value_dtype=self.value_dtype,
                 default_value=static_default_value,
                 name=self._make_name(idx),
                 checkpoint=self.checkpoint,
-                init_size=self.init_size,
+                params_dict=self.params_dict,
             )
 
             self._tables.append(mht)
@@ -300,11 +307,7 @@ class Variable(trackable.TrackableResource):
     raise NotImplementedError
 
   def _make_name(self, table_idx):
-    if(":" in self.name):
-      raise("Disallow the use of colons(:) as embedding table names!")
-    elif(len(self.name)==0):
-      raise("embedding table names shold not be empty!")
-    return "{}:mht:{}of{}".format(self.name.replace("/", ":"), table_idx + 1,
+    return "{}_mht_{}of{}".format(self.name.replace("/", "_"), table_idx + 1,
                                   self.shard_num)
 
   def upsert(self, keys, values, name=None):
@@ -503,7 +506,7 @@ def get_variable(
     initializer=None,
     trainable=True,
     checkpoint=True,
-    init_size=0,
+    params_dict={},
     restrict_policy=None,
 ):
   """Gets an `Variable` object with this name if it exists,
@@ -568,7 +571,7 @@ def get_variable(
         initializer=initializer,
         trainable=trainable,
         checkpoint=checkpoint,
-        init_size=init_size,
+        params_dict=params_dict,
         restrict_policy=restrict_policy,
     )
     scope_store._vars[full_name] = var_

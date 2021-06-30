@@ -174,6 +174,7 @@ namespace sw::redis
       std::string model_tag = "test";  //  model_tag for version and any other information
       bool using_MD5_prefix_name = false;
       std::string model_lib_abs_dir = "/tmp/";
+      bool using_model_lib = true;
 
       Redis_Connection_Params &operator=(const Redis_Connection_Params &x)
       {
@@ -195,6 +196,7 @@ namespace sw::redis
         model_tag = x.model_tag;
         using_MD5_prefix_name = x.using_MD5_prefix_name;
         model_lib_abs_dir = check_dir(x.model_lib_abs_dir);
+        using_model_lib = x.using_model_lib;
         return *this;
       }
     };

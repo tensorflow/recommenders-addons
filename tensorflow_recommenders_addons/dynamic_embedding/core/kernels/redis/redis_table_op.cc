@@ -170,7 +170,7 @@ namespace tensorflow
                                    const Tensor &keys, const int64 &total, std::vector<ThreadContext> &threads_Delete)
         {
           const int64 max_parallelism = (total / multi_redis_cmd_max_argc) + 1;
-          
+
           if (max_parallelism > static_cast<int64>(threads_Delete.size()))
             threads_Delete.resize(max_parallelism);
 
@@ -270,8 +270,9 @@ namespace tensorflow
           int tem_storage_slice = 1;
           OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "storage_slice", &tem_storage_slice));
           redis_connection_params.storage_slice = *(reinterpret_cast<unsigned *>(&tem_storage_slice));
-          OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "model_tag", &redis_connection_params.model_tag));
           OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "using_MD5_prefix_name", &redis_connection_params.using_MD5_prefix_name));
+          OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "model_tag", &redis_connection_params.model_tag));
+          OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "using_model_lib", &redis_connection_params.using_model_lib));
           OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "model_lib_abs_dir", &redis_connection_params.model_lib_abs_dir));
 
           if (redis_connection_params.using_MD5_prefix_name)
@@ -288,10 +289,10 @@ namespace tensorflow
               sprintf(tmp, "%02X", keys_prefix_name_md5[i]);
               md5_string += tmp;
             }
-            LOG(INFO) << "Init table tensor, now prefix name for keys namespace is " << keys_prefix_name \
-                      << ". The MD5 of prefix name for keys is " << md5_string \
-                      << ". And Its characters view in redis namespace is " << md5_view_in_redis \
-                      << ". This MD5 is used to store keys for distinguishing between different model and table names" \
+            LOG(INFO) << "Init table tensor, now prefix name for keys namespace is " << keys_prefix_name
+                      << ". The MD5 of prefix name for keys is " << md5_string
+                      << ". And Its characters view in redis namespace is " << md5_view_in_redis
+                      << ". This MD5 is used to store keys for distinguishing between different model and table names"
                       << std::endl;
 
             keys_prefix_name = std::string(reinterpret_cast<char *>(keys_prefix_name_md5.data()), 16);
@@ -312,40 +313,40 @@ namespace tensorflow
           // creat redis instance
           switch (redis_connection_params.connection_mode)
           {
-            case ClusterMode:
-            {
-              _table_instance = RedisWrapper<RedisCluster, K, V>::get_instance();
-              _table_instance->set_params(redis_connection_params);
-              _table_instance->conn();
-              break;
-            }
-            case SentinelMode:
-            {
-              _table_instance = RedisWrapper<Redis, K, V>::get_instance();
-              _table_instance->set_params(redis_connection_params);
-              _table_instance->conn();
-              break;
-            }
-            case StreamMode:
-            {
-              std::cerr << "Sorry! connection_mode=" << redis_connection_params.connection_mode \
-                        << " The Stream connection mode is still being TODO." \
-                        << std::endl;
-              throw(redis_connection_params.connection_mode);
-              break;
-            }
-            default:
-            {
-              std::cerr << "There are only three Redis connection modes, which Cluster=0/Sentinel=1/Stream=2." << std::endl;
-              throw(redis_connection_params.connection_mode);
-              break;
-            }
+          case ClusterMode:
+          {
+            _table_instance = RedisWrapper<RedisCluster, K, V>::get_instance();
+            _table_instance->set_params(redis_connection_params);
+            _table_instance->conn();
+            break;
+          }
+          case SentinelMode:
+          {
+            _table_instance = RedisWrapper<Redis, K, V>::get_instance();
+            _table_instance->set_params(redis_connection_params);
+            _table_instance->conn();
+            break;
+          }
+          case StreamMode:
+          {
+            std::cerr << "Sorry! connection_mode=" << redis_connection_params.connection_mode
+                      << " The Stream connection mode is still being TODO."
+                      << std::endl;
+            throw(redis_connection_params.connection_mode);
+            break;
+          }
+          default:
+          {
+            std::cerr << "There are only three Redis connection modes, which Cluster=0/Sentinel=1/Stream=2." << std::endl;
+            throw(redis_connection_params.connection_mode);
+            break;
+          }
           }
 
           if (_table_instance->check_slices_num(keys_prefix_name) == false)
           {
-            LOG(ERROR) << "The embedding table prefix name " << keys_prefix_name << "has already been saved in the Redis Servers. " \
-                       << "And its number of slices is not equal to the number you putted in the setting. " \
+            LOG(ERROR) << "The embedding table prefix name " << keys_prefix_name << "has already been saved in the Redis Servers. "
+                       << "And its number of slices is not equal to the number you putted in the setting. "
                        << "Please change the storage_slice in redis_connection_params.";
             OP_REQUIRES(ctx, false,
                         errors::InvalidArgument("storage_slice must be set properly equaling to the slices number in the Redis, got prefix storage_slice ",
@@ -429,8 +430,19 @@ namespace tensorflow
         Status ImportValues(OpKernelContext *ctx, const Tensor &keys,
                             const Tensor &values) override
         {
-          // return DoInsert(true, ctx, keys, values);
-          std::string file_name;
+          if (redis_connection_params.using_model_lib)
+          {
+            return ImportValuesFromFiles(ctx);
+          }
+          else
+          {
+            return DoInsert(true, ctx, keys, values);
+          }
+        }
+
+        Status ImportValuesFromFiles(OpKernelContext *ctx)
+        {
+          std::string file_path, folder_dir;
           const unsigned &storage_slice = redis_connection_params.storage_slice;
 
           IMPORT_content.resize(storage_slice);
@@ -439,38 +451,63 @@ namespace tensorflow
           IMPORT_fds_sizes.reserve(storage_slice);
           IMPORT_fds_sizes.clear();
 
+          folder_dir = check_dir(redis_connection_params.model_lib_abs_dir + redis_connection_params.model_tag + "/");
           for (unsigned i = 0; i < storage_slice; ++i)
           {
-            file_name = redis_connection_params.model_lib_abs_dir + keys_prefix_name_slices[0] + ".rdb";
-            if (access(file_name.c_str(), 0) == -1)
-              throw("file" + file_name + "doesn't exist");
-            IMPORT_fds.push_back(open(file_name.c_str(), O_WRONLY));
-            IMPORT_fds_sizes.push_back(get_file_size(file_name));
+            file_path = folder_dir + keys_prefix_name_slices[i] + ".rdb";
+            if (access(file_path.c_str(), 0) == -1)
+              throw("file" + file_path + "doesn't exist");
+            IMPORT_fds.push_back(open(file_path.c_str(), O_RDONLY));
+            IMPORT_fds_sizes.push_back(get_file_size(file_path));
           }
 
           _table_instance->restore_from_disk(keys_prefix_name_slices, IMPORT_content, IMPORT_fds, IMPORT_fds_sizes);
+
+          for (auto fd : IMPORT_fds)
+            close(fd);
 
           return Status::OK();
         }
 
         Status ExportValues(OpKernelContext *ctx) override
         {
-          std::string file_name;
+          if (redis_connection_params.using_model_lib)
+          {
+            return ExportValuesToFiles(ctx);
+          }
+          else
+          {
+            throw("For now we doesn's support ExportValuesToTensor");
+          }
+        }
+
+        Status ExportValuesToFiles(OpKernelContext *ctx)
+        {
+          std::string file_path, folder_dir;
           const unsigned &storage_slice = redis_connection_params.storage_slice;
+          int tem_fd;
 
           EXPORT_content.resize(storage_slice);
           EXPORT_fds.reserve(storage_slice);
           EXPORT_fds.clear();
 
+          folder_dir = check_dir(redis_connection_params.model_lib_abs_dir + redis_connection_params.model_tag + "/");
           for (unsigned i = 0; i < storage_slice; ++i)
           {
-            file_name = redis_connection_params.model_lib_abs_dir + keys_prefix_name_slices[0] + ".rdb";
-            if (access(file_name.c_str(), 0) == -1)
-              remove(file_name.c_str());
-            IMPORT_fds.push_back(open(file_name.c_str(), O_WRONLY));
+            file_path = folder_dir + keys_prefix_name_slices[i] + ".rdb";
+            tem_fd = open(file_path.c_str(), O_WRONLY | O_CREAT | O_EXCL, 0777);
+            if (tem_fd < 0)
+            {
+              std::cerr << "File " + file_path + " can't be created. Maybe it's already exist!" << std::endl;
+              throw(file_path);
+            }
+            EXPORT_fds.push_back(tem_fd);
           }
 
           _table_instance->dump_to_disk(keys_prefix_name_slices, EXPORT_content, EXPORT_fds);
+
+          // for (auto fd : EXPORT_fds) // for now the writting may be not finished
+          //   close(fd);
 
           return Status::OK();
         }
