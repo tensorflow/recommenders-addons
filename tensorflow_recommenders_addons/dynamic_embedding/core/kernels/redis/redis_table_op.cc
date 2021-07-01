@@ -464,9 +464,14 @@ namespace tensorflow
           {
             file_path = folder_dir + keys_prefix_name_slices[i] + ".rdb";
             if (access(file_path.c_str(), 0) == -1)
-              throw("file" + file_path + "doesn't exist");
-            IMPORT_fds.push_back(open(file_path.c_str(), O_RDONLY));
-            IMPORT_fds_sizes.push_back(get_file_size(file_path));
+            {
+              std::cerr << "file " << file_path << " doesn't exist. Using the table that already exist in the Redis or creating a new one" << std::endl;
+            }
+            else
+            {
+              IMPORT_fds.push_back(open(file_path.c_str(), O_RDONLY));
+              IMPORT_fds_sizes.push_back(get_file_size(file_path));
+            }                  
           }
 
           _table_instance->restore_from_disk(keys_prefix_name_slices, IMPORT_content, IMPORT_fds, IMPORT_fds_sizes);
@@ -485,7 +490,8 @@ namespace tensorflow
           }
           else
           {
-            throw("For now we doesn's support ExportValuesToTensor");
+            std::cerr << "For now we doesn's support ExportValuesToTensor" << std::endl;
+            throw("ExportValues");
           }
         }
 

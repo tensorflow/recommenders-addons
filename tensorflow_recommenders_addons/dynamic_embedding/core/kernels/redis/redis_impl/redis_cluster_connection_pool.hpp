@@ -143,7 +143,7 @@ namespace sw::redis
             }
             catch (const std::exception &err)
             {
-              std::cerr << "RedisHandler error in pipe_exec for slices " << keys_prefix_name_slices[i] << " -- " << err.what() << std::endl;
+              std::cerr << "RedisHandler error in pipe_exec for slices " << hkey.data() << " -- " << err.what() << std::endl;
             }
           }
           else
@@ -163,9 +163,10 @@ namespace sw::redis
         auto cmd = [](::sw::redis::Connection &connection, ::sw::redis::StringView hkey)
         { connection.send("CLUSTER SLOTS"); };
         ::sw::redis::StringView _hkey("0");
+        std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply;
         try
         {
-          std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply = redis_conn->command(cmd, _hkey);
+          reply = redis_conn->command(cmd, _hkey);
         }
         catch (const std::exception &err)
         {
@@ -282,6 +283,7 @@ namespace sw::redis
         std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply;
 
         size_t buf_len;
+        volatile void *tem_aio_buf;
         for (unsigned i = 0; i < redis_connection_params.storage_slice; ++i)
         {
           redis_command = "DUMP " + keys_prefix_name_slices[i];
@@ -320,13 +322,11 @@ namespace sw::redis
               }
             }
           }
-          free((void *)(wr->aio_buf)); // Dangerous behavior! Note that when creating AIOCB objects, you need to set aio_buf to nullptr!
-          memset(wr, 0, sizeof(*wr));
-          wr->aio_buf = nullptr;  
           if (reply->type == 1) // #define REDIS_REPLY_STRING 1
           {
             buf_len = reply->len;
-            wr->aio_buf = malloc(buf_len);
+            tem_aio_buf = wr->aio_buf;
+            wr->aio_buf = realloc((void *)tem_aio_buf, buf_len);  // Be careful! The memory requested here should be freed somewhere!
             memcpy((void *)(wr->aio_buf), reply->str, buf_len);
             wr->aio_nbytes = buf_len;
             wr->aio_fildes = fds[i];
@@ -346,41 +346,63 @@ namespace sw::redis
       virtual void restore_from_disk(const std::vector<std::string> &keys_prefix_name_slices, std::vector<aiocb> &rds,
                                      const std::vector<int> &fds, const std::vector<unsigned long> &buf_sizes) override
       {
+        if (fds.size() == 0)
+        {
+          return;
+        }
+        
         // std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply;
-        const unsigned &storage_slice = redis_connection_params.storage_slice;
-        std::vector<std::string> redis_command(storage_slice);
-        std::string tmp_redis_command;
-        // "RESTORE "=8, '0'=1, reset 10 char for enough mem space, because keys_prefix_name_slices have different length.
-        size_t command_capacity = keys_prefix_name_slices[0].size() + 19;
+        const unsigned &storage_slice = fds.size();
         aiocb *rd;
         int ret; // int fd;
 
-        auto cmd = [](::sw::redis::Connection &connection, ::sw::redis::StringView hkey, const char *str)
-        { connection.send(str); };
+        auto cmd = [](::sw::redis::Connection &connection, const ::sw::redis::StringView hkey,
+                      const std::vector<const char *> &ptrs_i, const std::vector<std::size_t> &sizes_i)
+        {
+          assert(strcmp(ptrs_i[0], "RESTORE") == 0);
+          assert(sizes_i[0] == 7);
+          connection.send(static_cast<int>(ptrs_i.size()), const_cast<const char **>(ptrs_i.data()), sizes_i.data());
+        };
 
         size_t buf_len;
-        size_t tmp_redis_command_size;
+        volatile void *tem_aio_buf;
+
+        std::vector<std::vector<const char *>> ptrs_i_i(storage_slice);
+        std::vector<std::vector<std::size_t>> sizes_i_i(storage_slice);
+        
+        const static char *redis_command = "RESTORE";
+        const static std::size_t &&redis_command_byte = 7;
+        const static char *redis_command_param = "0";
+        const static std::size_t &&redis_command_byte_param = 1;
 
         for (size_t i = 0; i < storage_slice; ++i)
         {
           rd = &rds[i];
-          memset(rd, 0, sizeof(*rd));
 
           buf_len = buf_sizes[i];
 
-          tmp_redis_command = "RESTORE " + keys_prefix_name_slices[i] + " 0";
-          tmp_redis_command_size = tmp_redis_command.size();
-          redis_command[i].resize(command_capacity + buf_len + 1);
-          redis_command[i].replace(0, tmp_redis_command_size, tmp_redis_command);
-          redis_command[i].replace(tmp_redis_command_size, command_capacity - tmp_redis_command_size, command_capacity - tmp_redis_command_size, ' ');
-
-          rd->aio_buf = &redis_command[i][command_capacity];
+          tem_aio_buf = rd->aio_buf;
+          rd->aio_buf = realloc((void *)tem_aio_buf, buf_len);  // Be careful! The memory requested here should be freed somewhere!
           rd->aio_nbytes = buf_len;
           rd->aio_fildes = fds[i];
           rd->aio_offset = 0;
           ret = aio_read(rd);
           if (ret < 0)
             perror("aio_read");
+
+          ptrs_i_i[i].reserve(4);
+          ptrs_i_i[i].clear();
+          ptrs_i_i[i].push_back(redis_command);
+          ptrs_i_i[i].push_back(keys_prefix_name_slices[i].data());
+          ptrs_i_i[i].push_back(redis_command_param);
+          ptrs_i_i[i].push_back((const char *)rd->aio_buf);
+
+          sizes_i_i[i].reserve(4);
+          sizes_i_i[i].clear();
+          sizes_i_i[i].push_back(redis_command_byte);
+          sizes_i_i[i].push_back(keys_prefix_name_slices[i].size());
+          sizes_i_i[i].push_back(redis_command_byte_param);
+          sizes_i_i[i].push_back(rd->aio_nbytes);
         }
         
         size_t count_down = storage_slice;
@@ -400,17 +422,17 @@ namespace sw::redis
                 if ((ret = aio_return(rd)) > 0)
                 {
                   std::cout << "File handle " << rd->aio_fildes << " finished reading last round." << std::endl;
-                  raise(SIGTRAP);  /* To continue from here in GDB: "signal 0". */
+                  // raise(SIGTRAP);  /* To continue from here in GDB: "signal 0". */
                   try
                   {
-                    /*reply = */ redis_conn->command(cmd, keys_prefix_name_slices[i], redis_command[i].data());
+                    /*reply = */ redis_conn->command(cmd, keys_prefix_name_slices[i], ptrs_i_i[i], sizes_i_i[i]);
                   }
                   catch (const std::exception &err)
                   {
                     std::cerr << "RedisHandler error in restore_from_disk for slices " << keys_prefix_name_slices[i] << " -- " << err.what() << std::endl;
                   }
-                  redis_command[i].swap(empty_str);
-                  memset(rd, 0, sizeof(*rd));
+                  free((void *)rd->aio_buf);
+                  rd->aio_buf = nullptr;
                   --count_down;
                 }
                 else

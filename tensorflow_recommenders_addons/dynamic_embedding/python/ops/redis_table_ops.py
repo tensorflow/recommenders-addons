@@ -78,6 +78,8 @@ class RedisTable(LookupInterface):
     "model_lib_abs_dir":"/tmp/",
   }
 
+  already_import_from_files = False
+
   def __init__(
       self,
       key_dtype,
@@ -154,8 +156,9 @@ class RedisTable(LookupInterface):
                                                   name=name,
                                                   full_name=name)
     
-    if self._redis_params["using_model_lib"]:
+    if self._redis_params["using_model_lib"] and self.already_import_from_files==False:
       RedisTable.import_from_flies(self,name="direct_import")
+      self.already_import_from_files = True
 
   def _create_resource(self):
     # The table must be shared if checkpointing is requested for multi-worker

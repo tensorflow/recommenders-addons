@@ -197,6 +197,11 @@ namespace sw::redis
       */
       virtual void dump_to_disk(const std::vector<std::string> &keys_prefix_name_slices, std::vector<aiocb> &wrs, const std::vector<int> &fds) override
       {
+        if (fds.size() == 0)
+        {
+          return;
+        }
+        
         std::string redis_command = "DUMP " + keys_prefix_name_slices[0];
         aiocb *wr = &wrs.front();
         int ret; // int fd;
