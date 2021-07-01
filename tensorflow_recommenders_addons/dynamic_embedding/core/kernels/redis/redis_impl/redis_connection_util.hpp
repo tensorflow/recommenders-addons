@@ -253,8 +253,8 @@ namespace sw::redis
 
       virtual void remove_hkeys_in_slots(const std::vector<std::string> &keys_prefix_name_slices) = 0;
 
-      // virtual std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>> get_keys_in_hkeys(
-          // const std::vector<std::string> &keys_prefix_name_slices) = 0;
+      virtual std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>> get_keys_in_hkeys(
+          const std::vector<std::string> &keys_prefix_name_slices) = 0;
 
       virtual void dump_to_disk(const std::vector<std::string> &keys_prefix_name_slices, std::vector<aiocb> &wrs, const std::vector<int> &fds) = 0;
 

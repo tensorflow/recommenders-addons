@@ -490,8 +490,45 @@ namespace tensorflow
           }
           else
           {
-            std::cerr << "For now we doesn's support ExportValuesToTensor" << std::endl;
-            throw("ExportValues");
+            int64 value_dim = value_shape_.dim_size(0);
+            int64 size;
+
+            std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>> keys_replies = _table_instance->get_keys_in_hkeys(keys_prefix_name_slices);
+            for (size_t i = 0; i < keys_replies.size(); ++i)
+            {
+              size += keys_replies[i]->len;
+            }
+            
+            Tensor* keys;
+            TF_RETURN_IF_ERROR(
+                ctx->allocate_output("keys", TensorShape({reinterpret_cast<int64>(size)}), &keys));
+
+            
+            const ::tensorflow::int64 &&Velems_per_dim0 = keys->NumElements() / keys->dim_size(0);
+            K *pk_raw = reinterpret_cast<K *>(keys->data());
+            size_t offset = 0;
+
+            size_t percent = 0;
+            std::cout << "Write key tensor in order, now up to ......";
+            for (size_t i = 0; i < keys_replies.size(); ++i)
+            {
+              for (size_t j = 0; j < keys_replies[i]->elements; ++j)
+              {
+                std::cout.width(3);
+                std::cout << percent << "%";
+                pk_raw += offset * Velems_per_dim0;
+                reply_memcpy_to_tensor<K>(pk_raw, keys_replies[i]->element[j]->str, Velems_per_dim0); // Direct access to Tensor data in TensorFlow
+                percent = (i*j) / size;
+                std::cout << "\b\b\b\b";
+              }
+            } 
+            std::cout << std::endl;
+            
+            Tensor* values;
+            TF_RETURN_IF_ERROR(ctx->allocate_output(
+                "values", TensorShape({size, value_dim}), &values));
+
+            return Find(ctx, *keys, values, *values);
           }
         }
 

@@ -269,6 +269,35 @@ namespace sw::redis
         }
       }
 
+      virtual std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>> get_keys_in_hkeys(
+          const std::vector<std::string> &keys_prefix_name_slices) override
+      {
+        std::string redis_command = "HKEYS ";
+        std::string command_string;
+        auto cmd = [](::sw::redis::Connection &connection, ::sw::redis::StringView hkey, const char *str)
+        { connection.send(str); };
+
+        auto &&storage_slice = redis_connection_params.storage_slice;
+
+        std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>> reply;
+        reply.reserve(storage_slice);
+        for (unsigned i = 0; i < storage_slice; ++i)
+        {
+          command_string.clear();
+          command_string = command_string + redis_command + keys_prefix_name_slices[i];
+          try
+          {
+            reply.push_back(redis_conn->command(cmd, keys_prefix_name_slices[i], command_string.data()));
+          }
+          catch (const std::exception &err)
+          {
+            std::cerr << "RedisHandler error in get_keys_in_hkeys for slices " << keys_prefix_name_slices[i] << " -- " << err.what() << std::endl;
+          }
+        }
+
+        return reply;
+      }
+
       /*
       fds are the return of POSIX open file function declared in <fcntl.h> 
       */
@@ -350,7 +379,7 @@ namespace sw::redis
         {
           return;
         }
-        
+
         // std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply;
         const unsigned &storage_slice = fds.size();
         aiocb *rd;

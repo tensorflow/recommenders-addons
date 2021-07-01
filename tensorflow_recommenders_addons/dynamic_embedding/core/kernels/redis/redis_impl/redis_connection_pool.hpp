@@ -192,6 +192,27 @@ namespace sw::redis
         /*reply=*/redis_conn->command(cmd, redis_command.data());
       }
 
+      virtual std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>> get_keys_in_hkeys(
+          const std::vector<std::string> &keys_prefix_name_slices) override
+      {
+        std::string redis_command = "HKEYS " + keys_prefix_name_slices[0];
+         auto cmd = [](::sw::redis::Connection &connection, const char *str)
+        { connection.send(str); };
+
+        std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>> reply;
+        reply.reserve(1);
+        try
+        {
+          reply.push_back(redis_conn->command(cmd, redis_command.data()));
+        }
+        catch (const std::exception &err)
+        {
+          std::cerr << "RedisHandler error in get_keys_in_hkeys for HKEYS " << keys_prefix_name_slices[0] << " -- " << err.what() << std::endl;
+        }
+
+        return reply;
+      }
+
       /*
       fds are the return of POSIX open file function declared in <fcntl.h> 
       */
