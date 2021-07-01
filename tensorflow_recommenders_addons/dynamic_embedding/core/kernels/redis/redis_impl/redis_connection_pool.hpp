@@ -141,9 +141,10 @@ namespace sw::redis
         std::string redis_command = "KEYS " + keys_prefix_name + "[0123456789]";
          auto cmd = [](::sw::redis::Connection &connection, const char *str)
         { connection.send(str); };
+        std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply;
         try
         {
-          std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply = redis_conn->command(cmd, redis_command.data());
+          reply = redis_conn->command(cmd, redis_command.data());
         }
         catch (const std::exception &err)
         {
@@ -168,9 +169,10 @@ namespace sw::redis
         std::string redis_command = "HLEN " + keys_prefix_name_slices[0];
          auto cmd = [](::sw::redis::Connection &connection, const char *str)
         { connection.send(str); };
+        std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply;
         try
         {
-          std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply = redis_conn->command(cmd, redis_command.data());
+          reply = redis_conn->command(cmd, redis_command.data());
         }
         catch (const std::exception &err)
         {
@@ -201,9 +203,10 @@ namespace sw::redis
 
          auto cmd = [](::sw::redis::Connection &connection, const char *str)
         { connection.send(str); };
+        std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply;
         try
         {
-          std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply = redis_conn->command(cmd, redis_command.data());
+          reply = redis_conn->command(cmd, redis_command.data());
         }
         catch (const std::exception &err)
         {
@@ -211,6 +214,7 @@ namespace sw::redis
         }
 
         size_t buf_len;
+        volatile void *tem_aio_buf;
         // std::string file_name = redis_connection_params.model_lib_abs_dir+keys_prefix_name_slices[0]+".rdb";
         // fd = open(file_name,O_WRONLY | O_APPEND);
         // if(fd < 0) perror(file_name);
@@ -235,13 +239,11 @@ namespace sw::redis
             }
           }
         }
-        free((void *)(wr->aio_buf)); // Dangerous behavior! Note that when creating AIOCB objects, you need to set aio_buf to nullptr!
-        memset(wr, 0, sizeof(*wr));
-        wr->aio_buf = nullptr;
         if (reply->type == 1) // #define REDIS_REPLY_STRING 1
         {
           buf_len = reply->len;
-          wr->aio_buf = malloc(buf_len);
+          tem_aio_buf = wr->aio_buf;
+          wr->aio_buf = realloc((void *)tem_aio_buf, buf_len); // Be careful! The memory requested here should be freed somewhere!
           memcpy((void *)(wr->aio_buf), reply->str, buf_len);
           wr->aio_nbytes = buf_len;
           wr->aio_fildes = fds[0];
@@ -249,7 +251,7 @@ namespace sw::redis
           ret = aio_write(wr);
           if (ret < 0)
             perror("aio_write");
-        }    
+        }       
         else
         {
           std::cerr << "HKEY " << keys_prefix_name_slices[0] << " does not exist in the Redis server. "
@@ -261,32 +263,52 @@ namespace sw::redis
       virtual void restore_from_disk(const std::vector<std::string> &keys_prefix_name_slices, std::vector<aiocb> &rds,
                                      const std::vector<int> &fds, const std::vector<unsigned long> &buf_sizes) override
       {
-        std::string redis_command;
-        std::string tmp_redis_command = "RESTORE " + keys_prefix_name_slices[0] + " 0";
-        size_t command_capacity = keys_prefix_name_slices[0].size() + 19; // "RESTORE "=8, '0'=1, reset for enough mem space.
         aiocb *rd = &rds.front();
-        int ret; // int fd;
+        int ret;
 
-         auto cmd = [](::sw::redis::Connection &connection, const char *str)
-        { connection.send(str); };
+        auto cmd = [](::sw::redis::Connection &connection,
+                      const std::vector<const char *> &ptrs_0, const std::vector<std::size_t> &sizes_0)
+        {
+          assert(strcmp(ptrs_0[0], "RESTORE") == 0);
+          assert(sizes_0[0] == 7);
+          connection.send(static_cast<int>(ptrs_0.size()), const_cast<const char **>(ptrs_0.data()), sizes_0.data());
+        };
 
         size_t buf_len;
+        volatile void *tem_aio_buf;
+
+        std::vector<const char *> ptrs_0;
+        std::vector<std::size_t> sizes_0;
+        ptrs_0.reserve(4);
+        sizes_0.reserve(4);
+
+        const static char *redis_command = "RESTORE";
+        const static std::size_t &&redis_command_byte = 7;
+        const static char *redis_command_param = "0";
+        const static std::size_t &&redis_command_byte_param = 1;
+
         buf_len = buf_sizes[0];
 
-        memset(rd, 0, sizeof(*rd));
-
-        size_t &&tmp_redis_command_size = tmp_redis_command.size();
-        redis_command.resize(command_capacity + buf_len + 1);
-        redis_command.replace(0, tmp_redis_command_size, tmp_redis_command);
-        redis_command.replace(tmp_redis_command_size, command_capacity - tmp_redis_command_size, command_capacity - tmp_redis_command_size, ' ');
-
-        rd->aio_buf = &redis_command[command_capacity];
+        tem_aio_buf = rd->aio_buf;
+        rd->aio_buf = realloc((void *)tem_aio_buf, buf_len);  // Be careful! The memory requested here should be freed somewhere!
         rd->aio_nbytes = buf_len;
         rd->aio_fildes = fds[0];
         rd->aio_offset = 0;
         ret = aio_read(rd);
         if (ret < 0)
           perror("aio_read");
+
+        ptrs_0.clear();
+        ptrs_0.push_back(redis_command);
+        ptrs_0.push_back(keys_prefix_name_slices[0].data());
+        ptrs_0.push_back(redis_command_param);
+        ptrs_0.push_back((const char *)rd->aio_buf);
+
+        sizes_0.clear();
+        sizes_0.push_back(redis_command_byte);
+        sizes_0.push_back(keys_prefix_name_slices[0].size());
+        sizes_0.push_back(redis_command_byte_param);
+        sizes_0.push_back(rd->aio_nbytes);
 
         if (rd->aio_nbytes > 0)
         {
@@ -312,7 +334,7 @@ namespace sw::redis
 
         try
         {
-          std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply = redis_conn->command(cmd, redis_command.data());
+          /*std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply = */redis_conn->command(cmd, ptrs_0, sizes_0);
         }
         catch (const std::exception &err)
         {

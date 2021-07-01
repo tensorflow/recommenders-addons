@@ -253,6 +253,9 @@ namespace sw::redis
 
       virtual void remove_hkeys_in_slots(const std::vector<std::string> &keys_prefix_name_slices) = 0;
 
+      // virtual std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>> get_keys_in_hkeys(
+          // const std::vector<std::string> &keys_prefix_name_slices) = 0;
+
       virtual void dump_to_disk(const std::vector<std::string> &keys_prefix_name_slices, std::vector<aiocb> &wrs, const std::vector<int> &fds) = 0;
 
       virtual void restore_from_disk(const std::vector<std::string> &keys_prefix_name_slices, std::vector<aiocb> &rds,
@@ -268,7 +271,8 @@ namespace sw::redis
                                   const ::tensorflow::int64 &begin, const ::tensorflow::int64 &max_i) = 0;
 
       virtual void MSET_COMMAND(const ::tensorflow::Tensor &keys, const ::tensorflow::Tensor &values, ThreadContext &thread_context,
-                                const ::tensorflow::int64 &begin, const ::tensorflow::int64 &max_i, const std::vector<std::string> &keys_prefix_name_slices) = 0;
+                                const ::tensorflow::int64 &begin, const ::tensorflow::int64 &max_i, 
+                                const std::vector<std::string> &keys_prefix_name_slices) = 0;
 
       virtual void DEL_COMMAND(const ::tensorflow::Tensor &keys, ThreadContext &thread_context,
                                const ::tensorflow::int64 &begin, const ::tensorflow::int64 &max_i, const std::vector<std::string> &keys_prefix_name_slices) = 0;

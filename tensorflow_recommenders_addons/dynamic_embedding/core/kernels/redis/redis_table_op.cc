@@ -357,6 +357,14 @@ namespace tensorflow
         ~RedisTableOfTensors()
         {
           _table_instance.reset();
+          for (auto in_aiocb_obj : IMPORT_content)
+          {
+            free((void *)in_aiocb_obj.aio_buf);
+          }
+          for (auto ex_aiocb_obj : EXPORT_content)
+          {
+            free((void *)ex_aiocb_obj.aio_buf);
+          }
         }
 
         size_t size() const override
