@@ -138,10 +138,17 @@ namespace sw::redis
     public:
       virtual bool check_slices_num(const std::string &keys_prefix_name) override
       {
-        std::string redis_command = "keys " + keys_prefix_name + "[0123456789]";
+        std::string redis_command = "KEYS " + keys_prefix_name + "[0123456789]";
          auto cmd = [](::sw::redis::Connection &connection, const char *str)
         { connection.send(str); };
-        std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply = redis_conn->command(cmd, redis_command.data());
+        try
+        {
+          std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply = redis_conn->command(cmd, redis_command.data());
+        }
+        catch (const std::exception &err)
+        {
+          std::cerr << "RedisHandler error in check_slices_num for KEYS " << keys_prefix_name << " -- " << err.what() << std::endl;
+        }
         if (reply->elements == redis_connection_params.storage_slice || reply->elements == 0)
         {
           return true;
@@ -161,7 +168,14 @@ namespace sw::redis
         std::string redis_command = "HLEN " + keys_prefix_name_slices[0];
          auto cmd = [](::sw::redis::Connection &connection, const char *str)
         { connection.send(str); };
-        std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply = redis_conn->command(cmd, redis_command.data());
+        try
+        {
+          std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply = redis_conn->command(cmd, redis_command.data());
+        }
+        catch (const std::exception &err)
+        {
+          std::cerr << "RedisHandler error in table_size_in_slots for HLEN " << keys_prefix_name_slices[0] << " -- " << err.what() << std::endl;
+        }
         size_t size = strtoumax(reply->element[0]->str, nullptr, 10); // decimal
 
         return size;
@@ -187,7 +201,14 @@ namespace sw::redis
 
          auto cmd = [](::sw::redis::Connection &connection, const char *str)
         { connection.send(str); };
-        std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply = redis_conn->command(cmd, redis_command.data());
+        try
+        {
+          std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply = redis_conn->command(cmd, redis_command.data());
+        }
+        catch (const std::exception &err)
+        {
+          std::cerr << "RedisHandler error in dump_to_disk for DUMP " << keys_prefix_name_slices[0] << " -- " << err.what() << std::endl;
+        }
 
         size_t buf_len;
         // std::string file_name = redis_connection_params.model_lib_abs_dir+keys_prefix_name_slices[0]+".rdb";
@@ -255,7 +276,7 @@ namespace sw::redis
         memset(rd, 0, sizeof(*rd));
 
         size_t &&tmp_redis_command_size = tmp_redis_command.size();
-        redis_command.reserve(command_capacity + buf_len + 1);
+        redis_command.resize(command_capacity + buf_len + 1);
         redis_command.replace(0, tmp_redis_command_size, tmp_redis_command);
         redis_command.replace(tmp_redis_command_size, command_capacity - tmp_redis_command_size, command_capacity - tmp_redis_command_size, ' ');
 
@@ -289,7 +310,14 @@ namespace sw::redis
           }
         }
 
-        std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply = redis_conn->command(cmd, redis_command.data());
+        try
+        {
+          std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply = redis_conn->command(cmd, redis_command.data());
+        }
+        catch (const std::exception &err)
+        {
+          std::cerr << "RedisHandler error in restore_from_disk for RESTORE " << keys_prefix_name_slices[0] << " -- " << err.what() << std::endl;
+        }
       }
 
     public:
@@ -367,7 +395,14 @@ namespace sw::redis
 
         std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>> reply;
         reply.reserve(1);
-        reply.push_back(redis_conn->command(cmd, argc, ptrs_0, sizes_0));
+        try
+        {
+          reply.push_back(redis_conn->command(cmd, argc, ptrs_0, sizes_0));
+        }
+        catch (const std::exception &err)
+        {
+          std::cerr << "RedisHandler error in MGET_COMMAND for HMGET " << keys_prefix_name_slices[0] << " -- " << err.what() << std::endl;
+        }
 
         return reply;
       }
@@ -471,8 +506,15 @@ namespace sw::redis
           // raise(SIGTRAP);  /* To continue from here in GDB: "signal 0". */
           connection.send(argc, const_cast<const char **>(ptrs_0.data()), sizes_0.data());
         };
-
-        redis_conn->command(cmd, argc, ptrs_0, sizes_0);
+    
+        try
+        {
+          redis_conn->command(cmd, argc, ptrs_0, sizes_0);
+        }
+        catch (const std::exception &err)
+        {
+          std::cerr << "RedisHandler error in MSET_COMMAND for HMSET " << keys_prefix_name_slices[0] << " -- " << err.what() << std::endl;
+        }
       }
 
       virtual void DEL_COMMAND(
@@ -523,7 +565,14 @@ namespace sw::redis
           connection.send(argc, const_cast<const char **>(ptrs_0.data()), sizes_0.data());
         };
 
-        /*auto reply=*/redis_conn->command(cmd, argc, ptrs_0, sizes_0);
+        try
+        {
+          /*auto reply=*/redis_conn->command(cmd, argc, ptrs_0, sizes_0);
+        }
+        catch (const std::exception &err)
+        {
+          std::cerr << "RedisHandler error in DEL_COMMAND for HDEL " << keys_prefix_name_slices[0] << " -- " << err.what() << std::endl;
+        }
       }
     };
 

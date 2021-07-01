@@ -136,8 +136,15 @@ namespace sw::redis
         {
           if (thread_context.slots[i].ptrs.size() >= size_check)
           {
-            ::sw::redis::StringView hkey(thread_context.slots[i].ptrs[1], thread_context.slots[i].sizes[1]);
-            replies.push_back(redis_conn->command(cmd, hkey, thread_context.slots[i].ptrs, thread_context.slots[i].sizes));
+            ::sw::redis::StringView hkey(thread_context.slots[i].ptrs[1], thread_context.slots[i].sizes[1]);      
+            try
+            {
+              replies.push_back(redis_conn->command(cmd, hkey, thread_context.slots[i].ptrs, thread_context.slots[i].sizes));
+            }
+            catch (const std::exception &err)
+            {
+              std::cerr << "RedisHandler error in pipe_exec for slices " << keys_prefix_name_slices[i] << " -- " << err.what() << std::endl;
+            }
           }
           else
           {
@@ -150,13 +157,20 @@ namespace sw::redis
     public:
       virtual bool check_slices_num(const std::string &keys_prefix_name) override
       {
-        std::string redis_command = "keys " + keys_prefix_name + "[0123456789]";
+        std::string redis_command = "KEYS " + keys_prefix_name + "[0123456789]";
 
         // get cluster info
         auto cmd = [](::sw::redis::Connection &connection, ::sw::redis::StringView hkey)
         { connection.send("CLUSTER SLOTS"); };
         ::sw::redis::StringView _hkey("0");
-        std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply = redis_conn->command(cmd, _hkey);
+        try
+        {
+          std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply = redis_conn->command(cmd, _hkey);
+        }
+        catch (const std::exception &err)
+        {
+          std::cerr << "RedisHandler error in check_slices_num(CLUSTER SLOTS) --  " << err.what() << std::endl;
+        }
 
         std::vector<std::string> IP_set;
         size_t servers_num = reply->elements;
@@ -179,8 +193,15 @@ namespace sw::redis
           redis_client.reset(new Redis(connection_options));
           auto cmd_per_server = [](::sw::redis::Connection &connection, const char *str)
           { connection.send(str); };
-          reply_server.reset();
-          reply_server = redis_client->command(cmd_per_server, redis_command.data());
+          reply_server.reset();   
+          try
+          {
+            reply_server = redis_client->command(cmd_per_server, redis_command.data());
+          }
+          catch (const std::exception &err)
+          {
+            std::cerr << "RedisHandler error check_slices_num(KEYS) in for IP " << IP_set[i] << " --  " << err.what() << std::endl;
+          }
           slices_in_redis += reply_server->elements;
         }
 
@@ -211,7 +232,14 @@ namespace sw::redis
           command_string.clear();
           command_string = command_string + redis_command + keys_prefix_name_slices[i];
           reply.reset();
-          reply = redis_conn->command(cmd, keys_prefix_name_slices[i], command_string.data());
+          try
+          {
+            reply = redis_conn->command(cmd, keys_prefix_name_slices[i], command_string.data());
+          }
+          catch (const std::exception &err)
+          {
+            std::cerr << "RedisHandler error in table_size_in_slots for slices " << keys_prefix_name_slices[i] << " -- " << err.what() << std::endl;
+          }
           size += strtoumax(reply->element[0]->str, nullptr, 10); // decimal
         }
 
@@ -229,7 +257,14 @@ namespace sw::redis
         {
           command_string.clear();
           command_string = command_string + redis_command + keys_prefix_name_slices[i];
-          /*reply=*/redis_conn->command(cmd, keys_prefix_name_slices[i], command_string.data());
+          try
+          {
+            /*reply=*/redis_conn->command(cmd, keys_prefix_name_slices[i], command_string.data());
+          }
+          catch (const std::exception &err)
+          {
+            std::cerr << "RedisHandler error in remove_hkeys_in_slots for slices " << keys_prefix_name_slices[i] << " -- " << err.what() << std::endl;
+          }
         }
       }
 
@@ -251,7 +286,14 @@ namespace sw::redis
         {
           redis_command = "DUMP " + keys_prefix_name_slices[i];
           reply.reset();
-          reply = redis_conn->command(cmd, keys_prefix_name_slices[i], redis_command.data());
+          try
+          {
+            reply = redis_conn->command(cmd, keys_prefix_name_slices[i], redis_command.data());
+          }
+          catch (const std::exception &err)
+          {
+            std::cerr << "RedisHandler error in dump_to_disk for slices " << keys_prefix_name_slices[i] << " -- " << err.what() << std::endl;
+          }
 
           // std::string file_name = redis_connection_params.model_lib_abs_dir+keys_prefix_name_slices[i]+".rdb";
           // fd = open(file_name,O_WRONLY | O_APPEND);
@@ -298,29 +340,6 @@ namespace sw::redis
             std::cerr << "HKEY " << keys_prefix_name_slices[i] << " does not exist in the Redis server. "
                       << std::endl;
           }
-
-          if (wr->aio_nbytes > 0)
-          {
-            for (size_t i = 3; i > 0; --i)
-            {
-              while (aio_error(wr) == EINPROGRESS)
-                ;
-              if ((ret = aio_return(wr)) > 0)
-              {
-                std::cout << "File handle " << wr->aio_fildes << " finished writing last round." << std::endl;
-                break;
-              }
-              else
-              {
-                std::cerr << "File handle " << wr->aio_fildes << " did not finish writing last round. "
-                          << "Try to write " << i << " more times" << std::endl;
-                ret = aio_write(wr);
-                if (ret < 0)
-                  perror("aio_write");
-              }
-            }
-          }
-          
         }
       }
 
@@ -331,7 +350,7 @@ namespace sw::redis
         const unsigned &storage_slice = redis_connection_params.storage_slice;
         std::vector<std::string> redis_command(storage_slice);
         std::string tmp_redis_command;
-        // "RESTORE "=8, '0'=1, reset for enough mem space, because keys_prefix_name_slices have different length.
+        // "RESTORE "=8, '0'=1, reset 10 char for enough mem space, because keys_prefix_name_slices have different length.
         size_t command_capacity = keys_prefix_name_slices[0].size() + 19;
         aiocb *rd;
         int ret; // int fd;
@@ -351,7 +370,7 @@ namespace sw::redis
 
           tmp_redis_command = "RESTORE " + keys_prefix_name_slices[i] + " 0";
           tmp_redis_command_size = tmp_redis_command.size();
-          redis_command[i].reserve(command_capacity + buf_len + 1);
+          redis_command[i].resize(command_capacity + buf_len + 1);
           redis_command[i].replace(0, tmp_redis_command_size, tmp_redis_command);
           redis_command[i].replace(tmp_redis_command_size, command_capacity - tmp_redis_command_size, command_capacity - tmp_redis_command_size, ' ');
 
@@ -363,7 +382,7 @@ namespace sw::redis
           if (ret < 0)
             perror("aio_read");
         }
-
+        
         size_t count_down = storage_slice;
         std::vector<size_t> reread_countdown(storage_slice);
         std::string empty_str;
@@ -381,7 +400,15 @@ namespace sw::redis
                 if ((ret = aio_return(rd)) > 0)
                 {
                   std::cout << "File handle " << rd->aio_fildes << " finished reading last round." << std::endl;
-                  /*reply = */ redis_conn->command(cmd, keys_prefix_name_slices[i], redis_command[i].data());
+                  raise(SIGTRAP);  /* To continue from here in GDB: "signal 0". */
+                  try
+                  {
+                    /*reply = */ redis_conn->command(cmd, keys_prefix_name_slices[i], redis_command[i].data());
+                  }
+                  catch (const std::exception &err)
+                  {
+                    std::cerr << "RedisHandler error in restore_from_disk for slices " << keys_prefix_name_slices[i] << " -- " << err.what() << std::endl;
+                  }
                   redis_command[i].swap(empty_str);
                   memset(rd, 0, sizeof(*rd));
                   --count_down;
