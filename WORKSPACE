@@ -12,27 +12,13 @@ git_repository(
     tag = "0.1.0",  # change this to use a different release
 )
 
-# # Rule repository, note that it's recommended to use a pinned commit to a released version of the rules
-# http_archive(
-#    name = "rules_foreign_cc",
-#    sha256 = "c2cdcf55ffaf49366725639e45dedd449b8c3fe22b54e31625eb80ce3a240f1e",
-#    strip_prefix = "rules_foreign_cc-0.1.0",
-#    url = "https://github.com/bazelbuild/rules_foreign_cc/archive/0.1.0.zip",
-# )
-
-# load("@rules_foreign_cc//foreign_cc:repositories.bzl", "rules_foreign_cc_dependencies")
-
-# # This sets up some common toolchains for building targets. For more details, please see
-# # https://github.com/bazelbuild/rules_foreign_cc/tree/main/docs#rules_foreign_cc_dependencies
-# rules_foreign_cc_dependencies()
-
-_ALL_CONTENT = """\
-filegroup(
-    name = "all_srcs",
-    srcs = glob(["**"]),
-    visibility = ["//visibility:public"],
+# Rule repository, note that it's recommended to use a pinned commit to a released version of the rules
+http_archive(
+   name = "rules_foreign_cc",
+   sha256 = "c2cdcf55ffaf49366725639e45dedd449b8c3fe22b54e31625eb80ce3a240f1e",
+   strip_prefix = "rules_foreign_cc-0.1.0",
+   url = "https://github.com/bazelbuild/rules_foreign_cc/archive/0.1.0.zip",
 )
-"""
 
 http_archive(
     name = "cub_archive",
@@ -55,42 +41,52 @@ http_archive(
     ],
 )
 
-# http_archive(
-#    name = "hiredis",
-#    build_file_content = _ALL_CONTENT,
-#    sha256 = "71fded144c038ce911d7745e22d901daa226e1b8f023e60f87a499356f77befa",
-#    strip_prefix = "hiredis-1.0.0",
-#    url = "https://github.com/redis/hiredis/archive/refs/tags/v1.0.0.zip",
-# )
-
-# http_archive(
-#    name = "redis-plus-plus",
-#    build_file_content = _ALL_CONTENT,
-#    sha256 = "3221e1df7bbe95669aecaec1c6c6f4c9a52f472dd4e694e681da951bc738d6bd",
-#    strip_prefix = "redis-plus-plus-1.2.3",
-#    url = "https://github.com/sewenew/redis-plus-plus/archive/refs/tags/1.2.3.zip",
-# )
-
-new_local_repository(
-    name = "redis",
-    path = "/usr",
-    build_file_content = """
-package(default_visibility = ["//visibility:public"])
-load("@bazel_skylib//lib:collections.bzl", "collections")
-cc_import(
-    name = "HIREDIS",
-    hdrs = collections.uniq(glob(["local/include/hiredis/*.h"])+glob(["local/include/hiredis/**/*.h"])) ,
-    static_library = "local/lib/libhiredis.a",
-    shared_library = "local/lib/libhiredis.so",
-)
-cc_import(
-    name = "REDIS++",
-    hdrs = glob(["local/include/sw/redis++/*.h"]) ,
-    static_library = "local/lib/libredis++.a",
-    shared_library = "local/lib/libredis++.so",
+_ALL_CONTENT = """\
+filegroup(
+    name = "all_srcs",
+    srcs = glob(["**"]),
+    visibility = ["//visibility:public"],
 )
 """
+
+http_archive(
+   name = "hiredis",
+   build_file_content = _ALL_CONTENT,
+   build_file = "//build_deps/toolchains/redis:hiredis.BUILD",
+   sha256 = "71fded144c038ce911d7745e22d901daa226e1b8f023e60f87a499356f77befa",
+   strip_prefix = "hiredis-1.0.0",
+   url = "https://github.com/redis/hiredis/archive/refs/tags/v1.0.0.zip",
 )
+
+http_archive(
+   name = "redis-plus-plus",
+   build_file_content = _ALL_CONTENT,
+   build_file = "//build_deps/toolchains/redis:redis-plus-plus.BUILD",
+   sha256 = "3221e1df7bbe95669aecaec1c6c6f4c9a52f472dd4e694e681da951bc738d6bd",
+   strip_prefix = "redis-plus-plus-1.2.3",
+   url = "https://github.com/sewenew/redis-plus-plus/archive/refs/tags/1.2.3.zip",
+)
+
+# new_local_repository(
+#     name = "redis",
+#     path = "/usr",
+#     build_file_content = """
+# package(default_visibility = ["//visibility:public"])
+# load("@bazel_skylib//lib:collections.bzl", "collections")
+# cc_import(
+#     name = "HIREDIS",
+#     hdrs = collections.uniq(glob(["local/include/hiredis/*.h"])+glob(["local/include/hiredis/**/*.h"])) ,
+#     static_library = "local/lib/libhiredis.a",
+#     shared_library = "local/lib/libhiredis.so",
+# )
+# cc_import(
+#     name = "REDIS++",
+#     hdrs = glob(["local/include/sw/redis++/*.h"]) ,
+#     static_library = "local/lib/libredis++.a",
+#     shared_library = "local/lib/libredis++.so",
+# )
+# """
+# )
 
 tf_configure(
     name = "local_config_tf",
