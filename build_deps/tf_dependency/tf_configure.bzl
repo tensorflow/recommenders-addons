@@ -8,6 +8,10 @@ _TF_SHARED_LIBRARY_NAME = "TF_SHARED_LIBRARY_NAME"
 
 _TF_CXX11_ABI_FLAG = "TF_CXX11_ABI_FLAG"
 
+_FOR_TF_SERVING = "FOR_TF_SERVING"
+
+_TF_VERSION_INTEGER = "TF_VERSION_INTEGER"
+
 def _tpl(repository_ctx, tpl, substitutions = {}, out = None):
     if not out:
         out = tpl
@@ -204,6 +208,8 @@ def _tf_pip_impl(repository_ctx):
     tf_shared_library_name = repository_ctx.os.environ[_TF_SHARED_LIBRARY_NAME]
     tf_shared_library_path = "%s/%s" % (tf_shared_library_dir, tf_shared_library_name)
     tf_cx11_abi = "-D_GLIBCXX_USE_CXX11_ABI=%s" % (repository_ctx.os.environ[_TF_CXX11_ABI_FLAG])
+    tf_version_integer = "-DTF_VERSION_INTEGER=%s" % (repository_ctx.os.environ[_TF_VERSION_INTEGER])
+    for_tf_serving = repository_ctx.os.environ[_FOR_TF_SERVING]
 
     tf_shared_library_rule = _symlink_genrule_for_dir(
         repository_ctx,
@@ -225,6 +231,8 @@ def _tf_pip_impl(repository_ctx):
         "build_defs.bzl",
         {
             "%{tf_cx11_abi}": tf_cx11_abi,
+            "%{tf_version_integer}": tf_version_integer,
+            "%{for_tf_serving}": for_tf_serving,
         },
     )
 
@@ -234,6 +242,7 @@ tf_configure = repository_rule(
         _TF_SHARED_LIBRARY_DIR,
         _TF_SHARED_LIBRARY_NAME,
         _TF_CXX11_ABI_FLAG,
+        _FOR_TF_SERVING,
     ],
     implementation = _tf_pip_impl,
 )

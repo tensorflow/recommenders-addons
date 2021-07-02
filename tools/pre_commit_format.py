@@ -18,7 +18,7 @@ def _run_format():
     files_changed = True
 
   try:
-    check_bash_call("buildifier -mode=check -r .")
+    check_bash_call("buildifier -mode=diff -r .")
   except CalledProcessError:
     check_bash_call("buildifier -r .")
     files_changed = True
@@ -26,7 +26,8 @@ def _run_format():
   # todo: find a way to check if files changed
   # see https://github.com/DoozyX/clang-format-lint-action for inspiration
   check_bash_call(
-      "shopt -s globstar && clang-format-9 -i --style=google **/*.cc **/*.h",)
+      "shopt -s globstar && clang-format-9 -i --style=google **/*.cc tensorflow_recommenders_addons/**/*.h",
+  )
 
   if files_changed:
     print("Some files have changed.")

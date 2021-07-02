@@ -67,11 +67,21 @@ def main(argv):
   else:
     code_url_prefix = CODE_PREFIX_TEMPLATE.format(git_branch="master")
 
+  _PRIVATE_MAP = {
+      "tfra": [
+          '__version__',
+          'utils',
+          'register',
+          'version',
+          'dynamic_embedding.python',
+      ],
+  }
+
   doc_generator = generate_lib.DocGenerator(
       root_title=PROJECT_FULL_NAME,
       py_modules=[(PROJECT_SHORT_NAME, tfra)],
       code_url_prefix=code_url_prefix,
-      private_map={"tfra": ["__version__", "utils", "version"]},
+      private_map=_PRIVATE_MAP,
       # This callback usually cleans up a lot of aliases caused by internal imports.
       callbacks=[public_api.local_definitions_filter],
       search_hints=FLAGS.search_hints,

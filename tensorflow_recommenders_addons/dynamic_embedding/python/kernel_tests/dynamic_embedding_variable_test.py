@@ -322,7 +322,7 @@ class VariableTest(test.TestCase):
   def test_variable(self):
     id = 0
     if test_util.is_gpu_available():
-      dim_list = [1, 2, 4, 8, 10, 16, 32, 64, 100, 256, 500]
+      dim_list = [1, 2, 4, 8, 10, 16, 32, 64, 100, 200]
       kv_list = [[dtypes.int64, dtypes.float32], [dtypes.int64, dtypes.int32],
                  [dtypes.int64, dtypes.half], [dtypes.int64, dtypes.int8]]
     else:
@@ -561,7 +561,7 @@ class VariableTest(test.TestCase):
     opt = de.DynamicEmbeddingOptimizer(adam.AdamOptimizer(0.3))
     id = 0
     if test_util.is_gpu_available():
-      dim_list = [1, 2, 4, 8, 10, 16, 32, 64, 100, 256, 500]
+      dim_list = [1, 2, 4, 8, 10, 16, 32, 64, 100, 200]
     else:
       dim_list = [10]
     for key_dtype, value_dtype, dim, step in itertools.product(

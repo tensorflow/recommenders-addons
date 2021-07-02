@@ -695,6 +695,30 @@ class EmbeddingLookupTest(test.TestCase):
 
 
 @test_util.deprecated_graph_mode_only
+class EmbeddingLookupUniqueTest(test.TestCase):
+
+  def test_embedding_lookup_unique(self):
+    dim = 5
+    n = 10
+    embeddings_de = de.get_variable("t_unique_001",
+                                    dtypes.int64,
+                                    dtypes.float32,
+                                    dim=dim)
+    ids_shape = (2, 3, 4)
+    embeddings_np = np.random.randn(n, dim)
+    ids = np.random.randint(0, n, ids_shape)
+
+    with self.session(use_gpu=test_util.is_gpu_available(),
+                      config=default_config):
+      self.evaluate(embeddings_de.upsert(list(range(n)), embeddings_np))
+      embedded_np = embeddings_np[ids]
+      embedded_de = de.embedding_lookup_unique(embeddings_de, ids).eval()
+
+    self.assertEqual(embedded_np.shape, embedded_de.shape)
+    np.testing.assert_almost_equal(embedded_np, embedded_de)
+
+
+@test_util.deprecated_graph_mode_only
 class EmbeddingLookupSparseTest(test.TestCase):
 
   def _random_ids_and_weights(self, batch_size, vocab_size, k_type, d_type):
@@ -1196,6 +1220,29 @@ class SafeEmbeddingLookupSparseTest(test.TestCase):
                           embedding_lookup_test.shape)
       self.assertAllEqual(embedding_lookup_base.get_shape(),
                           embedding_lookup_test.get_shape())
+
+  def test_dynamic_embedding_variable_clear(self):
+    with self.session(use_gpu=test_util.is_gpu_available(),
+                      config=default_config):
+      default_val = -1
+      keys = constant_op.constant([[0, 1], [2, 3]], dtypes.int64)
+      values = constant_op.constant([[[0], [1]], [[2], [3]]], dtypes.int32)
+      table = de.get_variable("t160",
+                              dtypes.int64,
+                              dtypes.int32,
+                              initializer=default_val)
+
+      self.evaluate(table.upsert(keys, values))
+      self.assertAllEqual(4, self.evaluate(table.size()))
+
+      self.evaluate(table.clear())
+      self.assertAllEqual(0, self.evaluate(table.size()))
+
+      remove_keys = constant_op.constant([0, 1, 3, 4], dtypes.int64)
+      output = table.lookup(remove_keys)
+
+      result = self.evaluate(output)
+      self.assertAllEqual([[-1], [-1], [-1], [-1]], result)
 
 
 if __name__ == "__main__":
