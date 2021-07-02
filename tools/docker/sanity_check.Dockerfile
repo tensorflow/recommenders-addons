@@ -12,6 +12,8 @@ RUN touch /ok.txt
 # -------------------------------
 FROM python:3.6 as source_code_test
 
+ARG USE_BAZEL_VERSION
+
 COPY tools/install_deps /install_deps
 RUN --mount=type=cache,id=cache_pip,target=/root/.cache/pip \
     cd /install_deps && pip install \
@@ -21,8 +23,8 @@ RUN --mount=type=cache,id=cache_pip,target=/root/.cache/pip \
     -r pytest.txt
 
 RUN apt-get update && apt-get install -y sudo rsync
-COPY tools/install_deps/install_bazelisk.sh .bazelversion ./
-RUN bash install_bazelisk.sh
+COPY tools/docker/install/install_bazel.sh ./
+RUN ./install_bazel.sh $USE_BAZEL_VERSION
 
 COPY ./ /recommenders-addons
 RUN pip install -e /recommenders-addons
@@ -38,12 +40,14 @@ RUN touch /ok.txt
 # -------------------------------
 FROM python:3.6 as valid_build_files
 
+ARG USE_BAZEL_VERSION
+
 COPY tools/install_deps/tensorflow-cpu.txt ./
 RUN pip install --default-timeout=1000 -r tensorflow-cpu.txt
 
 RUN apt-get update && apt-get install sudo
-COPY tools/install_deps/install_bazelisk.sh .bazelversion ./
-RUN bash install_bazelisk.sh
+COPY tools/docker/install/install_bazel.sh ./
+RUN ./install_bazel.sh $USE_BAZEL_VERSION
 
 COPY ./ /recommenders-addons
 WORKDIR /recommenders-addons
@@ -65,7 +69,7 @@ RUN python run-clang-format.py \
                -r \
                --cli-args=--style=google \
                --clang-format-executable ./clang-format/clang-format9 \
-               /recommenders-addons
+               /recommenders-addons/tensorflow_recommenders_addons
 RUN touch /ok.txt
 
 # -------------------------------
@@ -76,12 +80,14 @@ COPY ./tools/install_deps/buildifier.sh ./
 RUN sh buildifier.sh
 
 COPY ./ /recommenders-addons
-RUN buildifier -mode=check -r /recommenders-addons
+RUN buildifier -mode=diff -r /recommenders-addons
 RUN touch /ok.txt
 
 # -------------------------------
 # docs tests
 FROM python:3.6 as docs_tests
+
+ARG USE_BAZEL_VERSION
 
 COPY tools/install_deps/tensorflow-cpu.txt ./
 RUN pip install --default-timeout=1000 -r tensorflow-cpu.txt
@@ -92,8 +98,8 @@ COPY tools/install_deps/doc_requirements.txt ./
 RUN pip install -r doc_requirements.txt
 
 RUN apt-get update && apt-get install -y sudo rsync
-COPY tools/install_deps/install_bazelisk.sh .bazelversion ./
-RUN bash install_bazelisk.sh
+COPY tools/docker/install/install_bazel.sh ./
+RUN ./install_bazel.sh $USE_BAZEL_VERSION
 
 COPY ./ /recommenders-addons
 WORKDIR /recommenders-addons
@@ -110,6 +116,8 @@ RUN touch /ok.txt
 # test the editable mode
 FROM python:3.6 as test_editable_mode
 
+ARG USE_BAZEL_VERSION
+
 COPY tools/install_deps/tensorflow-cpu.txt ./
 RUN pip install --default-timeout=1000 -r tensorflow-cpu.txt
 COPY requirements.txt ./
@@ -118,8 +126,8 @@ COPY tools/install_deps/pytest.txt ./
 RUN pip install -r pytest.txt
 
 RUN apt-get update && apt-get install -y sudo rsync
-COPY tools/install_deps/install_bazelisk.sh .bazelversion ./
-RUN bash install_bazelisk.sh
+COPY tools/docker/install/install_bazel.sh ./
+RUN ./install_bazel.sh $USE_BAZEL_VERSION
 
 COPY ./ /recommenders-addons
 WORKDIR /recommenders-addons

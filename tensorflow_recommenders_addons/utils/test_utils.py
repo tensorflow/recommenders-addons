@@ -16,6 +16,7 @@
 
 import os
 import random
+import warnings
 
 import numpy as np
 import pytest
@@ -27,7 +28,7 @@ from tensorflow_recommenders_addons.utils import resource_loader
 
 NUMBER_OF_WORKERS = int(os.environ.get("PYTEST_XDIST_WORKER_COUNT", "1"))
 WORKER_ID = int(os.environ.get("PYTEST_XDIST_WORKER", "gw0")[2])
-NUMBER_OF_GPUS = len(tf.config.list_physical_devices("GPU"))
+NUMBER_OF_GPUS = len(resource_loader.get_devices("GPU"))
 
 
 def is_gpu_available():
@@ -39,8 +40,18 @@ def is_gpu_available():
 # we only need one core per worker.
 # This avoids context switching for speed, but it also prevents TensorFlow to go
 # crazy on systems with many cores (kokoro has 30+ cores).
-tf.config.threading.set_intra_op_parallelism_threads(1)
-tf.config.threading.set_inter_op_parallelism_threads(1)
+try:
+  tf.config.threading.set_intra_op_parallelism_threads(1)
+  tf.config.threading.set_inter_op_parallelism_threads(1)
+except:
+  warnings.warn(
+      "You are currently using a version of TensorFlow ({}). \n"
+      "When run unittests, TFRA needed to set intra_op_parallelism_threads and "
+      "inter_op_parallelism_threads for saving resource, but not success that "
+      "may be caused for no supporting after initialization on TF1.x."
+      "".format(tf.__version__),
+      UserWarning,
+  )
 
 if is_gpu_available():
   # We use only the first gpu at the moment. That's enough for most use cases.
@@ -52,7 +63,7 @@ if is_gpu_available():
   # Each worker has two virtual devices.
   # When running on gpu, only the first device is used. The other one is used
   # in distributed strategies.
-  first_gpu = tf.config.list_physical_devices("GPU")[0]
+  first_gpu = resource_loader.get_devices("GPU")[0]
   virtual_gpus = [
       tf.config.LogicalDeviceConfiguration(memory_limit=100) for _ in range(2)
   ]
@@ -107,7 +118,7 @@ def data_format(request):
 def set_seeds():
   random.seed(0)
   np.random.seed(0)
-  tf.random.set_seed(0)
+  tf.compat.v1.set_random_seed(0)
 
 
 def pytest_addoption(parser):

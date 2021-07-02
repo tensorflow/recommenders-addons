@@ -2,5 +2,7 @@
 
 set -e
 
-export DOCKER_BUILDKIT=1
-docker build -f tools/docker/sanity_check.Dockerfile ./
+DOCKER_BUILDKIT=1 docker build \
+    -f tools/docker/sanity_check.Dockerfile \
+    --build-arg USE_BAZEL_VERSION=${USE_BAZEL_VERSION:-"3.1.0"} \
+    ./

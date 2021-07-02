@@ -14,7 +14,7 @@ int formatted_code;
 void formatted_code_again;
 ```
 
-Install Clang-format 9 with:
+Install Clang-format 9 for Ubuntu:
 
 ```bash
 wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add - 
@@ -24,7 +24,18 @@ sudo apt install clang-format-9
 
 format all with:
 ```bash
-clang-format-9 -i --style=google **/*.cc **/*.h
+clang-format-9 -i --style=google ./tensorflow_recommenders-addons/**/*.cc ./tensorflow_recommenders-addons/**/*.h
+```
+
+Install Clang-format for MacOS:
+```bash
+brew update
+brew install clang-format
+```
+
+format all with:
+```bash
+clang-format -i --style=google **/*.cc tensorflow_recommenders_addons/**/*.h
 ```
 
 #### Python

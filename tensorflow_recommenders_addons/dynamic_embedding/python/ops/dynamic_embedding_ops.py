@@ -23,6 +23,7 @@ from __future__ import division
 from __future__ import print_function
 
 from tensorflow_recommenders_addons import dynamic_embedding as de
+from tensorflow_recommenders_addons.utils.resource_loader import get_tf_version_triple
 
 from tensorflow.core.framework import attr_value_pb2
 from tensorflow.python.eager import context
@@ -67,7 +68,7 @@ class TrainableWrapper(resource_variable_ops.ResourceVariable):
 
         Args:
           params: A dynamic_embedding.Variable instance.
-          ids: a tensor with any shape as same dtype of params.key_dtype.
+          ids: A tensor with any shape as same dtype of params.key_dtype.
           max_norm: If not `None`, each values is clipped if its l2-norm is larger
             than this value.
           other parameters is same with ResourceVariable.
@@ -211,7 +212,11 @@ class TrainableWrapper(resource_variable_ops.ResourceVariable):
           # When in eager mode use a uid for the shared_name, to prevent
           # accidental sharing.
           unique_id = "%s_%d" % (handle_name, ops.uid())
-          shared_name = None  # Never shared
+          tf_major_version, _, _ = get_tf_version_triple()
+          if int(tf_major_version) >= 2:
+            shared_name = None  # Never shared
+          else:
+            shared_name = context.shared_name()
         # Use attr_scope and device(None) to simulate the behavior of
         # colocate_with when the variable we want to colocate with doesn't
         # yet exist.
@@ -436,7 +441,7 @@ def embedding_lookup(
 
     Args:
       params: A dynamic_embedding.Variable instance.
-      ids: a tensor with any shape as same dtype of params.key_dtype.
+      ids: A tensor with any shape as same dtype of params.key_dtype.
       partition_strategy: No used, for API compatiblity with `nn.emedding_lookup`.
       name: A name for the operation (optional).
       validate_indices: No used, just for compatible with nn.embedding_lookup .
@@ -503,7 +508,58 @@ def embedding_lookup(
   return (embeddings, trainable_) if return_trainable else embeddings
 
 
-@tf_export("dynamic_embedding.embedding_lookup_sparse")
+def embedding_lookup_unique(params,
+                            ids,
+                            partition_strategy=None,
+                            name=None,
+                            validate_indices=None,
+                            max_norm=None,
+                            return_trainable=False):
+  """Version of embedding_lookup that avoids duplicate lookups.
+  This can save communication in the case of repeated ids.
+  Same interface as embedding_lookup.
+
+  Args:
+    params: A dynamic_embedding.Variable instance.
+    ids: a tensor with any shape as same dtype of params.key_dtype.
+    partition_strategy: No used, for API compatiblity with `nn.emedding_lookup`.
+    name: A name for the operation (optional).
+    validate_indices: No used, just for compatible with nn.embedding_lookup .
+    max_norm: If not `None`, each embedding is clipped if its l2-norm is larger
+      than this value.
+    return_trainable: optional, If True, also return TrainableWrapper
+
+  Returns:
+    A tensor with shape [shape of ids] + [dim],
+      dim is equal to the value dim of params.
+      containing the values from the params tensor(s) for keys in ids.
+    trainable_wrap:
+      A TrainableWrapper object used to fill the Optimizers `var_list`
+        Only provided if `return_trainable` is True.
+  """
+  with ops.name_scope(name, "EmbeddingLookupUnique", [params, ids]):
+    ids = ops.convert_to_tensor(ids)
+    shape = array_ops.shape(ids)
+    ids_flat = array_ops.reshape(ids, math_ops.reduce_prod(shape,
+                                                           keepdims=True))
+    unique_ids, idx = array_ops.unique(ids_flat)
+    unique_embeddings, trainable_ = embedding_lookup(
+        params,
+        unique_ids,
+        partition_strategy=partition_strategy,
+        name=name,
+        validate_indices=None,
+        max_norm=validate_indices,
+        return_trainable=True)
+    embeddings_flat = array_ops.gather(unique_embeddings, idx)
+    embeddings_shape = array_ops.concat(
+        [shape, array_ops.shape(unique_embeddings)[1:]], 0)
+    embeddings = array_ops.reshape(embeddings_flat, embeddings_shape)
+    embeddings.set_shape(ids.get_shape().concatenate(
+        unique_embeddings.get_shape()[1:]))
+    return (embeddings, trainable_) if return_trainable else embeddings
+
+
 def embedding_lookup_sparse(
     params,
     sp_ids,
@@ -660,10 +716,10 @@ def embedding_lookup_sparse(
     else:
       assert idx is not None
       if combiner == "sum":
-        embeddings = math_ops.sparse_segment_sum(embeddings,
-                                                 idx,
-                                                 segment_ids,
-                                                 name=name)
+        embeddings = de.math.sparse_segment_sum(embeddings,
+                                                idx,
+                                                segment_ids,
+                                                name=name)
       elif combiner == "mean":
         embeddings = math_ops.sparse_segment_mean(embeddings,
                                                   idx,
@@ -680,7 +736,6 @@ def embedding_lookup_sparse(
     return (embeddings, trainable_) if return_trainable else embeddings
 
 
-@tf_export("dynamic_embedding.safe_embedding_lookup_sparse")
 def safe_embedding_lookup_sparse(
     embedding_weights,
     sparse_ids,
@@ -755,7 +810,7 @@ def safe_embedding_lookup_sparse(
         sparse_ids.dense_shape.get_shape()[0])
     original_rank = (array_ops.size(original_shape)
                      if original_rank_dim is None else original_rank_dim)
-    sparse_ids = sparse_ops.sparse_reshape(
+    sparse_ids = de.math.sparse_reshape(
         sparse_ids,
         [
             math_ops.reduce_prod(
@@ -774,10 +829,10 @@ def safe_embedding_lookup_sparse(
           sparse_ids, sparse_weights)
 
     # Fill in dummy values for empty features, if necessary.
-    sparse_ids, is_row_empty = sparse_ops.sparse_fill_empty_rows(
+    sparse_ids, is_row_empty = de.math.sparse_fill_empty_rows(
         sparse_ids, default_id or 0)
     if sparse_weights is not None:
-      sparse_weights, _ = sparse_ops.sparse_fill_empty_rows(sparse_weights, 1.0)
+      sparse_weights, _ = de.math.sparse_fill_empty_rows(sparse_weights, 1.0)
 
     result, trainable_ = embedding_lookup_sparse(
         embedding_weights,

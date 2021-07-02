@@ -1,5 +1,14 @@
-load("@local_config_tf//:build_defs.bzl", "D_GLIBCXX_USE_CXX11_ABI")
-load("@local_config_cuda//cuda:build_defs.bzl", "if_cuda", "if_cuda_is_configured")
+load(
+    "@local_config_tf//:build_defs.bzl",
+    "DTF_VERSION_INTEGER",
+    "D_GLIBCXX_USE_CXX11_ABI",
+    "FOR_TF_SERVING",
+)
+load(
+    "@local_config_cuda//cuda:build_defs.bzl",
+    "if_cuda",
+    "if_cuda_is_configured",
+)
 
 def custom_op_library(
         name,
@@ -9,32 +18,15 @@ def custom_op_library(
         cuda_deps = [],
         copts = [],
         **kwargs):
-    deps = deps + [
-        "@local_config_tf//:libtensorflow_framework",
-        "@local_config_tf//:tf_header_lib",
-    ]
-
-    if cuda_srcs:
-        copts = copts + if_cuda(["-DGOOGLE_CUDA=1"])
-        cuda_copts = copts + if_cuda_is_configured([
-            "-x cuda",
-            "-nvcc_options=relaxed-constexpr",
-            "-nvcc_options=ftz=true",
-        ])
-        cuda_deps = deps + if_cuda_is_configured(cuda_deps) + if_cuda_is_configured([
-            "@local_config_cuda//cuda:cuda_headers",
-            "@local_config_cuda//cuda:cudart_static",
-        ])
-        basename = name.split(".")[0]
-        native.cc_library(
-            name = basename + "_gpu",
-            srcs = cuda_srcs,
-            deps = cuda_deps,
-            copts = cuda_copts,
-            alwayslink = 1,
-            **kwargs
-        )
-        deps = deps + if_cuda_is_configured([":" + basename + "_gpu"])
+    if FOR_TF_SERVING == "1":
+        deps = deps + [
+            "@local_config_tf//:tf_header_lib",
+        ]
+    else:
+        deps = deps + [
+            "@local_config_tf//:libtensorflow_framework",
+            "@local_config_tf//:tf_header_lib",
+        ]
 
     copts = copts + select({
         "//tensorflow_recommenders_addons:windows": [
@@ -51,18 +43,76 @@ def custom_op_library(
             "/DNOGDI",
             "/UTF_COMPILE_LIBRARY",
         ],
-        "//conditions:default": ["-pthread", "-std=c++11", D_GLIBCXX_USE_CXX11_ABI],
+        "//conditions:default": [
+            "-pthread",
+            "-std=c++14",
+            D_GLIBCXX_USE_CXX11_ABI,
+            DTF_VERSION_INTEGER,
+        ],
     })
 
-    native.cc_binary(
-        name = name,
-        srcs = srcs,
-        copts = copts,
-        linkshared = 1,
-        features = select({
-            "//tensorflow_recommenders_addons:windows": ["windows_export_all_symbols"],
-            "//conditions:default": [],
-        }),
-        deps = deps,
-        **kwargs
-    )
+    if cuda_srcs:
+        copts = copts + if_cuda(["-DGOOGLE_CUDA=1"])
+        cuda_copts = copts + if_cuda_is_configured([
+            "-x cuda",
+            "-nvcc_options=relaxed-constexpr",
+            "-nvcc_options=ftz=true",
+            "-std=c++14",
+        ])
+        cuda_deps = deps + if_cuda_is_configured(cuda_deps) + if_cuda_is_configured([
+            "@local_config_cuda//cuda:cuda_headers",
+            "@local_config_cuda//cuda:cudart_static",
+        ])
+        basename = name.split(".")[0]
+        native.cc_library(
+            name = basename + "_gpu",
+            srcs = cuda_srcs,
+            deps = cuda_deps,
+            copts = cuda_copts,
+            alwayslink = 1,
+            **kwargs
+        )
+        deps = deps + if_cuda_is_configured([":" + basename + "_gpu"])
+
+    if FOR_TF_SERVING == "1":
+        native.cc_library(
+            name = name,
+            srcs = srcs,
+            copts = copts,
+            alwayslink = 1,
+            features = select({
+                "//tensorflow_recommenders_addons:windows": ["windows_export_all_symbols"],
+                "//conditions:default": [],
+            }),
+            deps = deps,
+            **kwargs
+        )
+    else:
+        native.cc_binary(
+            name = name,
+            srcs = srcs,
+            copts = copts,
+            linkshared = 1,
+            features = select({
+                "//tensorflow_recommenders_addons:windows": ["windows_export_all_symbols"],
+                "//conditions:default": [],
+            }),
+            deps = deps,
+            **kwargs
+        )
+
+def if_cuda_for_tf_serving(if_true, if_false = [], for_tf_serving = "0"):
+    """Shorthand for select()'ing on whether we're building with CUDA.
+
+    Returns a select statement which evaluates to if_true if we're building
+    with CUDA enabled.  Otherwise, the select statement evaluates to if_false.
+
+    """
+    if for_tf_serving == "1":
+        return if_true
+
+    return select({
+        "@local_config_cuda//cuda:using_nvcc": if_true,
+        "@local_config_cuda//cuda:using_clang": if_true,
+        "//conditions:default": if_false,
+    })

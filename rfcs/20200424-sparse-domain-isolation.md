@@ -1,6 +1,6 @@
 # Sparse Domain Isolation for Supporting Large-scale Recommender Systems.
 
-| Status        | Draft                                             |
+| Status        | Proposed                                             |
 :-------------- |:---------------------------------------------------- |
 | **Author(s)** | Haidong Rong (hudsonrong@tencent.com) Yafei Zhang(kimmyzhang@tencent.com) Jiandong Wang(adnywang@tencent.com) Chuan Cheng(chuancheng@tencent.com) |
 | **Reviewers(s)** | Alexandre Passos(alexandre.tp@gmail.com) Bairen Yi(yibairen.byron@bytedance.com) |
@@ -39,21 +39,28 @@ import tensorflow_recommenders_addons.dynamic_embedding as de
 
 # sparse weights defination:
 w = de.get_variable(name="dynamic_embeddings",
-                    devices=["/job:ps/replica:0/task:0/CPU:0",],
+                    devices=[
+                        "/job:ps/replica:0/task:0/CPU:0",
+                    ],
                     initializer=tf.random_normal_initializer(0, 0.005),
                     dim=8)
-z = de.embedding_lookup(params=w,
-                        ids=x, # x is got from samples.
-                        name="wide-sparse-weights")
-                         # z should be a trainable and variable-size instance.
-# forward graph
+z = de.embedding_lookup(
+    params=w,
+    ids=x,  # x is got from samples.
+    name="wide-sparse-weights")
+# z should be a trainable and variable-size instance.
+
+# forward graph ...
 
 pred = tf.xxx(...)
 
 # backward graph
 loss = tf.xxx(pred, label, ...)
+
 opt = tf.train.AdamOptimizer(learning_rate=0.1)
+opt = de.DynamicEmbeddingOptimizer(opt)
 update_op = opt.minimize(loss)
+
 ```
 
 ## Sparse Domain Isolation

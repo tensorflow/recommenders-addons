@@ -70,53 +70,6 @@ def in_allowlist(file_path, allowlist):
   return False
 
 
-def test_no_tf_cond():
-  # TODO: remove all elements of the list and remove the allowlist
-  # This allowlist should not grow. Do not add elements to this list.
-  allowlist = []
-  for file_path, line_idx, line in get_lines_of_source_code(allowlist):
-
-    if "tf.cond(" in line:
-      raise NameError(
-          "The usage of a tf.cond() function call was found in "
-          "file {} at line {}:\n\n"
-          "   {}\n"
-          "In TensorFlow 2.x, using a simple `if` in a function decorated "
-          "with `@tf.function` is equivalent to a tf.cond() thanks to Autograph. \n"
-          "TensorFlow Recommenders Addons aims to be written with idiomatic TF 2.x code. \n"
-          "As such, using tf.cond() is not allowed in the codebase. \n"
-          "Use a `if` and decorate your function with @tf.function instead. \n"
-          "You can take a look at "
-          "https://www.tensorflow.org/guide/function#use_python_control_flow"
-          "".format(file_path, line_idx, line))
-
-
-def test_no_experimental_api():
-  # TODO: remove all elements of the list and remove the allowlist
-  # This allowlist should not grow. Do not add elements to this list.
-  allowlist = [
-      # "tensorflow_recommenders_addons/**/*",
-  ]
-  for file_path, line_idx, line in get_lines_of_source_code(allowlist):
-
-    if file_path.endswith("_test.py") or file_path.endswith("conftest.py"):
-      continue
-    if file_path.endswith("tensorflow_recommenders_addons/utils/test_utils.py"):
-      continue
-
-    if "experimental" in line:
-      raise NameError(
-          "The usage of a TensorFlow experimental API was found in file {} "
-          "at line {}:\n\n"
-          "   {}\n"
-          "Experimental APIs are ok in tests but not in user-facing code. "
-          "This is because Experimental APIs might have bugs and are not "
-          "widely used yet.\n"
-          "Recommenders Addons should show how to write TensorFlow "
-          "code in a stable and forward-compatible way."
-          "".format(file_path, line_idx, line))
-
-
 def test_no_tf_control_dependencies():
   # TODO: remove all elements of the list and remove the allowlist
   # This allowlist should not grow. Do not add elements to this list.
@@ -139,21 +92,4 @@ def test_no_tf_control_dependencies():
           "Decorate your function with @tf.function instead. \n"
           "You can take a look at \n"
           "https://github.com/tensorflow/community/blob/master/rfcs/20180918-functions-not-sessions-20.md#program-order-semantics--control-dependencies"
-          "".format(file_path, line_idx, line))
-
-
-def test_no_deprecated_v1():
-  # TODO: remove all elements of the list and remove the allowlist
-  # This allowlist should not grow. Do not add elements to this list.
-  allowlist = []
-  for file_path, line_idx, line in get_lines_of_source_code(allowlist):
-
-    if "tf.compat.v1" in line:
-      raise NameError(
-          "The usage of a tf.compat.v1 API was found in file {} at line {}:\n\n"
-          "   {}\n"
-          "TensorFlow Recommenders Addons doesn't support running programs with "
-          "`tf.compat.v1.disable_v2_behavior()`.\n"
-          "As such, there should be no need for the compatibility module "
-          "tf.compat. Please find an alternative using only the TF2.x API."
           "".format(file_path, line_idx, line))
