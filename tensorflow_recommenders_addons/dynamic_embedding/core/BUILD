@@ -43,8 +43,8 @@ custom_op_library(
         "ops/redis_table_ops.cc",
     ]   ,
     deps = [
-        "@hiredis//:libhiredis.a",
-        "@redis-plus-plus//:libredis++.a",
+        "@hiredis//:hiredis",
+        "@redis-plus-plus//:redis-plus-plus",
     ]   ,
     copts = ["-pthread", "-O3", "-mavx2", "-mavx512f", "-mfma", "-funroll-loops"],
 )
