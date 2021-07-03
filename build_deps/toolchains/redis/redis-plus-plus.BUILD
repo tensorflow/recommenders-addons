@@ -12,12 +12,6 @@ filegroup(
     visibility = ["//visibility:public"],
 )
 
-filegroup(
-    name = "all_hdrs",
-    srcs = glob(["*.h"]),
-    visibility = ["//visibility:public"],
-)
-
 cmake_external(
     name = "redis-plus-plus",
     cache_entries = {
@@ -26,11 +20,11 @@ cmake_external(
         # "CMAKE_DISABLE_FIND_PACKAGE_HIREDIS": "True",
         # as currently we copy all libraries, built with Bazel, into $EXT_BUILD_DEPS/lib
         # and the headers into $EXT_BUILD_DEPS/include
-        "HIREDIS_LIB": "$EXT_BUILD_DEPS",
+        "HIREDIS_LIB": "$EXT_BUILD_DEPS/hiredis/lib",
+        "HIREDIS_HEADER": "$EXT_BUILD_DEPS/hiredis/include",
     },
-    cmake_options = ["-DCMAKE_BUILD_TYPE=Release","-DCMAKE_PREFIX_PATH=$EXT_BUILD_DEPS","-DREDIS_PLUS_PLUS_BUILD_TEST=OFF"],
+    cmake_options = ["-DCMAKE_BUILD_TYPE=Release","-DREDIS_PLUS_PLUS_BUILD_TEST=OFF"],
     lib_source = "@redis-plus-plus//:all_srcs",
-    out_include_dir = "@redis-plus-plus//:all_hdrs",
     static_libraries = ["libredis++.a"],
     deps = ["@hiredis//:hiredis"]
 )
