@@ -26,9 +26,9 @@ cmake_external(
         "CMAKE_DISABLE_FIND_PACKAGE_HIREDIS": "True",
         # as currently we copy all libraries, built with Bazel, into $EXT_BUILD_DEPS/lib
         # and the headers into $EXT_BUILD_DEPS/include
-        "LIBA_DIR": "$EXT_BUILD_DEPS",
+        "CMAKE_PREFIX_PATH": "$EXT_BUILD_DEPS",
     },
-    cmake_options = ["-DCMAKE_BUILD_TYPE=Release"],
+    cmake_options = ["-DCMAKE_BUILD_TYPE=Release","-DCMAKE_PREFIX_PATH=$EXT_BUILD_DEPS"],
     lib_source = "@redis-plus-plus//:all_srcs",
     out_include_dir = "@redis-plus-plus//:all_hdrs",
     static_libraries = ["libredis++.a"],
