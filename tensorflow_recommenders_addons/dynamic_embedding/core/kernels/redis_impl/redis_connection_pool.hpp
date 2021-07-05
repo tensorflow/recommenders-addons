@@ -15,7 +15,6 @@ limitations under the License.
 
 #include <inttypes.h>
 #include <nmmintrin.h>
-#include <openssl/md5.h>
 #include <unistd.h>
 
 #include <chrono>

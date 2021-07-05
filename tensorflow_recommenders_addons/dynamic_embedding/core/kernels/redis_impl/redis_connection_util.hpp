@@ -14,7 +14,6 @@ limitations under the License.
 ==============================================================================*/
 #pragma once
 #include <aio.h>
-#include <openssl/md5.h>
 #include <stdlib.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -31,6 +30,8 @@ extern "C" {
 #include <sw/redis++/connection_pool.h>
 #include <sw/redis++/redis++.h>
 #include <sw/redis++/sentinel.h>
+
+#include "md5.h"
 
 namespace tensorflow {
 namespace recommenders_addons {
@@ -115,9 +116,9 @@ inline int ReadInt32FromEnvVar(const std::string &env_var_name,
 std::array<unsigned char, 16> MD5(const std::string &src) {
   MD5_CTX ctx;
   std::array<unsigned char, 16> md;
-  MD5_Init(&ctx);
-  MD5_Update(&ctx, src.c_str(), src.size());
-  MD5_Final(md.data(), &ctx);
+  MD5Init(&ctx);
+  MD5Update(&ctx, (unsigned char *)src.c_str(), src.size());
+  MD5Final(&ctx, md.data());
   return md;
 }
 

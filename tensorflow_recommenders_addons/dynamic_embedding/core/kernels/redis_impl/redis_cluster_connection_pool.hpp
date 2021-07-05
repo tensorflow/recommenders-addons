@@ -14,7 +14,6 @@ limitations under the License.
 ==============================================================================*/
 
 #include <inttypes.h>
-#include <openssl/md5.h>
 #include <unistd.h>
 
 #include <chrono>
