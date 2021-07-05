@@ -41,7 +41,7 @@ namespace tensorflow
 {
   namespace recommenders_addons
   {
-    namespace redis_lookup
+    namespace redis_table
     {
 
       template <class V, size_t DIM>
@@ -172,7 +172,7 @@ namespace tensorflow
         TF_DISALLOW_COPY_AND_ASSIGN(HashTableOp);
       };
 
-    } // namespace redis_lookup
+    } // namespace redis_table
   }   // namespace recommenders_addons
 } // namespace tensorflow
 

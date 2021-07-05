@@ -35,11 +35,11 @@ custom_op_library(
 custom_op_library(
     name = "_redis_table_ops.so",
     srcs = [
-        "kernels/redis/redis_impl/redis_connection_util.hpp",
-        "kernels/redis/redis_impl/redis_connection_pool.hpp",
-        "kernels/redis/redis_impl/redis_cluster_connection_pool.hpp",
-        "kernels/redis/redis_table_op.h",
-        "kernels/redis/redis_table_op.cc",
+        "kernels/redis_impl/redis_connection_util.hpp",
+        "kernels/redis_impl/redis_connection_pool.hpp",
+        "kernels/redis_impl/redis_cluster_connection_pool.hpp",
+        "kernels/redis_table_op.h",
+        "kernels/redis_table_op.cc",
         "ops/redis_table_ops.cc",
     ]   ,
     deps = [
