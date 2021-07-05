@@ -525,7 +525,7 @@ public:
       return ExportValuesToFiles(ctx);
     } else {
       int64 value_dim = value_shape_.dim_size(0);
-      int64 size;
+      int64 size = 0;
 
       std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>>
           keys_replies =

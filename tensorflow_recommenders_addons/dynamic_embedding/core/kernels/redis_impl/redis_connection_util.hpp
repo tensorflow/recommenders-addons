@@ -118,7 +118,7 @@ std::array<unsigned char, 16> MD5(const std::string &src) {
   std::array<unsigned char, 16> md;
   MD5Init(&ctx);
   MD5Update(&ctx, (unsigned char *)src.c_str(), src.size());
-  MD5Final(&ctx, md.data());
+  MD5Final(md.data(), &ctx);
   return md;
 }
 
