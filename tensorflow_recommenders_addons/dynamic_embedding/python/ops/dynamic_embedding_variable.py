@@ -149,6 +149,7 @@ class Variable(trackable.TrackableResource):
       initializer=None,
       trainable=True,
       checkpoint=True,
+      init_size=0,
       params_dict={},
       restrict_policy=None,
   ):
@@ -233,10 +234,7 @@ class Variable(trackable.TrackableResource):
 
     self.shard_num = len(self.devices)
 
-    if "init_size" in self.params_dict:
-      self.params_dict["init_size"] = int(params_dict["init_size"] / self.shard_num)
-    else:
-      self.params_dict["init_size"] = 0
+    self.init_size = int(init_size)
 
     if restrict_policy is not None:
       if not issubclass(restrict_policy, de.RestrictPolicy):
@@ -277,6 +275,7 @@ class Variable(trackable.TrackableResource):
                 default_value=static_default_value,
                 name=self._make_name(idx),
                 checkpoint=self.checkpoint,
+                init_size=int(self.init_size / self.shard_num),
                 params_dict=self.params_dict,
             )
 

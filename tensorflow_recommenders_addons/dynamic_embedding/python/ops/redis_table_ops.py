@@ -31,6 +31,7 @@ from tensorflow.python.ops.lookup_ops import LookupInterface
 from tensorflow.python.training.saver import BaseSaverBuilder
 
 from tensorflow_recommenders_addons.utils.resource_loader import LazySO
+from tensorflow_recommenders_addons.utils.resource_loader import prefix_op_name
 
 redis_table_ops = LazySO(
     "dynamic_embedding/core/_redis_table_ops.so").ops
@@ -54,21 +55,21 @@ class RedisTable(LookupInterface):
     """
 
   default_redis_params={
-    "connection_mode":1, # ClusterMode = 0, SentinelMode = 1, StreamMode = 2
-    "master_name":"master",
+    "redis_connection_mode":1, # ClusterMode = 0, SentinelMode = 1, StreamMode = 2
+    "redis_master_name":"master",
     # connection_options
-    "host_ip":"127.0.0.1",
-    "host_port":26379,
-    "password":"",
-    "db":0,
-    "connect_timeout":1000, # milliseconds
-    "socket_timeout":1000,  # milliseconds
+    "redis_host_ip":"127.0.0.1",
+    "redis_host_port":26379,
+    "redis_password":"",
+    "redis_db":0,
+    "redis_connect_timeout":1000, # milliseconds
+    "redis_socket_timeout":1000,  # milliseconds
     # connection_pool_options
-    "pool_size":20,
-    "wait_timeout":100000000,  # milliseconds
-    "connection_lifetime":100, # minutes
+    "redis_conn_pool_size":20,
+    "redis_wait_timeout":100000000,  # milliseconds
+    "redis_connection_lifetime":100, # minutes
     # sentinel_connection_options
-    "sentinel_connect_timeout":1000, # milliseconds
+    "redis_sentinel_connect_timeout":1000, # milliseconds
     "sentinel_socket_timeout":1000,  # milliseconds
     # Below there is user-defined parameters in this custom op, not Redis setting parameters
     "storage_slice":1, # For deciding hash tag, which usually is how many Redis instance may be used in the trainning.
@@ -123,12 +124,12 @@ class RedisTable(LookupInterface):
     self._redis_params = self.default_redis_params.copy()
     self._redis_params = {k:v for k, v in params_dict.items() if k in self.default_redis_params}
 
-    os.environ["connect_timeout"]=str(self._redis_params["connect_timeout"])
-    os.environ["socket_timeout"]=str(self._redis_params["socket_timeout"])
-    os.environ["pool_size"]=str(self._redis_params["pool_size"])
-    os.environ["wait_timeout"]=str(self._redis_params["wait_timeout"])
-    os.environ["connection_lifetime"]=str(self._redis_params["connection_lifetime"])
-    os.environ["sentinel_connect_timeout"]=str(self._redis_params["sentinel_connect_timeout"])
+    os.environ["redis_connect_timeout"]=str(self._redis_params["redis_connect_timeout"])
+    os.environ["redis_socket_timeout"]=str(self._redis_params["redis_socket_timeout"])
+    os.environ["redis_conn_pool_size"]=str(self._redis_params["redis_conn_pool_size"])
+    os.environ["redis_wait_timeout"]=str(self._redis_params["redis_wait_timeout"])
+    os.environ["redis_connection_lifetime"]=str(self._redis_params["redis_connection_lifetime"])
+    os.environ["redis_sentinel_connect_timeout"]=str(self._redis_params["redis_sentinel_connect_timeout"])
     os.environ["sentinel_socket_timeout"]=str(self._redis_params["sentinel_socket_timeout"])
 
     self._shared_name = None
@@ -172,12 +173,12 @@ class RedisTable(LookupInterface):
         value_dtype=self._value_dtype,
         value_shape=self._default_value.get_shape(),
         embedding_name=self._embedding_name,
-        connection_mode=self._redis_params["connection_mode"],
-        master_name=self._redis_params["master_name"],
-        host_ip=self._redis_params["host_ip"],
-        host_port=self._redis_params["host_port"],
-        password=self._redis_params["password"],
-        db=self._redis_params["db"],
+        redis_connection_mode=self._redis_params["redis_connection_mode"],
+        redis_master_name=self._redis_params["redis_master_name"],
+        redis_host_ip=self._redis_params["redis_host_ip"],
+        redis_host_port=self._redis_params["redis_host_port"],
+        redis_password=self._redis_params["redis_password"],
+        redis_db=self._redis_params["redis_db"],
         storage_slice=self._redis_params["storage_slice"],
         using_MD5_prefix_name=self._redis_params["using_MD5_prefix_name"],
         model_tag=self._redis_params["model_tag"],
@@ -390,4 +391,4 @@ class RedisTable(LookupInterface):
           )
 
 
-ops.NotDifferentiable("TFRA>RedisTableOfTensors")
+ops.NotDifferentiable(prefix_op_name("CuckooHashTableOfTensors"))

@@ -35,6 +35,7 @@ class KVcreator(object,metaclass=Singleton):
     default_value=None,
     name=None,
     checkpoint=None,
+    init_size=None,
     params_dict=None,
   ):
     raise NotImplementedError('create_instance function must be implemented')
@@ -51,6 +52,7 @@ class KVcreator(object,metaclass=Singleton):
     default_value=None,
     name=None,
     checkpoint=None,
+    init_size=0,
     params_dict=None,
   ):
     return cls.default_creat_instance_method(
@@ -59,6 +61,7 @@ class KVcreator(object,metaclass=Singleton):
               default_value=default_value,
               name=name,
               checkpoint=checkpoint,
+              init_size=init_size,
               params_dict=params_dict,
             )
   
@@ -70,6 +73,7 @@ class CuckooHashTableCreator(KVcreator):
     default_value=None,
     name=None,
     checkpoint=None,
+    init_size=0,
     params_dict={},
   ):
     return de.CuckooHashTable(
@@ -78,6 +82,7 @@ class CuckooHashTableCreator(KVcreator):
               default_value=default_value,
               name=name,
               checkpoint=checkpoint,
+              init_size=init_size,
               params_dict=params_dict,
           )
 
@@ -93,6 +98,7 @@ class RedisTableCreator(KVcreator):
     default_value=None,
     name=None,
     checkpoint=None,
+    init_size=0,
     params_dict={},
   ):
     return de.RedisTable(
@@ -101,6 +107,7 @@ class RedisTableCreator(KVcreator):
               default_value=default_value,
               name=name,
               checkpoint=checkpoint,
+              init_size=init_size,
               params_dict=params_dict,
           )
 

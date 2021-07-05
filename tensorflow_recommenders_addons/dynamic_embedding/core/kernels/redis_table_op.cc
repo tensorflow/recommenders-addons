@@ -13,20 +13,19 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#include <type_traits>
-#include <utility>
-#include <csignal>
+#include <fcntl.h>
 #include <signal.h>
-// for posix operation
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <fcntl.h>
+
+#include <csignal>
+#include <type_traits>
+#include <utility>
 
 extern "C"
 {
 #include <hiredis/sds.h>
 }
-
 #include "tensorflow/core/kernels/lookup_table_op.h"
 #include "tensorflow/core/util/work_sharder.h"
 
@@ -37,7 +36,7 @@ extern "C"
 using sw::redis::OptionalString;
 using sw::redis::Redis;
 using sw::redis::RedisCluster;
-using namespace sw::redis::redis_connection;
+using namespace tensorflow::recommenders_addons::redis_connection;
 
 // constexpr int kv_pairs_default_size = 1024*8;
 /*
@@ -53,7 +52,7 @@ namespace tensorflow
 {
   namespace recommenders_addons
   {
-    namespace redis_lookup
+    namespace redis_table
     {
 
       template <class K, class V>
@@ -229,30 +228,30 @@ namespace tensorflow
           //
 
           int revn_status;
-          revn_status = ReadInt32FromEnvVar("connect_timeout", redis_connection_params.connect_timeout,
-                                            &redis_connection_params.connect_timeout);
+          revn_status = ReadInt32FromEnvVar("redis_connect_timeout", redis_connection_params.redis_connect_timeout,
+                                            &redis_connection_params.redis_connect_timeout);
           if (revn_status != 0)
-            LOG(INFO) << "ReadInt32FromEnvVar failed with connect_timeout." << std::endl;
-          revn_status = ReadInt32FromEnvVar("socket_timeout", redis_connection_params.socket_timeout,
-                                            &redis_connection_params.socket_timeout);
+            LOG(INFO) << "ReadInt32FromEnvVar failed with redis_connect_timeout." << std::endl;
+          revn_status = ReadInt32FromEnvVar("redis_socket_timeout", redis_connection_params.redis_socket_timeout,
+                                            &redis_connection_params.redis_socket_timeout);
           if (revn_status != 0)
-            LOG(INFO) << "ReadInt32FromEnvVar failed with socket_timeout." << std::endl;
-          revn_status = ReadInt32FromEnvVar("pool_size", redis_connection_params.pool_size,
-                                            &redis_connection_params.pool_size);
+            LOG(INFO) << "ReadInt32FromEnvVar failed with redis_socket_timeout." << std::endl;
+          revn_status = ReadInt32FromEnvVar("redis_conn_pool_size", redis_connection_params.redis_conn_pool_size,
+                                            &redis_connection_params.redis_conn_pool_size);
           if (revn_status != 0)
-            LOG(INFO) << "ReadInt32FromEnvVar failed with pool_size." << std::endl;
-          revn_status = ReadInt32FromEnvVar("wait_timeout", redis_connection_params.wait_timeout,
-                                            &redis_connection_params.wait_timeout);
+            LOG(INFO) << "ReadInt32FromEnvVar failed with redis_conn_pool_size." << std::endl;
+          revn_status = ReadInt32FromEnvVar("redis_wait_timeout", redis_connection_params.redis_wait_timeout,
+                                            &redis_connection_params.redis_wait_timeout);
           if (revn_status != 0)
-            LOG(INFO) << "ReadInt32FromEnvVar failed with wait_timeout." << std::endl;
-          revn_status = ReadInt32FromEnvVar("connection_lifetime", redis_connection_params.connection_lifetime,
-                                            &redis_connection_params.connection_lifetime);
+            LOG(INFO) << "ReadInt32FromEnvVar failed with redis_wait_timeout." << std::endl;
+          revn_status = ReadInt32FromEnvVar("redis_connection_lifetime", redis_connection_params.redis_connection_lifetime,
+                                            &redis_connection_params.redis_connection_lifetime);
           if (revn_status != 0)
-            LOG(INFO) << "ReadInt32FromEnvVar failed with connection_lifetime." << std::endl;
-          revn_status = ReadInt32FromEnvVar("sentinel_connect_timeout", redis_connection_params.sentinel_connect_timeout,
-                                            &redis_connection_params.sentinel_connect_timeout);
+            LOG(INFO) << "ReadInt32FromEnvVar failed with redis_connection_lifetime." << std::endl;
+          revn_status = ReadInt32FromEnvVar("redis_sentinel_connect_timeout", redis_connection_params.redis_sentinel_connect_timeout,
+                                            &redis_connection_params.redis_sentinel_connect_timeout);
           if (revn_status != 0)
-            LOG(INFO) << "ReadInt32FromEnvVar failed with sentinel_connect_timeout." << std::endl;
+            LOG(INFO) << "ReadInt32FromEnvVar failed with redis_sentinel_connect_timeout." << std::endl;
           revn_status = ReadInt32FromEnvVar("sentinel_socket_timeout", redis_connection_params.sentinel_socket_timeout,
                                             &redis_connection_params.sentinel_socket_timeout);
           if (revn_status != 0)
@@ -261,12 +260,12 @@ namespace tensorflow
           runtime_dim_ = value_shape_.dim_size(0);
 
           OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "embedding_name", &embedding_name));
-          OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "connection_mode", &redis_connection_params.connection_mode));
-          OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "master_name", &redis_connection_params.master_name));
-          OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "host_ip", &redis_connection_params.host_ip));
-          OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "host_port", &redis_connection_params.host_port));
-          OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "password", &redis_connection_params.password));
-          OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "db", &redis_connection_params.db));
+          OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "redis_connection_mode", &redis_connection_params.redis_connection_mode));
+          OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "redis_master_name", &redis_connection_params.redis_master_name));
+          OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "redis_host_ip", &redis_connection_params.redis_host_ip));
+          OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "redis_host_port", &redis_connection_params.redis_host_port));
+          OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "redis_password", &redis_connection_params.redis_password));
+          OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "redis_db", &redis_connection_params.redis_db));
           int tem_storage_slice = 1;
           OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "storage_slice", &tem_storage_slice));
           redis_connection_params.storage_slice = *(reinterpret_cast<unsigned *>(&tem_storage_slice));
@@ -311,7 +310,7 @@ namespace tensorflow
           }
 
           // creat redis instance
-          switch (redis_connection_params.connection_mode)
+          switch (redis_connection_params.redis_connection_mode)
           {
           case ClusterMode:
           {
@@ -329,16 +328,16 @@ namespace tensorflow
           }
           case StreamMode:
           {
-            std::cerr << "Sorry! connection_mode=" << redis_connection_params.connection_mode
+            std::cerr << "Sorry! redis_connection_mode=" << redis_connection_params.redis_connection_mode
                       << " The Stream connection mode is still being TODO."
                       << std::endl;
-            throw(redis_connection_params.connection_mode);
+            throw(redis_connection_params.redis_connection_mode);
             break;
           }
           default:
           {
             std::cerr << "There are only three Redis connection modes, which Cluster=0/Sentinel=1/Stream=2." << std::endl;
-            throw(redis_connection_params.connection_mode);
+            throw(redis_connection_params.redis_connection_mode);
             break;
           }
           }
@@ -805,7 +804,7 @@ namespace tensorflow
           .Device(DEVICE_CPU)                                                \
           .TypeConstraint<key_dtype>("key_dtype")                            \
           .TypeConstraint<value_dtype>("value_dtype"),                       \
-      HashTableOp<redis_lookup::RedisTableOfTensors<key_dtype, value_dtype>, \
+      HashTableOp<redis_table::RedisTableOfTensors<key_dtype, value_dtype>, \
                   key_dtype, value_dtype>)
 
       REGISTER_KERNEL(int32, double);
@@ -828,6 +827,6 @@ namespace tensorflow
 
 #undef REGISTER_KERNEL
 
-    } // namespace redis_lookup
+    } // namespace redis_table
   }   // namespace recommenders_addons
 } // namespace tensorflow

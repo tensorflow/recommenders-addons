@@ -13,30 +13,29 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 #pragma once
-#include <unistd.h>
 #include <aio.h>
+#include <openssl/md5.h>
 #include <sys/stat.h>
 #include <stdlib.h>
-#include <iostream>
-#include <cmath>
-
-#include <openssl/md5.h>
-
+#include <unistd.h>
 #include <x86intrin.h>
+
+#include <cmath>
+#include <iostream>
 
 extern "C"
 {
 #include <hiredis/sds.h>
 }
-
 #include <sw/redis++/redis++.h>
 #include <sw/redis++/sentinel.h>
 #include <sw/redis++/connection.h>
 #include <sw/redis++/connection_pool.h>
-
 #include "tensorflow/core/framework/types.h"
 
-namespace sw::redis
+using sw::redis
+
+namespace tensorflow::recommenders_addons
 {
   namespace redis_connection
   {
@@ -150,22 +149,22 @@ namespace sw::redis
 
     struct Redis_Connection_Params
     {
-      int connection_mode = 1; // ClusterMode = 0, SentinelMode = 1, StreamMode = 2
-      std::string master_name = "master";
+      int redis_connection_mode = 1; // ClusterMode = 0, SentinelMode = 1, StreamMode = 2
+      std::string redis_master_name = "master";
       // connection_options
-      std::string host_ip = "127.0.0.1";
-      int host_port = 26379;
-      std::string password = "";
-      int db = 0;
+      std::string redis_host_ip = "127.0.0.1";
+      int redis_host_port = 26379;
+      std::string redis_password = "";
+      int redis_db = 0;
       //
-      int connect_timeout = 1000; // milliseconds
-      int socket_timeout = 1000;  // milliseconds
+      int redis_connect_timeout = 1000; // milliseconds
+      int redis_socket_timeout = 1000;  // milliseconds
       // connection_pool_options
-      int pool_size = 20;
-      int wait_timeout = 100000000;  // milliseconds
-      int connection_lifetime = 100; // minutes
+      int redis_conn_pool_size = 20;
+      int redis_wait_timeout = 100000000;  // milliseconds
+      int redis_connection_lifetime = 100; // minutes
       // sentinel_connection_options
-      int sentinel_connect_timeout = 1000; // milliseconds
+      int redis_sentinel_connect_timeout = 1000; // milliseconds
       int sentinel_socket_timeout = 1000;  // milliseconds
       //
       // Below there is user-defined parameters in this custom op, not Redis setting parameters
@@ -178,18 +177,18 @@ namespace sw::redis
 
       Redis_Connection_Params &operator=(const Redis_Connection_Params &x)
       {
-        connection_mode = x.connection_mode;
-        master_name = x.master_name;
-        host_ip = x.host_ip;
-        host_port = x.host_port;
-        password = x.password;
-        db = x.db;
-        connect_timeout = x.connect_timeout; // milliseconds
-        socket_timeout = x.socket_timeout;   // milliseconds
-        pool_size = x.pool_size;
-        wait_timeout = x.wait_timeout;                                     // milliseconds
-        connection_lifetime = x.connection_lifetime;                       // minutes
-        sentinel_connect_timeout = x.sentinel_connect_timeout;             // milliseconds
+        redis_connection_mode = x.redis_connection_mode;
+        redis_master_name = x.redis_master_name;
+        redis_host_ip = x.redis_host_ip;
+        redis_host_port = x.redis_host_port;
+        redis_password = x.redis_password;
+        redis_db = x.redis_db;
+        redis_connect_timeout = x.redis_connect_timeout; // milliseconds
+        redis_socket_timeout = x.redis_socket_timeout;   // milliseconds
+        redis_conn_pool_size = x.redis_conn_pool_size;
+        redis_wait_timeout = x.redis_wait_timeout;                                     // milliseconds
+        redis_connection_lifetime = x.redis_connection_lifetime;                       // minutes
+        redis_sentinel_connect_timeout = x.redis_sentinel_connect_timeout;             // milliseconds
         sentinel_socket_timeout = x.sentinel_socket_timeout;               // milliseconds
         storage_slice_log2 = round_next_power_two_bitlen(x.storage_slice); // beter for modding.
         storage_slice = 1 << storage_slice_log2;
@@ -412,4 +411,4 @@ namespace sw::redis
     }
 
   } // namespace redis_connection
-} // namespace sw::redis
+} // namespace tensorflow::recommenders_addons

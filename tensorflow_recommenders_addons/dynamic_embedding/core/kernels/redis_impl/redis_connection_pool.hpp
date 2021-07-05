@@ -13,25 +13,25 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#include <unistd.h>
 #include <inttypes.h>
+#include <nmmintrin.h>
+#include <openssl/md5.h>
+#include <unistd.h>
+
 #include <chrono>
 #include <iostream>
-
-#include <openssl/md5.h>
-
-#include <nmmintrin.h>
-
-#include "tensorflow/core/framework/tensor.h"
 
 #include <sw/redis++/redis++.h>
 #include <sw/redis++/sentinel.h>
 #include <sw/redis++/connection.h>
 #include <sw/redis++/connection_pool.h>
+#include "tensorflow/core/framework/tensor.h"
 
 #include "redis_connection_util.hpp"
 
-namespace sw::redis
+using sw::redis
+
+namespace tensorflow::recommenders_addons
 {
   namespace redis_connection
   {
@@ -69,28 +69,28 @@ namespace sw::redis
     public:
       std::shared_ptr<RedisInstance> start_conn()
       {
-        sentinel_opts.nodes = {{redis_connection_params.host_ip, redis_connection_params.host_port}};
+        sentinel_opts.nodes = {{redis_connection_params.redis_host_ip, redis_connection_params.redis_host_port}};
         // Optional. Timeout before we successfully connect to Redis Sentinel.
-        sentinel_opts.connect_timeout = std::chrono::milliseconds(redis_connection_params.sentinel_connect_timeout);
+        sentinel_opts.connect_timeout = std::chrono::milliseconds(redis_connection_params.redis_sentinel_connect_timeout);
         // Optional. Timeout before we successfully send request to or receive response from Redis Sentinel.
         sentinel_opts.socket_timeout = std::chrono::milliseconds(redis_connection_params.sentinel_socket_timeout);
 
         // Redis connection options
-        conn_opts.password = redis_connection_params.password; // Optional. No password by default.
-        conn_opts.db = redis_connection_params.db;
-        conn_opts.connect_timeout = std::chrono::milliseconds(redis_connection_params.connect_timeout);
-        conn_opts.socket_timeout = std::chrono::milliseconds(redis_connection_params.socket_timeout);
+        conn_opts.password = redis_connection_params.redis_password; // Optional. No redis_password by default.
+        conn_opts.db = redis_connection_params.redis_db;
+        conn_opts.connect_timeout = std::chrono::milliseconds(redis_connection_params.redis_connect_timeout);
+        conn_opts.socket_timeout = std::chrono::milliseconds(redis_connection_params.redis_socket_timeout);
         // Redis connection pool options
-        pool_opts.size = redis_connection_params.pool_size;
-        pool_opts.wait_timeout = std::chrono::milliseconds(redis_connection_params.wait_timeout);
-        pool_opts.connection_lifetime = std::chrono::minutes(redis_connection_params.connection_lifetime);
+        pool_opts.size = redis_connection_params.redis_conn_pool_size;
+        pool_opts.wait_timeout = std::chrono::milliseconds(redis_connection_params.redis_wait_timeout);
+        pool_opts.connection_lifetime = std::chrono::minutes(redis_connection_params.redis_connection_lifetime);
 
         auto sentinel = std::make_shared<Sentinel>(sentinel_opts);
 
         try
         {
           static auto redis_client = std::make_shared<RedisInstance>(
-              RedisInstance(sentinel, redis_connection_params.master_name, Role::MASTER, conn_opts, pool_opts));
+              RedisInstance(sentinel, redis_connection_params.redis_master_name, Role::MASTER, conn_opts, pool_opts));
           redis_client->ping();
           return redis_client;
         }
@@ -624,5 +624,5 @@ namespace sw::redis
       }
     };
 
-  } // namespace redis_lookup
-} // namespace sw::redis
+  } // namespace redis_connection
+} // namespace tensorflow::recommenders_addons
