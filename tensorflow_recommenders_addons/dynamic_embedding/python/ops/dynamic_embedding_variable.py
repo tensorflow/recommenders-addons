@@ -25,9 +25,9 @@ from __future__ import print_function
 from tensorflow_recommenders_addons import dynamic_embedding as de
 
 try:
-    from tensorflow.python import _pywrap_util_port as pywrap
+  from tensorflow.python import _pywrap_util_port as pywrap
 except:
-    from tensorflow.python import pywrap_tensorflow as pywrap
+  from tensorflow.python import pywrap_tensorflow as pywrap
 
 from tensorflow.python.client import device_lib
 from tensorflow.python.eager import context
@@ -49,7 +49,7 @@ from tensorflow.python.util.tf_export import tf_export
 
 
 def make_partition(data, partition_index, shard_num):
-    """
+  """
     Shard keys to shard_num partitions
 
     Args:
@@ -59,31 +59,31 @@ def make_partition(data, partition_index, shard_num):
     Returns:
       a pair of tensor: (partition result, partition indices)
     """
-    if shard_num <= 1:
-        return [
-            data,
-        ], None
-    with ops.colocate_with(data, ignore_existing=True):
-        partitions = data_flow_ops.dynamic_partition(data, partition_index,
-                                                     shard_num)
-        indices = data_flow_ops.dynamic_partition(
-            math_ops.range(array_ops.shape(data)[0]),
-            math_ops.cast(partition_index, dtypes.int32),
-            shard_num,
-        )
-    return partitions, indices
+  if shard_num <= 1:
+    return [
+        data,
+    ], None
+  with ops.colocate_with(data, ignore_existing=True):
+    partitions = data_flow_ops.dynamic_partition(data, partition_index,
+                                                 shard_num)
+    indices = data_flow_ops.dynamic_partition(
+        math_ops.range(array_ops.shape(data)[0]),
+        math_ops.cast(partition_index, dtypes.int32),
+        shard_num,
+    )
+  return partitions, indices
 
 
 def _stitch(values, indices):
-    if len(values) == 1:
-        return values[0]
-    with ops.colocate_with(indices[0], ignore_existing=True):
-        all_values = data_flow_ops.dynamic_stitch(indices, values)
-    return all_values
+  if len(values) == 1:
+    return values[0]
+  with ops.colocate_with(indices[0], ignore_existing=True):
+    all_values = data_flow_ops.dynamic_stitch(indices, values)
+  return all_values
 
 
 def default_partition_fn(keys, shard_num):
-    """The default partition function.
+  """The default partition function.
       partition keys by "mod" strategy.
 
       keys: a tensor presents the keys to be partitioned.
@@ -92,32 +92,30 @@ def default_partition_fn(keys, shard_num):
       a tensor with same shape as keys with type of `tf.int32`,
         represents the corresponding partition-ids of keys.
     """
-    keys_op = ops.convert_to_tensor(keys, name="keys")
-    gpu_mode = pywrap.IsGoogleCudaEnabled()
+  keys_op = ops.convert_to_tensor(keys, name="keys")
+  gpu_mode = pywrap.IsGoogleCudaEnabled()
 
-    with ops.colocate_with(keys_op):
-        if keys_op.dtype == dtypes.int64 and gpu_mode:
-            # This branch has low performance on some multi-CPU scenario,
-            # so we try to use default branch when GPUs are not available.
-            mask = constant_op.constant(0x7fffffff, dtypes.int64)
-            keys_int32 = math_ops.cast(bitwise_ops.bitwise_and(keys_op, mask),
-                                       dtypes.int32)
-            mod = math_ops.mod(keys_int32,
-                               constant_op.constant(shard_num, dtypes.int32))
-            ids = math_ops.cast(mod, dtype=dtypes.int32)
-        elif keys_op.dtype == dtypes.string:
-            ids = string_ops.string_to_hash_bucket_fast(keys_op, shard_num)
-            mask = constant_op.constant(0x7fffffff, dtypes.int64)
-            ids = math_ops.cast(bitwise_ops.bitwise_and(ids, mask),
-                                dtypes.int32)
-        else:
-            ids = math_ops.cast(math_ops.mod(keys_op, shard_num),
-                                dtype=dtypes.int32)
-    return ids
+  with ops.colocate_with(keys_op):
+    if keys_op.dtype == dtypes.int64 and gpu_mode:
+      # This branch has low performance on some multi-CPU scenario,
+      # so we try to use default branch when GPUs are not available.
+      mask = constant_op.constant(0x7fffffff, dtypes.int64)
+      keys_int32 = math_ops.cast(bitwise_ops.bitwise_and(keys_op, mask),
+                                 dtypes.int32)
+      mod = math_ops.mod(keys_int32,
+                         constant_op.constant(shard_num, dtypes.int32))
+      ids = math_ops.cast(mod, dtype=dtypes.int32)
+    elif keys_op.dtype == dtypes.string:
+      ids = string_ops.string_to_hash_bucket_fast(keys_op, shard_num)
+      mask = constant_op.constant(0x7fffffff, dtypes.int64)
+      ids = math_ops.cast(bitwise_ops.bitwise_and(ids, mask), dtypes.int32)
+    else:
+      ids = math_ops.cast(math_ops.mod(keys_op, shard_num), dtype=dtypes.int32)
+  return ids
 
 
 class GraphKeys(object):
-    """Extended standard names related to `dynamic_embedding_ops.Variable` to use
+  """Extended standard names related to `dynamic_embedding_ops.Variable` to use
   for graph collections.
 
   The following standard keys are defined:
@@ -127,35 +125,35 @@ class GraphKeys(object):
   * `TRAINABLE_DYNAMIC_EMBEDDING_VARIABLES`: the subset of
     `dynamic_embedding_ops.Variable` that is trainable.
   """
-    # Dynamic embedding variables.
-    DYNAMIC_EMBEDDING_VARIABLES = "dynamic_embedding_variables"
-    # Trainable dynamic embedding variables.
-    TRAINABLE_DYNAMIC_EMBEDDING_VARIABLES = "trainable_dynamic_embedding_variables"
+  # Dynamic embedding variables.
+  DYNAMIC_EMBEDDING_VARIABLES = "dynamic_embedding_variables"
+  # Trainable dynamic embedding variables.
+  TRAINABLE_DYNAMIC_EMBEDDING_VARIABLES = "trainable_dynamic_embedding_variables"
 
 
 class Variable(trackable.TrackableResource):
-    """
+  """
     A Distributed version of HashTable(reference from lookup_ops.MutableHashTable)
     It is designed to dynamically store the Sparse Weights(Parameters) of DLRMs.
     """
 
-    def __init__(
-        self,
-        key_dtype=dtypes.int64,
-        value_dtype=dtypes.float32,
-        dim=1,
-        devices=None,
-        partitioner=default_partition_fn,
-        shared_name=None,
-        name="DynamicEmbedding_Variable",
-        initializer=None,
-        trainable=True,
-        checkpoint=True,
-        init_size=0,
-        KVCreator=None,
-        restrict_policy=None,
-    ):
-        """Creates an empty `Variable` object.
+  def __init__(
+      self,
+      key_dtype=dtypes.int64,
+      value_dtype=dtypes.float32,
+      dim=1,
+      devices=None,
+      partitioner=default_partition_fn,
+      shared_name=None,
+      name="DynamicEmbedding_Variable",
+      initializer=None,
+      trainable=True,
+      checkpoint=True,
+      init_size=0,
+      kv_creator=None,
+      restrict_policy=None,
+  ):
+    """Creates an empty `Variable` object.
 
         Creates a group of tables placed on devices specified by `devices`,
         and the device placement mechanism of TensorFlow will be ignored,
@@ -203,130 +201,125 @@ class Variable(trackable.TrackableResource):
         Returns:
           A `Variable` object.
         """
-        self.key_dtype = key_dtype
-        self.value_dtype = value_dtype
-        self.dim = dim
+    self.key_dtype = key_dtype
+    self.value_dtype = value_dtype
+    self.dim = dim
 
-        def _get_default_devices():
-            gpu_list = [
-                x.name
-                for x in device_lib.list_local_devices()
-                if x.device_type == "GPU"
-            ]
-            return gpu_list[0:1] or [
-                "/CPU:0",
-            ]
+    def _get_default_devices():
+      gpu_list = [
+          x.name
+          for x in device_lib.list_local_devices()
+          if x.device_type == "GPU"
+      ]
+      return gpu_list[0:1] or [
+          "/CPU:0",
+      ]
 
-        devices_ = devices or _get_default_devices()
-        self.devices = (devices_ if isinstance(devices_, list) else [
-            devices,
-        ])
-        self.partition_fn = partitioner
-        self.name = name
-        self.shared_name = shared_name or "shared_name.{}".format(name)
+    devices_ = devices or _get_default_devices()
+    self.devices = (devices_ if isinstance(devices_, list) else [
+        devices,
+    ])
+    self.partition_fn = partitioner
+    self.name = name
+    self.shared_name = shared_name or "shared_name.{}".format(name)
 
-        self.initializer = None
+    self.initializer = None
 
-        self.trainable = trainable
-        self.checkpoint = checkpoint
+    self.trainable = trainable
+    self.checkpoint = checkpoint
 
-        self._tables = []
-        self.size_ops = []
-        self.KVCreator = KVCreator
+    self._tables = []
+    self.size_ops = []
+    self.kv_creator = kv_creator if kv_creator else de.CuckooHashTableCreator()
 
-        self.shard_num = len(self.devices)
+    self.shard_num = len(self.devices)
 
-        self.init_size = int(init_size)
+    self.init_size = int(init_size)
 
-        if restrict_policy is not None:
-            if not issubclass(restrict_policy, de.RestrictPolicy):
-                raise TypeError(
-                    'restrict_policy must be subclass of RestrictPolicy.')
-            self._restrict_policy = restrict_policy(self)
-        else:
-            self._restrict_policy = None
+    if restrict_policy is not None:
+      if not issubclass(restrict_policy, de.RestrictPolicy):
+        raise TypeError('restrict_policy must be subclass of RestrictPolicy.')
+      self._restrict_policy = restrict_policy(self)
+    else:
+      self._restrict_policy = None
 
-        key_dtype_list = [dtypes.int32, dtypes.int64, dtypes.string]
-        value_dtype_list = [
-            dtypes.int32, dtypes.int64, dtypes.bool, dtypes.float32,
-            dtypes.float64, dtypes.half, dtypes.int8, dtypes.string
-        ]
-        if "GPU" in self.devices[0].upper():
-            key_dtype_list = [dtypes.int64]
-            value_dtype_list = [
-                dtypes.int32, dtypes.float32, dtypes.half, dtypes.int8
-            ]
-        if key_dtype not in key_dtype_list:
-            raise TypeError("key_dtype should be ", key_dtype_list)
-        if value_dtype not in value_dtype_list:
-            raise TypeError("value_dtype should be ", value_dtype_list)
+    key_dtype_list = [dtypes.int32, dtypes.int64, dtypes.string]
+    value_dtype_list = [
+        dtypes.int32, dtypes.int64, dtypes.bool, dtypes.float32, dtypes.float64,
+        dtypes.half, dtypes.int8, dtypes.string
+    ]
+    if "GPU" in self.devices[0].upper():
+      key_dtype_list = [dtypes.int64]
+      value_dtype_list = [
+          dtypes.int32, dtypes.float32, dtypes.half, dtypes.int8
+      ]
+    if key_dtype not in key_dtype_list:
+      raise TypeError("key_dtype should be ", key_dtype_list)
+    if value_dtype not in value_dtype_list:
+      raise TypeError("value_dtype should be ", value_dtype_list)
 
-        _initializer = initializer
-        if _initializer is None:
-            _initializer = init_ops.zeros_initializer(dtype=self.value_dtype)
-        static_default_value = self._convert_anything_to_init(_initializer, dim)
-        scope_name = self.name.split("/")[-1]
-        with ops.name_scope(scope_name, "DynamicEmbedding_Variable"):
-            with ops.colocate_with(None, ignore_existing=True):
-                for idx in range(len(self.devices)):
-                    with ops.device(self.devices[idx]):
-                        mht = None
-                        if not issubclass(self.KVCreator.__class__,
-                                          de.KVCreator):
-                            raise TypeError(
-                                "config should be instance of 'config', but got ",
-                                str(type(self.KVCreator)))
-                        mht = self.KVCreator.create(
-                            key_dtype=self.key_dtype,
-                            value_dtype=self.value_dtype,
-                            default_value=static_default_value,
-                            name=self._make_name(idx),
-                            checkpoint=self.checkpoint,
-                            init_size=int(self.init_size / self.shard_num),
-                            config=None,  #Use the config parameter in KvCreator
-                        )
+    _initializer = initializer
+    if _initializer is None:
+      _initializer = init_ops.zeros_initializer(dtype=self.value_dtype)
+    static_default_value = self._convert_anything_to_init(_initializer, dim)
+    scope_name = self.name.split("/")[-1]
+    with ops.name_scope(scope_name, "DynamicEmbedding_Variable"):
+      with ops.colocate_with(None, ignore_existing=True):
+        for idx in range(len(self.devices)):
+          with ops.device(self.devices[idx]):
+            mht = None
+            if not issubclass(self.kv_creator.__class__, de.KVCreator):
+              raise TypeError("config should be instance of 'config', but got ",
+                              str(type(self.kv_creator)))
+            mht = self.kv_creator.create(
+                key_dtype=self.key_dtype,
+                value_dtype=self.value_dtype,
+                default_value=static_default_value,
+                name=self._make_name(idx),
+                checkpoint=self.checkpoint,
+                init_size=int(self.init_size / self.shard_num),
+            )
 
-                        self._tables.append(mht)
-        super(Variable, self).__init__()
+            self._tables.append(mht)
+    super(Variable, self).__init__()
 
-        ops.add_to_collection(de.GraphKeys.DYNAMIC_EMBEDDING_VARIABLES, self)
-        if trainable:
-            ops.add_to_collections(
-                de.GraphKeys.TRAINABLE_DYNAMIC_EMBEDDING_VARIABLES, self)
+    ops.add_to_collection(de.GraphKeys.DYNAMIC_EMBEDDING_VARIABLES, self)
+    if trainable:
+      ops.add_to_collections(de.GraphKeys.TRAINABLE_DYNAMIC_EMBEDDING_VARIABLES,
+                             self)
 
-    @property
-    def tables(self):
-        return self._tables
+  @property
+  def tables(self):
+    return self._tables
 
-    @property
-    def restrict_policy(self):
-        return self._restrict_policy
+  @property
+  def restrict_policy(self):
+    return self._restrict_policy
 
-    def _convert_anything_to_init(self, raw_init, dim):
-        init = raw_init
-        while callable(init):
-            if isinstance(init,
-                          (init_ops.Initializer, init_ops_v2.Initializer)):
-                self.initializer = init
-                init = init(shape=[1])
-            else:
-                init = init()
-        try:
-            init = array_ops.reshape(init, [dim])
-        except:
-            init = array_ops.fill([dim], array_ops.reshape(init, [-1])[0])
-        init = math_ops.cast(init, dtype=self.value_dtype)
-        return init
+  def _convert_anything_to_init(self, raw_init, dim):
+    init = raw_init
+    while callable(init):
+      if isinstance(init, (init_ops.Initializer, init_ops_v2.Initializer)):
+        self.initializer = init
+        init = init(shape=[1])
+      else:
+        init = init()
+    try:
+      init = array_ops.reshape(init, [dim])
+    except:
+      init = array_ops.fill([dim], array_ops.reshape(init, [-1])[0])
+    init = math_ops.cast(init, dtype=self.value_dtype)
+    return init
 
-    def _create_resource(self):
-        raise NotImplementedError
+  def _create_resource(self):
+    raise NotImplementedError
 
-    def _make_name(self, table_idx):
-        return "{}_mht_{}of{}".format(self.name.replace("/", "_"),
-                                      table_idx + 1, self.shard_num)
+  def _make_name(self, table_idx):
+    return "{}_mht_{}of{}".format(self.name.replace("/", "_"), table_idx + 1,
+                                  self.shard_num)
 
-    def upsert(self, keys, values, name=None):
-        """Insert or Update `keys` with `values`.
+  def upsert(self, keys, values, name=None):
+    """Insert or Update `keys` with `values`.
 
         If key exists already, value will be updated.
 
@@ -345,23 +338,22 @@ class Variable(trackable.TrackableResource):
             types.
         """
 
-        partition_index = self.partition_fn(keys, self.shard_num)
-        keys_partitions, _ = make_partition(keys, partition_index,
-                                            self.shard_num)
-        values_partitions, _ = make_partition(values, partition_index,
-                                              self.shard_num)
+    partition_index = self.partition_fn(keys, self.shard_num)
+    keys_partitions, _ = make_partition(keys, partition_index, self.shard_num)
+    values_partitions, _ = make_partition(values, partition_index,
+                                          self.shard_num)
 
-        ops_ = []
-        for idx in range(len(self.devices)):
-            with ops.device(self.devices[idx]):
-                ops_.append(self._tables[idx].insert(keys_partitions[idx],
-                                                     values_partitions[idx],
-                                                     name=name))
+    ops_ = []
+    for idx in range(len(self.devices)):
+      with ops.device(self.devices[idx]):
+        ops_.append(self._tables[idx].insert(keys_partitions[idx],
+                                             values_partitions[idx],
+                                             name=name))
 
-        return control_flow_ops.group(ops_)
+    return control_flow_ops.group(ops_)
 
-    def restrict(self, num_reserved, **kwargs):
-        """
+  def restrict(self, num_reserved, **kwargs):
+    """
     Restrict the size of self, also including features reside in commensal
     slots, and the policy status. The restriction rule follow the setting
     in `restrict_policy`.
@@ -374,15 +366,14 @@ class Variable(trackable.TrackableResource):
       An operation to restrict size of the variable itself. Return None if
       the restrict policy is not set.
     """
-        if self._restrict_policy is not None:
-            return self._restrict_policy.apply_restriction(
-                num_reserved, **kwargs)
-        else:
-            tf_logging.warning('Call restrict without setting restrict policy.')
-            return None
+    if self._restrict_policy is not None:
+      return self._restrict_policy.apply_restriction(num_reserved, **kwargs)
+    else:
+      tf_logging.warning('Call restrict without setting restrict policy.')
+      return None
 
-    def remove(self, keys, name=None):
-        """Removes `keys` and its associated values from the variable.
+  def remove(self, keys, name=None):
+    """Removes `keys` and its associated values from the variable.
 
         If a key is not present in the table, it is silently ignored.
 
@@ -397,20 +388,18 @@ class Variable(trackable.TrackableResource):
         Raises:
           TypeError: when `keys` do not match the table data types.
         """
-        partition_index = self.partition_fn(keys, self.shard_num)
-        keys_partitions, _ = make_partition(keys, partition_index,
-                                            self.shard_num)
+    partition_index = self.partition_fn(keys, self.shard_num)
+    keys_partitions, _ = make_partition(keys, partition_index, self.shard_num)
 
-        ops_ = []
-        for idx in range(len(self.devices)):
-            with ops.device(self.devices[idx]):
-                ops_.append(self._tables[idx].remove(keys_partitions[idx],
-                                                     name=name))
+    ops_ = []
+    for idx in range(len(self.devices)):
+      with ops.device(self.devices[idx]):
+        ops_.append(self._tables[idx].remove(keys_partitions[idx], name=name))
 
-        return control_flow_ops.group(ops_)
+    return control_flow_ops.group(ops_)
 
-    def clear(self, name=None):
-        """clear all keys and values in the table.
+  def clear(self, name=None):
+    """clear all keys and values in the table.
 
     Args:
       name: A name for the operation (optional).
@@ -418,28 +407,28 @@ class Variable(trackable.TrackableResource):
     Returns:
       The created Operation.
     """
-        ops_ = []
-        for idx in range(len(self.devices)):
-            with ops.device(self.devices[idx]):
-                ops_.append(self._tables[idx].clear(name=name))
-        return control_flow_ops.group(ops_)
+    ops_ = []
+    for idx in range(len(self.devices)):
+      with ops.device(self.devices[idx]):
+        ops_.append(self._tables[idx].clear(name=name))
+    return control_flow_ops.group(ops_)
 
-    def _create_default_values_by_initializer(self, keys):
-        if self.initializer is None:
-            return None
-        try:
-            keys_shape = array_ops.shape(array_ops.reshape(keys, [-1]))
-            vals_shape = [keys_shape[0], self.dim]
-            init_op = self.initializer(vals_shape)
-        except Exception as e:  # constant.initializer
-            init_op = self.initializer([self.dim])
-            tf_logging.warn(
-                "Variable [{}] is not running on full-size initialization mode: {}"
-                .format(str(self.name), str(e)))
-        return init_op
+  def _create_default_values_by_initializer(self, keys):
+    if self.initializer is None:
+      return None
+    try:
+      keys_shape = array_ops.shape(array_ops.reshape(keys, [-1]))
+      vals_shape = [keys_shape[0], self.dim]
+      init_op = self.initializer(vals_shape)
+    except Exception as e:  # constant.initializer
+      init_op = self.initializer([self.dim])
+      tf_logging.warn(
+          "Variable [{}] is not running on full-size initialization mode: {}".
+          format(str(self.name), str(e)))
+    return init_op
 
-    def lookup(self, keys, name=None):
-        """Looks up `keys` in a Variable, outputs the corresponding values.
+  def lookup(self, keys, name=None):
+    """Looks up `keys` in a Variable, outputs the corresponding values.
 
         The `default_value` is used for keys not present in the table.
 
@@ -452,29 +441,29 @@ class Variable(trackable.TrackableResource):
           A tensor containing the values in the same shape as `keys` using the
             table's value type.
         """
-        partition_index = self.partition_fn(keys, self.shard_num)
-        keys_partitions, keys_indices = make_partition(keys, partition_index,
-                                                       self.shard_num)
+    partition_index = self.partition_fn(keys, self.shard_num)
+    keys_partitions, keys_indices = make_partition(keys, partition_index,
+                                                   self.shard_num)
 
-        ops_ = []
-        for idx in range(len(self.devices)):
-            with ops.device(self.devices[idx]):
-                dynamic_default_values = self._create_default_values_by_initializer(
-                    keys_partitions[idx])
-                if dynamic_default_values is not None:
-                    dynamic_default_values = math_ops.cast(
-                        dynamic_default_values, self.value_dtype)
-                ops_.append(self._tables[idx].lookup(
-                    keys_partitions[idx],
-                    dynamic_default_values=dynamic_default_values,
-                    name=name,
-                ))
-        result = _stitch(ops_, keys_indices)
+    ops_ = []
+    for idx in range(len(self.devices)):
+      with ops.device(self.devices[idx]):
+        dynamic_default_values = self._create_default_values_by_initializer(
+            keys_partitions[idx])
+        if dynamic_default_values is not None:
+          dynamic_default_values = math_ops.cast(dynamic_default_values,
+                                                 self.value_dtype)
+        ops_.append(self._tables[idx].lookup(
+            keys_partitions[idx],
+            dynamic_default_values=dynamic_default_values,
+            name=name,
+        ))
+    result = _stitch(ops_, keys_indices)
 
-        return result
+    return result
 
-    def export(self, name=None):
-        """Returns tensors of all keys and values in the table.
+  def export(self, name=None):
+    """Returns tensors of all keys and values in the table.
 
         Args:
           name: A name for the operation (optional).
@@ -483,19 +472,19 @@ class Variable(trackable.TrackableResource):
           A pair of tensors with the first tensor containing all keys and the
             second tensors containing all values in the table.
         """
-        full_keys = []
-        full_values = []
-        for idx in range(len(self.devices)):
-            keys_ = None
-            vals_ = None
-            with ops.device(self.devices[idx]):
-                keys_, vals_ = self._tables[idx].export(name=name)
-                full_keys.append(keys_)
-                full_values.append(vals_)
-        return array_ops.concat(full_keys, 0), array_ops.concat(full_values, 0)
+    full_keys = []
+    full_values = []
+    for idx in range(len(self.devices)):
+      keys_ = None
+      vals_ = None
+      with ops.device(self.devices[idx]):
+        keys_, vals_ = self._tables[idx].export(name=name)
+        full_keys.append(keys_)
+        full_values.append(vals_)
+    return array_ops.concat(full_keys, 0), array_ops.concat(full_values, 0)
 
-    def size(self, index=None, name=None):
-        """Compute the number of elements in the index-th table of this Variable.
+  def size(self, index=None, name=None):
+    """Compute the number of elements in the index-th table of this Variable.
 
         If index is none, the total size of the Variable wil be return.
 
@@ -506,26 +495,26 @@ class Variable(trackable.TrackableResource):
         Returns:
           A scalar tensor containing the number of elements in this Variable.
         """
-        if context.executing_eagerly():
-            self.size_ops = []
-        if not self.size_ops:
-            for idx in range(len(self.devices)):
-                with ops.device(self.devices[idx]):
-                    self.size_ops.append(self._tables[idx].size(name=name))
+    if context.executing_eagerly():
+      self.size_ops = []
+    if not self.size_ops:
+      for idx in range(len(self.devices)):
+        with ops.device(self.devices[idx]):
+          self.size_ops.append(self._tables[idx].size(name=name))
 
-        return (self.size_ops[index]
-                if index is not None else math_ops.add_n(self.size_ops))
+    return (self.size_ops[index]
+            if index is not None else math_ops.add_n(self.size_ops))
 
-    def _gather_saveables_for_checkpoint(self):
-        """For object-based checkpointing."""
-        saveables = dict()
-        for table in self._tables:
-            # pylint: disable=protected-access
-            saveable_dict = table._gather_saveables_for_checkpoint()
-            for (_, saveable) in saveable_dict.items():
-                # merge all tables saveable to one dict with their own name.
-                saveables[saveable.keywords["name"]] = saveable
-        return saveables
+  def _gather_saveables_for_checkpoint(self):
+    """For object-based checkpointing."""
+    saveables = dict()
+    for table in self._tables:
+      # pylint: disable=protected-access
+      saveable_dict = table._gather_saveables_for_checkpoint()
+      for (_, saveable) in saveable_dict.items():
+        # merge all tables saveable to one dict with their own name.
+        saveables[saveable.keywords["name"]] = saveable
+    return saveables
 
 
 @tf_export("dynamic_embedding.get_variable")
@@ -540,10 +529,11 @@ def get_variable(
     initializer=None,
     trainable=True,
     checkpoint=True,
-    KVCreator=None,
+    init_size=0,
+    kv_creator=None,
     restrict_policy=None,
 ):
-    """Gets an `Variable` object with this name if it exists,
+  """Gets an `Variable` object with this name if it exists,
          or create a new one.
 
     Args:
@@ -582,31 +572,32 @@ def get_variable(
     Returns:
       A `Variable` object.
     """
-    var_ = None
-    scope = variable_scope.get_variable_scope()
-    scope_store = variable_scope._get_default_variable_store()
-    full_name = scope.name + "/" + name if scope.name else name
-    if full_name in scope_store._vars:
-        if scope.reuse is False:
-            err_msg = ("Variable %s already exists, disallowed."
-                       " Did you mean to set reuse=True or "
-                       "reuse=tf.AUTO_REUSE in VarScope?" % full_name)
+  var_ = None
+  scope = variable_scope.get_variable_scope()
+  scope_store = variable_scope._get_default_variable_store()
+  full_name = scope.name + "/" + name if scope.name else name
+  if full_name in scope_store._vars:
+    if scope.reuse is False:
+      err_msg = ("Variable %s already exists, disallowed."
+                 " Did you mean to set reuse=True or "
+                 "reuse=tf.AUTO_REUSE in VarScope?" % full_name)
 
-            raise ValueError(err_msg)
-    else:
-        var_ = Variable(
-            key_dtype=key_dtype,
-            value_dtype=value_dtype,
-            dim=dim,
-            devices=devices,
-            partitioner=partitioner,
-            shared_name=shared_name,
-            name=full_name,
-            initializer=initializer,
-            trainable=trainable,
-            checkpoint=checkpoint,
-            KVCreator=KVCreator,
-            restrict_policy=restrict_policy,
-        )
-        scope_store._vars[full_name] = var_
-    return scope_store._vars[full_name]
+      raise ValueError(err_msg)
+  else:
+    var_ = Variable(
+        key_dtype=key_dtype,
+        value_dtype=value_dtype,
+        dim=dim,
+        devices=devices,
+        partitioner=partitioner,
+        shared_name=shared_name,
+        name=full_name,
+        initializer=initializer,
+        trainable=trainable,
+        checkpoint=checkpoint,
+        init_size=init_size,
+        kv_creator=kv_creator,
+        restrict_policy=restrict_policy,
+    )
+    scope_store._vars[full_name] = var_
+  return scope_store._vars[full_name]
