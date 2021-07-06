@@ -58,7 +58,7 @@ class CuckooHashTable(LookupInterface):
       name="CuckooHashTable",
       checkpoint=True,
       init_size=0,
-      params_dict={},
+      config={},
   ):
     """Creates an empty `CuckooHashTable` object.
 

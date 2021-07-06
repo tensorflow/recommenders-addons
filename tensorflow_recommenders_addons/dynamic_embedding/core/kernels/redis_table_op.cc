@@ -585,6 +585,7 @@ public:
         std::cerr << "File " + file_path +
                          " can't be created. Maybe it's already exist!"
                   << std::endl;
+        std::cerr << "The Program Terminates!" << std::endl;
         throw(file_path);
       }
       EXPORT_fds.push_back(tem_fd);

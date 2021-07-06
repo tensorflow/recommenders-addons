@@ -19,6 +19,7 @@ from __future__ import division
 from __future__ import print_function
 
 import functools
+from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_creator import KVCreator
 import six
 
 from tensorflow_recommenders_addons import dynamic_embedding as de
@@ -297,7 +298,7 @@ def create_slots(primary, init, slot_name, op_name):
           devices=params_var_.devices,
           partitioner=params_var_.partition_fn,
           initializer=init,
-          params_dict=params_var_.params_dict,
+          KVCreator=params_var_.KVCreator,
           trainable=False,
           checkpoint=params_var_.checkpoint,
       )

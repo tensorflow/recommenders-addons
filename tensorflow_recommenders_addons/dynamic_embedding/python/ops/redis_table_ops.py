@@ -88,7 +88,7 @@ class RedisTable(LookupInterface):
       default_value,
       name="RedisTable",
       checkpoint=False,
-      params_dict={},
+      config=None,
   ):
     """Creates an empty `RedisTable` object.
 
@@ -119,18 +119,15 @@ class RedisTable(LookupInterface):
     self._value_dtype = value_dtype
     self._name = name
     self._embedding_name = (self._name.split('_mht_',1))[0]
-    print(self._name)
-    print(self._embedding_name)
-    self._redis_params = self.default_redis_params.copy()
-    self._redis_params = {k:v for k, v in params_dict.items() if k in self.default_redis_params}
+    self._redis_params = config
 
-    os.environ["redis_connect_timeout"]=str(self._redis_params["redis_connect_timeout"])
-    os.environ["redis_socket_timeout"]=str(self._redis_params["redis_socket_timeout"])
-    os.environ["redis_conn_pool_size"]=str(self._redis_params["redis_conn_pool_size"])
-    os.environ["redis_wait_timeout"]=str(self._redis_params["redis_wait_timeout"])
-    os.environ["redis_connection_lifetime"]=str(self._redis_params["redis_connection_lifetime"])
-    os.environ["redis_sentinel_connect_timeout"]=str(self._redis_params["redis_sentinel_connect_timeout"])
-    os.environ["sentinel_socket_timeout"]=str(self._redis_params["sentinel_socket_timeout"])
+    os.environ.redis_connect_timeout=str(self._redis_params.redis_connect_timeout)
+    os.environ.redis_socket_timeout=str(self._redis_params.redis_socket_timeout)
+    os.environ.redis_conn_pool_size=str(self._redis_params.redis_conn_pool_size)
+    os.environ.redis_wait_timeout=str(self._redis_params.redis_wait_timeout)
+    os.environ.redis_connection_lifetime=str(self._redis_params.redis_connection_lifetime)
+    os.environ.redis_sentinel_connect_timeout=str(self._redis_params.redis_sentinel_connect_timeout)
+    os.environ.sentinel_socket_timeout=str(self._redis_params.sentinel_socket_timeout)
 
     self._shared_name = None
     if context.executing_eagerly():
@@ -157,7 +154,7 @@ class RedisTable(LookupInterface):
                                                   name=name,
                                                   full_name=name)
     
-    if self._redis_params["using_model_lib"] and self.already_import_from_files==False:
+    if self._redis_params.using_model_lib and self.already_import_from_files==False:
       RedisTable.import_from_flies(self,name="direct_import")
       self.already_import_from_files = True
 
@@ -173,17 +170,17 @@ class RedisTable(LookupInterface):
         value_dtype=self._value_dtype,
         value_shape=self._default_value.get_shape(),
         embedding_name=self._embedding_name,
-        redis_connection_mode=self._redis_params["redis_connection_mode"],
-        redis_master_name=self._redis_params["redis_master_name"],
-        redis_host_ip=self._redis_params["redis_host_ip"],
-        redis_host_port=self._redis_params["redis_host_port"],
-        redis_password=self._redis_params["redis_password"],
-        redis_db=self._redis_params["redis_db"],
-        storage_slice=self._redis_params["storage_slice"],
-        using_MD5_prefix_name=self._redis_params["using_MD5_prefix_name"],
-        model_tag=self._redis_params["model_tag"],
-        using_model_lib=self._redis_params["using_model_lib"],
-        model_lib_abs_dir=self._redis_params["model_lib_abs_dir"]
+        redis_connection_mode=self._redis_params.redis_connection_mode,
+        redis_master_name=self._redis_params.redis_master_name,
+        redis_host_ip=self._redis_params.redis_host_ip,
+        redis_host_port=self._redis_params.redis_host_port,
+        redis_password=self._redis_params.redis_password,
+        redis_db=self._redis_params.redis_db,
+        storage_slice=self._redis_params.storage_slice,
+        using_MD5_prefix_name=self._redis_params.using_MD5_prefix_name,
+        model_tag=self._redis_params.model_tag,
+        using_model_lib=self._redis_params.using_model_lib,
+        model_lib_abs_dir=self._redis_params.model_lib_abs_dir
     )
 
     if context.executing_eagerly():
@@ -391,4 +388,4 @@ class RedisTable(LookupInterface):
           )
 
 
-ops.NotDifferentiable(prefix_op_name("CuckooHashTableOfTensors"))
+ops.NotDifferentiable(prefix_op_name("RedisTableOfTensors"))

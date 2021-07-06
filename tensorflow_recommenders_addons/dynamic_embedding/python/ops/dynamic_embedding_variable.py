@@ -150,7 +150,7 @@ class Variable(trackable.TrackableResource):
       trainable=True,
       checkpoint=True,
       init_size=0,
-      params_dict={},
+      KVCreator=None,
       restrict_policy=None,
   ):
     """Creates an empty `Variable` object.
@@ -230,7 +230,7 @@ class Variable(trackable.TrackableResource):
 
     self._tables = []
     self.size_ops = []
-    self.params_dict = params_dict
+    self.KVCreator = KVCreator
 
     self.shard_num = len(self.devices)
 
@@ -268,15 +268,17 @@ class Variable(trackable.TrackableResource):
         for idx in range(len(self.devices)):
           with ops.device(self.devices[idx]):
             mht = None
-            KVcreator = de.KVcreator()
-            mht = KVcreator.create(
+            if not issubclass(self.KVCreator.__class__, de.KVCreator):
+              raise TypeError("config should be instance of 'config', but got ",
+                              str(type(self.KVCreator)))
+            mht = self.KVCreator.create(
                 key_dtype=self.key_dtype,
                 value_dtype=self.value_dtype,
                 default_value=static_default_value,
                 name=self._make_name(idx),
                 checkpoint=self.checkpoint,
                 init_size=int(self.init_size / self.shard_num),
-                params_dict=self.params_dict,
+                config=None, #Use the config parameter in KvCreator
             )
 
             self._tables.append(mht)
@@ -528,7 +530,7 @@ def get_variable(
     initializer=None,
     trainable=True,
     checkpoint=True,
-    params_dict={},
+    KVCreator=None,
     restrict_policy=None,
 ):
   """Gets an `Variable` object with this name if it exists,
@@ -593,7 +595,7 @@ def get_variable(
         initializer=initializer,
         trainable=trainable,
         checkpoint=checkpoint,
-        params_dict=params_dict,
+        KVCreator=KVCreator,
         restrict_policy=restrict_policy,
     )
     scope_store._vars[full_name] = var_
