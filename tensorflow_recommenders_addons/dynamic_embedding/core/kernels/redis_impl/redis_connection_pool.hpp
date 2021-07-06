@@ -144,7 +144,7 @@ public:
 
 public:
   virtual bool check_slices_num(const std::string &keys_prefix_name) override {
-    std::string redis_command = "KEYS " + keys_prefix_name + "[0123456789]";
+    std::string redis_command = "KEYS " + keys_prefix_name + "[0123456789]*";
     auto cmd = [](::sw::redis::Connection &connection, const char *str) {
       connection.send(str);
     };
