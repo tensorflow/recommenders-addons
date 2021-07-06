@@ -25,7 +25,7 @@ import tensorflow as tf
 _TFRA_BAZELRC = ".bazelrc"
 
 # Maping TensorFlow version to valid Bazel version.
-_VALID_BAZEL_VERSION = {"1.15.2": "0.26.1", "2.4.1": "3.1.0"}
+_VALID_BAZEL_VERSION = {"1.15.2": "0.26.1", "2.4.0": "3.1.0", "2.4.1": "3.1.0"}
 
 
 # Writes variables to bazelrc file

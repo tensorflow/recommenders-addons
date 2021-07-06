@@ -36,8 +36,17 @@ __all__ = [
 ]
 
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops import math_ops as math
+from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_creator import (
+    KVCreator,
+    CuckooHashTableConfig,
+    CuckooHashTableCreator,
+    RedisTableConfig,
+    RedisTableCreator,
+)
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.cuckoo_hashtable_ops import (
     CuckooHashTable,)
+from tensorflow_recommenders_addons.dynamic_embedding.python.ops.redis_table_ops import (
+    RedisTable,)
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_ops import (
     embedding_lookup,)
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_ops import (
