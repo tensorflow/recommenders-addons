@@ -41,7 +41,7 @@ class Trainer():
     split_start = split_size * self.worker_id
     split = 'train[{}%:{}%]'.format(split_start, split_start + split_size - 1)
     print("dataset split, worker{}: {}".format(self.worker_id, split))
-    ratings = tfds.load("movielens/1m-ratings", split=split)
+    ratings = tfds.load("movie_lens/1m-ratings", split=split)
     ratings = ratings.map(
         lambda x: {
             "movie_id": tf.strings.to_number(x["movie_id"], tf.int64),
