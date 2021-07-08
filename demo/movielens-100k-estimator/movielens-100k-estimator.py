@@ -18,7 +18,7 @@ FLAGS = flags.FLAGS
 
 
 def input_fn():
-  ratings = tfds.load("movielens/100k-ratings", split="train")
+  ratings = tfds.load("movie_lens/100k-ratings", split="train")
   ratings = ratings.map(
       lambda x: {
           "movie_id": tf.strings.to_number(x["movie_id"], tf.int64),
