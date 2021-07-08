@@ -51,9 +51,7 @@ class _DenseDynamicEmbeddingTrainableProcessor(optimizer._OptimizableVariable):
       _slots = [
           optimizer.get_slot(self._v, _s) for _s in optimizer.get_slot_names()
       ]
-      # Add the optimizer slots to restricting list.
-      if self._v.params.restrict_policy is not None:
-        self._v.params.restrict_policy._track_optimizer_slots(_slots)
+      self._v._track_optimizer_slots(_slots)
 
       with ops.control_dependencies([g]):
         v0 = self._v.read_value(do_prefetch=not self._v.params.bp_v2)
@@ -89,13 +87,13 @@ class _DenseDynamicEmbeddingTrainableProcessor(optimizer._OptimizableVariable):
 
 def _get_processor(v):
   """The processor of v."""
+  if isinstance(v, de.TrainableWrapper):
+    return _DenseDynamicEmbeddingTrainableProcessor(v)
   if context.executing_eagerly():
     if isinstance(v, ops.Tensor):
       return optimizer._TensorProcessor(v)
     else:
       return optimizer._DenseResourceVariableProcessor(v)
-  if isinstance(v, de.TrainableWrapper):
-    return _DenseDynamicEmbeddingTrainableProcessor(v)
   if (rvo.is_resource_variable(v) and not v._in_graph_mode):  # pylint: disable=protected-access
     # True if and only if `v` was initialized eagerly.
     return optimizer._DenseResourceVariableProcessor(v)

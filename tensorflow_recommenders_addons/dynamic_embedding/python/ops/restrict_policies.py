@@ -95,7 +95,7 @@ class RestrictPolicy(object):
     """
     return None
 
-  def _track_optimizer_slots(self, slots):
+  def _track_params_from_optimizer_slots(self, slots):
     for _s in slots:
       if isinstance(_s, de.TrainableWrapper):
         params = _s.params

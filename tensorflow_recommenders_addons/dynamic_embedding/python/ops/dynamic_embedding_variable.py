@@ -22,6 +22,8 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import functools
+
 from tensorflow_recommenders_addons import dynamic_embedding as de
 
 try:
@@ -34,6 +36,7 @@ from tensorflow.python.eager import context
 from tensorflow.python.framework import constant_op
 from tensorflow.python.framework import dtypes
 from tensorflow.python.framework import ops
+from tensorflow.python.keras.optimizer_v2.optimizer_v2 import OptimizerV2
 from tensorflow.python.ops import array_ops
 from tensorflow.python.ops import bitwise_ops
 from tensorflow.python.ops import control_flow_ops
@@ -44,7 +47,10 @@ from tensorflow.python.ops import math_ops
 from tensorflow.python.ops import string_ops
 from tensorflow.python.ops import variable_scope
 from tensorflow.python.platform import tf_logging
-from tensorflow.python.training.tracking import tracking as trackable
+from tensorflow.python.training.optimizer import Optimizer
+from tensorflow.python.training.tracking import base
+from tensorflow.python.training.tracking import data_structures
+from tensorflow.python.training.tracking import python_state
 from tensorflow.python.util.tf_export import tf_export
 
 
@@ -115,23 +121,31 @@ def default_partition_fn(keys, shard_num):
 
 
 class GraphKeys(object):
-  """Extended standard names related to `dynamic_embedding_ops.Variable` to use
-  for graph collections.
-
+  """
+  (Deprecated) extended standard names related to
+  `dynamic_embedding_ops.Variable` to use for graph collections.
   The following standard keys are defined:
-
   * `DYNAMIC_EMBEDDING_VARIABLES`: the default collection of
     all `dynamic_embedding_ops.Variable` objects.
   * `TRAINABLE_DYNAMIC_EMBEDDING_VARIABLES`: the subset of
     `dynamic_embedding_ops.Variable` that is trainable.
   """
+  tf_logging.warn(
+      'dynamic_embedding.GraphKeys has already been deprecated. '
+      'The Variable will not be added to collections because it '
+      'does not actully own any value, but only a holder of tables, '
+      'which may lead to import_meta_graph failed since non-valued '
+      'object has been added to collection. If you need to use '
+      '`tf.compat.v1.train.Saver` and access all Variables from '
+      'collection, you could manually add it to the collection by '
+      'tf.compat.v1.add_to_collections(names, var) instead.')
   # Dynamic embedding variables.
   DYNAMIC_EMBEDDING_VARIABLES = "dynamic_embedding_variables"
   # Trainable dynamic embedding variables.
   TRAINABLE_DYNAMIC_EMBEDDING_VARIABLES = "trainable_dynamic_embedding_variables"
 
 
-class Variable(trackable.TrackableResource):
+class Variable(base.Trackable):
   """
     A Distributed version of HashTable(reference from lookup_ops.MutableHashTable)
     It is designed to dynamically store the Sparse Weights(Parameters) of DLRMs.
@@ -184,9 +198,8 @@ class Variable(trackable.TrackableResource):
           initializer: The value to use if a key is missing in the hash table.
             which can be a python number, numpy array or `tf.initializer` instances.
             If initializer is `None` (the default), `0` will be taken.
-          trainable: True, will be treated as a trainable Variable, and add to
-            to the list of variables collected in the graph under the key
-            `GraphKeys.TRAINABLE_VARIABLES`.
+          trainable: Bool. If true, the variable will be treated as a trainable.
+            Default is true.
           checkpoint: if True, the contents of the SparseVariable are
             saved to and restored from checkpoints.
             If `shared_name` is empty for a checkpointed table,
@@ -237,8 +250,12 @@ class Variable(trackable.TrackableResource):
     self.trainable = trainable
     self.checkpoint = checkpoint
 
-    self._tables = []
+    self._tables = data_structures.ListWrapper([])
+    self._track_trackable(self._tables,
+                          'tables_of_{}'.format(self.name),
+                          overwrite=True)
     self.size_ops = []
+    self._trainable_store = {}
     self.shard_num = len(self.devices)
     self.init_size = int(init_size)
     if restrict_policy is not None:
@@ -281,14 +298,7 @@ class Variable(trackable.TrackableResource):
                 checkpoint=self.checkpoint,
                 init_size=int(self.init_size / self.shard_num),
             )
-
             self._tables.append(mht)
-    super(Variable, self).__init__()
-
-    ops.add_to_collection(de.GraphKeys.DYNAMIC_EMBEDDING_VARIABLES, self)
-    if trainable:
-      ops.add_to_collections(de.GraphKeys.TRAINABLE_DYNAMIC_EMBEDDING_VARIABLES,
-                             self)
 
   @property
   def tables(self):
@@ -312,9 +322,6 @@ class Variable(trackable.TrackableResource):
       init = array_ops.fill([dim], array_ops.reshape(init, [-1])[0])
     init = math_ops.cast(init, dtype=self.value_dtype)
     return init
-
-  def _create_resource(self):
-    raise NotImplementedError
 
   def _make_name(self, table_idx):
     return "{}_mht_{}of{}".format(self.name.replace("/", "_"), table_idx + 1,
@@ -576,16 +583,49 @@ class Variable(trackable.TrackableResource):
     return (self.size_ops[index]
             if index is not None else math_ops.add_n(self.size_ops))
 
+  def get_slot_variables(self, optimizer):
+    """
+    Get slot variables from optimizer. If Variable is trained by optimizer,
+    then it returns the variables in slots of optimizer, else return an empty
+    list.
+
+    Args:
+      optimizer: An optimizer under `tf.keras.optimizers` or `tf.compat.v1.train`.
+
+    Returns:
+      List of slot `Variable`s in optimizer.
+    """
+    if not isinstance(optimizer, (Optimizer, OptimizerV2)):
+      raise TypeError('Expect an optimizer, but get {}'.format(type(optimizer)))
+    slots = []
+    snames = optimizer.get_slot_names()
+    for tw in self._trainable_store.values():
+      for name in snames:
+        try:
+          s = optimizer.get_slot(tw, name)
+          slots.append(s.params)
+        except:
+          continue
+    return slots
+
   def _gather_saveables_for_checkpoint(self):
-    """For object-based checkpointing."""
-    saveables = dict()
-    for table in self._tables:
-      # pylint: disable=protected-access
-      saveable_dict = table._gather_saveables_for_checkpoint()
-      for (_, saveable) in saveable_dict.items():
-        # merge all tables saveable to one dict with their own name.
-        saveables[saveable.keywords["name"]] = saveable
-    return saveables
+    g = ops.get_default_graph()
+    if context.executing_eagerly() or g._functions:
+      return {
+          "py_state_de_var":
+              functools.partial(base.PythonStringStateSaveable,
+                                name=self.name,
+                                state_callback=lambda: self.name,
+                                restore_callback=lambda name: None)
+      }
+    else:
+      saveables = dict()
+      for table in self._tables:
+        saveable_dict = table._gather_saveables_for_checkpoint()
+        for (_, saveable) in saveable_dict.items():
+          # merge all tables saveable to one dict with their own name.
+          saveables[saveable.keywords["name"]] = saveable
+      return saveables
 
 
 @tf_export("dynamic_embedding.get_variable")
@@ -626,9 +666,8 @@ def get_variable(
       initializer: The value to use if a key is missing in the hash table.
         which can a python number, numpy array or `tf.initializer` instances.
         If initializer is `None` (the default), `0` will be used.
-      trainable: True, will be treated as a trainable Variable, and add to
-        to the list of variables collected in the graph under the key
-        `GraphKeys.TRAINABLE_VARIABLES`.
+      trainable: Bool. If true, the variable will be treated as a trainable.
+        Default is true.
       checkpoint: if True, the contents of the SparseVariable are
         saved to and restored from checkpoints.
         If `shared_name` is empty for a checkpointed table,
