@@ -91,8 +91,7 @@ def DynamicEmbeddingOptimizer(self):
         with ops.colocate_with(None, ignore_existing=True):
           _slots = [self.get_slot(var, _s) for _s in self.get_slot_names()]
           # Add the optimizer slots to restricting list.
-          if var.params.restrict_policy is not None:
-            var.params.restrict_policy._track_optimizer_slots(_slots)
+          var._track_optimizer_slots(_slots)
 
           with ops.control_dependencies([grad]):
             v0 = var.read_value(do_prefetch=not var.params.bp_v2)
@@ -311,10 +310,17 @@ def create_slots(primary, init, slot_name, op_name):
     scope_store._vars[full_name] = slot_variable_
 
   slot_trainable = None
+  if context.executing_eagerly():
+    slot_tw_name = slot_name + '-' + str(optimizer_v2._var_key(primary))
+  else:
+    # In graph mode of former version, It only uses slot_name as name to
+    # trainable wrappers of slots. So here set it the name to slot_name
+    # for forward compatibility.
+    slot_tw_name = slot_name
   _, slot_trainable = de.embedding_lookup(
       params=scope_store._vars[full_name],
       ids=params_ids_,
-      name=slot_name,
+      name=slot_tw_name,
       return_trainable=True,
   )
 

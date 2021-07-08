@@ -388,8 +388,8 @@ class EmbeddingLookupTrainableV1Test(test.TestCase, CommonTrainableTestV1Base):
         base_var = resource_variable_ops.ResourceVariable(raw_init_vals,
                                                           dtype=d_dtype)
         ids = constant_op.constant(raw_ids, dtype=k_dtype)
-        pred0 = math_ops.matmul(embedding_ops.embedding_lookup([base_var], ids),
-                                x)
+        pred0 = math_ops.matmul(
+            embedding_ops.embedding_lookup([base_var], ids, name='by3050'), x)
         loss0 = pred0 * pred0
         base_opt_op = base_opt.minimize(loss0)
 
@@ -411,7 +411,8 @@ class EmbeddingLookupTrainableV1Test(test.TestCase, CommonTrainableTestV1Base):
 
         test_var, trainable = de.embedding_lookup([embeddings],
                                                   ids,
-                                                  return_trainable=True)
+                                                  return_trainable=True,
+                                                  name='bp1256')
         pred1 = math_ops.matmul(test_var, x)
         loss1 = pred1 * pred1
 
@@ -483,7 +484,7 @@ class EmbeddingLookupTrainableV2Test(test.TestCase, CommonTrainableTestV2Base):
 
         def loss_fn(emb):
           ids = constant_op.constant(raw_ids, dtype=k_dtype)
-          pred = embedding_ops.embedding_lookup([emb], ids)
+          pred = embedding_ops.embedding_lookup([emb], ids, name='ct9143')
           return pred * pred
 
         base_opt_op = base_opt.minimize(lambda: loss_fn(embeddings),
@@ -515,7 +516,10 @@ class EmbeddingLookupTrainableV2Test(test.TestCase, CommonTrainableTestV2Base):
 
         def loss_fn(x, trainables):
           ids = constant_op.constant(raw_ids, dtype=k_dtype)
-          pred, trainable = de.embedding_lookup([x], ids, return_trainable=True)
+          pred, trainable = de.embedding_lookup([x],
+                                                ids,
+                                                return_trainable=True,
+                                                name='xg5785')
           trainables.clear()
           trainables.append(trainable)
           return pred * pred
@@ -582,7 +586,8 @@ class EmbeddingLookupUniqueTrainableV1Test(test.TestCase,
                                                           dtype=d_dtype)
         unique_ids, idx = array_ops.unique(ids)
         unique_embeddings = embedding_ops.embedding_lookup([base_var],
-                                                           unique_ids)
+                                                           unique_ids,
+                                                           name='rt4647')
         embeddings = array_ops.gather(unique_embeddings, idx)
         pred0 = math_ops.matmul(embeddings, x)
         loss0 = pred0 * pred0
@@ -605,7 +610,8 @@ class EmbeddingLookupUniqueTrainableV1Test(test.TestCase,
 
         test_var, trainable = de.embedding_lookup_unique([embeddings],
                                                          ids,
-                                                         return_trainable=True)
+                                                         return_trainable=True,
+                                                         name='bf1117')
         pred1 = math_ops.matmul(test_var, x)
         loss1 = pred1 * pred1
 
@@ -676,7 +682,9 @@ class EmbeddingLookupUniqueTrainableV2Test(test.TestCase,
         def loss_fn(emb):
           ids = constant_op.constant(raw_ids, dtype=k_dtype)
           unique_ids, idx = array_ops.unique(ids)
-          unique_embeddings = embedding_ops.embedding_lookup([emb], unique_ids)
+          unique_embeddings = embedding_ops.embedding_lookup([emb],
+                                                             unique_ids,
+                                                             name='sa6943')
           pred = array_ops.gather(unique_embeddings, idx)
           return pred * pred
 
@@ -711,7 +719,8 @@ class EmbeddingLookupUniqueTrainableV2Test(test.TestCase,
           ids = constant_op.constant(raw_ids, dtype=k_dtype)
           pred, trainable = de.embedding_lookup_unique([x],
                                                        ids,
-                                                       return_trainable=True)
+                                                       return_trainable=True,
+                                                       name='ff8889')
           trainables.clear()
           trainables.append(trainable)
           return pred * pred
@@ -794,7 +803,8 @@ class EmbeddingLookupSparseTrainableV1Test(test.TestCase,
         base_embedding = embedding_ops.embedding_lookup_sparse(base_var,
                                                                sp_ids,
                                                                None,
-                                                               combiner="sum")
+                                                               combiner="sum",
+                                                               name='wg8689')
         base_embedding = array_ops.reshape(base_embedding, shape=[1, 3 * dim])
         pred0 = math_ops.matmul(base_embedding, x)
         loss0 = pred0 * pred0
@@ -832,6 +842,7 @@ class EmbeddingLookupSparseTrainableV1Test(test.TestCase,
             sp_weights=None,
             combiner="sum",
             return_trainable=True,
+            name='io3441',
         )
 
         pred1 = math_ops.matmul(array_ops.reshape(test_var, shape=[1, 3 * dim]),
@@ -927,7 +938,8 @@ class EmbeddingLookupSparseTrainableV2Test(test.TestCase,
           embedding = embedding_ops.embedding_lookup_sparse(emb,
                                                             sp_ids,
                                                             None,
-                                                            combiner="sum")
+                                                            combiner="sum",
+                                                            name='gc4675')
           pred = math_ops.matmul(embedding, x)
           return pred * pred
 
@@ -966,6 +978,7 @@ class EmbeddingLookupSparseTrainableV2Test(test.TestCase,
               sp_weights=None,
               combiner="sum",
               return_trainable=True,
+              name='bk3382',
           )
 
           pred = math_ops.matmul(test_var, x)
@@ -1051,7 +1064,7 @@ class SafeEmbeddingLookupSparseTrainableV1Test(test.TestCase,
             shape=[len(raw_init_ids), dim],
         )
         base_embedding = embedding_ops.safe_embedding_lookup_sparse(
-            base_var, sp_ids, None, combiner="sum")
+            base_var, sp_ids, None, combiner="sum", name='zp0198')
         base_embedding = array_ops.reshape(base_embedding, shape=[1, 3 * dim])
         pred0 = math_ops.matmul(base_embedding, x)
         loss0 = pred0 * pred0
@@ -1081,6 +1094,7 @@ class SafeEmbeddingLookupSparseTrainableV1Test(test.TestCase,
             sparse_weights=None,
             combiner="sum",
             return_trainable=True,
+            name='js2442',
         )
 
         pred1 = math_ops.matmul(array_ops.reshape(test_var, shape=[1, 3 * dim]),
@@ -1173,10 +1187,13 @@ class SafeEmbeddingLookupSparseTrainableV2Test(test.TestCase,
         )
 
         def loss_fn(emb):
-          embedding = embedding_ops.safe_embedding_lookup_sparse(emb,
-                                                                 sp_ids,
-                                                                 None,
-                                                                 combiner="sum")
+          embedding = embedding_ops.safe_embedding_lookup_sparse(
+              emb,
+              sp_ids,
+              None,
+              combiner="sum",
+              name='uw5859',
+          )
           pred0 = math_ops.matmul(embedding, x)
           return pred0 * pred0
 
@@ -1215,6 +1232,7 @@ class SafeEmbeddingLookupSparseTrainableV2Test(test.TestCase,
               sparse_weights=None,
               combiner="sum",
               return_trainable=True,
+              name='mm7462',
           )
 
           pred = math_ops.matmul(test_var, x)
@@ -1366,7 +1384,8 @@ class TrainDynamicEmbeddingInMonitoredTrainingSessionTest(test.TestCase):
         base_embedding = embedding_ops.embedding_lookup_sparse(base_var,
                                                                sp_ids,
                                                                None,
-                                                               combiner="sum")
+                                                               combiner="sum",
+                                                               name='tg2722')
         base_embedding = array_ops.reshape(base_embedding, shape=[1, 3 * dim])
         pred0 = math_ops.matmul(base_embedding, x)
         loss0 = pred0 * pred0
@@ -1380,6 +1399,7 @@ class TrainDynamicEmbeddingInMonitoredTrainingSessionTest(test.TestCase):
             sp_weights=None,
             combiner="sum",
             return_trainable=True,
+            name='rq3232',
         )
 
         pred1 = math_ops.matmul(array_ops.reshape(test_var, shape=[1, 3 * dim]),
@@ -1468,7 +1488,8 @@ class ModelModeTest(test.TestCase):
       ids = constant_op.constant([0, 1, 2, 3, 4], dtype=dtypes.int64)
       test_var, trainable = de.embedding_lookup([embeddings],
                                                 ids,
-                                                return_trainable=True)
+                                                return_trainable=True,
+                                                name='mc4009')
       _ = math_ops.add(test_var, 1)
       op_list = ops.get_default_graph().get_operations()
       op_list_assign = [
@@ -1509,7 +1530,8 @@ class ModelModeTest(test.TestCase):
         ids = constant_op.constant([0, 1, 2, 3, 4], dtype=dtypes.int64)
         test_var, trainable = de.embedding_lookup([embeddings],
                                                   ids,
-                                                  return_trainable=True)
+                                                  return_trainable=True,
+                                                  name='xt9595')
         pred = math_ops.add(test_var, 1) * w
         loss = pred * pred
         opt = de.DynamicEmbeddingOptimizer(adagrad.AdagradOptimizer(0.1))
