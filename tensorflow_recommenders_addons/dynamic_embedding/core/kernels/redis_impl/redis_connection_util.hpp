@@ -41,6 +41,10 @@ if v=0 or 1, return itself. if v<0, v=abs(v).
 */
 inline unsigned round_next_power_two_bitlen(int v) {
   v = abs(v);
+  if (v == 1 || v == 0) {
+    return 0;
+  }
+
   if ((v | 1) == 1)
     return v;
   // prevent v is already a power_two
@@ -55,7 +59,7 @@ inline unsigned long get_file_size(const std::string path) {
   unsigned long filesize = -1;
   struct stat statbuff;
   if (stat(path.data(), &statbuff) < 0) {
-    throw("The file " + path + " does not exist");
+    throw(std::invalid_argument("The file " + path + " does not exist"));
     return filesize;
   } else {
     filesize = statbuff.st_size;
@@ -86,11 +90,11 @@ inline std::string check_dir(const std::string path_in) {
   }
   if (access(path.c_str(), 0) == -1) // if folder doesn't exist
   {
-    std::cout << "folder " << path << " doesn't exist" << std::endl;
+    LOG(INFO) << "folder " << path << " doesn't exist" << std::endl;
     if (createDirectory(path) == 0) {
-      std::cout << "folder " << path << " was created" << std::endl;
+      LOG(INFO) << "folder " << path << " was created" << std::endl;
     } else {
-      std::cout << "folder " << path << " failed to create" << std::endl;
+      LOG(INFO) << "folder " << path << " failed to create" << std::endl;
     }
   }
   return path;
@@ -107,9 +111,9 @@ inline int ReadInt32FromEnvVar(const std::string &env_var_name,
     return 0;
   }
   *value = default_val;
-  std::cerr << "Failed to parse the env-var ${" << env_var_name
-            << "} into int32: " << _env_var_val
-            << ". Use the default value: " << default_val << std::endl;
+  LOG(ERROR) << "Failed to parse the env-var ${" << env_var_name
+             << "} into int32: " << _env_var_val
+             << ". Use the default value: " << default_val << std::endl;
   return -1;
 }
 
@@ -221,54 +225,53 @@ public:
     this->redis_connection_params = conn_params_input;
   }
 
-  virtual void conn() = 0;
+  virtual void Conn() = 0;
 
-  virtual bool check_slices_num(const std::string &keys_prefix_name) = 0;
+  virtual int CheckSlicesNum(const std::string &keys_prefix_name) = 0;
 
-  virtual size_t table_size_in_slots(
-      const std::vector<std::string> &keys_prefix_name_slices) = 0;
+  virtual size_t
+  TableSizeInSlots(const std::vector<std::string> &keys_prefix_name_slices) = 0;
 
-  virtual void remove_hkeys_in_slots(
+  virtual void RemoveHkeysInSlots(
       const std::vector<std::string> &keys_prefix_name_slices) = 0;
 
   virtual std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>>
-  get_keys_in_hkeys(
-      const std::vector<std::string> &keys_prefix_name_slices) = 0;
+  GetKeysInHkeys(const std::vector<std::string> &keys_prefix_name_slices) = 0;
 
   virtual void
-  dump_to_disk(const std::vector<std::string> &keys_prefix_name_slices,
-               std::vector<aiocb> &wrs, const std::vector<int> &fds) = 0;
+  DumpToDisk(const std::vector<std::string> &keys_prefix_name_slices,
+             std::vector<aiocb> &wrs, const std::vector<int> &fds) = 0;
 
   virtual void
-  restore_from_disk(const std::vector<std::string> &keys_prefix_name_slices,
-                    std::vector<aiocb> &rds, const std::vector<int> &fds,
-                    const std::vector<unsigned long> &buf_sizes) = 0;
+  RestoreFromDisk(const std::vector<std::string> &keys_prefix_name_slices,
+                  std::vector<aiocb> &rds, const std::vector<int> &fds,
+                  const std::vector<unsigned long> &buf_sizes) = 0;
 
   virtual std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>>
-  MGET_COMMAND(const ::tensorflow::Tensor &keys, ThreadContext &thread_context,
-               const ::tensorflow::int64 &begin,
-               const ::tensorflow::int64 &max_i,
-               const std::vector<std::string> &keys_prefix_name_slices) = 0;
+  MgetCommand(const ::tensorflow::Tensor &keys, ThreadContext &thread_context,
+              const ::tensorflow::int64 &begin,
+              const ::tensorflow::int64 &max_i,
+              const std::vector<std::string> &keys_prefix_name_slices) = 0;
 
-  virtual void MGET_to_Tensor(
+  virtual void MgetToTensor(
       ::tensorflow::Tensor *values, const ::tensorflow::Tensor &default_value,
       const bool &is_full_default, ThreadContext &thread_context,
       std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>>
           &reply,
-      const ::tensorflow::int64 &begin, const ::tensorflow::int64 &max_i) = 0;
+      const ::tensorflow::int64 &begin, const ::tensorflow::int64 &max_i,
+      const ::tensorflow::int64 &Velems_per_dim0) = 0;
 
   virtual void
-  MSET_COMMAND(const ::tensorflow::Tensor &keys,
-               const ::tensorflow::Tensor &values,
-               ThreadContext &thread_context, const ::tensorflow::int64 &begin,
-               const ::tensorflow::int64 &max_i,
-               const std::vector<std::string> &keys_prefix_name_slices) = 0;
-
-  virtual void
-  DEL_COMMAND(const ::tensorflow::Tensor &keys, ThreadContext &thread_context,
+  MsetCommand(const ::tensorflow::Tensor &keys,
+              const ::tensorflow::Tensor &values, ThreadContext &thread_context,
               const ::tensorflow::int64 &begin,
               const ::tensorflow::int64 &max_i,
               const std::vector<std::string> &keys_prefix_name_slices) = 0;
+
+  virtual void
+  DelCommand(const ::tensorflow::Tensor &keys, ThreadContext &thread_context,
+             const ::tensorflow::int64 &begin, const ::tensorflow::int64 &max_i,
+             const std::vector<std::string> &keys_prefix_name_slices) = 0;
 };
 
 template <typename RedisInstance, typename K, typename V, typename = void>
@@ -328,7 +331,8 @@ VContentAndTypeSize(VContentAndTypeSizeResult &_VContentAndTypeSizeResult,
 Because the string tensor in tensorflow only store the pointer that points
 to string value, we use a char buffer to store all string into a continuous
 memory space for sending to Redis server.
-[str_size,string[...],str_size,string[...],str_size,string[...],...]
+[[str_size(4 bytes),string[...](ps->size() bytes)],[str_size,string[...]],[...]]
+var buff is a std::vector<char> from std::vector<std::vector<char>>
 */
 template <>
 inline const VContentAndTypeSizeResult &
@@ -336,32 +340,38 @@ VContentAndTypeSize<::tensorflow::tstring>(
     VContentAndTypeSizeResult &_VContentAndTypeSizeResult,
     const ::tensorflow::int64 &Velems_per_dim0, const std::size_t &V_byte_size,
     const ::tensorflow::tstring *in, std::vector<char> &buff) {
+
   const ::tensorflow::tstring *ps_end = in + Velems_per_dim0;
+  unsigned tot = 0;
 
-  _VContentAndTypeSizeResult.VContentPointer = &buff.back();
-
-  size_t tot = 0;
-
-  for (const ::tensorflow::tstring *ps = in; ps != ps_end; ++ps) {
-    tot = tot + ps->size() + sizeof(int);
+  const ::tensorflow::tstring *ps = in;
+  for (; ps != ps_end; ++ps) {
+    tot = tot + sizeof(unsigned) + ps->size();
   }
 
   _VContentAndTypeSizeResult.VTypeSize = tot;
-  buff.reserve(buff.size() + tot);
+  buff.reserve(tot);
+  _VContentAndTypeSizeResult.VContentPointer = buff.data();
 
-  int tem_byte_size = 0;
-  for (const ::tensorflow::tstring *ps = in; ps != ps_end; ++ps) {
-    tem_byte_size = static_cast<int>(ps->size());
-    buff.insert(buff.end(), &tem_byte_size,
-                (&tem_byte_size) +
-                    sizeof(int)); // Firstly store how long the string is
+  ps = in; // Reset the content pointer.
+
+  unsigned tem_byte_size = 0;
+  char *chars = nullptr;
+
+  for (; ps != ps_end; ++ps) {
+    tem_byte_size = static_cast<unsigned>(ps->size());
+    chars = reinterpret_cast<char *>(&tem_byte_size);
+    buff.insert(buff.end(), chars,
+                chars +
+                    sizeof(unsigned)); // Firstly store how long the string is
     buff.insert(buff.end(), ps->begin(), ps->end());
   }
+
   return _VContentAndTypeSizeResult;
 }
 
 template <typename T>
-void default_memcpy_to_tensor(T *pv_raw, const T *dft,
+void DefaultMemcpyToTensor(T *pv_raw, const T *dft,
                               const ::tensorflow::int64 &Velems_per_dim0) {
   memcpy(reinterpret_cast<void *>(pv_raw), reinterpret_cast<const void *>(dft),
          Velems_per_dim0 *
@@ -369,7 +379,7 @@ void default_memcpy_to_tensor(T *pv_raw, const T *dft,
 }
 
 template <>
-void default_memcpy_to_tensor<::tensorflow::tstring>(
+void DefaultMemcpyToTensor<::tensorflow::tstring>(
     ::tensorflow::tstring *const pv_raw, const ::tensorflow::tstring *const dft,
     const ::tensorflow::int64 &Velems_per_dim0) {
   const ::tensorflow::tstring *const pv_raw_end = pv_raw + Velems_per_dim0;
@@ -381,23 +391,37 @@ void default_memcpy_to_tensor<::tensorflow::tstring>(
 }
 
 template <typename T>
-void reply_memcpy_to_tensor(T *pv_raw, const char *str,
-                            const ::tensorflow::int64 &Velems_per_dim0) {
+void ReplyMemcpyToKeyTensor(T *pk_raw, const char *str,
+                                const size_t &byte_size) {
+  memcpy(reinterpret_cast<void *>(pk_raw), str,
+         byte_size); // Direct access to Tensor data in TensorFlow
+}
+
+template <>
+void ReplyMemcpyToKeyTensor<::tensorflow::tstring>(
+    ::tensorflow::tstring *const pk_raw, const char *str,
+    const size_t &byte_size) {
+  pk_raw->assign(str, byte_size);
+}
+
+template <typename T>
+void ReplyMemcpyToValTensor(T *pv_raw, const char *str,
+                                const ::tensorflow::int64 &Velems_per_dim0) {
   memcpy(reinterpret_cast<void *>(pv_raw), str,
          Velems_per_dim0 *
              sizeof(T)); // Direct access to Tensor data in TensorFlow
 }
 
 template <>
-void reply_memcpy_to_tensor<::tensorflow::tstring>(
+void ReplyMemcpyToValTensor<::tensorflow::tstring>(
     ::tensorflow::tstring *const pv_raw, const char *str,
     const ::tensorflow::int64 &Velems_per_dim0) {
   const ::tensorflow::tstring *const pv_raw_end = pv_raw + Velems_per_dim0;
   const char *char_view = str;
-  int str_bytesize = 0;
+  unsigned str_bytesize = 0;
   for (::tensorflow::tstring *pv_it = pv_raw; pv_it != pv_raw_end; ++pv_it) {
-    str_bytesize = *(reinterpret_cast<const int *>(char_view));
-    char_view += sizeof(int);
+    str_bytesize = *(reinterpret_cast<const unsigned *>(char_view));
+    char_view += sizeof(unsigned);
     pv_it->assign(char_view, str_bytesize);
     char_view += str_bytesize;
   }

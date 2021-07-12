@@ -32,148 +32,124 @@ limitations under the License.
 #include "tensorflow/core/platform/thread_annotations.h"
 #include "tensorflow/core/util/env_var.h"
 
-#include <sw/redis++/redis++.h>
-#include <sw/redis++/sentinel.h>
 #include <sw/redis++/connection.h>
 #include <sw/redis++/connection_pool.h>
+#include <sw/redis++/redis++.h>
+#include <sw/redis++/sentinel.h>
 
-namespace tensorflow
-{
-  namespace recommenders_addons
-  {
-    namespace redis_table
-    {
+namespace tensorflow {
+namespace recommenders_addons {
+namespace redis_table {
 
-      template <class V, size_t DIM>
-      using ValueArray = std::array<V, DIM>;
+template <class V, size_t DIM> using ValueArray = std::array<V, DIM>;
 
-      template <class V>
-      using Flat1D = typename tensorflow::TTypes<V>::Flat;
+template <class V> using Flat1D = typename tensorflow::TTypes<V>::Flat;
 
-      template <class V>
-      using Tensor2D = typename tensorflow::TTypes<V, 2>::Tensor;
+template <class V> using Tensor2D = typename tensorflow::TTypes<V, 2>::Tensor;
 
-      template <class V>
-      using ConstFlat1D = const typename tensorflow::TTypes<V>::ConstFlat;
+template <class V>
+using ConstFlat1D = const typename tensorflow::TTypes<V>::ConstFlat;
 
-      template <class V>
-      using ConstTensor2D = const typename tensorflow::TTypes<V, 2>::ConstTensor;
+template <class V>
+using ConstTensor2D = const typename tensorflow::TTypes<V, 2>::ConstTensor;
 
-      using tensorflow::OpKernelContext;
-      using tensorflow::lookup::CheckTableDataTypes;
-      using tensorflow::lookup::LookupInterface;
+using tensorflow::OpKernelContext;
+using tensorflow::lookup::CheckTableDataTypes;
+using tensorflow::lookup::LookupInterface;
 
-      template <class Container, class key_dtype, class value_dtype>
-      class HashTableOp : public OpKernel
-      {
-      public:
-        explicit HashTableOp(OpKernelConstruction *ctx)
-            : OpKernel(ctx), table_handle_set_(false)
-        {
-          if (ctx->output_type(0) == DT_RESOURCE)
-          {
-            OP_REQUIRES_OK(ctx, ctx->allocate_persistent(tensorflow::DT_RESOURCE,
-                                                         tensorflow::TensorShape({}),
-                                                         &table_handle_, nullptr));
+template <class Container, class key_dtype, class value_dtype>
+class HashTableOp : public OpKernel {
+public:
+  explicit HashTableOp(OpKernelConstruction *ctx)
+      : OpKernel(ctx), table_handle_set_(false) {
+    if (ctx->output_type(0) == DT_RESOURCE) {
+      OP_REQUIRES_OK(ctx, ctx->allocate_persistent(tensorflow::DT_RESOURCE,
+                                                   tensorflow::TensorShape({}),
+                                                   &table_handle_, nullptr));
+    } else {
+      OP_REQUIRES_OK(ctx, ctx->allocate_persistent(tensorflow::DT_STRING,
+                                                   tensorflow::TensorShape({2}),
+                                                   &table_handle_, nullptr));
+    }
+    OP_REQUIRES_OK(
+        ctx, ctx->GetAttr("use_node_name_sharing", &use_node_name_sharing_));
+  }
+
+  void Compute(OpKernelContext *ctx) override {
+    mutex_lock l(mu_);
+
+    if (!table_handle_set_) {
+      OP_REQUIRES_OK(ctx, cinfo_.Init(ctx->resource_manager(), def(),
+                                      use_node_name_sharing_));
+    }
+
+    auto creator =
+        [ctx, this](LookupInterface **ret) TF_EXCLUSIVE_LOCKS_REQUIRED(mu_) {
+          LookupInterface *container = new Container(ctx, this);
+          if (!ctx->status().ok()) {
+            container->Unref();
+            return ctx->status();
           }
-          else
-          {
-            OP_REQUIRES_OK(ctx, ctx->allocate_persistent(tensorflow::DT_STRING,
-                                                         tensorflow::TensorShape({2}),
-                                                         &table_handle_, nullptr));
+          if (ctx->track_allocations()) {
+            ctx->record_persistent_memory_allocation(
+                container->MemoryUsed() + table_handle_.AllocatedBytes());
           }
-          OP_REQUIRES_OK(
-              ctx, ctx->GetAttr("use_node_name_sharing", &use_node_name_sharing_));
-        }
+          *ret = container;
+          return Status::OK();
+        };
 
-        void Compute(OpKernelContext *ctx) override
-        {
-          mutex_lock l(mu_);
+    LookupInterface *table = nullptr;
+    OP_REQUIRES_OK(
+        ctx,
+        cinfo_.resource_manager()->template LookupOrCreate<LookupInterface>(
+            cinfo_.container(), cinfo_.name(), &table, creator));
+    core::ScopedUnref unref_me(table);
 
-          if (!table_handle_set_)
-          {
-            OP_REQUIRES_OK(ctx, cinfo_.Init(ctx->resource_manager(), def(),
-                                            use_node_name_sharing_));
-          }
+    OP_REQUIRES_OK(ctx, CheckTableDataTypes(
+                            *table, DataTypeToEnum<key_dtype>::v(),
+                            DataTypeToEnum<value_dtype>::v(), cinfo_.name()));
 
-          auto creator =
-              [ctx, this](LookupInterface **ret) TF_EXCLUSIVE_LOCKS_REQUIRED(mu_)
-          {
-            LookupInterface *container = new Container(ctx, this);
-            if (!ctx->status().ok())
-            {
-              container->Unref();
-              return ctx->status();
-            }
-            if (ctx->track_allocations())
-            {
-              ctx->record_persistent_memory_allocation(
-                  container->MemoryUsed() + table_handle_.AllocatedBytes());
-            }
-            *ret = container;
-            return Status::OK();
-          };
+    if (ctx->expected_output_dtype(0) == DT_RESOURCE) {
+      if (!table_handle_set_) {
+        auto h =
+            table_handle_.AccessTensor(ctx)->template scalar<ResourceHandle>();
+        h() = MakeResourceHandle<LookupInterface>(ctx, cinfo_.container(),
+                                                  cinfo_.name());
+      }
+      ctx->set_output(0, *table_handle_.AccessTensor(ctx));
+    } else {
+      if (!table_handle_set_) {
+        auto h = table_handle_.AccessTensor(ctx)->template flat<tstring>();
+        h(0) = cinfo_.container();
+        h(1) = cinfo_.name();
+      }
+      ctx->set_output_ref(0, &mu_, table_handle_.AccessTensor(ctx));
+    }
+    table_handle_set_ = true;
+  }
 
-          LookupInterface *table = nullptr;
-          OP_REQUIRES_OK(
-              ctx,
-              cinfo_.resource_manager()->template LookupOrCreate<LookupInterface>(
-                  cinfo_.container(), cinfo_.name(), &table, creator));
-          core::ScopedUnref unref_me(table);
+  ~HashTableOp() override {
+    if (table_handle_set_ && cinfo_.resource_is_private_to_kernel()) {
+      if (!cinfo_.resource_manager()
+               ->template Delete<LookupInterface>(cinfo_.container(),
+                                                  cinfo_.name())
+               .ok()) {
+      }
+    }
+  }
 
-          OP_REQUIRES_OK(ctx, CheckTableDataTypes(
-                                  *table, DataTypeToEnum<key_dtype>::v(),
-                                  DataTypeToEnum<value_dtype>::v(), cinfo_.name()));
+private:
+  mutex mu_;
+  PersistentTensor table_handle_ TF_GUARDED_BY(mu_);
+  bool table_handle_set_ TF_GUARDED_BY(mu_);
+  ContainerInfo cinfo_;
+  bool use_node_name_sharing_;
 
-          if (ctx->expected_output_dtype(0) == DT_RESOURCE)
-          {
-            if (!table_handle_set_)
-            {
-              auto h =
-                  table_handle_.AccessTensor(ctx)->template scalar<ResourceHandle>();
-              h() = MakeResourceHandle<LookupInterface>(ctx, cinfo_.container(),
-                                                        cinfo_.name());
-            }
-            ctx->set_output(0, *table_handle_.AccessTensor(ctx));
-          }
-          else
-          {
-            if (!table_handle_set_)
-            {
-              auto h = table_handle_.AccessTensor(ctx)->template flat<tstring>();
-              h(0) = cinfo_.container();
-              h(1) = cinfo_.name();
-            }
-            ctx->set_output_ref(0, &mu_, table_handle_.AccessTensor(ctx));
-          }
-          table_handle_set_ = true;
-        }
+  TF_DISALLOW_COPY_AND_ASSIGN(HashTableOp);
+};
 
-        ~HashTableOp() override
-        {
-          if (table_handle_set_ && cinfo_.resource_is_private_to_kernel())
-          {
-            if (!cinfo_.resource_manager()
-                     ->template Delete<LookupInterface>(cinfo_.container(),
-                                                        cinfo_.name())
-                     .ok())
-            {
-            }
-          }
-        }
-
-      private:
-        mutex mu_;
-        PersistentTensor table_handle_ TF_GUARDED_BY(mu_);
-        bool table_handle_set_ TF_GUARDED_BY(mu_);
-        ContainerInfo cinfo_;
-        bool use_node_name_sharing_;
-
-        TF_DISALLOW_COPY_AND_ASSIGN(HashTableOp);
-      };
-
-    } // namespace redis_table
-  }   // namespace recommenders_addons
+} // namespace redis_table
+} // namespace recommenders_addons
 } // namespace tensorflow
 
 #endif // TFRA_CORE_KERNELS_REDIS_LOOKUP_TABLE_OP_H_

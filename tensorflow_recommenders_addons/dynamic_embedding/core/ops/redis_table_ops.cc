@@ -18,6 +18,8 @@ limitations under the License.
 #include "tensorflow/core/framework/op_def_builder.h"
 #include "tensorflow/core/framework/shape_inference.h"
 
+#include "tensorflow_recommenders_addons/dynamic_embedding/core/utils/utils.h"
+
 namespace tensorflow {
 
 using shape_inference::DimensionHandle;
@@ -109,7 +111,7 @@ Status ValidateTableResourceHandle(InferenceContext *c, ShapeHandle keys,
   return Status::OK();
 }
 
-REGISTER_OP("TFRA>RedisTableFind")
+REGISTER_OP(PREFIX_OP_NAME(RedisTableFind))
     .Input("table_handle: resource")
     .Input("keys: Tin")
     .Input("default_value: Tout")
@@ -132,7 +134,7 @@ REGISTER_OP("TFRA>RedisTableFind")
       return Status::OK();
     });
 
-REGISTER_OP("TFRA>RedisTableInsert")
+REGISTER_OP(PREFIX_OP_NAME(RedisTableInsert))
     .Input("table_handle: resource")
     .Input("keys: Tin")
     .Input("values: Tout")
@@ -146,7 +148,7 @@ REGISTER_OP("TFRA>RedisTableInsert")
       return Status::OK();
     });
 
-REGISTER_OP("TFRA>RedisTableRemove")
+REGISTER_OP(PREFIX_OP_NAME(RedisTableRemove))
     .Input("table_handle: resource")
     .Input("keys: Tin")
     .Attr("Tin: type")
@@ -159,12 +161,17 @@ REGISTER_OP("TFRA>RedisTableRemove")
       return Status::OK();
     });
 
-REGISTER_OP("TFRA>RedisTableSize")
+REGISTER_OP(PREFIX_OP_NAME(RedisTableClear))
+    .Input("table_handle: resource")
+    .Attr("key_dtype: type")
+    .Attr("value_dtype: type");
+
+REGISTER_OP(PREFIX_OP_NAME(RedisTableSize))
     .Input("table_handle: resource")
     .Output("size: int64")
     .SetShapeFn(ScalarAndTwoElementVectorInputsAndScalarOutputs);
 
-REGISTER_OP("TFRA>RedisTableExport")
+REGISTER_OP(PREFIX_OP_NAME(RedisTableExport))
     .Input("table_handle: resource")
     .Output("keys: Tkeys")
     .Output("values: Tvalues")
@@ -186,7 +193,7 @@ REGISTER_OP("TFRA>RedisTableExport")
       return Status::OK();
     });
 
-REGISTER_OP("TFRA>RedisTableImport")
+REGISTER_OP(PREFIX_OP_NAME(RedisTableImport))
     .Input("table_handle: resource")
     .Input("keys: Tin")
     .Input("values: Tout")
@@ -221,7 +228,7 @@ Status RedisTableShape(InferenceContext *c, const ShapeHandle &key,
   return Status::OK();
 }
 
-REGISTER_OP("TFRA>RedisTableOfTensors")
+REGISTER_OP(PREFIX_OP_NAME(RedisTableOfTensors))
     .Output("table_handle: resource")
     .Attr("container: string = ''")
     .Attr("shared_name: string = ''")

@@ -17,6 +17,7 @@ limitations under the License.
 #include <signal.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <time.h>
 
 #include <csignal>
 #include <type_traits>
@@ -27,6 +28,8 @@ extern "C" {
 }
 #include "tensorflow/core/kernels/lookup_table_op.h"
 #include "tensorflow/core/util/work_sharder.h"
+
+#include "tensorflow_recommenders_addons/dynamic_embedding/core/utils/utils.h"
 
 #include "redis_impl/redis_cluster_connection_pool.hpp"
 #include "redis_impl/redis_connection_pool.hpp"
@@ -102,16 +105,16 @@ private:
       unsigned thread_id = thread_id_a.load(std::memory_order_relaxed);
       thread_id_a.store(thread_id + 1, std::memory_order_consume);
 
-      auto reply = _table_instance->MGET_COMMAND(
+      auto reply = _table_instance->MgetCommand(
           keys, threads_Find[thread_id], begin, max_i, keys_prefix_name_slices);
 
       assert(
           reply.size() ==
           redis_connection_params.storage_slice); // #define REDIS_REPLY_ARRAY 2
 
-      _table_instance->MGET_to_Tensor(values, default_value, is_full_default,
-                                      threads_Find[thread_id], reply, begin,
-                                      max_i);
+      _table_instance->MgetToTensor(
+          values, default_value, is_full_default, threads_Find[thread_id],
+          reply, begin, max_i, values->NumElements() / values->dim_size(0));
     };
     int64 slices_size = std::min(total, multi_redis_cmd_max_argc - 1);
     auto &worker_threads = *context->device()->tensorflow_cpu_worker_threads();
@@ -129,15 +132,16 @@ private:
     if (1 > threads_Find.size())
       threads_Find.resize(1);
 
-    auto reply = _table_instance->MGET_COMMAND(keys, threads_Find[0], 0, total,
+    auto reply = _table_instance->MgetCommand(keys, threads_Find[0], 0, total,
                                                keys_prefix_name_slices);
 
     assert(
         reply.size() ==
         redis_connection_params.storage_slice); // #define REDIS_REPLY_ARRAY 2
 
-    _table_instance->MGET_to_Tensor(values, default_value, is_full_default,
-                                    threads_Find[0], reply, 0, total);
+    _table_instance->MgetToTensor(
+        values, default_value, is_full_default, threads_Find[0], reply, 0,
+        total, values->NumElements() / values->dim_size(0));
   }
 
   void launchInsert_parallel(OpKernelContext *context,
@@ -157,7 +161,7 @@ private:
       unsigned thread_id = thread_id_a.load(std::memory_order_relaxed);
       thread_id_a.store(thread_id + 1, std::memory_order_consume);
 
-      _table_instance->MSET_COMMAND(keys, values, threads_Insert[thread_id],
+      _table_instance->MsetCommand(keys, values, threads_Insert[thread_id],
                                     begin, max_i, keys_prefix_name_slices);
     };
     int64 slices_size = std::min(total, multi_redis_cmd_max_argc - 1);
@@ -173,7 +177,7 @@ private:
     if (1 > threads_Insert.size())
       threads_Insert.resize(1);
 
-    _table_instance->MSET_COMMAND(keys, values, threads_Insert[0], 0, total,
+    _table_instance->MsetCommand(keys, values, threads_Insert[0], 0, total,
                                   keys_prefix_name_slices);
   }
 
@@ -193,7 +197,7 @@ private:
       unsigned thread_id = thread_id_a.load(std::memory_order_relaxed);
       thread_id_a.store(thread_id + 1, std::memory_order_consume);
 
-      _table_instance->DEL_COMMAND(keys, threads_Delete[thread_id], begin,
+      _table_instance->DelCommand(keys, threads_Delete[thread_id], begin,
                                    max_i, keys_prefix_name_slices);
     };
     int64 slices_size = std::min(total, multi_redis_cmd_max_argc - 1);
@@ -207,7 +211,7 @@ private:
                     std::vector<ThreadContext> &threads_Delete) {
     if (1 > threads_Delete.size())
       threads_Delete.resize(1);
-    _table_instance->DEL_COMMAND(keys, threads_Delete[0], 0, total,
+    _table_instance->DelCommand(keys, threads_Delete[0], 0, total,
                                  keys_prefix_name_slices);
   }
 
@@ -367,36 +371,42 @@ public:
     case ClusterMode: {
       _table_instance = RedisWrapper<RedisCluster, K, V>::get_instance();
       _table_instance->set_params(redis_connection_params);
-      _table_instance->conn();
+      _table_instance->Conn();
       break;
     }
     case SentinelMode: {
       _table_instance = RedisWrapper<Redis, K, V>::get_instance();
       _table_instance->set_params(redis_connection_params);
-      _table_instance->conn();
+      _table_instance->Conn();
       break;
     }
     case StreamMode: {
-      std::cerr << "Sorry! redis_connection_mode="
-                << redis_connection_params.redis_connection_mode
-                << " The Stream connection mode is still being TODO."
-                << std::endl;
-      throw(redis_connection_params.redis_connection_mode);
+      LOG(ERROR) << "Sorry! redis_connection_mode="
+                 << redis_connection_params.redis_connection_mode
+                 << " The Stream connection mode is still being TODO."
+                 << std::endl;
+      throw(std::invalid_argument(
+          std::to_string(redis_connection_params.redis_connection_mode) +
+          " is illegal redis_connection_mode."));
       break;
     }
     default: {
-      std::cerr << "There are only three Redis connection modes, which "
-                   "Cluster=0/Sentinel=1/Stream=2."
-                << std::endl;
-      throw(redis_connection_params.redis_connection_mode);
+      LOG(ERROR) << "There are only three Redis connection modes, which "
+                    "Cluster=0/Sentinel=1/Stream=2."
+                 << std::endl;
+      throw(std::invalid_argument(
+          std::to_string(redis_connection_params.redis_connection_mode) +
+          " is illegal redis_connection_mode."));
       break;
     }
     }
 
-    if (_table_instance->check_slices_num(keys_prefix_name) == false) {
+    int &&check_slices_num_return =
+        _table_instance->CheckSlicesNum(keys_prefix_name);
+    if (check_slices_num_return == -1) {
       LOG(ERROR)
           << "The embedding table prefix name " << keys_prefix_name
-          << "has already been saved in the Redis Servers. "
+          << " has already been saved in the Redis Servers. "
           << "And its number of slices is not equal to the number you putted "
              "in the setting. "
           << "Please change the storage_slice in redis_connection_params.";
@@ -405,6 +415,23 @@ public:
                       "storage_slice must be set properly equaling to the "
                       "slices number in the Redis, got prefix storage_slice ",
                       redis_connection_params.storage_slice));
+      throw(
+          std::invalid_argument("Exit without setting correct slice number."));
+    }
+
+    /*
+      When there is not a corresponding table existing in Redis service and
+      using_model_lib==True, try to restore from a Redis binary dump files
+      which paths are directory '[model_lib_abs_dir]/[model_tag]/[name].rdb'.
+    */
+    if (redis_connection_params.using_model_lib) {
+      if (check_slices_num_return == 0) {
+        ImportValuesFromFiles(ctx);
+      } else if (check_slices_num_return == 1) {
+        LOG(INFO) << "There is already a corresponding table "
+                  << keys_prefix_name << " existing in Redis service"
+                  << std::endl;
+      }
     }
   }
 
@@ -419,7 +446,7 @@ public:
   }
 
   size_t size() const override {
-    return _table_instance->table_size_in_slots(keys_prefix_name_slices);
+    return _table_instance->TableSizeInSlots(keys_prefix_name_slices);
   }
 
   Status Find(OpKernelContext *ctx, const Tensor &keys, Tensor *values,
@@ -445,7 +472,7 @@ public:
     int64 total = keys.dim_size(0);
 
     if (clear) {
-      _table_instance->remove_hkeys_in_slots(keys_prefix_name_slices);
+      _table_instance->RemoveHkeysInSlots(keys_prefix_name_slices);
     }
     if (total < (multi_redis_cmd_max_argc - 1)) {
       launchInsert(ctx, keys_prefix_name_slices, keys, values, total,
@@ -477,6 +504,11 @@ public:
     return Status::OK();
   }
 
+  Status Clear(OpKernelContext *ctx) {
+    _table_instance->RemoveHkeysInSlots(keys_prefix_name_slices);
+    return Status::OK();
+  }
+
   Status ImportValues(OpKernelContext *ctx, const Tensor &keys,
                       const Tensor &values) override {
     if (redis_connection_params.using_model_lib) {
@@ -501,21 +533,27 @@ public:
     for (unsigned i = 0; i < storage_slice; ++i) {
       file_path = folder_dir + keys_prefix_name_slices[i] + ".rdb";
       if (access(file_path.c_str(), 0) == -1) {
-        std::cerr << "file " << file_path
-                  << " doesn't exist. Using the table that already exist in "
-                     "the Redis or creating a new one"
-                  << std::endl;
+        LOG(WARNING) << "file " << file_path
+                     << " doesn't exist. Using the table that already exist in "
+                        "the Redis or creating a new one"
+                     << std::endl;
       } else {
         IMPORT_fds.push_back(open(file_path.c_str(), O_RDONLY));
         IMPORT_fds_sizes.push_back(get_file_size(file_path));
       }
     }
 
-    _table_instance->restore_from_disk(keys_prefix_name_slices, IMPORT_content,
-                                       IMPORT_fds, IMPORT_fds_sizes);
+    if (IMPORT_fds.size() > 0) {
+      LOG(INFO) << "Try to restore the table " << keys_prefix_name
+                << " to Redis service from "
+                << folder_dir + keys_prefix_name + "[*].rdb" << std::endl;
 
-    for (auto fd : IMPORT_fds)
-      close(fd);
+      _table_instance->RestoreFromDisk(keys_prefix_name_slices,
+                                         IMPORT_content, IMPORT_fds,
+                                         IMPORT_fds_sizes);
+      for (auto fd : IMPORT_fds)
+        close(fd);
+    }
 
     return Status::OK();
   }
@@ -525,45 +563,59 @@ public:
       return ExportValuesToFiles(ctx);
     } else {
       int64 value_dim = value_shape_.dim_size(0);
-      int64 size = 0;
+      int64 total_size = 0;
 
       std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>>
           keys_replies =
-              _table_instance->get_keys_in_hkeys(keys_prefix_name_slices);
+              _table_instance->GetKeysInHkeys(keys_prefix_name_slices);
       for (size_t i = 0; i < keys_replies.size(); ++i) {
-        size += keys_replies[i]->len;
+        total_size += keys_replies[i]->elements;
       }
 
       Tensor *keys;
       TF_RETURN_IF_ERROR(ctx->allocate_output(
-          "keys", TensorShape({reinterpret_cast<int64>(size)}), &keys));
+          "keys", TensorShape({reinterpret_cast<int64>(total_size)}), &keys));
 
-      const ::tensorflow::int64 &&Velems_per_dim0 =
-          keys->NumElements() / keys->dim_size(0);
       K *pk_raw = reinterpret_cast<K *>(keys->data());
-      size_t offset = 0;
 
-      size_t percent = 0;
-      std::cout << "Write key tensor in order, now up to ......";
+      // float percent = 0;
+      // std::cout << "Write key tensor in order, now up to ......";
+      redisReply *temp_reply;
       for (size_t i = 0; i < keys_replies.size(); ++i) {
         for (size_t j = 0; j < keys_replies[i]->elements; ++j) {
-          std::cout.width(3);
-          std::cout << percent << "%";
-          pk_raw += offset * Velems_per_dim0;
-          reply_memcpy_to_tensor<K>(
-              pk_raw, keys_replies[i]->element[j]->str,
-              Velems_per_dim0); // Direct access to Tensor data in TensorFlow
-          percent = (i * j) / size;
-          std::cout << "\b\b\b\b";
+          // std::cout.width(3);
+          // std::cout << percent << "%";
+          temp_reply = keys_replies[i]->element[j];
+          if (temp_reply->type ==
+              REDIS_REPLY_STRING) { // #define REDIS_REPLY_STRING 1
+            ReplyMemcpyToKeyTensor<K>(
+                pk_raw, temp_reply->str,
+                temp_reply->len); // Direct access to Tensor data in TensorFlow
+          }
+          // percent = round(100 * static_cast<float>((i+1) * (j+1)) /
+          // static_cast<float>(total_size)); std::cout << "\b\b\b\b";
+          ++pk_raw;
         }
       }
-      std::cout << std::endl;
 
       Tensor *values;
       TF_RETURN_IF_ERROR(ctx->allocate_output(
-          "values", TensorShape({size, value_dim}), &values));
+          "values", TensorShape({total_size, value_dim}), &values));
 
-      return Find(ctx, *keys, values, *values);
+      if (1 > threads_Find.size())
+        threads_Find.resize(1);
+
+      auto reply = _table_instance->MgetCommand(
+          *keys, threads_Find[0], 0, total_size, keys_prefix_name_slices);
+
+      assert(
+          reply.size() ==
+          redis_connection_params.storage_slice); // #define REDIS_REPLY_ARRAY 2
+
+      _table_instance->MgetToTensor(values, *values, true, threads_Find[0],
+                                      reply, 0, total_size, value_dim);
+
+      return Status::OK();
     }
   }
 
@@ -582,20 +634,40 @@ public:
       file_path = folder_dir + keys_prefix_name_slices[i] + ".rdb";
       tem_fd = open(file_path.c_str(), O_WRONLY | O_CREAT | O_EXCL, 0777);
       if (tem_fd < 0) {
-        std::cerr << "File " + file_path +
-                         " can't be created. Maybe it's already exist!"
-                  << std::endl;
-        std::cerr << "The Program Terminates!" << std::endl;
-        throw(file_path);
+        LOG(ERROR) << "File " + file_path +
+                          " can't be created. Maybe it's already exist!"
+                   << std::endl;
+        time_t totalseconds = time(NULL);
+        struct tm *st = localtime(&totalseconds);
+        char tmp_time_str[20];
+        sprintf(tmp_time_str, "%04d-%02d-%02d-%02d:%02d:%02d",
+                st->tm_year + 1900, st->tm_mon + 1, st->tm_mday, st->tm_hour,
+                st->tm_min, st->tm_sec);
+        file_path = file_path + "." + tmp_time_str;
+        tem_fd = open(file_path.c_str(), O_WRONLY | O_CREAT, 0777);
+        if (tem_fd > 0) {
+          LOG(WARNING) << "Now the data will be dumped to the file "
+                       << file_path << " for instead." << std::endl;
+          EXPORT_fds.push_back(tem_fd);
+        } else {
+          LOG(ERROR) << "Can't not the file " << file_path
+                     << " for instead. Something bad happens" << std::endl;
+        }
+      } else {
+        EXPORT_fds.push_back(tem_fd);
       }
-      EXPORT_fds.push_back(tem_fd);
     }
 
-    _table_instance->dump_to_disk(keys_prefix_name_slices, EXPORT_content,
-                                  EXPORT_fds);
+    if (EXPORT_fds.size() > 0) {
+      LOG(INFO) << "Try to dump the table " << keys_prefix_name
+                << " from Redis service to "
+                << folder_dir + keys_prefix_name + "[*].rdb" << std::endl;
 
-    // for (auto fd : EXPORT_fds) // for now the writting may be not finished
-    //   close(fd);
+      _table_instance->DumpToDisk(keys_prefix_name_slices, EXPORT_content,
+                                    EXPORT_fds);
+      // for (auto fd : EXPORT_fds) // for now the writting may be not finished
+      //   close(fd);
+    }
 
     return Status::OK();
   }
@@ -673,9 +745,6 @@ public:
   }
 };
 
-REGISTER_KERNEL_BUILDER(Name("TFRA>RedisTableFind").Device(DEVICE_CPU),
-                        HashTableFindOp);
-
 // Table insert op.
 class HashTableInsertOp : public HashTableOpKernel {
 public:
@@ -706,9 +775,6 @@ public:
   }
 };
 
-REGISTER_KERNEL_BUILDER(Name("TFRA>RedisTableInsert").Device(DEVICE_CPU),
-                        HashTableInsertOp);
-
 // Table remove op.
 class HashTableRemoveOp : public HashTableOpKernel {
 public:
@@ -737,8 +803,30 @@ public:
   }
 };
 
-REGISTER_KERNEL_BUILDER(Name("TFRA>RedisTableRemove").Device(DEVICE_CPU),
-                        HashTableRemoveOp);
+// Table clear op.
+template <class K, class V> class HashTableClearOp : public HashTableOpKernel {
+public:
+  using HashTableOpKernel::HashTableOpKernel;
+
+  void Compute(OpKernelContext *ctx) override {
+    LookupInterface *table;
+    OP_REQUIRES_OK(ctx, GetTable(ctx, &table));
+    core::ScopedUnref unref_me(table);
+
+    redis_table::RedisTableOfTensors<K, V> *redis_table =
+        dynamic_cast<redis_table::RedisTableOfTensors<K, V> *>(table);
+
+    int64 memory_used_before = 0;
+    if (ctx->track_allocations()) {
+      memory_used_before = table->MemoryUsed();
+    }
+    OP_REQUIRES_OK(ctx, redis_table->Clear(ctx));
+    if (ctx->track_allocations()) {
+      ctx->record_persistent_memory_allocation(table->MemoryUsed() -
+                                               memory_used_before);
+    }
+  }
+};
 
 // Op that returns the size of the given table.
 class HashTableSizeOp : public HashTableOpKernel {
@@ -756,9 +844,6 @@ public:
   }
 };
 
-REGISTER_KERNEL_BUILDER(Name("TFRA>RedisTableSize").Device(DEVICE_CPU),
-                        HashTableSizeOp);
-
 // Op that outputs tensors of all keys and all values.
 class HashTableExportOp : public HashTableOpKernel {
 public:
@@ -772,9 +857,6 @@ public:
     OP_REQUIRES_OK(ctx, table->ExportValues(ctx));
   }
 };
-
-REGISTER_KERNEL_BUILDER(Name("TFRA>RedisTableExport").Device(DEVICE_CPU),
-                        HashTableExportOp);
 
 // Clear the table and insert data.
 class HashTableImportOp : public HashTableOpKernel {
@@ -806,18 +888,37 @@ public:
   }
 };
 
-REGISTER_KERNEL_BUILDER(Name("TFRA>RedisTableImport").Device(DEVICE_CPU),
-                        HashTableImportOp);
+REGISTER_KERNEL_BUILDER(Name(PREFIX_OP_NAME(RedisTableFind)).Device(DEVICE_CPU),
+                        HashTableFindOp);
+REGISTER_KERNEL_BUILDER(
+    Name(PREFIX_OP_NAME(RedisTableInsert)).Device(DEVICE_CPU),
+    HashTableInsertOp);
+REGISTER_KERNEL_BUILDER(
+    Name(PREFIX_OP_NAME(RedisTableRemove)).Device(DEVICE_CPU),
+    HashTableRemoveOp);
+REGISTER_KERNEL_BUILDER(Name(PREFIX_OP_NAME(RedisTableSize)).Device(DEVICE_CPU),
+                        HashTableSizeOp);
+REGISTER_KERNEL_BUILDER(
+    Name(PREFIX_OP_NAME(RedisTableExport)).Device(DEVICE_CPU),
+    HashTableExportOp);
+REGISTER_KERNEL_BUILDER(
+    Name(PREFIX_OP_NAME(RedisTableImport)).Device(DEVICE_CPU),
+    HashTableImportOp);
 
-// Register the RedisTableOfTensors op.
+// Register the CuckooMutableHashTableOfTensors op.
 #define REGISTER_KERNEL(key_dtype, value_dtype)                                \
   REGISTER_KERNEL_BUILDER(                                                     \
-      Name("TFRA>RedisTableOfTensors")                                         \
+      Name(PREFIX_OP_NAME(RedisTableOfTensors))                                \
           .Device(DEVICE_CPU)                                                  \
           .TypeConstraint<key_dtype>("key_dtype")                              \
           .TypeConstraint<value_dtype>("value_dtype"),                         \
       HashTableOp<redis_table::RedisTableOfTensors<key_dtype, value_dtype>,    \
-                  key_dtype, value_dtype>)
+                  key_dtype, value_dtype>);                                    \
+  REGISTER_KERNEL_BUILDER(Name(PREFIX_OP_NAME(RedisTableClear))                \
+                              .Device(DEVICE_CPU)                              \
+                              .TypeConstraint<key_dtype>("key_dtype")          \
+                              .TypeConstraint<value_dtype>("value_dtype"),     \
+                          redis_table::HashTableClearOp<key_dtype, value_dtype>)
 
 REGISTER_KERNEL(int32, double);
 REGISTER_KERNEL(int32, float);
