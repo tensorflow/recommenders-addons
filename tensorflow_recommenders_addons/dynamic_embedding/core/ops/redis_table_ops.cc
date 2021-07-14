@@ -235,7 +235,7 @@ REGISTER_OP(PREFIX_OP_NAME(RedisTableOfTensors))
     .Attr("use_node_name_sharing: bool = false")
     .Attr("key_dtype: type")
     .Attr("value_dtype: type")
-    .Attr("value_shape: shape = {}")
+    .Attr("default_value_shape: shape = {}")
     .Attr("embedding_name: string = ''")
     .Attr("redis_connection_mode: int = 1")
     .Attr("redis_master_name: string = ''")
@@ -251,7 +251,7 @@ REGISTER_OP(PREFIX_OP_NAME(RedisTableOfTensors))
     .SetIsStateful()
     .SetShapeFn([](InferenceContext *c) {
       PartialTensorShape value_p;
-      TF_RETURN_IF_ERROR(c->GetAttr("value_shape", &value_p));
+      TF_RETURN_IF_ERROR(c->GetAttr("default_value_shape", &value_p));
       ShapeHandle value_s;
       TF_RETURN_IF_ERROR(c->MakeShapeFromPartialTensorShape(value_p, &value_s));
       return RedisTableShape(c, /*key=*/c->Scalar(), /*value=*/value_s);

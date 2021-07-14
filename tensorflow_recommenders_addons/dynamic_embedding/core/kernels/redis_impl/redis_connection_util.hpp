@@ -90,11 +90,11 @@ inline std::string check_dir(const std::string path_in) {
   }
   if (access(path.c_str(), 0) == -1) // if folder doesn't exist
   {
-    LOG(INFO) << "folder " << path << " doesn't exist" << std::endl;
+    LOG(INFO) << "folder " << path << " doesn't exist";
     if (createDirectory(path) == 0) {
-      LOG(INFO) << "folder " << path << " was created" << std::endl;
+      LOG(INFO) << "folder " << path << " was created";
     } else {
-      LOG(INFO) << "folder " << path << " failed to create" << std::endl;
+      LOG(INFO) << "folder " << path << " failed to create";
     }
   }
   return path;
@@ -113,7 +113,7 @@ inline int ReadInt32FromEnvVar(const std::string &env_var_name,
   *value = default_val;
   LOG(ERROR) << "Failed to parse the env-var ${" << env_var_name
              << "} into int32: " << _env_var_val
-             << ". Use the default value: " << default_val << std::endl;
+             << ". Use the default value: " << default_val;
   return -1;
 }
 
@@ -266,6 +266,7 @@ public:
               const ::tensorflow::Tensor &values, ThreadContext &thread_context,
               const ::tensorflow::int64 &begin,
               const ::tensorflow::int64 &max_i,
+              const ::tensorflow::int64 &Velems_per_dim0,
               const std::vector<std::string> &keys_prefix_name_slices) = 0;
 
   virtual void
@@ -372,7 +373,7 @@ VContentAndTypeSize<::tensorflow::tstring>(
 
 template <typename T>
 void DefaultMemcpyToTensor(T *pv_raw, const T *dft,
-                              const ::tensorflow::int64 &Velems_per_dim0) {
+                           const ::tensorflow::int64 &Velems_per_dim0) {
   memcpy(reinterpret_cast<void *>(pv_raw), reinterpret_cast<const void *>(dft),
          Velems_per_dim0 *
              sizeof(T)); // Direct access to Tensor data in TensorFlow
@@ -392,7 +393,7 @@ void DefaultMemcpyToTensor<::tensorflow::tstring>(
 
 template <typename T>
 void ReplyMemcpyToKeyTensor(T *pk_raw, const char *str,
-                                const size_t &byte_size) {
+                            const size_t &byte_size) {
   memcpy(reinterpret_cast<void *>(pk_raw), str,
          byte_size); // Direct access to Tensor data in TensorFlow
 }
@@ -406,7 +407,7 @@ void ReplyMemcpyToKeyTensor<::tensorflow::tstring>(
 
 template <typename T>
 void ReplyMemcpyToValTensor(T *pv_raw, const char *str,
-                                const ::tensorflow::int64 &Velems_per_dim0) {
+                            const ::tensorflow::int64 &Velems_per_dim0) {
   memcpy(reinterpret_cast<void *>(pv_raw), str,
          Velems_per_dim0 *
              sizeof(T)); // Direct access to Tensor data in TensorFlow

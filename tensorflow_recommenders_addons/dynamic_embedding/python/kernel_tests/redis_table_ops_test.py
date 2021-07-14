@@ -282,16 +282,18 @@ default_config = config_pb2.ConfigProto(
     allow_soft_placement=False,
     gpu_options=config_pb2.GPUOptions(allow_growth=True))
 
+redis_config = de.RedisTableConfig(
+    redis_host_ip="127.0.0.1",
+    redis_host_port=6379,
+    using_model_lib=False,
+)
+
 
 @test_util.run_all_in_graph_and_eager_modes
 class RedisVariableTest(test.TestCase):
 
   @test_util.run_in_graph_and_eager_modes()
   def test_basic(self):
-    redis_config = de.RedisTableConfig(
-        redis_host_ip="127.0.0.1",
-        redis_host_port=6379,
-    )
     with self.session(use_gpu=False, config=default_config):
       table = de.get_variable(
           "redis-0",
@@ -300,6 +302,7 @@ class RedisVariableTest(test.TestCase):
           initializer=0,
           dim=8,
           kv_creator=de.RedisTableCreator(config=redis_config))
+      table.clear()
       self.evaluate(table.size())
 
   def test_variable(self):
@@ -333,12 +336,16 @@ class RedisVariableTest(test.TestCase):
         values = constant_op.constant(
             _convert([[0] * dim, [1] * dim, [2] * dim, [3] * dim], value_dtype),
             value_dtype)
-        table = de.get_variable('t1-' + str(id),
-                                key_dtype=key_dtype,
-                                value_dtype=value_dtype,
-                                initializer=np.array([-1]).astype(
-                                    _type_converter(value_dtype)),
-                                dim=dim)
+        table = de.get_variable(
+            't1-' + str(id) + '_test_variable',
+            key_dtype=key_dtype,
+            value_dtype=value_dtype,
+            initializer=np.array([-1]).astype(_type_converter(value_dtype)),
+            dim=dim,
+            kv_creator=de.RedisTableCreator(config=redis_config))
+
+        table.clear()
+
         self.assertAllEqual(0, self.evaluate(table.size()))
 
         self.evaluate(table.upsert(keys, values))
@@ -370,6 +377,7 @@ class RedisVariableTest(test.TestCase):
             _convert([[0] * dim, [2] * dim, [3] * dim], value_dtype),
             _convert(sorted_values, value_dtype))
 
+        table.clear()
         del table
 
   def test_variable_initializer(self):
@@ -383,12 +391,13 @@ class RedisVariableTest(test.TestCase):
         id += 1
         keys = constant_op.constant(list(range(2**17)), dtypes.int64)
         table = de.get_variable(
-            "t1" + str(id),
+            "t1" + str(id) + '_test_variable_initializer',
             key_dtype=dtypes.int64,
             value_dtype=dtypes.float32,
             initializer=initializer,
             dim=10,
-        )
+            kv_creator=de.RedisTableCreator(config=redis_config))
+        table.clear()
         vals_op = table.lookup(keys)
         mean = self.evaluate(math_ops.reduce_mean(vals_op))
         stddev = self.evaluate(math_ops.reduce_std(vals_op))
@@ -396,6 +405,7 @@ class RedisVariableTest(test.TestCase):
         atol = rtol
         self.assertAllClose(target_mean, mean, rtol, atol)
         self.assertAllClose(target_stddev, stddev, rtol, atol)
+        table.clear()
 
   def test_save_restore(self):
     save_dir = os.path.join(self.get_temp_dir(), "save_restore")
@@ -414,6 +424,7 @@ class RedisVariableTest(test.TestCase):
           name="t1",
           dim=1,
       )
+      table.clear()
 
       save = saver.Saver(var_list=[v0, v1, table])
       self.evaluate(variables.global_variables_initializer())
@@ -430,6 +441,7 @@ class RedisVariableTest(test.TestCase):
       self.assertIsInstance(val, six.string_types)
       self.assertEqual(save_path, val)
 
+      table.clear()
       del table
 
     with self.session(config=default_config, graph=ops.Graph()) as sess:
@@ -443,6 +455,8 @@ class RedisVariableTest(test.TestCase):
           dim=1,
           checkpoint=True,
       )
+      table.clear()
+
       self.evaluate(
           table.upsert(
               constant_op.constant([0, 1], dtypes.int64),
@@ -466,6 +480,7 @@ class RedisVariableTest(test.TestCase):
       self.assertAllEqual([[-1.0], [0.0], [1.0], [2.0], [-1.0]],
                           self.evaluate(output))
 
+      table.clear()
       del table
 
   def test_save_restore_only_table(self):
@@ -490,6 +505,7 @@ class RedisVariableTest(test.TestCase):
           initializer=default_val,
           checkpoint=True,
       )
+      table.clear()
 
       save = saver.Saver([table])
       self.evaluate(variables.global_variables_initializer())
@@ -505,6 +521,8 @@ class RedisVariableTest(test.TestCase):
       val = save.save(sess, save_path)
       self.assertIsInstance(val, six.string_types)
       self.assertEqual(save_path, val)
+
+      table.clear()
       del table
 
     with self.session(
@@ -520,6 +538,8 @@ class RedisVariableTest(test.TestCase):
           initializer=default_val,
           checkpoint=True,
       )
+      table.clear()
+
       self.evaluate(
           table.upsert(
               constant_op.constant([0, 2], dtypes.int64),
@@ -538,6 +558,8 @@ class RedisVariableTest(test.TestCase):
       remove_keys = constant_op.constant([0, 1, 2, 3, 4], dtypes.int64)
       output = table.lookup(remove_keys)
       self.assertAllEqual([[0], [1], [2], [-1], [-1]], self.evaluate(output))
+
+      table.clear()
       del table
 
   def test_training_save_restore(self):
@@ -563,12 +585,15 @@ class RedisVariableTest(test.TestCase):
                                stateful=True)
 
       params = de.get_variable(
-          name="params-test-0915-" + str(id),
+          name="params-test-0915-" + str(id) + '_test_training_save_restore',
           key_dtype=key_dtype,
           value_dtype=value_dtype,
           initializer=init_ops.random_normal_initializer(0.0, 0.01),
           dim=dim,
-      )
+          kv_creator=de.RedisTableCreator(config=redis_config))
+      params.clear()
+      params_size = self.evaluate(params.size())
+
       _, var0 = de.embedding_lookup(params, ids, return_trainable=True)
 
       def loss():
@@ -591,12 +616,13 @@ class RedisVariableTest(test.TestCase):
         np_slots_kv_pairs_before_saved = [
             self.evaluate(_kv) for _kv in opt_slots_kv_pairs
         ]
+        params_size = self.evaluate(params.size())
         _saver.save(sess, save_path)
 
       with self.session(config=default_config,
                         use_gpu=test_util.is_gpu_available()) as sess:
         self.evaluate(variables.global_variables_initializer())
-        self.assertAllEqual(0, self.evaluate(params.size()))
+        self.assertAllEqual(params_size, self.evaluate(params.size()))
 
         _saver.restore(sess, save_path)
         params_keys_restored, params_vals_restored = params.export()
@@ -638,21 +664,31 @@ class RedisVariableTest(test.TestCase):
     ):
       default_val = -1
       with variable_scope.variable_scope("embedding", reuse=True):
-        table1 = de.get_variable("t1",
-                                 dtypes.int64,
-                                 dtypes.int32,
-                                 initializer=default_val,
-                                 dim=2)
-        table2 = de.get_variable("t1",
-                                 dtypes.int64,
-                                 dtypes.int32,
-                                 initializer=default_val,
-                                 dim=2)
-        table3 = de.get_variable("t2",
-                                 dtypes.int64,
-                                 dtypes.int32,
-                                 initializer=default_val,
-                                 dim=2)
+        table1 = de.get_variable(
+            "t1" + '_test_get_variable',
+            dtypes.int64,
+            dtypes.int32,
+            initializer=default_val,
+            dim=2,
+            kv_creator=de.RedisTableCreator(config=redis_config))
+        table2 = de.get_variable(
+            "t1" + '_test_get_variable',
+            dtypes.int64,
+            dtypes.int32,
+            initializer=default_val,
+            dim=2,
+            kv_creator=de.RedisTableCreator(config=redis_config))
+        table3 = de.get_variable(
+            "t3" + '_test_get_variable',
+            dtypes.int64,
+            dtypes.int32,
+            initializer=default_val,
+            dim=2,
+            kv_creator=de.RedisTableCreator(config=redis_config))
+
+        table1.clear()
+        table2.clear()
+        table3.clear()
 
       self.assertAllEqual(table1, table2)
       self.assertNotEqual(table1, table3)
@@ -665,10 +701,18 @@ class RedisVariableTest(test.TestCase):
         use_gpu=test_util.is_gpu_available(),
     ):
       with variable_scope.variable_scope("embedding", reuse=False):
-        _ = de.get_variable("t900", initializer=-1, dim=2)
+        _ = de.get_variable(
+            "t900",
+            initializer=-1,
+            dim=2,
+            kv_creator=de.RedisTableCreator(config=redis_config))
         with self.assertRaisesRegexp(ValueError,
                                      "Variable embedding/t900 already exists"):
-          _ = de.get_variable("t900", initializer=-1, dim=2)
+          _ = de.get_variable(
+              "t900",
+              initializer=-1,
+              dim=2,
+              kv_creator=de.RedisTableCreator(config=redis_config))
 
   @test_util.run_v1_only("Multiple sessions")
   def test_sharing_between_multi_sessions(self):
@@ -681,11 +725,14 @@ class RedisVariableTest(test.TestCase):
     session1 = session.Session(server.target, config=default_config)
     session2 = session.Session(server.target, config=default_config)
 
-    table = de.get_variable("tx100",
-                            dtypes.int64,
-                            dtypes.int32,
-                            initializer=0,
-                            dim=1)
+    table = de.get_variable(
+        "tx100" + '_test_sharing_between_multi_sessions',
+        dtypes.int64,
+        dtypes.int32,
+        initializer=0,
+        dim=1,
+        kv_creator=de.RedisTableCreator(config=redis_config))
+    table.clear()
 
     # Populate the table in the first session
     with session1:
@@ -717,11 +764,15 @@ class RedisVariableTest(test.TestCase):
       keys = constant_op.constant([0, 1, 2, 3], dtypes.int64)
       values = constant_op.constant([[0, 1], [2, 3], [4, 5], [6, 7]],
                                     dtypes.int32)
-      table = de.get_variable("t10",
-                              dtypes.int64,
-                              dtypes.int32,
-                              initializer=default_val,
-                              dim=2)
+      table = de.get_variable(
+          "t10" + '_test_dynamic_embedding_variable',
+          dtypes.int64,
+          dtypes.int32,
+          initializer=default_val,
+          dim=2,
+          kv_creator=de.RedisTableCreator(config=redis_config))
+      table.clear()
+
       self.assertAllEqual(0, self.evaluate(table.size()))
 
       self.evaluate(table.upsert(keys, values))
@@ -746,6 +797,7 @@ class RedisVariableTest(test.TestCase):
       sorted_expected_values = np.sort([[4, 5], [2, 3], [0, 1]], axis=0)
       self.assertAllEqual(sorted_expected_values, sorted_values)
 
+      table.clear()
       del table
 
   def test_dynamic_embedding_variable_export_insert(self):
@@ -754,11 +806,16 @@ class RedisVariableTest(test.TestCase):
       default_val = constant_op.constant([-1, -1], dtypes.int64)
       keys = constant_op.constant([0, 1, 2], dtypes.int64)
       values = constant_op.constant([[0, 1], [2, 3], [4, 5]], dtypes.int32)
-      table1 = de.get_variable("t101",
-                               dtypes.int64,
-                               dtypes.int32,
-                               initializer=default_val,
-                               dim=2)
+      table1 = de.get_variable(
+          "t101" + '_test_dynamic_embedding_variable_export_insert',
+          dtypes.int64,
+          dtypes.int32,
+          initializer=default_val,
+          dim=2,
+          kv_creator=de.RedisTableCreator(config=redis_config))
+
+      table1.clear()
+
       self.assertAllEqual(0, self.evaluate(table1.size()))
       self.evaluate(table1.upsert(keys, values))
       self.assertAllEqual(3, self.evaluate(table1.size()))
@@ -773,11 +830,16 @@ class RedisVariableTest(test.TestCase):
       self.assertAllEqual(6, self.evaluate(exported_values).size)
 
       # Populate a second table from the exported data
-      table2 = de.get_variable("t102",
-                               dtypes.int64,
-                               dtypes.int32,
-                               initializer=default_val,
-                               dim=2)
+      table2 = de.get_variable(
+          "t102" + '_test_dynamic_embedding_variable_export_insert',
+          dtypes.int64,
+          dtypes.int32,
+          initializer=default_val,
+          dim=2,
+          kv_creator=de.RedisTableCreator(config=redis_config))
+
+      table2.clear()
+
       self.assertAllEqual(0, self.evaluate(table2.size()))
       self.evaluate(table2.upsert(exported_keys, exported_values))
       self.assertAllEqual(3, self.evaluate(table2.size()))
@@ -791,11 +853,15 @@ class RedisVariableTest(test.TestCase):
                       use_gpu=test_util.is_gpu_available()):
       default_val = constant_op.constant([-1, -1], dtypes.int64)
       keys = constant_op.constant([0, 1, 2], dtypes.int64)
-      table = de.get_variable("t110",
-                              dtypes.int64,
-                              dtypes.int32,
-                              initializer=default_val,
-                              dim=2)
+      table = de.get_variable(
+          "t110" + '_test_dynamic_embedding_variable_invalid_shape',
+          dtypes.int64,
+          dtypes.int32,
+          initializer=default_val,
+          dim=2,
+          kv_creator=de.RedisTableCreator(config=redis_config))
+
+      table.clear()
 
       # Shape [6] instead of [3, 2]
       values = constant_op.constant([0, 1, 2, 3, 4, 5], dtypes.int32)
@@ -829,10 +895,15 @@ class RedisVariableTest(test.TestCase):
       keys = constant_op.constant([0, 1, 2, 2], dtypes.int64)
       values = constant_op.constant([[0.0], [1.0], [2.0], [3.0]],
                                     dtypes.float32)
-      table = de.get_variable("t130",
-                              dtypes.int64,
-                              dtypes.float32,
-                              initializer=default_val)
+      table = de.get_variable(
+          "t130" + '_test_dynamic_embedding_variable_duplicate_insert',
+          dtypes.int64,
+          dtypes.float32,
+          initializer=default_val,
+          kv_creator=de.RedisTableCreator(config=redis_config))
+
+      table.clear()
+
       self.assertAllEqual(0, self.evaluate(table.size()))
 
       self.evaluate(table.upsert(keys, values))
@@ -851,10 +922,14 @@ class RedisVariableTest(test.TestCase):
       default_val = -1
       keys = constant_op.constant([0, 1, 2], dtypes.int64)
       values = constant_op.constant([[0], [1], [2]], dtypes.int32)
-      table = de.get_variable("t140",
-                              dtypes.int64,
-                              dtypes.int32,
-                              initializer=default_val)
+      table = de.get_variable(
+          "t140" + '_test_dynamic_embedding_variable_find_high_rank',
+          dtypes.int64,
+          dtypes.int32,
+          initializer=default_val,
+          kv_creator=de.RedisTableCreator(config=redis_config))
+
+      table.clear()
 
       self.evaluate(table.upsert(keys, values))
       self.assertAllEqual(3, self.evaluate(table.size()))
@@ -872,10 +947,14 @@ class RedisVariableTest(test.TestCase):
       default_val = -1
       keys = constant_op.constant([[0, 1], [2, 3]], dtypes.int64)
       values = constant_op.constant([[[0], [1]], [[2], [3]]], dtypes.int32)
-      table = de.get_variable("t150",
-                              dtypes.int64,
-                              dtypes.int32,
-                              initializer=default_val)
+      table = de.get_variable(
+          "t150" + '_test_dynamic_embedding_variable_insert_low_rank',
+          dtypes.int64,
+          dtypes.int32,
+          initializer=default_val,
+          kv_creator=de.RedisTableCreator(config=redis_config))
+
+      table.clear()
 
       self.evaluate(table.upsert(keys, values))
       self.assertAllEqual(4, self.evaluate(table.size()))
@@ -892,10 +971,14 @@ class RedisVariableTest(test.TestCase):
       default_val = -1
       keys = constant_op.constant([[0, 1], [2, 3]], dtypes.int64)
       values = constant_op.constant([[[0], [1]], [[2], [3]]], dtypes.int32)
-      table = de.get_variable("t160",
-                              dtypes.int64,
-                              dtypes.int32,
-                              initializer=default_val)
+      table = de.get_variable(
+          "t160" + '_test_dynamic_embedding_variable_remove_low_rank',
+          dtypes.int64,
+          dtypes.int32,
+          initializer=default_val,
+          kv_creator=de.RedisTableCreator(config=redis_config))
+
+      table.clear()
 
       self.evaluate(table.upsert(keys, values))
       self.assertAllEqual(4, self.evaluate(table.size()))
@@ -917,11 +1000,15 @@ class RedisVariableTest(test.TestCase):
       keys = constant_op.constant([0, 1, 2], dtypes.int64)
       values = constant_op.constant([[0, 1, 2], [2, 3, 4], [4, 5, 6]],
                                     dtypes.int32)
-      table = de.get_variable("t170",
-                              dtypes.int64,
-                              dtypes.int32,
-                              initializer=default_val,
-                              dim=3)
+      table = de.get_variable(
+          "t170" + '_test_dynamic_embedding_variable_insert_high_rank',
+          dtypes.int64,
+          dtypes.int32,
+          initializer=default_val,
+          dim=3,
+          kv_creator=de.RedisTableCreator(config=redis_config))
+
+      table.clear()
 
       self.evaluate(table.upsert(keys, values))
       self.assertAllEqual(3, self.evaluate(table.size()))
@@ -941,11 +1028,15 @@ class RedisVariableTest(test.TestCase):
       keys = constant_op.constant([0, 1, 2], dtypes.int64)
       values = constant_op.constant([[0, 1, 2], [2, 3, 4], [4, 5, 6]],
                                     dtypes.int32)
-      table = de.get_variable("t180",
-                              dtypes.int64,
-                              dtypes.int32,
-                              initializer=default_val,
-                              dim=3)
+      table = de.get_variable(
+          "t180" + '_test_dynamic_embedding_variable_remove_high_rank',
+          dtypes.int64,
+          dtypes.int32,
+          initializer=default_val,
+          dim=3,
+          kv_creator=de.RedisTableCreator(config=redis_config))
+
+      table.clear()
 
       self.evaluate(table.upsert(keys, values))
       self.assertAllEqual(3, self.evaluate(table.size()))
@@ -969,18 +1060,29 @@ class RedisVariableTest(test.TestCase):
       keys = constant_op.constant([0, 1, 2], dtypes.int64)
       values = constant_op.constant([[0], [1], [2]], dtypes.int32)
 
-      table1 = de.get_variable("t191",
-                               dtypes.int64,
-                               dtypes.int32,
-                               initializer=default_val)
-      table2 = de.get_variable("t192",
-                               dtypes.int64,
-                               dtypes.int32,
-                               initializer=default_val)
-      table3 = de.get_variable("t193",
-                               dtypes.int64,
-                               dtypes.int32,
-                               initializer=default_val)
+      table1 = de.get_variable(
+          "t191" + '_test_dynamic_embedding_variables',
+          dtypes.int64,
+          dtypes.int32,
+          initializer=default_val,
+          kv_creator=de.RedisTableCreator(config=redis_config))
+      table2 = de.get_variable(
+          "t192" + '_test_dynamic_embedding_variables',
+          dtypes.int64,
+          dtypes.int32,
+          initializer=default_val,
+          kv_creator=de.RedisTableCreator(config=redis_config))
+      table3 = de.get_variable(
+          "t193" + '_test_dynamic_embedding_variables',
+          dtypes.int64,
+          dtypes.int32,
+          initializer=default_val,
+          kv_creator=de.RedisTableCreator(config=redis_config))
+
+      table1.clear()
+      table2.clear()
+      table3.clear()
+
       self.evaluate(table1.upsert(keys, values))
       self.evaluate(table2.upsert(keys, values))
       self.evaluate(table3.upsert(keys, values))
@@ -1005,10 +1107,14 @@ class RedisVariableTest(test.TestCase):
       default_val = constant_op.constant(-1, dtypes.int32)
       keys = constant_op.constant([0, 1, 2], dtypes.int64)
       values = constant_op.constant([[0], [1], [2]], dtypes.int32)
-      table = de.get_variable("t200",
-                              dtypes.int64,
-                              dtypes.int32,
-                              initializer=default_val)
+      table = de.get_variable(
+          "t200" + '_test_dynamic_embedding_variable_with_tensor_default',
+          dtypes.int64,
+          dtypes.int32,
+          initializer=default_val,
+          kv_creator=de.RedisTableCreator(config=redis_config))
+
+      table.clear()
 
       self.evaluate(table.upsert(keys, values))
       self.assertAllEqual(3, self.evaluate(table.size()))
@@ -1027,10 +1133,14 @@ class RedisVariableTest(test.TestCase):
       default_val = -1
       keys = constant_op.constant([0, 1, 2], dtypes.int64)
       values = constant_op.constant([[0], [1], [2]], dtypes.int32)
-      table = de.get_variable("t210",
-                              dtypes.int64,
-                              dtypes.int32,
-                              initializer=default_val)
+      table = de.get_variable(
+          "t210" + '_test_signature_mismatch',
+          dtypes.int64,
+          dtypes.int32,
+          initializer=default_val,
+          kv_creator=de.RedisTableCreator(config=redis_config))
+
+      table.clear()
 
       # upsert with keys of the wrong type
       with self.assertRaises(ValueError):
@@ -1069,10 +1179,15 @@ class RedisVariableTest(test.TestCase):
       default_val = -1.0
       keys = constant_op.constant([3, 7, 0], dtypes.int64)
       values = constant_op.constant([[7.5], [-1.2], [9.9]], dtypes.float32)
-      table = de.get_variable("t220",
-                              dtypes.int64,
-                              dtypes.float32,
-                              initializer=default_val)
+      table = de.get_variable(
+          "t220" + '_test_dynamic_embedding_variable_int_float',
+          dtypes.int64,
+          dtypes.float32,
+          initializer=default_val,
+          kv_creator=de.RedisTableCreator(config=redis_config))
+
+      table.clear()
+
       self.assertAllEqual(0, self.evaluate(table.size()))
 
       self.evaluate(table.upsert(keys, values))
@@ -1090,10 +1205,14 @@ class RedisVariableTest(test.TestCase):
       keys = constant_op.constant([0, 1, 2], dtypes.int64)
       values = constant_op.constant([[0.0], [1.0], [2.0]], dtypes.float32)
       default_val = init_ops.random_uniform_initializer()
-      table = de.get_variable("t230",
-                              dtypes.int64,
-                              dtypes.float32,
-                              initializer=default_val)
+      table = de.get_variable(
+          "t230" + '_test_dynamic_embedding_variable_with_random_init',
+          dtypes.int64,
+          dtypes.float32,
+          initializer=default_val,
+          kv_creator=de.RedisTableCreator(config=redis_config))
+
+      table.clear()
 
       self.evaluate(table.upsert(keys, values))
       self.assertAllEqual(3, self.evaluate(table.size()))
@@ -1116,22 +1235,28 @@ class RedisVariableTest(test.TestCase):
     embed_dim = 8
 
     var_guard_by_tstp = de.get_variable(
-        'tstp_guard',
+        'tstp_guard' + '_test_dynamic_embedding_variable_with_restrict_v1',
         key_dtype=dtypes.int64,
         value_dtype=dtypes.float32,
         initializer=-1.,
         dim=embed_dim,
         init_size=256,
-        restrict_policy=de.TimestampRestrictPolicy)
+        restrict_policy=de.TimestampRestrictPolicy,
+        kv_creator=de.RedisTableCreator(config=redis_config))
+
+    var_guard_by_tstp.clear()
 
     var_guard_by_freq = de.get_variable(
-        'freq_guard',
+        'freq_guard' + '_test_dynamic_embedding_variable_with_restrict_v1',
         key_dtype=dtypes.int64,
         value_dtype=dtypes.float32,
         initializer=-1.,
         dim=embed_dim,
         init_size=256,
-        restrict_policy=de.FrequencyRestrictPolicy)
+        restrict_policy=de.FrequencyRestrictPolicy,
+        kv_creator=de.RedisTableCreator(config=redis_config))
+
+    var_guard_by_freq.clear()
 
     sparse_vars = [var_guard_by_tstp, var_guard_by_freq]
 
@@ -1184,20 +1309,26 @@ class RedisVariableTest(test.TestCase):
     trainables = []
 
     var_guard_by_tstp = de.get_variable(
-        'tstp_guard',
+        'tstp_guard' + '_test_dynamic_embedding_variable_with_restrict_v2',
         key_dtype=dtypes.int64,
         value_dtype=dtypes.float32,
         initializer=-1.,
         dim=embed_dim,
-        restrict_policy=de.TimestampRestrictPolicy)
+        restrict_policy=de.TimestampRestrictPolicy,
+        kv_creator=de.RedisTableCreator(config=redis_config))
+
+    var_guard_by_tstp.clear()
 
     var_guard_by_freq = de.get_variable(
-        'freq_guard',
+        'freq_guard' + '_test_dynamic_embedding_variable_with_restrict_v2',
         key_dtype=dtypes.int64,
         value_dtype=dtypes.float32,
         initializer=-1.,
         dim=embed_dim,
-        restrict_policy=de.FrequencyRestrictPolicy)
+        restrict_policy=de.FrequencyRestrictPolicy,
+        kv_creator=de.RedisTableCreator(config=redis_config))
+
+    var_guard_by_freq.clear()
 
     sparse_vars = [var_guard_by_tstp, var_guard_by_freq]
 
@@ -1240,4 +1371,6 @@ class RedisVariableTest(test.TestCase):
 
 
 if __name__ == "__main__":
+  os.system('redis-cli -h ' + redis_config.redis_host_ip + ' -p ' +
+            str(redis_config.redis_host_port) + ' FLUSHALL')
   test.main()

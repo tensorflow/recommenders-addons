@@ -57,15 +57,14 @@ public:
       return;
     }
     redis_conn.reset();
-    LOG(INFO) << "RedisCluster connection pool destructor called!" << std::endl;
+    LOG(INFO) << "RedisCluster connection pool destructor called!";
   }
 
 private:
   RedisWrapper() // In singleton mode, classes should not be initialized
                  // through constructor
   {
-    LOG(INFO) << "RedisCluster connection pool constructor called!"
-              << std::endl;
+    LOG(INFO) << "RedisCluster connection pool constructor called!";
   }
 
 public:
@@ -95,10 +94,10 @@ public:
                         std::chrono::milliseconds(1));
       return redis_client;
     } catch (const std::exception &err) {
-      LOG(ERROR) << "RedisHandler--other " << err.what() << std::endl;
+      LOG(ERROR) << "RedisHandler--other " << err.what();
       return nullptr;
     } catch (...) {
-      LOG(ERROR) << "RedisHandler--other crash" << std::endl;
+      LOG(ERROR) << "RedisHandler--other crash";
       return nullptr;
     }
     return nullptr;
@@ -114,8 +113,7 @@ public:
         }
       }
       if (isRedisConnect == false) {
-        LOG(ERROR) << "Can not connect to the Redis Cluster servers."
-                   << std::endl;
+        LOG(ERROR) << "Can not connect to the Redis Cluster servers.";
         throw(std::runtime_error("Exit without any Redis connection."));
       }
     }
@@ -136,7 +134,7 @@ private:
   template <typename Cmd>
   std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>>
   PipeExec(Cmd cmd, const unsigned &storage_slice, const unsigned &size_check,
-            const ThreadContext &thread_context) {
+           const ThreadContext &thread_context) {
     std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>> replies;
     replies.reserve(storage_slice);
     for (unsigned i = 0; i < storage_slice; ++i) {
@@ -149,7 +147,7 @@ private:
                                                 thread_context.slots[i].sizes));
         } catch (const std::exception &err) {
           LOG(ERROR) << "RedisHandler error in pipe_exec for slices "
-                     << hkey.data() << " -- " << err.what() << std::endl;
+                     << hkey.data() << " -- " << err.what();
         }
       } else {
         replies.push_back(nullptr);
@@ -178,7 +176,7 @@ public:
       reply = redis_conn->command(cmd, _hkey);
     } catch (const std::exception &err) {
       LOG(ERROR) << "RedisHandler error in CheckSlicesNum(CLUSTER SLOTS) --  "
-                 << err.what() << std::endl;
+                 << err.what();
       return -1;
     }
 
@@ -215,7 +213,7 @@ public:
             redis_client->command(cmd_per_server, redis_command.data());
       } catch (const std::exception &err) {
         LOG(ERROR) << "RedisHandler error CheckSlicesNum(KEYS) in for IP "
-                   << IP_set[i] << " --  " << err.what() << std::endl;
+                   << IP_set[i] << " --  " << err.what();
         return -1;
       }
       slices_in_redis += reply_server->elements;
@@ -225,15 +223,15 @@ public:
       return 1;
     } else if (slices_in_redis == 0) {
       LOG(INFO) << "There is not a corresponding table " << keys_prefix_name
-                << " existing in Redis cluster servers" << std::endl;
+                << " existing in Redis cluster servers";
       return 0;
     } else {
       LOG(ERROR) << "storage_slice in redis_connection_params which is "
                  << redis_connection_params.storage_slice
                  << " did not equal to the slices number of this "
                  << keys_prefix_name
-                 << " in the Redis Cluster servers which is " << slices_in_redis
-                 << std::endl;
+                 << " in the Redis Cluster servers which is "
+                 << slices_in_redis;
       return -1;
     }
     return -1;
@@ -258,8 +256,7 @@ public:
                                     command_string.data());
       } catch (const std::exception &err) {
         LOG(ERROR) << "RedisHandler error in table_size_in_slots for slices "
-                   << keys_prefix_name_slices[i] << " -- " << err.what()
-                   << std::endl;
+                   << keys_prefix_name_slices[i] << " -- " << err.what();
       }
       if (reply->type == REDIS_REPLY_INTEGER) // #define REDIS_REPLY_STRING 1
       {
@@ -287,8 +284,7 @@ public:
                                       command_string.data());
       } catch (const std::exception &err) {
         LOG(ERROR) << "RedisHandler error in remove_hkeys_in_slots for slices "
-                   << keys_prefix_name_slices[i] << " -- " << err.what()
-                   << std::endl;
+                   << keys_prefix_name_slices[i] << " -- " << err.what();
       }
     }
   }
@@ -315,8 +311,7 @@ public:
                                             command_string.data()));
       } catch (const std::exception &err) {
         LOG(ERROR) << "RedisHandler error in get_keys_in_hkeys for slices "
-                   << keys_prefix_name_slices[i] << " -- " << err.what()
-                   << std::endl;
+                   << keys_prefix_name_slices[i] << " -- " << err.what();
       }
     }
 
@@ -328,7 +323,7 @@ public:
   */
   virtual void
   DumpToDisk(const std::vector<std::string> &keys_prefix_name_slices,
-               std::vector<aiocb> &wrs, const std::vector<int> &fds) override {
+             std::vector<aiocb> &wrs, const std::vector<int> &fds) override {
     if (fds.size() == 0) {
       return;
     }
@@ -352,8 +347,7 @@ public:
                                     redis_command.data());
       } catch (const std::exception &err) {
         LOG(ERROR) << "RedisHandler error in dump_to_disk for slices "
-                   << keys_prefix_name_slices[i] << " -- " << err.what()
-                   << std::endl;
+                   << keys_prefix_name_slices[i] << " -- " << err.what();
       }
 
       // std::string file_name =
@@ -367,12 +361,12 @@ public:
             ;
           if ((ret = aio_return(wr)) > 0) {
             LOG(INFO) << "File handle " << wr->aio_fildes
-                      << " finished writing last round." << std::endl;
+                      << " finished writing last round.";
             break;
           } else {
             LOG(ERROR) << "File handle " << wr->aio_fildes
                        << " did not finish writing last round. "
-                       << "Try to write " << i << " more times" << std::endl;
+                       << "Try to write " << i << " more times";
             ret = aio_write(wr);
             if (ret < 0)
               perror("aio_write");
@@ -395,15 +389,15 @@ public:
           perror("aio_write");
       } else {
         LOG(ERROR) << "HKEY " << keys_prefix_name_slices[i]
-                   << " does not exist in the Redis server. " << std::endl;
+                   << " does not exist in the Redis server. ";
       }
     }
   }
 
   virtual void
   RestoreFromDisk(const std::vector<std::string> &keys_prefix_name_slices,
-                    std::vector<aiocb> &rds, const std::vector<int> &fds,
-                    const std::vector<unsigned long> &buf_sizes) override {
+                  std::vector<aiocb> &rds, const std::vector<int> &fds,
+                  const std::vector<unsigned long> &buf_sizes) override {
     if (fds.size() == 0) {
       return;
     }
@@ -477,15 +471,14 @@ public:
           if (aio_error(rd) != EINPROGRESS) {
             if ((ret = aio_return(rd)) > 0) {
               LOG(INFO) << "File handle " << rd->aio_fildes
-                        << " finished reading last round." << std::endl;
+                        << " finished reading last round.";
               try {
                 /*reply = */ redis_conn->command(
                     cmd, keys_prefix_name_slices[i], ptrs_i_i[i], sizes_i_i[i]);
               } catch (const std::exception &err) {
                 LOG(ERROR)
                     << "RedisHandler error in restore_from_disk for slices "
-                    << keys_prefix_name_slices[i] << " -- " << err.what()
-                    << std::endl;
+                    << keys_prefix_name_slices[i] << " -- " << err.what();
               }
               free((void *)rd->aio_buf);
               rd->aio_buf = nullptr;
@@ -495,7 +488,7 @@ public:
               LOG(ERROR) << "File handle " << rd->aio_fildes
                          << " did not finish reading last round. "
                          << "Try to read " << reread_countdown[i]
-                         << " more times" << std::endl;
+                         << " more times";
               if (reread_countdown[i] > 0) {
                 ret = aio_read(rd);
                 if (ret < 0)
@@ -547,11 +540,11 @@ Redis command sequence because m-cmd can only be used in same hash tag)
     const static char *redis_command = "HMGET";
     const static std::size_t &&redis_command_byte = 5;
 
-    // const ::tensorflow::int64 dim0_size = keys.dim_size(0);
+    // const ::tensorflow::int64 dim0_size = keys.NumElements();
     // const ::tensorflow::int64 elems_per_dim0 = keys.NumElements() /
     // dim0_size; const std::size_t key_byte_size = elems_per_dim0 *
     // sizeof(K);
-    const K *const pk_raw_end = reinterpret_cast<K *>(keys.data()) + (total);
+    const K *const pk_raw_end = reinterpret_cast<K *>(keys.data()) + max_i;
     // const char *const pk_end = reinterpret_cast<const char *>(pk_raw_end);
     const K *pk_raw = reinterpret_cast<K *>(keys.data()) + begin;
     // const char *pk = reinterpret_cast<const char *>(pk_raw);
@@ -650,6 +643,7 @@ Redis command sequence because m-cmd can only be used in same hash tag)
       const ::tensorflow::Tensor &keys, const ::tensorflow::Tensor &values,
       ThreadContext &thread_context, const ::tensorflow::int64 &begin,
       const ::tensorflow::int64 &max_i,
+      const ::tensorflow::int64 &Velems_per_dim0,
       const std::vector<std::string> &keys_prefix_name_slices) override {
     const int &&total = max_i - begin;
     const int &&argc = total * 2 + 2;
@@ -657,16 +651,15 @@ Redis command sequence because m-cmd can only be used in same hash tag)
     const static char *redis_command = "HMSET";
     const static std::size_t &&redis_command_byte = 5;
 
-    const K *const pk_raw_end = reinterpret_cast<K *>(keys.data()) + (total);
+    const K *const pk_raw_end = reinterpret_cast<K *>(keys.data()) + max_i;
     // const char *const pk_end = reinterpret_cast<const char *>(pk_raw_end);
     const K *pk_raw = reinterpret_cast<K *>(keys.data()) + begin;
     // const char *pk = reinterpret_cast<const char *>(pk_raw);
 
-    const ::tensorflow::int64 &&Vdim0_size = values.dim_size(0);
-    const ::tensorflow::int64 &&Velems_per_dim0 =
-        values.NumElements() / Vdim0_size;
-    const std::size_t &&V_byte_size =
-        values.NumElements() / Vdim0_size * sizeof(V);
+    // const ::tensorflow::int64 &&Vdim0_size = values.dim_size(0);
+    // const ::tensorflow::int64 &&Velems_per_dim0 =
+    //     values.NumElements() / Vdim0_size;
+    const std::size_t &&V_byte_size = Velems_per_dim0 * sizeof(V);
     // const V *const pv_raw_end = reinterpret_cast<V*>(values.data()) +
     // (total)*Velems_per_dim0; const char *const pv_end =
     // reinterpret_cast<const char *>(pv_raw_end);
@@ -721,17 +714,17 @@ Redis command sequence because m-cmd can only be used in same hash tag)
     PipeExec(cmd, storage_slice, 4U, thread_context);
   }
 
-  virtual void DelCommand(
-      const ::tensorflow::Tensor &keys, ThreadContext &thread_context,
-      const ::tensorflow::int64 &begin, const ::tensorflow::int64 &max_i,
-      const std::vector<std::string> &keys_prefix_name_slices) override {
+  virtual void
+  DelCommand(const ::tensorflow::Tensor &keys, ThreadContext &thread_context,
+             const ::tensorflow::int64 &begin, const ::tensorflow::int64 &max_i,
+             const std::vector<std::string> &keys_prefix_name_slices) override {
     const int &&total = max_i - begin;
     const int &&argc = total + 2;
 
     const static char *redis_command = "HDEL";
     const static std::size_t &&redis_command_byte = 4;
 
-    const K *const pk_raw_end = reinterpret_cast<K *>(keys.data()) + (total);
+    const K *const pk_raw_end = reinterpret_cast<K *>(keys.data()) + max_i;
     const K *pk_raw = reinterpret_cast<K *>(keys.data()) + begin;
 
     const unsigned &storage_slice = redis_connection_params.storage_slice;

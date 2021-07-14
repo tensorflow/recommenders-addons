@@ -37,7 +37,8 @@ redis_table_ops = LazySO("dynamic_embedding/core/_redis_table_ops.so").ops
 
 
 class RedisTable(LookupInterface):
-  """A generic mutable hash table implementation.
+  """
+    A generic mutable hash table implementation.
 
     Data can be inserted by calling the insert method and removed by calling the
     remove method. It does not support initialization via the init method.
@@ -52,7 +53,7 @@ class RedisTable(LookupInterface):
     out = table.lookup(query_keys)
     print(out.eval())
     ```
-    """
+  """
 
   default_redis_params = {
       "redis_connection_mode":
@@ -81,8 +82,6 @@ class RedisTable(LookupInterface):
       "model_lib_abs_dir": "/tmp/",
   }
 
-  already_import_from_files = False
-
   def __init__(
       self,
       key_dtype,
@@ -92,27 +91,28 @@ class RedisTable(LookupInterface):
       checkpoint=False,
       config=None,
   ):
-    """Creates an empty `RedisTable` object.
+    """
+      Creates an empty `RedisTable` object.
 
-        Creates a redis table through OS envionment variables,
-        the type of its keys and values are specified by key_dtype
-        and value_dtype, respectively.
+      Creates a redis table through OS envionment variables,
+      the type of its keys and values are specified by key_dtype
+      and value_dtype, respectively.
 
-        Args:
-          key_dtype: the type of the key tensors.
-          value_dtype: the type of the value tensors.
-          default_value: The value to use if a key is missing in the table.
-          name: A name for the operation (optional, usually it's embedding table name).
-          checkpoint: if True, the contents of the table are saved to and restored
-            from a Redis binary dump files according to the directory "[model_lib_abs_dir]/[model_tag]/[name].rdb".
-            If `shared_name` is empty for a checkpointed table, it is shared using the table node name.
+      Args:
+        key_dtype: the type of the key tensors.
+        value_dtype: the type of the value tensors.
+        default_value: The value to use if a key is missing in the table.
+        name: A name for the operation (optional, usually it's embedding table name).
+        checkpoint: if True, the contents of the table are saved to and restored
+          from a Redis binary dump files according to the directory "[model_lib_abs_dir]/[model_tag]/[name].rdb".
+          If `shared_name` is empty for a checkpointed table, it is shared using the table node name.
 
-        Returns:
-          A `RedisTable` object.
+      Returns:
+        A `RedisTable` object.
 
-        Raises:
-          ValueError: If checkpoint is True and no name was specified.
-        """
+      Raises:
+        ValueError: If checkpoint is True and no name was specified.
+    """
     self._default_value = ops.convert_to_tensor(default_value,
                                                 dtype=value_dtype)
     self._value_shape = self._default_value.get_shape()
@@ -160,11 +160,6 @@ class RedisTable(LookupInterface):
       else:
         self.saveable = RedisTable._Saveable(self, name=name, full_name=name)
 
-    if self._redis_params.using_model_lib and \
-        not self.already_import_from_files:
-      RedisTable.import_from_files(self, name="direct_import")
-      self.already_import_from_files = True
-
   def _create_resource(self):
     # The table must be shared if checkpointing is requested for multi-worker
     # training to work correctly. Use the node name if no shared_name has been
@@ -175,7 +170,7 @@ class RedisTable(LookupInterface):
         use_node_name_sharing=use_node_name_sharing,
         key_dtype=self._key_dtype,
         value_dtype=self._value_dtype,
-        value_shape=self._default_value.get_shape(),
+        default_value_shape=self._default_value.get_shape(),
         embedding_name=self._embedding_name,
         redis_connection_mode=self._redis_params.redis_connection_mode,
         redis_master_name=self._redis_params.redis_master_name,
@@ -200,34 +195,36 @@ class RedisTable(LookupInterface):
     return self._table_name
 
   def size(self, name=None):
-    """Compute the number of elements in this table.
+    """
+      Compute the number of elements in this table.
 
-        Args:
-          name: A name for the operation (optional).
+      Args:
+        name: A name for the operation (optional).
 
-        Returns:
-          A scalar tensor containing the number of elements in this table.
-        """
+      Returns:
+        A scalar tensor containing the number of elements in this table.
+    """
     with ops.name_scope(name, "%s_Size" % self.name, [self.resource_handle]):
       with ops.colocate_with(self.resource_handle):
         return redis_table_ops.tfra_redis_table_size(self.resource_handle)
 
   def remove(self, keys, name=None):
-    """Removes `keys` and its associated values from the table.
+    """
+      Removes `keys` and its associated values from the table.
 
-        If a key is not present in the table, it is silently ignored.
+      If a key is not present in the table, it is silently ignored.
 
-        Args:
-          keys: Keys to remove. Can be a tensor of any shape. Must match the table's
-            key type.
-          name: A name for the operation (optional).
+      Args:
+        keys: Keys to remove. Can be a tensor of any shape. Must match the table's
+          key type.
+        name: A name for the operation (optional).
 
-        Returns:
-          The created Operation.
+      Returns:
+        The created Operation.
 
-        Raises:
-          TypeError: when `keys` do not match the table data types.
-        """
+      Raises:
+        TypeError: when `keys` do not match the table data types.
+    """
     if keys.dtype != self._key_dtype:
       raise TypeError("Signature mismatch. Keys must be dtype %s, got %s." %
                       (self._key_dtype, keys.dtype))
@@ -241,26 +238,45 @@ class RedisTable(LookupInterface):
 
     return op
 
+  def clear(self, name=None):
+    """
+      clear all keys and values in the table.
+
+      Args:
+        name: A name for the operation (optional).
+
+      Returns:
+        The created Operation.
+    """
+    with ops.name_scope(name, "%s_lookup_table_clear" % self.name,
+                        (self.resource_handle, self._default_value)):
+      op = redis_table_ops.tfra_redis_table_clear(self.resource_handle,
+                                                  key_dtype=self._key_dtype,
+                                                  value_dtype=self._value_dtype)
+
+    return op
+
   def lookup(self, keys, dynamic_default_values=None, name=None):
-    """Looks up `keys` in a table, outputs the corresponding values.
+    """
+      Looks up `keys` in a table, outputs the corresponding values.
 
-        The `default_value` is used for keys not present in the table.
+      The `default_value` is used for keys not present in the table.
 
-        Args:
-          keys: Keys to look up. Can be a tensor of any shape. Must match the
-            table's key_dtype.
-          dynamic_default_values: The values to use if a key is missing in the
-            table. If None (by default), the static default_value
-            `self._default_value` will be used.
-          name: A name for the operation (optional).
+      Args:
+        keys: Keys to look up. Can be a tensor of any shape. Must match the
+          table's key_dtype.
+        dynamic_default_values: The values to use if a key is missing in the
+          table. If None (by default), the static default_value
+          `self._default_value` will be used.
+        name: A name for the operation (optional).
 
-        Returns:
-          A tensor containing the values in the same shape as `keys` using the
-            table's value type.
+      Returns:
+        A tensor containing the values in the same shape as `keys` using the
+          table's value type.
 
-        Raises:
-          TypeError: when `keys` do not match the table data types.
-        """
+      Raises:
+        TypeError: when `keys` do not match the table data types.
+    """
     with ops.name_scope(
         name,
         "%s_lookup_table_find" % self.name,
@@ -277,7 +293,8 @@ class RedisTable(LookupInterface):
     return values
 
   def insert(self, keys, values, name=None):
-    """Associates `keys` with `values`.
+    """
+      Associates `keys` with `values`.
 
       Args:
         keys: Keys to insert. Can be a tensor of any shape. Must match the table's
@@ -306,41 +323,18 @@ class RedisTable(LookupInterface):
                                                      values)
     return op
 
-  def import_from_files(self, name=None):
-    """restored from a Redis binary dump files which paths are directory
-       '"'[model_lib_abs_dir]/[model_tag]/[name].rdb'.
+  def export(self, name=None):
+    """
+      Returns nothing in Redis Implement. It will dump some binary files
+      to model_lib_abs_dir.
 
       Args:
         name: A name for the operation (optional).
 
+      Returns:
+        A pair of tensors with the first tensor containing all keys and the
+          second tensors containing all values in the table.
     """
-
-    with ops.name_scope(name, "%s_lookup_table_export_values" % self.name,
-                        [self.resource_handle]):
-      with ops.colocate_with(self.resource_handle):
-        ndims = self._default_value.get_shape().ndims
-        if ndims == 1:
-          useless_keys = ops.convert_to_tensor(0, dtype=self.key_dtype)
-        else:
-          useless_keys = tf.zeros(shape=(self._default_value.get_shape()[0]),
-                                  dtype=self.key_dtype)
-        useless_vals = tf.zeros(shape=self._default_value.get_shape(),
-                                dtype=self.value_dtype)
-        return redis_table_ops.tfra_redis_table_import(self.resource_handle,
-                                                       useless_keys,
-                                                       useless_vals)
-
-  def export(self, name=None):
-    """Returns nothing in Redis Implement. It will dump some binary files
-        to model_lib_abs_dir.
-
-        Args:
-          name: A name for the operation (optional).
-
-        Returns:
-          A pair of tensors with the first tensor containing all keys and the
-            second tensors containing all values in the table.
-        """
     with ops.name_scope(name, "%s_lookup_table_export_values" % self.name,
                         [self.resource_handle]):
       with ops.colocate_with(self.resource_handle):
