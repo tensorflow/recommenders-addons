@@ -656,6 +656,80 @@ class RedisVariableTest(test.TestCase):
         if test_util.is_gpu_available():
           self.assertTrue("GPU" in params.tables[0].resource_handle.device)
 
+  def test_training_save_restore_by_files(self):
+    opt = de.DynamicEmbeddingOptimizer(adam.AdamOptimizer(0.3))
+    id = 0
+    for key_dtype, value_dtype, dim, step in itertools.product(
+        [dtypes.int64],
+        [dtypes.float32],
+        [10],
+        [10],
+    ):
+      id += 1
+      save_dir = os.path.join(self.get_temp_dir(), "save_restore")
+      save_path = os.path.join(tempfile.mkdtemp(prefix=save_dir), "hash")
+
+      ids = script_ops.py_func(_create_dynamic_shape_tensor(),
+                               inp=[],
+                               Tout=key_dtype,
+                               stateful=True)
+
+      redis_config_modify = de.RedisTableConfig(
+          redis_host_ip="127.0.0.1",
+          redis_host_port=6379,
+          using_model_lib=True,
+          model_lib_abs_dir = save_path,
+      )
+
+      params = de.get_variable(
+          name="params-test-0916-" + str(id) + '_test_training_save_restore_by_files',
+          key_dtype=key_dtype,
+          value_dtype=value_dtype,
+          initializer=0,
+          dim=dim,
+          kv_creator=de.RedisTableCreator(config=redis_config_modify))
+
+      _, var0 = de.embedding_lookup(params, ids, return_trainable=True)
+
+      def loss():
+        return var0 * var0
+
+      mini = opt.minimize(loss, var_list=[var0])
+      opt_slots = [opt.get_slot(var0, _s) for _s in opt.get_slot_names()]
+      _saver = saver.Saver([params] + [_s.params for _s in opt_slots])
+
+      keys = np.random.randint(1,100,dim)
+      values = np.random.rand(keys.shape[0],dim)
+
+      with self.session(config=default_config,
+                        use_gpu=test_util.is_gpu_available()) as sess:
+        self.evaluate(variables.global_variables_initializer())
+        self.evaluate(params.upsert(keys, values))
+        params_vals = params.lookup(keys)
+        for _i in range(step):
+          self.evaluate([mini])
+        size_before_saved = self.evaluate(params.size())
+        np_params_vals_before_saved = self.evaluate(params_vals)
+        params_size = self.evaluate(params.size())
+        _saver.save(sess, save_path)
+
+      with self.session(config=default_config,
+                        use_gpu=test_util.is_gpu_available()) as sess:
+        _saver.restore(sess, save_path)
+        self.evaluate(variables.global_variables_initializer())
+        self.assertAllEqual(params_size, self.evaluate(params.size()))
+        params_vals_restored = params.lookup(keys)
+        size_after_restored = self.evaluate(params.size())
+        np_params_vals_after_restored = self.evaluate(params_vals_restored)
+
+        self.assertAllEqual(size_before_saved, size_after_restored)
+        self.assertAllEqual(
+            np.sort(np_params_vals_before_saved, axis=0),
+            np.sort(np_params_vals_after_restored, axis=0),
+        )
+      
+      params.clear()
+
   def test_get_variable(self):
     with self.session(
         config=default_config,

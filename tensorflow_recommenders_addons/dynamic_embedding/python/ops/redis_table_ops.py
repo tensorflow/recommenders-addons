@@ -170,7 +170,7 @@ class RedisTable(LookupInterface):
         use_node_name_sharing=use_node_name_sharing,
         key_dtype=self._key_dtype,
         value_dtype=self._value_dtype,
-        default_value_shape=self._default_value.get_shape(),
+        value_shape=self._default_value.get_shape(),
         embedding_name=self._embedding_name,
         redis_connection_mode=self._redis_params.redis_connection_mode,
         redis_master_name=self._redis_params.redis_master_name,

@@ -60,8 +60,8 @@ using namespace redis_connection;
 template <class K, class V>
 class RedisTableOfTensors final : public LookupInterface {
 private:
-  TensorShape default_value_shape_;
-  size_t runtime_dim_;
+  TensorShape value_shape_;
+  int64 runtime_value_dim_;
   // size_t init_size_;
   std::string embedding_name;
   std::string keys_prefix_name;
@@ -89,7 +89,7 @@ private:
                            const Tensor &keys, Tensor *values,
                            const Tensor &default_value, const int64 &total,
                            const int64 &default_value_flat2_dim0,
-                           const int64 &values_flat2_dim0,
+                           const int64 &Velems_per_flat2_dim0,
                            std::vector<ThreadContext> &threads_Find) {
     const bool is_full_default = (total == default_value_flat2_dim0);
 
@@ -100,7 +100,7 @@ private:
 
     std::atomic_uint thread_id_a(0);
     auto shard = [this, &total, &keys_prefix_name_slices, &keys, &values,
-                  &default_value, &is_full_default, &values_flat2_dim0,
+                  &default_value, &is_full_default, &Velems_per_flat2_dim0,
                   &threads_Find, &thread_id_a](int64 begin, int64 end) {
       const int64 max_i = std::min(total, end);
       unsigned thread_id = thread_id_a.load(std::memory_order_relaxed);
@@ -115,7 +115,7 @@ private:
 
       _table_instance->MgetToTensor(values, default_value, is_full_default,
                                     threads_Find[thread_id], reply, begin,
-                                    max_i, values_flat2_dim0);
+                                    max_i, Velems_per_flat2_dim0);
     };
     int64 slices_size = std::min(total, multi_redis_cmd_max_argc - 1);
     auto &worker_threads = *context->device()->tensorflow_cpu_worker_threads();
@@ -127,7 +127,7 @@ private:
                   const Tensor &keys, Tensor *values,
                   const Tensor &default_value, const int64 &total,
                   const int64 &default_value_flat2_dim0,
-                  const int64 &values_flat2_dim0,
+                  const int64 &Velems_per_flat2_dim0,
                   std::vector<ThreadContext> &threads_Find) {
     const bool is_full_default = (total == default_value_flat2_dim0);
 
@@ -143,13 +143,14 @@ private:
 
     _table_instance->MgetToTensor(values, default_value, is_full_default,
                                   threads_Find[0], reply, 0, total,
-                                  values_flat2_dim0);
+                                  Velems_per_flat2_dim0);
   }
 
   void launchInsert_parallel(OpKernelContext *context,
                              std::vector<std::string> &keys_prefix_name_slices,
                              const Tensor &keys, const Tensor &values,
-                             const int64 &total, const int64 &values_flat2_dim0,
+                             const int64 &total,
+                             const int64 &Velems_per_flat2_dim0,
                              std::vector<ThreadContext> &threads_Insert) {
     const int64 max_parallelism = (total / multi_redis_cmd_max_argc) + 1;
 
@@ -158,14 +159,14 @@ private:
 
     std::atomic_uint thread_id_a(0);
     auto shard = [this, &total, &keys_prefix_name_slices, &keys, &values,
-                  &values_flat2_dim0, &threads_Insert,
+                  &Velems_per_flat2_dim0, &threads_Insert,
                   &thread_id_a](int64 begin, int64 end) {
       const int64 max_i = std::min(total, end);
       unsigned thread_id = thread_id_a.load(std::memory_order_relaxed);
       thread_id_a.store(thread_id + 1, std::memory_order_consume);
 
       _table_instance->MsetCommand(keys, values, threads_Insert[thread_id],
-                                   begin, max_i, values_flat2_dim0,
+                                   begin, max_i, Velems_per_flat2_dim0,
                                    keys_prefix_name_slices);
     };
     int64 slices_size = std::min(total, multi_redis_cmd_max_argc - 1);
@@ -176,13 +177,14 @@ private:
   void launchInsert(OpKernelContext *context,
                     std::vector<std::string> &keys_prefix_name_slices,
                     const Tensor &keys, const Tensor &values,
-                    const int64 &total, const int64 &values_flat2_dim0,
+                    const int64 &total, const int64 &Velems_per_flat2_dim0,
                     std::vector<ThreadContext> &threads_Insert) {
     if (1 > threads_Insert.size())
       threads_Insert.resize(1);
 
     _table_instance->MsetCommand(keys, values, threads_Insert[0], 0, total,
-                                 values_flat2_dim0, keys_prefix_name_slices);
+                                 Velems_per_flat2_dim0,
+                                 keys_prefix_name_slices);
   }
 
   void launchDelete_parallel(OpKernelContext *context,
@@ -225,12 +227,12 @@ public:
     // int64 init_size = 0;
     // std::string tmp_embedding_name;
 
-    OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "default_value_shape",
-                                    &default_value_shape_));
+    OP_REQUIRES_OK(ctx,
+                   GetNodeAttr(kernel->def(), "value_shape", &value_shape_));
     OP_REQUIRES(
-        ctx, TensorShapeUtils::IsVector(default_value_shape_),
+        ctx, TensorShapeUtils::IsVector(value_shape_),
         errors::InvalidArgument("Default value must be a vector, got shape ",
-                                default_value_shape_.DebugString()));
+                                value_shape_.DebugString()));
 
     // //The init_size and embedding vector shape are useless for the
     // initialization of Redis.
@@ -291,7 +293,16 @@ public:
     if (revn_status != 0)
       LOG(INFO) << "ReadInt32FromEnvVar failed with sentinel_socket_timeout.";
 
-    runtime_dim_ = default_value_shape_.dim_size(0);
+    const int64 &&default_value_width = value_shape_.dim_size(0);
+    const int64 &&default_value_total = value_shape_.num_elements();
+    if (default_value_width == default_value_total) {
+      runtime_value_dim_ = default_value_width;
+    } else {
+      LOG(WARNING) << "The num_elements in default_value dosen't equal to the "
+                      "dim_size(0) in default_value. Using the num_elements as "
+                      "output tensor dim two now.";
+      runtime_value_dim_ = default_value_total;
+    }
 
     OP_REQUIRES_OK(
         ctx, GetNodeAttr(kernel->def(), "embedding_name", &embedding_name));
@@ -444,18 +455,20 @@ public:
 
   Status Find(OpKernelContext *ctx, const Tensor &keys, Tensor *values,
               const Tensor &default_value) override {
-    const static int64 default_value_dim0 = default_value.dim_size(0);
     int64 total = keys.NumElements();
-    const int64 values_flat2_dim0 = values->NumElements() / keys.NumElements();
+    const int64 Velems_per_flat2_dim0 =
+        values->NumElements() / keys.NumElements();
+    const int64 default_value_dim0 = default_value.dim_size(0);
 
     if (total < (multi_redis_cmd_max_argc - 1)) {
       launchFind(ctx, keys_prefix_name_slices, keys, values, default_value,
-                 total, default_value_dim0, values_flat2_dim0, threads_Find);
+                 total, default_value_dim0, Velems_per_flat2_dim0,
+                 threads_Find);
     } else {
       // redis commmand args > multi_redis_cmd_max_argc
       launchFind_parallel(ctx, keys_prefix_name_slices, keys, values,
                           default_value, total, default_value_dim0,
-                          values_flat2_dim0, threads_Find);
+                          Velems_per_flat2_dim0, threads_Find);
     }
 
     return Status::OK();
@@ -464,17 +477,19 @@ public:
   Status DoInsert(bool clear, OpKernelContext *ctx, const Tensor &keys,
                   const Tensor &values) {
     int64 total = keys.NumElements();
-    const int64 values_flat2_dim0 = values.NumElements() / keys.NumElements();
+    const int64 Velems_per_flat2_dim0 =
+        values.NumElements() / keys.NumElements();
 
     if (clear) {
       _table_instance->RemoveHkeysInSlots(keys_prefix_name_slices);
     }
     if (total < (multi_redis_cmd_max_argc - 1)) {
       launchInsert(ctx, keys_prefix_name_slices, keys, values, total,
-                   values_flat2_dim0, threads_Insert);
+                   Velems_per_flat2_dim0, threads_Insert);
     } else {
       launchInsert_parallel(
-          ctx, keys_prefix_name_slices, keys, values, total, values_flat2_dim0,
+          ctx, keys_prefix_name_slices, keys, values, total,
+          Velems_per_flat2_dim0,
           threads_Insert); // redis commmand args > multi_redis_cmd_max_argc
     }
 
@@ -505,15 +520,15 @@ public:
 
   Status ImportValues(OpKernelContext *ctx, const Tensor &keys,
                       const Tensor &values) override {
-    if (keys.NumElements() > 0) {
-      if (redis_connection_params.using_model_lib) {
-        return ImportValuesFromFiles(ctx);
-      } else {
-        return DoInsert(true, ctx, keys, values);
-      }
+    if (redis_connection_params.using_model_lib) {
+      return ImportValuesFromFiles(ctx);
     } else {
-      LOG(WARNING) << "Empty Tensor keys for import!";
-      return Status::OK();
+      if (keys.NumElements() > 0) {
+        return DoInsert(true, ctx, keys, values);
+      } else {
+        LOG(WARNING) << "Empty Tensor keys for import!";
+        return Status::OK();
+      }
     }
   }
 
@@ -522,13 +537,14 @@ public:
     const unsigned &storage_slice = redis_connection_params.storage_slice;
 
     IMPORT_content.resize(storage_slice);
-    IMPORT_fds.reserve(storage_slice);
     IMPORT_fds.clear();
-    IMPORT_fds_sizes.reserve(storage_slice);
+    IMPORT_fds.reserve(storage_slice);
     IMPORT_fds_sizes.clear();
+    IMPORT_fds_sizes.reserve(storage_slice);
 
-    folder_dir = check_dir(redis_connection_params.model_lib_abs_dir +
-                           redis_connection_params.model_tag + "/");
+    folder_dir = check_dir(redis_connection_params.model_lib_abs_dir);
+    folder_dir = check_dir(folder_dir + redis_connection_params.model_tag);
+
     for (unsigned i = 0; i < storage_slice; ++i) {
       file_path = folder_dir + keys_prefix_name_slices[i] + ".rdb";
       if (access(file_path.c_str(), 0) == -1) {
@@ -571,34 +587,35 @@ public:
     int tem_fd;
 
     EXPORT_content.resize(storage_slice);
-    EXPORT_fds.reserve(storage_slice);
     EXPORT_fds.clear();
+    EXPORT_fds.reserve(storage_slice);
 
-    folder_dir = check_dir(redis_connection_params.model_lib_abs_dir +
-                           redis_connection_params.model_tag + "/");
+    folder_dir = check_dir(redis_connection_params.model_lib_abs_dir);
+    folder_dir = check_dir(folder_dir + redis_connection_params.model_tag);
+
     for (unsigned i = 0; i < storage_slice; ++i) {
       file_path = folder_dir + keys_prefix_name_slices[i] + ".rdb";
-      tem_fd = open(file_path.c_str(), O_WRONLY | O_CREAT | O_EXCL, 0777);
-      if (tem_fd < 0) {
-        LOG(ERROR) << "File " + file_path +
-                          " can't be created. Maybe it's already exist!";
+      if (access(file_path.c_str(), 0) != -1) {
+        LOG(WARNING) << "File " + file_path + " has already existed!";
         time_t totalseconds = time(NULL);
         struct tm *st = localtime(&totalseconds);
         char tmp_time_str[20];
         sprintf(tmp_time_str, "%04d-%02d-%02d-%02d:%02d:%02d",
                 st->tm_year + 1900, st->tm_mon + 1, st->tm_mday, st->tm_hour,
                 st->tm_min, st->tm_sec);
-        file_path = file_path + "." + tmp_time_str;
-        tem_fd = open(file_path.c_str(), O_WRONLY | O_CREAT, 0777);
+        std::string new_file_path = file_path + "." + tmp_time_str;
+        LOG(WARNING) << "Rename the file " + file_path + " into " +
+                            new_file_path + " with local time!";
+        rename(file_path.c_str(), new_file_path.c_str());
+        tem_fd = open(file_path.c_str(), O_WRONLY | O_CREAT | O_EXCL, 0777);
         if (tem_fd > 0) {
-          LOG(WARNING) << "Now the data will be dumped to the file "
-                       << file_path << " for instead.";
           EXPORT_fds.push_back(tem_fd);
         } else {
-          LOG(ERROR) << "Can't not the file " << file_path
+          LOG(ERROR) << "Can not create the file " << file_path
                      << " for instead. Something bad happens";
         }
       } else {
+        tem_fd = open(file_path.c_str(), O_WRONLY | O_CREAT | O_EXCL, 0777);
         EXPORT_fds.push_back(tem_fd);
       }
     }
@@ -614,11 +631,17 @@ public:
       //   close(fd);
     }
 
+    Tensor *keys;
+    TF_RETURN_IF_ERROR(ctx->allocate_output("keys", TensorShape({0}), &keys));
+
+    Tensor *values;
+    TF_RETURN_IF_ERROR(ctx->allocate_output(
+        "values", TensorShape({0, runtime_value_dim_}), &values));
+
     return Status::OK();
   }
 
   Status ExportValuesToTensor(OpKernelContext *ctx) {
-    const int64 default_value_dim0 = default_value_shape_.dim_size(0);
     int64 total_size = 0;
 
     std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>>
@@ -627,21 +650,13 @@ public:
       total_size += keys_replies[i]->elements;
     }
 
-    int64 values_flat2_dim0 = default_value_dim0;
-    if (default_value_dim0 != values_flat2_dim0) {
-      LOG(WARNING) << "The num_elements in default_value dosen't equal to the "
-                      "dim_size(0) in default_value. Using the num_elements as "
-                      "output tensor dim two now.";
-      values_flat2_dim0 = default_value_shape_.num_elements();
-    }
-
     Tensor *keys;
     TF_RETURN_IF_ERROR(
         ctx->allocate_output("keys", TensorShape({total_size}), &keys));
 
     Tensor *values;
     TF_RETURN_IF_ERROR(ctx->allocate_output(
-        "values", TensorShape({total_size, values_flat2_dim0}), &values));
+        "values", TensorShape({total_size, runtime_value_dim_}), &values));
 
     if (total_size == 0) {
       LOG(WARNING) << "There is no embedding table called " << keys_prefix_name
@@ -682,7 +697,7 @@ public:
     assert(reply.size() == redis_connection_params.storage_slice);
 
     _table_instance->MgetToTensor(values, *values, true, threads_Find[0], reply,
-                                  0, total_size, values_flat2_dim0);
+                                  0, total_size, runtime_value_dim_);
 
     return Status::OK();
   }
@@ -693,7 +708,7 @@ public:
 
   TensorShape key_shape() const final { return TensorShape(); }
 
-  TensorShape value_shape() const override { return default_value_shape_; }
+  TensorShape value_shape() const override { return value_shape_; }
 
   int64 MemoryUsed() const override {
     int64 ret = 0;

@@ -360,11 +360,11 @@ public:
           while (aio_error(wr) == EINPROGRESS)
             ;
           if ((ret = aio_return(wr)) > 0) {
-            LOG(INFO) << "File handle " << wr->aio_fildes
-                      << " finished writing last round.";
+            // LOG(INFO) << "File handle " << wr->aio_fildes
+            //           << " finished writing last round.";
             break;
           } else {
-            LOG(ERROR) << "File handle " << wr->aio_fildes
+            LOG(WARNING) << "File handle " << wr->aio_fildes
                        << " did not finish writing last round. "
                        << "Try to write " << i << " more times";
             ret = aio_write(wr);
@@ -427,6 +427,8 @@ public:
     const static std::size_t &&redis_command_byte = 7;
     const static char *redis_command_param = "0";
     const static std::size_t &&redis_command_byte_param = 1;
+    const static char *replace_command = "REPLACE";
+    const static std::size_t &&replace_command_byte = 7;
 
     for (size_t i = 0; i < storage_slice; ++i) {
       rd = &rds[i];
@@ -444,19 +446,21 @@ public:
       if (ret < 0)
         perror("aio_read");
 
-      ptrs_i_i[i].reserve(4);
+      ptrs_i_i[i].reserve(5);
       ptrs_i_i[i].clear();
       ptrs_i_i[i].push_back(redis_command);
       ptrs_i_i[i].push_back(keys_prefix_name_slices[i].data());
       ptrs_i_i[i].push_back(redis_command_param);
       ptrs_i_i[i].push_back((const char *)rd->aio_buf);
+      ptrs_i_i[i].push_back(replace_command);
 
-      sizes_i_i[i].reserve(4);
+      sizes_i_i[i].reserve(5);
       sizes_i_i[i].clear();
       sizes_i_i[i].push_back(redis_command_byte);
       sizes_i_i[i].push_back(keys_prefix_name_slices[i].size());
       sizes_i_i[i].push_back(redis_command_byte_param);
       sizes_i_i[i].push_back(rd->aio_nbytes);
+      sizes_i_i[i].push_back(replace_command_byte);
     }
 
     size_t count_down = storage_slice;
@@ -470,8 +474,8 @@ public:
         if (rd->aio_nbytes > 0) {
           if (aio_error(rd) != EINPROGRESS) {
             if ((ret = aio_return(rd)) > 0) {
-              LOG(INFO) << "File handle " << rd->aio_fildes
-                        << " finished reading last round.";
+              // LOG(INFO) << "File handle " << rd->aio_fildes
+              //           << " finished reading last round.";
               try {
                 /*reply = */ redis_conn->command(
                     cmd, keys_prefix_name_slices[i], ptrs_i_i[i], sizes_i_i[i]);
@@ -485,7 +489,7 @@ public:
               rd->aio_nbytes = 0;
               --count_down;
             } else {
-              LOG(ERROR) << "File handle " << rd->aio_fildes
+              LOG(WARNING) << "File handle " << rd->aio_fildes
                          << " did not finish reading last round. "
                          << "Try to read " << reread_countdown[i]
                          << " more times";

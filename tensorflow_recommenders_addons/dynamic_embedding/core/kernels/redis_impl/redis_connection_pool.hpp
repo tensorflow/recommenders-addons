@@ -305,11 +305,11 @@ public:
         while (aio_error(wr) == EINPROGRESS)
           ;
         if ((ret = aio_return(wr)) > 0) {
-          LOG(INFO) << "File handle " << wr->aio_fildes
-                    << " finished writing last round.";
+          // LOG(INFO) << "File handle " << wr->aio_fildes
+          //           << " finished writing last round.";
           break;
         } else {
-          LOG(ERROR) << "File handle " << wr->aio_fildes
+          LOG(WARNING) << "File handle " << wr->aio_fildes
                      << " did not finish writing last round. "
                      << "Try to write " << i << " more times";
           ret = aio_write(wr);
@@ -363,13 +363,15 @@ public:
 
     std::vector<const char *> ptrs_0;
     std::vector<std::size_t> sizes_0;
-    ptrs_0.reserve(4);
-    sizes_0.reserve(4);
+    ptrs_0.reserve(5);
+    sizes_0.reserve(5);
 
     const static char *redis_command = "RESTORE";
     const static std::size_t &&redis_command_byte = 7;
     const static char *redis_command_param = "0";
     const static std::size_t &&redis_command_byte_param = 1;
+    const static char *replace_command = "REPLACE";
+    const static std::size_t &&replace_command_byte = 7;
 
     buf_len = buf_sizes[0];
 
@@ -389,23 +391,25 @@ public:
     ptrs_0.push_back(keys_prefix_name_slices[0].data());
     ptrs_0.push_back(redis_command_param);
     ptrs_0.push_back((const char *)rd->aio_buf);
+    ptrs_0.push_back(replace_command);
 
     sizes_0.clear();
     sizes_0.push_back(redis_command_byte);
     sizes_0.push_back(keys_prefix_name_slices[0].size());
     sizes_0.push_back(redis_command_byte_param);
     sizes_0.push_back(rd->aio_nbytes);
+    sizes_0.push_back(replace_command_byte);
 
     if (rd->aio_nbytes > 0) {
       for (size_t i = 3; i > 0; --i) {
         while (aio_error(rd) == EINPROGRESS)
           ;
         if ((ret = aio_return(rd)) > 0) {
-          LOG(INFO) << "File handle " << rd->aio_fildes
-                    << " finished reading last round.";
+          // LOG(INFO) << "File handle " << rd->aio_fildes
+          //           << " finished reading last round.";
           break;
         } else {
-          LOG(ERROR) << "File handle " << rd->aio_fildes
+          LOG(WARNING) << "File handle " << rd->aio_fildes
                      << " did not finish reading last round. "
                      << "Try to read " << i << " more times";
           ret = aio_read(rd);
@@ -533,7 +537,7 @@ Redis command sequence because m-cmd can only be used in same hash tag)
                        begin * Velems_per_dim0;
     const V *const dft_raw_begin =
         reinterpret_cast<const V *>(default_value.data());
-
+    
     redisReply *temp_reply;
     for (auto i = 0; i < max_i-begin;
          ++i, pv_raw += Velems_per_dim0, dft_raw += Velems_per_dim0) {
