@@ -535,7 +535,7 @@ Redis command sequence because m-cmd can only be used in same hash tag)
         reinterpret_cast<const V *>(default_value.data());
 
     redisReply *temp_reply;
-    for (auto i = begin; i < max_i;
+    for (auto i = 0; i < max_i-begin;
          ++i, pv_raw += Velems_per_dim0, dft_raw += Velems_per_dim0) {
       temp_reply = reply[0]->element[i];
       if (temp_reply->type ==
