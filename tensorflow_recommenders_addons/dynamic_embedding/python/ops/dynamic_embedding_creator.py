@@ -19,6 +19,41 @@ from tensorflow_recommenders_addons import dynamic_embedding as de
 
 
 class KVCreator(object, metaclass=ABCMeta):
+  """
+      A generic KV table creator.
+
+      KV table instance will be created by the create function with config.
+    And also a config class for specific table instance backend should be
+    inited before callling the creator function.
+      And then, the KVCreator class instance will be passed to the Variable
+    class for creating the real KV table backend(TF resource).
+
+    Example usage:
+
+    ```python
+    redis_config1=tfra.dynamic_embedding.RedisTableConfig(
+      redis_connection_mode=0,
+      redis_master_name="master",
+      redis_host_ip="10.0.75.253",
+      redis_host_port=6379,
+      redis_password="redis",
+      redis_db=0,
+      redis_connect_timeout=1000,
+      redis_socket_timeout=1000,
+      redis_conn_pool_size=20,
+      redis_wait_timeout=100000000,
+      redis_connection_lifetime=100,
+      redis_sentinel_connect_timeout=1000,
+      sentinel_socket_timeout=1000,
+      storage_slice=2, 
+      using_md5_prefix_name=False,
+      model_tag="test",
+      using_model_lib=True,
+      model_lib_abs_dir="/tmp/",
+    )
+    redis_creator1=tfra.dynamic_embedding.RedisTableCreator(redis_config1)
+    ```
+  """
 
   def __init__(self, config=None):
     self.config = config
@@ -67,14 +102,17 @@ class CuckooHashTableCreator(KVCreator):
 
 
 class RedisTableConfig(object):
-
+  """ 
+      RedisTableConfig parameters for connecting Redis service and assign the embedding
+    table starage properties.
+  """
   def __init__(
       self,
       redis_connection_mode=1,  # ClusterMode = 0, SentinelMode = 1, StreamMode = 2
       redis_master_name="master",
       # connection_options
       redis_host_ip="127.0.0.1",
-      redis_host_port=26379,
+      redis_host_port=6379,
       redis_password="",
       redis_db=0,
       redis_connect_timeout=1000,  # milliseconds
@@ -88,7 +126,7 @@ class RedisTableConfig(object):
       sentinel_socket_timeout=1000,  # milliseconds
       # Below there is user-defined parameters in this custom op, not Redis setting parameters
       storage_slice=1,  # For deciding hash tag, which usually is how many Redis instance may be used in the trainning. For performance reasons, it is recommended that each slice be no larger than 256MB.
-      using_MD5_prefix_name=False,  # 1=true, 0=false
+      using_md5_prefix_name=False,  # 1=true, 0=false
       model_tag="test",  #  model_tag for version and any other information
       using_model_lib=True,
       model_lib_abs_dir="/tmp/",
@@ -111,14 +149,17 @@ class RedisTableConfig(object):
     self.sentinel_socket_timeout = sentinel_socket_timeout  # milliseconds
     # Below there is user-defined parameters in this custom op, not Redis setting parameters
     self.storage_slice = storage_slice  # For deciding hash tag, which usually is how many Redis instance may be used in the trainning. For performance reasons, it is recommended that each slice be no larger than 256MB.
-    self.using_MD5_prefix_name = using_MD5_prefix_name  # 1=true, 0=false
+    self.using_md5_prefix_name = using_md5_prefix_name  # 1=true, 0=false
     self.model_tag = model_tag  #  model_tag for version and any other information
     self.using_model_lib = using_model_lib
     self.model_lib_abs_dir = model_lib_abs_dir
 
 
 class RedisTableCreator(KVCreator):
-
+  """ 
+      RedisTableCreator will create a object to pass itself to the others classes
+    for creating a real Redis client instance which can interact with TF.
+  """
   def create(
       self,
       key_dtype=None,

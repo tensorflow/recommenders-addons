@@ -1,4 +1,4 @@
-/* Copyright 2020 The TensorFlow Authors. All Rights Reserved.
+/* Copyright 2021 The TensorFlow Authors. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -31,6 +31,7 @@ limitations under the License.
 #include "tensorflow/core/platform/macros.h"
 #include "tensorflow/core/platform/thread_annotations.h"
 #include "tensorflow/core/util/env_var.h"
+#include "tensorflow_recommenders_addons/dynamic_embedding/core/utils/types.h"
 
 #include <sw/redis++/connection.h>
 #include <sw/redis++/connection_pool.h>

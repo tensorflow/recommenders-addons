@@ -18,12 +18,11 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-import os
 import functools
 from hashlib import new
 from numpy.core.fromnumeric import ndim
+import os
 
-import tensorflow as tf
 from tensorflow.python.eager import context
 from tensorflow.python.framework import dtypes, ops
 from tensorflow.python.keras.utils.generic_utils import default
@@ -76,7 +75,7 @@ class RedisTable(LookupInterface):
       # Below there is user-defined parameters in this custom op, not Redis setting parameters
       "storage_slice":
           1,  # For deciding hash tag, which usually is how many Redis instance may be used in the trainning.
-      "using_MD5_prefix_name": False,  # 1=true, 0=false
+      "using_md5_prefix_name": False,  # 1=true, 0=false
       "model_tag": "test",  #  model_tag for version and any other information
       "using_model_lib": True,
       "model_lib_abs_dir": "/tmp/",
@@ -179,7 +178,7 @@ class RedisTable(LookupInterface):
         redis_password=self._redis_params.redis_password,
         redis_db=self._redis_params.redis_db,
         storage_slice=self._redis_params.storage_slice,
-        using_MD5_prefix_name=self._redis_params.using_MD5_prefix_name,
+        using_md5_prefix_name=self._redis_params.using_md5_prefix_name,
         model_tag=self._redis_params.model_tag,
         using_model_lib=self._redis_params.using_model_lib,
         model_lib_abs_dir=self._redis_params.model_lib_abs_dir)

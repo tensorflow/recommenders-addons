@@ -45,6 +45,8 @@ def custom_op_library(
         ],
         "//conditions:default": [
             "-pthread",
+            "-march=native",
+            "-funroll-loops",
             "-std=c++14",
             D_GLIBCXX_USE_CXX11_ABI,
             DTF_VERSION_INTEGER,

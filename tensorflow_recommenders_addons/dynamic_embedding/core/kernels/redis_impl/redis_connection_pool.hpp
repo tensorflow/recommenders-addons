@@ -1,4 +1,4 @@
-/* Copyright 2020 The TensorFlow Authors. All Rights Reserved.
+/* Copyright 2021 The TensorFlow Authors. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -296,10 +296,7 @@ public:
 
     size_t buf_len;
     volatile void *tem_aio_buf;
-    // std::string file_name =
-    // redis_connection_params.model_lib_abs_dir+keys_prefix_name_slices[0]+".rdb";
-    // fd = open(file_name,O_WRONLY | O_APPEND);
-    // if(fd < 0) perror(file_name);
+
     if (wr->aio_nbytes > 0) {
       for (size_t i = 3; i > 0; --i) {
         while (aio_error(wr) == EINPROGRESS)
@@ -310,8 +307,8 @@ public:
           break;
         } else {
           LOG(WARNING) << "File handle " << wr->aio_fildes
-                     << " did not finish writing last round. "
-                     << "Try to write " << i << " more times";
+                       << " did not finish writing last round. "
+                       << "Try to write " << i << " more times";
           ret = aio_write(wr);
           if (ret < 0)
             perror("aio_write");
@@ -410,8 +407,8 @@ public:
           break;
         } else {
           LOG(WARNING) << "File handle " << rd->aio_fildes
-                     << " did not finish reading last round. "
-                     << "Try to read " << i << " more times";
+                       << " did not finish reading last round. "
+                       << "Try to read " << i << " more times";
           ret = aio_read(rd);
           if (ret < 0)
             perror("aio_read");
@@ -470,15 +467,8 @@ Redis command sequence because m-cmd can only be used in same hash tag)
     std::vector<const char *> &ptrs_0 = thread_context.slots[0].ptrs;
     std::vector<std::size_t> &sizes_0 = thread_context.slots[0].sizes;
 
-    // const ::tensorflow::int64 dim0_size = kkeys.NumElements();
-    // const ::tensorflow::int64 elems_per_dim0 = keys.NumElements() /
-    // dim0_size; const std::size_t key_byte_size = elems_per_dim0 *
-    // sizeof(K);
-    const K *const pk_raw_end =
-        reinterpret_cast<K *>(keys.data()) + max_i;
-    // const char *const pk_end = reinterpret_cast<const char *>(pk_raw_end);
+    const K *const pk_raw_end = reinterpret_cast<K *>(keys.data()) + max_i;
     const K *pk_raw = reinterpret_cast<K *>(keys.data()) + begin;
-    // const char *pk = reinterpret_cast<const char *>(pk_raw);
 
     const char **ptrs_iter = &ptrs_0[0];
     *ptrs_iter = redis_command;
@@ -506,7 +496,6 @@ Redis command sequence because m-cmd can only be used in same hash tag)
     auto cmd = [](::sw::redis::Connection &connection, const int argc,
                   const std::vector<const char *> &ptrs_0,
                   const std::vector<std::size_t> &sizes_0) {
-      // raise(SIGTRAP);  /* To continue from here in GDB: "signal 0". */
       connection.send(argc, const_cast<const char **>(ptrs_0.data()),
                       sizes_0.data());
     };
@@ -529,17 +518,16 @@ Redis command sequence because m-cmd can only be used in same hash tag)
           &reply,
       const ::tensorflow::int64 &begin, const ::tensorflow::int64 &max_i,
       const ::tensorflow::int64 &Velems_per_dim0) override {
-    // const ::tensorflow::int64 &&Velems_per_dim0 =
-    //     values->NumElements() / values->dim_size(0);
+
     V *pv_raw = reinterpret_cast<V *>(values->data()) + begin * Velems_per_dim0;
-    // char *pv = reinterpret_cast<const char *>(pv_raw);
+
     const V *dft_raw = reinterpret_cast<const V *>(default_value.data()) +
                        begin * Velems_per_dim0;
     const V *const dft_raw_begin =
         reinterpret_cast<const V *>(default_value.data());
-    
+
     redisReply *temp_reply;
-    for (auto i = 0; i < max_i-begin;
+    for (auto i = 0; i < max_i - begin;
          ++i, pv_raw += Velems_per_dim0, dft_raw += Velems_per_dim0) {
       temp_reply = reply[0]->element[i];
       if (temp_reply->type ==
@@ -580,20 +568,13 @@ Redis command sequence because m-cmd can only be used in same hash tag)
     std::vector<std::size_t> &sizes_0 = thread_context.slots[0].sizes;
 
     const K *const pk_raw_end = reinterpret_cast<K *>(keys.data()) + max_i;
-    // const char *const pk_end = reinterpret_cast<const char *>(pk_raw_end);
-    const K *pk_raw = reinterpret_cast<K *>(keys.data()) + begin;
-    // const char *pk = reinterpret_cast<const char *>(pk_raw);
 
-    // const ::tensorflow::int64 &&Vdim0_size = values.dim_size(0);
-    // const ::tensorflow::int64 &&Velems_per_dim0 =
-    //     values.NumElements() / Vdim0_size;
+    const K *pk_raw = reinterpret_cast<K *>(keys.data()) + begin;
+
     const std::size_t &&V_byte_size = Velems_per_dim0 * sizeof(V);
-    // const V *const pv_raw_end = reinterpret_cast<V*>(values.data()) +
-    // (max_i-begin)*Velems_per_dim0; const char *const pv_end =
-    // reinterpret_cast<const char *>(pv_raw_end);
+
     const V *pv_raw =
         reinterpret_cast<V *>(values.data()) + begin * Velems_per_dim0;
-    // const char *pv = reinterpret_cast<const char *>(pv_raw);
 
     const char **ptrs_iter = &ptrs_0[0];
     *ptrs_iter = redis_command;
@@ -632,7 +613,6 @@ Redis command sequence because m-cmd can only be used in same hash tag)
     auto cmd = [](::sw::redis::Connection &connection, const int argc,
                   const std::vector<const char *> &ptrs_0,
                   const std::vector<std::size_t> &sizes_0) {
-      // raise(SIGTRAP);  /* To continue from here in GDB: "signal 0". */
       connection.send(argc, const_cast<const char **>(ptrs_0.data()),
                       sizes_0.data());
     };
@@ -659,8 +639,7 @@ Redis command sequence because m-cmd can only be used in same hash tag)
     std::vector<const char *> &ptrs_0 = thread_context.slots[0].ptrs;
     std::vector<std::size_t> &sizes_0 = thread_context.slots[0].sizes;
 
-    const K *const pk_raw_end =
-        reinterpret_cast<K *>(keys.data()) + max_i;
+    const K *const pk_raw_end = reinterpret_cast<K *>(keys.data()) + max_i;
     const K *pk_raw = reinterpret_cast<K *>(keys.data()) + begin;
 
     const char **ptrs_iter = &ptrs_0[0];
@@ -689,7 +668,6 @@ Redis command sequence because m-cmd can only be used in same hash tag)
     auto cmd = [](::sw::redis::Connection &connection, const int argc,
                   const std::vector<const char *> &ptrs_0,
                   const std::vector<std::size_t> &sizes_0) {
-      // raise(SIGTRAP);  /* To continue from here in GDB: "signal 0". */
       connection.send(argc, const_cast<const char **>(ptrs_0.data()),
                       sizes_0.data());
     };

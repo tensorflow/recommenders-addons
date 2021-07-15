@@ -1,4 +1,4 @@
-/* Copyright 2020 The TensorFlow Authors. All Rights Reserved.
+/* Copyright 2021 The TensorFlow Authors. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -134,7 +134,7 @@ struct Redis_Connection_Params {
   std::string redis_master_name = "master";
   // connection_options
   std::string redis_host_ip = "127.0.0.1";
-  int redis_host_port = 26379;
+  int redis_host_port = 6379;
   std::string redis_password = "";
   int redis_db = 0;
   //
@@ -156,7 +156,7 @@ struct Redis_Connection_Params {
   unsigned storage_slice_log2 = 0; // For fast calculation.
   std::string model_tag =
       "test"; //  model_tag for version and any other information
-  bool using_MD5_prefix_name = false;
+  bool using_md5_prefix_name = false;
   std::string model_lib_abs_dir = "/tmp/";
   bool using_model_lib = true;
 
@@ -179,7 +179,7 @@ struct Redis_Connection_Params {
         round_next_power_two_bitlen(x.storage_slice); // beter for modding.
     storage_slice = 1 << storage_slice_log2;
     model_tag = x.model_tag;
-    using_MD5_prefix_name = x.using_MD5_prefix_name;
+    using_md5_prefix_name = x.using_md5_prefix_name;
     model_lib_abs_dir = check_dir(x.model_lib_abs_dir);
     using_model_lib = x.using_model_lib;
     return *this;

@@ -1,4 +1,4 @@
-/* Copyright 2020 The TensorFlow Authors. All Rights Reserved.
+/* Copyright 2021 The TensorFlow Authors. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -180,11 +180,11 @@ public:
       return -1;
     }
 
-    std::vector<std::string> IP_set;
+    std::vector<std::string> ip_set;
     size_t servers_num = reply->elements;
-    IP_set.reserve(servers_num);
+    ip_set.reserve(servers_num);
     for (size_t i = 0; i < servers_num; ++i) {
-      IP_set.emplace_back(
+      ip_set.emplace_back(
           std::string(reply->element[i]->element[2]->element[0]->str,
                       reply->element[i]->element[2]->element[0]->len));
     }
@@ -193,8 +193,8 @@ public:
     std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply_server;
     ConnectionOptions connection_options;
     size_t slices_in_redis = 0;
-    for (size_t i = 0; i < IP_set.size(); ++i) {
-      connection_options.host = IP_set[i]; // Required.
+    for (size_t i = 0; i < ip_set.size(); ++i) {
+      connection_options.host = ip_set[i]; // Required.
       connection_options.port =
           redis_connection_params
               .redis_host_port; // Optional. The default port is 6379.
@@ -213,7 +213,7 @@ public:
             redis_client->command(cmd_per_server, redis_command.data());
       } catch (const std::exception &err) {
         LOG(ERROR) << "RedisHandler error CheckSlicesNum(KEYS) in for IP "
-                   << IP_set[i] << " --  " << err.what();
+                   << ip_set[i] << " --  " << err.what();
         return -1;
       }
       slices_in_redis += reply_server->elements;
@@ -350,10 +350,6 @@ public:
                    << keys_prefix_name_slices[i] << " -- " << err.what();
       }
 
-      // std::string file_name =
-      // redis_connection_params.model_lib_abs_dir+keys_prefix_name_slices[i]+".rdb";
-      // fd = open(file_name,O_WRONLY | O_APPEND);
-      // if(fd < 0) perror(file_name);
       wr = &wrs[i];
       if (wr->aio_nbytes > 0) {
         for (size_t i = 3; i > 0; --i) {
@@ -365,8 +361,8 @@ public:
             break;
           } else {
             LOG(WARNING) << "File handle " << wr->aio_fildes
-                       << " did not finish writing last round. "
-                       << "Try to write " << i << " more times";
+                         << " did not finish writing last round. "
+                         << "Try to write " << i << " more times";
             ret = aio_write(wr);
             if (ret < 0)
               perror("aio_write");
@@ -490,9 +486,9 @@ public:
               --count_down;
             } else {
               LOG(WARNING) << "File handle " << rd->aio_fildes
-                         << " did not finish reading last round. "
-                         << "Try to read " << reread_countdown[i]
-                         << " more times";
+                           << " did not finish reading last round. "
+                           << "Try to read " << reread_countdown[i]
+                           << " more times";
               if (reread_countdown[i] > 0) {
                 ret = aio_read(rd);
                 if (ret < 0)
@@ -544,14 +540,8 @@ Redis command sequence because m-cmd can only be used in same hash tag)
     const static char *redis_command = "HMGET";
     const static std::size_t &&redis_command_byte = 5;
 
-    // const ::tensorflow::int64 dim0_size = keys.NumElements();
-    // const ::tensorflow::int64 elems_per_dim0 = keys.NumElements() /
-    // dim0_size; const std::size_t key_byte_size = elems_per_dim0 *
-    // sizeof(K);
     const K *const pk_raw_end = reinterpret_cast<K *>(keys.data()) + max_i;
-    // const char *const pk_end = reinterpret_cast<const char *>(pk_raw_end);
     const K *pk_raw = reinterpret_cast<K *>(keys.data()) + begin;
-    // const char *pk = reinterpret_cast<const char *>(pk_raw);
 
     const unsigned &storage_slice = redis_connection_params.storage_slice;
     const unsigned &&vector_len =
@@ -588,7 +578,7 @@ Redis command sequence because m-cmd can only be used in same hash tag)
       assert(strcmp(ptrs_i[0], "HMGET") == 0);
       assert(sizes_i[0] == 5);
       assert(std::string(hkey.data()).compare(ptrs_i[1]) == 0);
-      // raise(SIGTRAP);  /* To continue from here in GDB: "signal 0". */
+
       connection.send(static_cast<int>(ptrs_i.size()),
                       const_cast<const char **>(ptrs_i.data()), sizes_i.data());
     };
@@ -603,10 +593,7 @@ Redis command sequence because m-cmd can only be used in same hash tag)
           &reply,
       const ::tensorflow::int64 &begin, const ::tensorflow::int64 &max_i,
       const ::tensorflow::int64 &Velems_per_dim0) override {
-    // const ::tensorflow::int64 Velems_per_dim0 =
-    //     values->NumElements() / values->dim_size(0);
     V *pv_raw = reinterpret_cast<V *>(values->data()) + begin * Velems_per_dim0;
-    // char *pv = reinterpret_cast<const char *>(pv_raw);
     const V *dft_raw = reinterpret_cast<const V *>(default_value.data()) +
                        begin * Velems_per_dim0;
     const V *const dft_raw_begin =
@@ -656,20 +643,12 @@ Redis command sequence because m-cmd can only be used in same hash tag)
     const static std::size_t &&redis_command_byte = 5;
 
     const K *const pk_raw_end = reinterpret_cast<K *>(keys.data()) + max_i;
-    // const char *const pk_end = reinterpret_cast<const char *>(pk_raw_end);
     const K *pk_raw = reinterpret_cast<K *>(keys.data()) + begin;
-    // const char *pk = reinterpret_cast<const char *>(pk_raw);
 
-    // const ::tensorflow::int64 &&Vdim0_size = values.dim_size(0);
-    // const ::tensorflow::int64 &&Velems_per_dim0 =
-    //     values.NumElements() / Vdim0_size;
     const std::size_t &&V_byte_size = Velems_per_dim0 * sizeof(V);
-    // const V *const pv_raw_end = reinterpret_cast<V*>(values.data()) +
-    // (total)*Velems_per_dim0; const char *const pv_end =
-    // reinterpret_cast<const char *>(pv_raw_end);
+
     const V *pv_raw =
         reinterpret_cast<V *>(values.data()) + begin * Velems_per_dim0;
-    // const char *pv = reinterpret_cast<const char *>(pv_raw);
 
     const unsigned &storage_slice = redis_connection_params.storage_slice;
     const unsigned &&vector_len =
@@ -710,7 +689,7 @@ Redis command sequence because m-cmd can only be used in same hash tag)
       assert(strcmp(ptrs_i[0], "HMSET") == 0);
       assert(sizes_i[0] == 5);
       assert(std::string(hkey.data()).compare(ptrs_i[1]) == 0);
-      // raise(SIGTRAP);  /* To continue from here in GDB: "signal 0". */
+
       connection.send(static_cast<int>(ptrs_i.size()),
                       const_cast<const char **>(ptrs_i.data()), sizes_i.data());
     };
@@ -766,7 +745,7 @@ Redis command sequence because m-cmd can only be used in same hash tag)
       assert(strcmp(ptrs_i[0], "HDEL") == 0);
       assert(sizes_i[0] == 4);
       assert(std::string(hkey.data()).compare(ptrs_i[1]) == 0);
-      // raise(SIGTRAP);  /* To continue from here in GDB: "signal 0". */
+
       connection.send(static_cast<int>(ptrs_i.size()),
                       const_cast<const char **>(ptrs_i.data()), sizes_i.data());
     };

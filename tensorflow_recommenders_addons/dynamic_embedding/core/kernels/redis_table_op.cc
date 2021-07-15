@@ -1,4 +1,4 @@
-/* Copyright 2020 The TensorFlow Authors. All Rights Reserved.
+/* Copyright 2021 The TensorFlow Authors. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -28,7 +28,7 @@ extern "C" {
 }
 #include "tensorflow/core/kernels/lookup_table_op.h"
 #include "tensorflow/core/util/work_sharder.h"
-
+#include "tensorflow_recommenders_addons/dynamic_embedding/core/utils/types.h"
 #include "tensorflow_recommenders_addons/dynamic_embedding/core/utils/utils.h"
 
 #include "redis_impl/redis_cluster_connection_pool.hpp"
@@ -223,9 +223,6 @@ private:
 
 public:
   RedisTableOfTensors(OpKernelContext *ctx, OpKernel *kernel) {
-    // int64 env_var = 0;
-    // int64 init_size = 0;
-    // std::string tmp_embedding_name;
 
     OP_REQUIRES_OK(ctx,
                    GetNodeAttr(kernel->def(), "value_shape", &value_shape_));
@@ -233,24 +230,6 @@ public:
         ctx, TensorShapeUtils::IsVector(value_shape_),
         errors::InvalidArgument("Default value must be a vector, got shape ",
                                 value_shape_.DebugString()));
-
-    // //The init_size and embedding vector shape are useless for the
-    // initialization of Redis.
-    //
-    // OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "init_size", &init_size));
-    // init_size_ = static_cast<size_t>(init_size);
-    // if (init_size_ == 0)
-    // {
-    //   Status status = ReadInt64FromEnvVar("TF_HASHTABLE_INIT_SIZE",
-    //                                       kv_pairs_default_size, // 8192 KV
-    //                                       pairs by default &env_var);
-    //   if (!status.ok())
-    //   {
-    //     LOG(ERROR) << "Error parsing TF_HASHTABLE_INIT_SIZE: " << status;
-    //   }
-    //   init_size_ = env_var;
-    // }
-    //
 
     int revn_status;
     revn_status = ReadInt32FromEnvVar(
@@ -326,8 +305,8 @@ public:
     redis_connection_params.storage_slice =
         *(reinterpret_cast<unsigned *>(&tem_storage_slice));
     OP_REQUIRES_OK(ctx,
-                   GetNodeAttr(kernel->def(), "using_MD5_prefix_name",
-                               &redis_connection_params.using_MD5_prefix_name));
+                   GetNodeAttr(kernel->def(), "using_md5_prefix_name",
+                               &redis_connection_params.using_md5_prefix_name));
     OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "model_tag",
                                     &redis_connection_params.model_tag));
     OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "using_model_lib",
@@ -336,7 +315,7 @@ public:
                    GetNodeAttr(kernel->def(), "model_lib_abs_dir",
                                &redis_connection_params.model_lib_abs_dir));
 
-    if (redis_connection_params.using_MD5_prefix_name) {
+    if (redis_connection_params.using_md5_prefix_name) {
       const std::string &&tmp_keys_prefix_name =
           redis_connection_params.model_tag + ":" + embedding_name;
       keys_prefix_name_md5 = MD5(tmp_keys_prefix_name);
@@ -667,13 +646,9 @@ public:
 
     // fill Tensor keys
     K *pk_raw = reinterpret_cast<K *>(keys->data());
-    // float percent = 0;
-    // std::cout << "Write key tensor in order, now up to ......";
     redisReply *temp_reply;
     for (size_t i = 0; i < keys_replies.size(); ++i) {
       for (size_t j = 0; j < keys_replies[i]->elements; ++j) {
-        // std::cout.width(3);
-        // std::cout << percent << "%";
         temp_reply = keys_replies[i]->element[j];
         if (temp_reply->type ==
             REDIS_REPLY_STRING) { // #define REDIS_REPLY_STRING 1
@@ -681,8 +656,6 @@ public:
               pk_raw, temp_reply->str,
               temp_reply->len); // Direct access to Tensor data in TensorFlow
         }
-        // percent = round(100 * static_cast<float>((i+1) * (j+1)) /
-        // static_cast<float>(total_size)); std::cout << "\b\b\b\b";
         ++pk_raw;
       }
     }
