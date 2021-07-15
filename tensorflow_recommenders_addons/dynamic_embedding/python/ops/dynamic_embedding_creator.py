@@ -44,7 +44,7 @@ class KVCreator(object, metaclass=ABCMeta):
       redis_wait_timeout=100000000,
       redis_connection_lifetime=100,
       redis_sentinel_connect_timeout=1000,
-      sentinel_socket_timeout=1000,
+      redis_sentinel_socket_timeout=1000,
       storage_slice=2, 
       using_md5_prefix_name=False,
       model_tag="test",
@@ -103,56 +103,41 @@ class CuckooHashTableCreator(KVCreator):
 
 class RedisTableConfig(object):
   """ 
-      RedisTableConfig parameters for connecting Redis service and assign the embedding
-    table starage properties.
+      RedisTableConfig config json file for connecting Redis service and 
+    assign the embedding table starage properties.
+      An example of a configuration file is shown below:
+      ""
+      {
+        "redis_connection_mode": 1,
+        "redis_master_name": "master",
+        "redis_host_ip": [
+          "127.0.0.1"
+        ],
+        "redis_host_port": 6379,
+        "redis_password": "",
+        "redis_db": 0,
+        "redis_connect_timeout": 1000,
+        "redis_socket_timeout": 1000,
+        "redis_conn_pool_size": 20,
+        "redis_wait_timeout": 100000000,
+        "redis_connection_lifetime": 100,
+        "redis_sentinel_connect_timeout": 1000,
+        "redis_sentinel_socket_timeout": 1000,
+        "storage_slice": 1,
+        "using_md5_prefix_name": False,
+        "model_tag": "test",
+        "using_model_lib": True,
+        "model_lib_abs_dir": "/tmp/"
+      }
+      ""
+      Refer to the default_redis_params variable in RedisTable class 
+    for the description of the JSON configuration file
   """
   def __init__(
       self,
-      redis_connection_mode=1,  # ClusterMode = 0, SentinelMode = 1, StreamMode = 2
-      redis_master_name="master",
-      # connection_options
-      redis_host_ip="127.0.0.1",
-      redis_host_port=6379,
-      redis_password="",
-      redis_db=0,
-      redis_connect_timeout=1000,  # milliseconds
-      redis_socket_timeout=1000,  # milliseconds
-      # connection_pool_options
-      redis_conn_pool_size=20,
-      redis_wait_timeout=100000000,  # milliseconds
-      redis_connection_lifetime=100,  # minutes
-      # sentinel_connection_options
-      redis_sentinel_connect_timeout=1000,  # milliseconds
-      sentinel_socket_timeout=1000,  # milliseconds
-      # Below there is user-defined parameters in this custom op, not Redis setting parameters
-      storage_slice=1,  # For deciding hash tag, which usually is how many Redis instance may be used in the trainning. For performance reasons, it is recommended that each slice be no larger than 256MB.
-      using_md5_prefix_name=False,  # 1=true, 0=false
-      model_tag="test",  #  model_tag for version and any other information
-      using_model_lib=True,
-      model_lib_abs_dir="/tmp/",
+      redis_config_abs_dir="/tmp/redis_config.json",
   ):
-    self.redis_connection_mode = redis_connection_mode  # ClusterMode = 0, SentinelMode = 1, StreamMode = 2
-    self.redis_master_name = redis_master_name
-    # connection_options
-    self.redis_host_ip = redis_host_ip
-    self.redis_host_port = redis_host_port
-    self.redis_password = redis_password
-    self.redis_db = redis_db
-    self.redis_connect_timeout = redis_connect_timeout  # milliseconds
-    self.redis_socket_timeout = redis_socket_timeout  # milliseconds
-    # connection_pool_options
-    self.redis_conn_pool_size = redis_conn_pool_size
-    self.redis_wait_timeout = redis_wait_timeout  # milliseconds
-    self.redis_connection_lifetime = redis_connection_lifetime  # minutes
-    # sentinel_connection_options
-    self.redis_sentinel_connect_timeout = redis_sentinel_connect_timeout  # milliseconds
-    self.sentinel_socket_timeout = sentinel_socket_timeout  # milliseconds
-    # Below there is user-defined parameters in this custom op, not Redis setting parameters
-    self.storage_slice = storage_slice  # For deciding hash tag, which usually is how many Redis instance may be used in the trainning. For performance reasons, it is recommended that each slice be no larger than 256MB.
-    self.using_md5_prefix_name = using_md5_prefix_name  # 1=true, 0=false
-    self.model_tag = model_tag  #  model_tag for version and any other information
-    self.using_model_lib = using_model_lib
-    self.model_lib_abs_dir = model_lib_abs_dir
+    self.redis_config_abs_dir = redis_config_abs_dir
 
 
 class RedisTableCreator(KVCreator):

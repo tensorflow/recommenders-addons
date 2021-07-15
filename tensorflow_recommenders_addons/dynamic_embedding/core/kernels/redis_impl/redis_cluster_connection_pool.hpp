@@ -68,9 +68,9 @@ private:
   }
 
 public:
-  std::shared_ptr<RedisInstance> StartConn() {
-    conn_opts.host = redis_connection_params.redis_host_ip;
-    conn_opts.port = redis_connection_params.redis_host_port;
+  std::shared_ptr<RedisInstance> StartConn(size_t ip_port_count) {
+    conn_opts.host = redis_connection_params.redis_host_ip[ip_port_count];
+    conn_opts.port = redis_connection_params.redis_host_port[ip_port_count];
     // Redis connection options
     conn_opts.password =
         redis_connection_params
@@ -104,13 +104,26 @@ public:
   }
 
   virtual void Conn() override {
+    assert(redis_connection_params.redis_host_ip.size() ==
+           redis_connection_params.redis_host_port.size());
     if (isRedisConnect == false) {
-      for (short i = 0; i < 10; i++) {
-        redis_conn = StartConn();
-        if (redis_conn) {
-          isRedisConnect = true;
-          break;
+
+      for (size_t i = 0; i < redis_connection_params.redis_host_ip.size();
+           ++i) {
+        for (short j = 0; j < 10; j++) {
+          redis_conn = StartConn(i);
+          if (redis_conn) {
+            isRedisConnect = true;
+            return;
+          }
         }
+        LOG(WARNING) << "Can not access the host "
+                     << redis_connection_params.redis_host_ip.at(i)
+                     << ". Delete it from the host list.";
+        redis_connection_params.redis_host_ip.erase(
+            redis_connection_params.redis_host_ip.begin() + i);
+        redis_connection_params.redis_host_port.erase(
+            redis_connection_params.redis_host_port.begin() + i);
       }
       if (isRedisConnect == false) {
         LOG(ERROR) << "Can not connect to the Redis Cluster servers.";
@@ -197,7 +210,7 @@ public:
       connection_options.host = ip_set[i]; // Required.
       connection_options.port =
           redis_connection_params
-              .redis_host_port; // Optional. The default port is 6379.
+              .redis_host_port[0]; // Optional. The default port is 6379.
       connection_options.password =
           redis_connection_params
               .redis_password; // Optional. No redis_password by default.

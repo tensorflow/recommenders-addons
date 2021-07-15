@@ -73,15 +73,22 @@ private:
 
 public:
   std::shared_ptr<RedisInstance> StartConn() {
-    sentinel_opts.nodes = {{redis_connection_params.redis_host_ip,
-                            redis_connection_params.redis_host_port}};
+    assert(redis_connection_params.redis_host_ip.size() ==
+           redis_connection_params.redis_host_port.size());
+    sentinel_opts.nodes.clear();
+    for (size_t i = 0; i < redis_connection_params.redis_host_ip.size(); ++i) {
+      sentinel_opts.nodes.push_back(
+          {redis_connection_params.redis_host_ip[i],
+           redis_connection_params.redis_host_port[i]});
+    }
+
     // Optional. Timeout before we successfully connect to Redis Sentinel.
     sentinel_opts.connect_timeout = std::chrono::milliseconds(
         redis_connection_params.redis_sentinel_connect_timeout);
     // Optional. Timeout before we successfully send request to or receive
     // response from Redis Sentinel.
     sentinel_opts.socket_timeout = std::chrono::milliseconds(
-        redis_connection_params.sentinel_socket_timeout);
+        redis_connection_params.redis_sentinel_socket_timeout);
 
     // Redis connection options
     conn_opts.password =
@@ -122,8 +129,8 @@ public:
 
   std::shared_ptr<RedisInstance> start_conn_without_sentinel() {
     // Redis connection options
-    conn_opts.host = redis_connection_params.redis_host_ip;
-    conn_opts.port = redis_connection_params.redis_host_port;
+    conn_opts.host = redis_connection_params.redis_host_ip[0];
+    conn_opts.port = redis_connection_params.redis_host_port[0];
     conn_opts.password =
         redis_connection_params
             .redis_password; // Optional. No redis_password by default.
@@ -160,7 +167,7 @@ public:
         redis_conn = StartConn();
         if (redis_conn) {
           isRedisConnect = true;
-          break;
+          return;
         }
       }
       if (isRedisConnect == false) {

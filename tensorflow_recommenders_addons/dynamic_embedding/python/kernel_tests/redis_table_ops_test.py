@@ -20,6 +20,7 @@ from __future__ import print_function
 
 import glob
 import itertools
+import json
 import math
 import numpy as np
 import os
@@ -282,10 +283,20 @@ default_config = config_pb2.ConfigProto(
     allow_soft_placement=False,
     gpu_options=config_pb2.GPUOptions(allow_growth=True))
 
+
+redis_config_dir = os.path.join(tempfile.mkdtemp(dir=os.environ.get('TEST_TMPDIR')), "save_restore")
+redis_config_path = os.path.join(tempfile.mkdtemp(prefix=redis_config_dir), "hash")
+os.makedirs(redis_config_path)
+redis_config_path = os.path.join(redis_config_path, "redis_config.json")
+redis_config_params = {
+  "redis_host_ip":["127.0.0.1"],
+  "redis_host_port":[6379],
+  "using_model_lib":False
+}
+with open(redis_config_path, 'w', encoding='utf-8') as f:
+  f.write(json.dumps(redis_config_params, indent=2, ensure_ascii=True))
 redis_config = de.RedisTableConfig(
-    redis_host_ip="127.0.0.1",
-    redis_host_port=6379,
-    using_model_lib=False,
+  redis_config_abs_dir=redis_config_path
 )
 
 
@@ -389,7 +400,7 @@ class RedisVariableTest(test.TestCase):
       with self.session(config=default_config,
                         use_gpu=test_util.is_gpu_available()):
         id += 1
-        keys = constant_op.constant(list(range(2**17)), dtypes.int64)
+        keys = constant_op.constant(list(range(2**16)), dtypes.int64)
         table = de.get_variable(
             "t1" + str(id) + '_test_variable_initializer',
             key_dtype=dtypes.int64,
@@ -669,17 +680,24 @@ class RedisVariableTest(test.TestCase):
       save_dir = os.path.join(self.get_temp_dir(), "save_restore")
       save_path = os.path.join(tempfile.mkdtemp(prefix=save_dir), "hash")
 
+      os.makedirs(save_path)
+      redis_config_path = os.path.join(save_path, "redis_config_modify.json")
+      redis_config_params_modify = {
+        "redis_host_ip":["127.0.0.1"],
+        "redis_host_port":[6379],
+        "using_model_lib":True,
+        "model_lib_abs_dir":save_path
+      }
+      with open(redis_config_path, 'w', encoding='utf-8') as f:
+        f.write(json.dumps(redis_config_params_modify, indent=2, ensure_ascii=True))
+      redis_config_modify = de.RedisTableConfig(
+        redis_config_abs_dir=redis_config_path
+      )
+
       ids = script_ops.py_func(_create_dynamic_shape_tensor(),
                                inp=[],
                                Tout=key_dtype,
                                stateful=True)
-
-      redis_config_modify = de.RedisTableConfig(
-          redis_host_ip="127.0.0.1",
-          redis_host_port=6379,
-          using_model_lib=True,
-          model_lib_abs_dir = save_path,
-      )
 
       params = de.get_variable(
           name="params-test-0916-" + str(id) + '_test_training_save_restore_by_files',
@@ -1445,6 +1463,6 @@ class RedisVariableTest(test.TestCase):
 
 
 if __name__ == "__main__":
-  os.system('redis-cli -h ' + redis_config.redis_host_ip + ' -p ' +
-            str(redis_config.redis_host_port) + ' FLUSHALL')
+  os.system('redis-cli -h ' + redis_config_params["redis_host_ip"][0] + ' -p ' +
+            str(redis_config_params["redis_host_port"][0]) + ' FLUSHALL')
   test.main()

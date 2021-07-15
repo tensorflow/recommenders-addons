@@ -31,6 +31,8 @@ extern "C" {
 #include "tensorflow_recommenders_addons/dynamic_embedding/core/utils/types.h"
 #include "tensorflow_recommenders_addons/dynamic_embedding/core/utils/utils.h"
 
+#include "redis_impl/json.h"
+
 #include "redis_impl/redis_cluster_connection_pool.hpp"
 #include "redis_impl/redis_connection_pool.hpp"
 #include "redis_table_op.h"
@@ -63,6 +65,7 @@ private:
   TensorShape value_shape_;
   int64 runtime_value_dim_;
   // size_t init_size_;
+  std::string redis_config_abs_dir;
   std::string embedding_name;
   std::string keys_prefix_name;
   std::vector<std::string> keys_prefix_name_slices;
@@ -231,46 +234,213 @@ public:
         errors::InvalidArgument("Default value must be a vector, got shape ",
                                 value_shape_.DebugString()));
 
-    int revn_status;
-    revn_status = ReadInt32FromEnvVar(
-        "redis_connect_timeout", redis_connection_params.redis_connect_timeout,
-        &redis_connection_params.redis_connect_timeout);
-    if (revn_status != 0)
-      LOG(INFO) << "ReadInt32FromEnvVar failed with redis_connect_timeout.";
-    revn_status = ReadInt32FromEnvVar(
-        "redis_socket_timeout", redis_connection_params.redis_socket_timeout,
-        &redis_connection_params.redis_socket_timeout);
-    if (revn_status != 0)
-      LOG(INFO) << "ReadInt32FromEnvVar failed with redis_socket_timeout.";
-    revn_status = ReadInt32FromEnvVar(
-        "redis_conn_pool_size", redis_connection_params.redis_conn_pool_size,
-        &redis_connection_params.redis_conn_pool_size);
-    if (revn_status != 0)
-      LOG(INFO) << "ReadInt32FromEnvVar failed with redis_conn_pool_size.";
-    revn_status = ReadInt32FromEnvVar(
-        "redis_wait_timeout", redis_connection_params.redis_wait_timeout,
-        &redis_connection_params.redis_wait_timeout);
-    if (revn_status != 0)
-      LOG(INFO) << "ReadInt32FromEnvVar failed with redis_wait_timeout.";
-    revn_status =
-        ReadInt32FromEnvVar("redis_connection_lifetime",
-                            redis_connection_params.redis_connection_lifetime,
-                            &redis_connection_params.redis_connection_lifetime);
-    if (revn_status != 0)
-      LOG(INFO) << "ReadInt32FromEnvVar failed with redis_connection_lifetime.";
-    revn_status = ReadInt32FromEnvVar(
-        "redis_sentinel_connect_timeout",
-        redis_connection_params.redis_sentinel_connect_timeout,
-        &redis_connection_params.redis_sentinel_connect_timeout);
-    if (revn_status != 0)
-      LOG(INFO)
-          << "ReadInt32FromEnvVar failed with redis_sentinel_connect_timeout.";
-    revn_status =
-        ReadInt32FromEnvVar("sentinel_socket_timeout",
-                            redis_connection_params.sentinel_socket_timeout,
-                            &redis_connection_params.sentinel_socket_timeout);
-    if (revn_status != 0)
-      LOG(INFO) << "ReadInt32FromEnvVar failed with sentinel_socket_timeout.";
+    OP_REQUIRES_OK(
+        ctx, GetNodeAttr(kernel->def(), "embedding_name", &embedding_name));
+
+    OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "redis_config_abs_dir",
+                                    &redis_config_abs_dir));
+
+    const char *filename = redis_config_abs_dir.c_str();
+    FILE *fp;
+    struct stat filestatus;
+    size_t file_size;
+    char *file_contents;
+    json_char *config_json;
+    json_value *config_value;
+
+    if (stat(filename, &filestatus) != 0) {
+      LOG(ERROR) << "File " << filename << " not found";
+    }
+    file_size = filestatus.st_size;
+    file_contents = (char *)malloc(filestatus.st_size);
+    if (file_contents == NULL) {
+      LOG(ERROR) << "Memory error: unable to allocate "
+                 << std::to_string(file_size) << " bytes";
+    }
+    fp = fopen(filename, "rt");
+    if (fp == NULL) {
+      fclose(fp);
+      free(file_contents);
+      LOG(ERROR) << "Unable to open " << redis_config_abs_dir;
+    }
+    if (fread(file_contents, file_size, 1, fp) != 1) {
+      fclose(fp);
+      free(file_contents);
+      LOG(ERROR) << "Unable t read content of " << redis_config_abs_dir;
+    }
+    fclose(fp);
+
+    config_json = (json_char *)file_contents;
+    config_value = json_parse(config_json, file_size);
+    if (config_value->type != json_object) {
+      free(file_contents);
+      LOG(ERROR) << "Unable to parse the json data";
+      throw(redis_config_abs_dir);
+    }
+
+    std::unordered_map<std::string, json_value *> json_hangar;
+    std::unordered_map<std::string, json_value *>::iterator json_hangar_it;
+    json_object_entry value_depth0_entry;
+    json_value *value_depth1;
+    for (unsigned i = 0; i < config_value->u.object.length; ++i) {
+      value_depth0_entry = config_value->u.object.values[i];
+      json_hangar[value_depth0_entry.name] = value_depth0_entry.value;
+    }
+
+    json_hangar_it = json_hangar.find("redis_connection_mode");
+    if (json_hangar_it != json_hangar.end()) {
+      if (json_hangar_it->second->type == json_integer) {
+        redis_connection_params.redis_connection_mode =
+            json_hangar_it->second->u.integer;
+      }
+    }
+
+    json_hangar_it = json_hangar.find("redis_master_name");
+    if (json_hangar_it != json_hangar.end()) {
+      if (json_hangar_it->second->type == json_string) {
+        redis_connection_params.redis_master_name = std::string(
+            json_hangar_it->second->u.string.ptr, json_hangar_it->second->u.string.length);
+      }
+    }
+
+    json_hangar_it = json_hangar.find("redis_host_ip");
+    if (json_hangar_it != json_hangar.end()) {
+      if (json_hangar_it->second->type == json_array) {
+        redis_connection_params.redis_host_ip.clear();
+        for (unsigned i = 0; i < json_hangar_it->second->u.array.length; ++i) {
+          value_depth1 = json_hangar_it->second->u.array.values[i];
+          if (value_depth1->type == json_string) {
+            redis_connection_params.redis_host_ip.push_back(std::string(
+                value_depth1->u.string.ptr, value_depth1->u.string.length));
+          }
+        }
+      }
+    }
+
+    json_hangar_it = json_hangar.find("redis_host_port");
+    if (json_hangar_it != json_hangar.end()) {
+      if (json_hangar_it->second->type == json_array) {
+        redis_connection_params.redis_host_port.clear();
+        for (unsigned i = 0; i < json_hangar_it->second->u.array.length; ++i) {
+          value_depth1 = json_hangar_it->second->u.array.values[i];
+          if (value_depth1->type == json_integer) {
+            redis_connection_params.redis_host_port.push_back(
+                value_depth1->u.integer);
+          }
+        }
+      }
+    }
+
+    json_hangar_it = json_hangar.find("redis_password");
+    if (json_hangar_it != json_hangar.end()) {
+      if (json_hangar_it->second->type == json_string) {
+        redis_connection_params.redis_password = std::string(
+            json_hangar_it->second->u.string.ptr, json_hangar_it->second->u.string.length);
+      }
+    }
+
+    json_hangar_it = json_hangar.find("redis_db");
+    if (json_hangar_it != json_hangar.end()) {
+      if (json_hangar_it->second->type == json_integer) {
+        redis_connection_params.redis_db = json_hangar_it->second->u.integer;
+      }
+    }
+
+    json_hangar_it = json_hangar.find("redis_connect_timeout");
+    if (json_hangar_it != json_hangar.end()) {
+      if (json_hangar_it->second->type == json_integer) {
+        redis_connection_params.redis_connect_timeout =
+            json_hangar_it->second->u.integer;
+      }
+    }
+
+    json_hangar_it = json_hangar.find("redis_socket_timeout");
+    if (json_hangar_it != json_hangar.end()) {
+      if (json_hangar_it->second->type == json_integer) {
+        redis_connection_params.redis_socket_timeout =
+            json_hangar_it->second->u.integer;
+      }
+    }
+
+    json_hangar_it = json_hangar.find("redis_conn_pool_size");
+    if (json_hangar_it != json_hangar.end()) {
+      if (json_hangar_it->second->type == json_integer) {
+        redis_connection_params.redis_conn_pool_size =
+            json_hangar_it->second->u.integer;
+      }
+    }
+
+    json_hangar_it = json_hangar.find("redis_wait_timeout");
+    if (json_hangar_it != json_hangar.end()) {
+      if (json_hangar_it->second->type == json_integer) {
+        redis_connection_params.redis_wait_timeout = json_hangar_it->second->u.integer;
+      }
+    }
+
+    json_hangar_it = json_hangar.find("redis_connection_lifetime");
+    if (json_hangar_it != json_hangar.end()) {
+      if (json_hangar_it->second->type == json_integer) {
+        redis_connection_params.redis_connection_lifetime =
+            json_hangar_it->second->u.integer;
+      }
+    }
+
+    json_hangar_it = json_hangar.find("redis_sentinel_connect_timeout");
+    if (json_hangar_it != json_hangar.end()) {
+      if (json_hangar_it->second->type == json_integer) {
+        redis_connection_params.redis_sentinel_connect_timeout =
+            json_hangar_it->second->u.integer;
+      }
+    }
+
+    json_hangar_it = json_hangar.find("redis_sentinel_socket_timeout");
+    if (json_hangar_it != json_hangar.end()) {
+      if (json_hangar_it->second->type == json_integer) {
+        redis_connection_params.redis_sentinel_socket_timeout =
+            json_hangar_it->second->u.integer;
+      }
+    }
+
+    json_hangar_it = json_hangar.find("storage_slice");
+    if (json_hangar_it != json_hangar.end()) {
+      if (json_hangar_it->second->type == json_integer) {
+        redis_connection_params.storage_slice = json_hangar_it->second->u.integer;
+      }
+    }
+
+    json_hangar_it = json_hangar.find("using_md5_prefix_name");
+    if (json_hangar_it != json_hangar.end()) {
+      if (json_hangar_it->second->type == json_boolean) {
+        redis_connection_params.using_md5_prefix_name =
+            json_hangar_it->second->u.boolean;
+      }
+    }
+
+    json_hangar_it = json_hangar.find("model_tag");
+    if (json_hangar_it != json_hangar.end()) {
+      if (json_hangar_it->second->type == json_string) {
+        redis_connection_params.model_tag = std::string(
+            json_hangar_it->second->u.string.ptr, json_hangar_it->second->u.string.length);
+      }
+    }
+
+    json_hangar_it = json_hangar.find("using_model_lib");
+    if (json_hangar_it != json_hangar.end()) {
+      if (json_hangar_it->second->type == json_boolean) {
+        redis_connection_params.using_model_lib = json_hangar_it->second->u.boolean;
+      }
+    }
+
+    json_hangar_it = json_hangar.find("model_lib_abs_dir");
+    if (json_hangar_it != json_hangar.end()) {
+      if (json_hangar_it->second->type == json_string) {
+        redis_connection_params.model_lib_abs_dir = std::string(
+            json_hangar_it->second->u.string.ptr, json_hangar_it->second->u.string.length);
+      }
+    }
+
+    json_value_free(config_value);
+    free(file_contents);
 
     const int64 &&default_value_width = value_shape_.dim_size(0);
     const int64 &&default_value_total = value_shape_.num_elements();
@@ -282,38 +452,6 @@ public:
                       "output tensor dim two now.";
       runtime_value_dim_ = default_value_total;
     }
-
-    OP_REQUIRES_OK(
-        ctx, GetNodeAttr(kernel->def(), "embedding_name", &embedding_name));
-    OP_REQUIRES_OK(ctx,
-                   GetNodeAttr(kernel->def(), "redis_connection_mode",
-                               &redis_connection_params.redis_connection_mode));
-    OP_REQUIRES_OK(ctx,
-                   GetNodeAttr(kernel->def(), "redis_master_name",
-                               &redis_connection_params.redis_master_name));
-    OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "redis_host_ip",
-                                    &redis_connection_params.redis_host_ip));
-    OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "redis_host_port",
-                                    &redis_connection_params.redis_host_port));
-    OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "redis_password",
-                                    &redis_connection_params.redis_password));
-    OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "redis_db",
-                                    &redis_connection_params.redis_db));
-    int tem_storage_slice = 1;
-    OP_REQUIRES_OK(
-        ctx, GetNodeAttr(kernel->def(), "storage_slice", &tem_storage_slice));
-    redis_connection_params.storage_slice =
-        *(reinterpret_cast<unsigned *>(&tem_storage_slice));
-    OP_REQUIRES_OK(ctx,
-                   GetNodeAttr(kernel->def(), "using_md5_prefix_name",
-                               &redis_connection_params.using_md5_prefix_name));
-    OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "model_tag",
-                                    &redis_connection_params.model_tag));
-    OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "using_model_lib",
-                                    &redis_connection_params.using_model_lib));
-    OP_REQUIRES_OK(ctx,
-                   GetNodeAttr(kernel->def(), "model_lib_abs_dir",
-                               &redis_connection_params.model_lib_abs_dir));
 
     if (redis_connection_params.using_md5_prefix_name) {
       const std::string &&tmp_keys_prefix_name =

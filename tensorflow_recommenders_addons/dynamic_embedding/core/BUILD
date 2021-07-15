@@ -35,6 +35,8 @@ custom_op_library(
 custom_op_library(
     name = "_redis_table_ops.so",
     srcs = [
+        "kernels/redis_impl/json.h",
+        "kernels/redis_impl/json.cc",
         "kernels/redis_impl/md5.h",
         "kernels/redis_impl/md5.cc",
         "kernels/redis_impl/redis_connection_util.hpp",
@@ -43,12 +45,14 @@ custom_op_library(
         "kernels/redis_table_op.h",
         "kernels/redis_table_op.cc",
         "ops/redis_table_ops.cc",
+        "utils/utils.h",
+        "utils/types.h",
     ]   ,
     deps = [
         "@hiredis//:hiredis",
         "@redis-plus-plus//:redis-plus-plus",
     ]   ,
-    copts = ["-pthread", "-O3", "-mavx2", "-mavx512f", "-mfma", "-funroll-loops"],
+    copts = ["-pthread", "-Ofast", "-ffast-math"],
 )
 
 custom_op_library(

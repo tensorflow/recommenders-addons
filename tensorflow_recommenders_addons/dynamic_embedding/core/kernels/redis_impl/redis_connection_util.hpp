@@ -133,8 +133,8 @@ struct Redis_Connection_Params {
       1; // ClusterMode = 0, SentinelMode = 1, StreamMode = 2
   std::string redis_master_name = "master";
   // connection_options
-  std::string redis_host_ip = "127.0.0.1";
-  int redis_host_port = 6379;
+  std::vector<std::string> redis_host_ip = {"127.0.0.1"};
+  std::vector<int> redis_host_port = {6379};
   std::string redis_password = "";
   int redis_db = 0;
   //
@@ -146,7 +146,7 @@ struct Redis_Connection_Params {
   int redis_connection_lifetime = 100; // minutes
   // sentinel_connection_options
   int redis_sentinel_connect_timeout = 1000; // milliseconds
-  int sentinel_socket_timeout = 1000;        // milliseconds
+  int redis_sentinel_socket_timeout = 1000;  // milliseconds
   //
   // Below there is user-defined parameters in this custom op, not Redis
   // setting parameters
@@ -163,8 +163,8 @@ struct Redis_Connection_Params {
   Redis_Connection_Params &operator=(const Redis_Connection_Params &x) {
     redis_connection_mode = x.redis_connection_mode;
     redis_master_name = x.redis_master_name;
-    redis_host_ip = x.redis_host_ip;
-    redis_host_port = x.redis_host_port;
+    redis_host_ip.assign(x.redis_host_ip.begin(), x.redis_host_ip.end());
+    redis_host_port.assign(x.redis_host_port.begin(), x.redis_host_port.end());
     redis_password = x.redis_password;
     redis_db = x.redis_db;
     redis_connect_timeout = x.redis_connect_timeout; // milliseconds
@@ -173,8 +173,9 @@ struct Redis_Connection_Params {
     redis_wait_timeout = x.redis_wait_timeout;               // milliseconds
     redis_connection_lifetime = x.redis_connection_lifetime; // minutes
     redis_sentinel_connect_timeout =
-        x.redis_sentinel_connect_timeout;                // milliseconds
-    sentinel_socket_timeout = x.sentinel_socket_timeout; // milliseconds
+        x.redis_sentinel_connect_timeout; // milliseconds
+    redis_sentinel_socket_timeout =
+        x.redis_sentinel_socket_timeout; // milliseconds
     storage_slice_log2 =
         round_next_power_two_bitlen(x.storage_slice); // beter for modding.
     storage_slice = 1 << storage_slice_log2;

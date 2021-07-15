@@ -19,13 +19,11 @@ from __future__ import division
 from __future__ import print_function
 
 import functools
-from hashlib import new
-from numpy.core.fromnumeric import ndim
+import json
 import os
 
 from tensorflow.python.eager import context
-from tensorflow.python.framework import dtypes, ops
-from tensorflow.python.keras.utils.generic_utils import default
+from tensorflow.python.framework import ops
 from tensorflow.python.ops.lookup_ops import LookupInterface
 from tensorflow.python.training.saver import BaseSaverBuilder
 
@@ -59,8 +57,8 @@ class RedisTable(LookupInterface):
           1,  # ClusterMode = 0, SentinelMode = 1, StreamMode = 2
       "redis_master_name": "master",
       # connection_options
-      "redis_host_ip": "127.0.0.1",
-      "redis_host_port": 26379,
+      "redis_host_ip": ["127.0.0.1"],
+      "redis_host_port": 6379,
       "redis_password": "",
       "redis_db": 0,
       "redis_connect_timeout": 1000,  # milliseconds
@@ -71,14 +69,14 @@ class RedisTable(LookupInterface):
       "redis_connection_lifetime": 100,  # minutes
       # sentinel_connection_options
       "redis_sentinel_connect_timeout": 1000,  # milliseconds
-      "sentinel_socket_timeout": 1000,  # milliseconds
+      "redis_sentinel_socket_timeout": 1000,  # milliseconds
       # Below there is user-defined parameters in this custom op, not Redis setting parameters
       "storage_slice":
           1,  # For deciding hash tag, which usually is how many Redis instance may be used in the trainning.
       "using_md5_prefix_name": False,  # 1=true, 0=false
       "model_tag": "test",  #  model_tag for version and any other information
       "using_model_lib": True,
-      "model_lib_abs_dir": "/tmp/",
+      "model_lib_abs_dir": "/tmp/"
   }
 
   def __init__(
@@ -120,21 +118,17 @@ class RedisTable(LookupInterface):
     self._value_dtype = value_dtype
     self._name = name
     self._embedding_name = (self._name.split('_mht_', 1))[0]
-    self._redis_params = config
+    self._config = config
 
-    os.environ.redis_connect_timeout = str(
-        self._redis_params.redis_connect_timeout)
-    os.environ.redis_socket_timeout = str(
-        self._redis_params.redis_socket_timeout)
-    os.environ.redis_conn_pool_size = str(
-        self._redis_params.redis_conn_pool_size)
-    os.environ.redis_wait_timeout = str(self._redis_params.redis_wait_timeout)
-    os.environ.redis_connection_lifetime = str(
-        self._redis_params.redis_connection_lifetime)
-    os.environ.redis_sentinel_connect_timeout = str(
-        self._redis_params.redis_sentinel_connect_timeout)
-    os.environ.sentinel_socket_timeout = str(
-        self._redis_params.sentinel_socket_timeout)
+    with open(self._config.redis_config_abs_dir, 'r', encoding='utf-8') as f0:
+      params_load = json.load(f0)
+      self._redis_params = self.default_redis_params.copy()
+      for k in self._redis_params.keys():
+        if k in params_load:
+          self._redis_params[k] = params_load[k]
+    
+    with open(self._config.redis_config_abs_dir, 'w', encoding='utf-8') as f1:
+      f1.write(json.dumps(self._redis_params, indent=2, ensure_ascii=True))
 
     self._shared_name = None
     if context.executing_eagerly():
@@ -171,17 +165,7 @@ class RedisTable(LookupInterface):
         value_dtype=self._value_dtype,
         value_shape=self._default_value.get_shape(),
         embedding_name=self._embedding_name,
-        redis_connection_mode=self._redis_params.redis_connection_mode,
-        redis_master_name=self._redis_params.redis_master_name,
-        redis_host_ip=self._redis_params.redis_host_ip,
-        redis_host_port=self._redis_params.redis_host_port,
-        redis_password=self._redis_params.redis_password,
-        redis_db=self._redis_params.redis_db,
-        storage_slice=self._redis_params.storage_slice,
-        using_md5_prefix_name=self._redis_params.using_md5_prefix_name,
-        model_tag=self._redis_params.model_tag,
-        using_model_lib=self._redis_params.using_model_lib,
-        model_lib_abs_dir=self._redis_params.model_lib_abs_dir)
+        redis_config_abs_dir=self._config.redis_config_abs_dir)
 
     if context.executing_eagerly():
       self._table_name = None
