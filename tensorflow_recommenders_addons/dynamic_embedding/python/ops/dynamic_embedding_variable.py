@@ -50,15 +50,15 @@ from tensorflow.python.util.tf_export import tf_export
 
 def make_partition(data, partition_index, shard_num):
   """
-    Shard keys to shard_num partitions
+  Shard keys to shard_num partitions
 
-    Args:
-      data: keys or values, usually the IDs of dynamic features.
-      partition_index: partitions index.
-      shard_num: partition number
-    Returns:
-      a pair of tensor: (partition result, partition indices)
-    """
+  Args:
+    data: keys or values, usually the IDs of dynamic features.
+    partition_index: partitions index.
+    shard_num: partition number
+  Returns:
+    a pair of tensor: (partition result, partition indices)
+  """
   if shard_num <= 1:
     return [
         data,
@@ -84,14 +84,14 @@ def _stitch(values, indices):
 
 def default_partition_fn(keys, shard_num):
   """The default partition function.
-      partition keys by "mod" strategy.
+    partition keys by "mod" strategy.
 
-      keys: a tensor presents the keys to be partitioned.
-      shard_num: the num of partitions
-    Returns:
-      a tensor with same shape as keys with type of `tf.int32`,
-        represents the corresponding partition-ids of keys.
-    """
+    keys: a tensor presents the keys to be partitioned.
+    shard_num: the num of partitions
+  Returns:
+    a tensor with same shape as keys with type of `tf.int32`,
+      represents the corresponding partition-ids of keys.
+  """
   keys_op = ops.convert_to_tensor(keys, name="keys")
   gpu_mode = pywrap.IsGoogleCudaEnabled()
 
@@ -133,9 +133,9 @@ class GraphKeys(object):
 
 class Variable(trackable.TrackableResource):
   """
-    A Distributed version of HashTable(reference from lookup_ops.MutableHashTable)
-    It is designed to dynamically store the Sparse Weights(Parameters) of DLRMs.
-    """
+  A Distributed version of HashTable(reference from lookup_ops.MutableHashTable)
+  It is designed to dynamically store the Sparse Weights(Parameters) of DLRMs.
+  """
 
   def __init__(
       self,
@@ -200,7 +200,7 @@ class Variable(trackable.TrackableResource):
 
         Returns:
           A `Variable` object.
-        """
+    """
     self.key_dtype = key_dtype
     self.value_dtype = value_dtype
     self.dim = dim
@@ -336,7 +336,7 @@ class Variable(trackable.TrackableResource):
         Raises:
           TypeError: when `keys` or `values` doesn't match the table data
             types.
-        """
+    """
 
     partition_index = self.partition_fn(keys, self.shard_num)
     keys_partitions, _ = make_partition(keys, partition_index, self.shard_num)
@@ -375,19 +375,19 @@ class Variable(trackable.TrackableResource):
   def remove(self, keys, name=None):
     """Removes `keys` and its associated values from the variable.
 
-        If a key is not present in the table, it is silently ignored.
+    If a key is not present in the table, it is silently ignored.
 
-        Args:
-          keys: Keys to remove. Can be a tensor of any shape. Must match the table's
-            key type.
-          name: A name for the operation (optional).
+    Args:
+      keys: Keys to remove. Can be a tensor of any shape. Must match the table's
+        key type.
+      name: A name for the operation (optional).
 
-        Returns:
-          The created Operation.
+    Returns:
+      The created Operation.
 
-        Raises:
-          TypeError: when `keys` do not match the table data types.
-        """
+    Raises:
+      TypeError: when `keys` do not match the table data types.
+    """
     partition_index = self.partition_fn(keys, self.shard_num)
     keys_partitions, _ = make_partition(keys, partition_index, self.shard_num)
 
@@ -401,12 +401,12 @@ class Variable(trackable.TrackableResource):
   def clear(self, name=None):
     """clear all keys and values in the table.
 
-    Args:
-      name: A name for the operation (optional).
+        Args:
+          name: A name for the operation (optional).
 
-    Returns:
-      The created Operation.
-    """
+        Returns:
+          The created Operation.
+        """
     ops_ = []
     for idx in range(len(self.devices)):
       with ops.device(self.devices[idx]):
@@ -430,17 +430,17 @@ class Variable(trackable.TrackableResource):
   def lookup(self, keys, name=None):
     """Looks up `keys` in a Variable, outputs the corresponding values.
 
-        The `default_value` is used for keys not present in the table.
+    The `default_value` is used for keys not present in the table.
 
-        Args:
-          keys: Keys to look up. Can be a tensor of any shape. Must match the
-            table's key_dtype.
-          name: A name for the operation (optional).
+    Args:
+      keys: Keys to look up. Can be a tensor of any shape. Must match the
+        table's key_dtype.
+      name: A name for the operation (optional).
 
-        Returns:
-          A tensor containing the values in the same shape as `keys` using the
-            table's value type.
-        """
+    Returns:
+      A tensor containing the values in the same shape as `keys` using the
+        table's value type.
+    """
     partition_index = self.partition_fn(keys, self.shard_num)
     keys_partitions, keys_indices = make_partition(keys, partition_index,
                                                    self.shard_num)
@@ -465,13 +465,13 @@ class Variable(trackable.TrackableResource):
   def export(self, name=None):
     """Returns tensors of all keys and values in the table.
 
-        Args:
-          name: A name for the operation (optional).
+    Args:
+      name: A name for the operation (optional).
 
-        Returns:
-          A pair of tensors with the first tensor containing all keys and the
-            second tensors containing all values in the table.
-        """
+    Returns:
+      A pair of tensors with the first tensor containing all keys and the
+        second tensors containing all values in the table.
+    """
     full_keys = []
     full_values = []
     for idx in range(len(self.devices)):
@@ -486,15 +486,15 @@ class Variable(trackable.TrackableResource):
   def size(self, index=None, name=None):
     """Compute the number of elements in the index-th table of this Variable.
 
-        If index is none, the total size of the Variable wil be return.
+    If index is none, the total size of the Variable wil be return.
 
-        Args:
-          index: The index of table (optional)
-          name: A name for the operation (optional).
+    Args:
+      index: The index of table (optional)
+      name: A name for the operation (optional).
 
-        Returns:
-          A scalar tensor containing the number of elements in this Variable.
-        """
+    Returns:
+      A scalar tensor containing the number of elements in this Variable.
+    """
     if context.executing_eagerly():
       self.size_ops = []
     if not self.size_ops:
@@ -534,44 +534,44 @@ def get_variable(
     restrict_policy=None,
 ):
   """Gets an `Variable` object with this name if it exists,
-         or create a new one.
+        or create a new one.
 
-    Args:
-      name: A unique name for the `Variable`.
-      key_dtype: the type of the key tensors.
-      value_dtype: the type of the value tensors.
-      dim: the length of the value array for each key.
-      devices: the list of devices holding the tables.
-        One table will be created on each device.
-      partitioner: partition function of keys,
-        return the partition index for each key.
+  Args:
+    name: A unique name for the `Variable`.
+    key_dtype: the type of the key tensors.
+    value_dtype: the type of the value tensors.
+    dim: the length of the value array for each key.
+    devices: the list of devices holding the tables.
+      One table will be created on each device.
+    partitioner: partition function of keys,
+      return the partition index for each key.
 
-      Example partition func:
-      ```python
-      def default_partition_fn(keys, shard_num):
-        return tf.cast(keys % shard_num, dtype=tf.int32)
-      ```
-      shared_name: No used.
-      initializer: The value to use if a key is missing in the hash table.
-        which can a python number, numpy array or `tf.initializer` instances.
-        If initializer is `None` (the default), `0` will be used.
-      trainable: True, will be treated as a trainable Variable, and add to
-        to the list of variables collected in the graph under the key
-        `GraphKeys.TRAINABLE_VARIABLES`.
-      checkpoint: if True, the contents of the SparseVariable are
-        saved to and restored from checkpoints.
-        If `shared_name` is empty for a checkpointed table,
-        it is shared using the table node name.
-      init_size: initial size for the Variable and initial size of each hash 
-        tables will be int(init_size / N), N is the number of the devices.
-      restrict_policy: a restrict policy to specify the rule to restrict the
-        size of variable. If in training program, the variable is updated by
-        optimizer, then the sparse slot variables in optimizer are also be
-        restricted.
+    Example partition func:
+    ```python
+    def default_partition_fn(keys, shard_num):
+      return tf.cast(keys % shard_num, dtype=tf.int32)
+    ```
+    shared_name: No used.
+    initializer: The value to use if a key is missing in the hash table.
+      which can a python number, numpy array or `tf.initializer` instances.
+      If initializer is `None` (the default), `0` will be used.
+    trainable: True, will be treated as a trainable Variable, and add to
+      to the list of variables collected in the graph under the key
+      `GraphKeys.TRAINABLE_VARIABLES`.
+    checkpoint: if True, the contents of the SparseVariable are
+      saved to and restored from checkpoints.
+      If `shared_name` is empty for a checkpointed table,
+      it is shared using the table node name.
+    init_size: initial size for the Variable and initial size of each hash 
+      tables will be int(init_size / N), N is the number of the devices.
+    restrict_policy: a restrict policy to specify the rule to restrict the
+      size of variable. If in training program, the variable is updated by
+      optimizer, then the sparse slot variables in optimizer are also be
+      restricted.
 
-    Returns:
-      A `Variable` object.
-    """
+  Returns:
+    A `Variable` object.
+  """
   var_ = None
   scope = variable_scope.get_variable_scope()
   scope_store = variable_scope._get_default_variable_store()
