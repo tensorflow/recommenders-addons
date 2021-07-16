@@ -400,7 +400,7 @@ class RedisVariableTest(test.TestCase):
       with self.session(config=default_config,
                         use_gpu=test_util.is_gpu_available()):
         id += 1
-        keys = constant_op.constant(list(range(2**16)), dtypes.int64)
+        keys = constant_op.constant(list(range(2**17)), dtypes.int64)
         table = de.get_variable(
             "t1" + str(id) + '_test_variable_initializer',
             key_dtype=dtypes.int64,
