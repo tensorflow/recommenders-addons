@@ -1,4 +1,8 @@
 load("@rules_foreign_cc//tools/build_defs:cmake.bzl", "cmake_external")
+load(
+    "@local_config_tf//:build_defs.bzl",
+    "D_GLIBCXX_USE_CXX11_ABI",
+)
 
 package(
     default_visibility = ["//visibility:public"],
@@ -23,7 +27,8 @@ cmake_external(
         "HIREDIS_LIB": "$EXT_BUILD_DEPS/hiredis/lib",
         "HIREDIS_HEADER": "$EXT_BUILD_DEPS/hiredis/include",
     },
-    cmake_options = ["-DCMAKE_BUILD_TYPE=Release","-DREDIS_PLUS_PLUS_BUILD_TEST=OFF"],
+    cmake_options = ["-DCMAKE_BUILD_TYPE=Release","-DREDIS_PLUS_PLUS_BUILD_TEST=OFF",
+                    D_GLIBCXX_USE_CXX11_ABI,"-DREDIS_PLUS_PLUS_CXX_STANDARD=11"],
     lib_source = "@redis-plus-plus//:all_srcs",
     static_libraries = ["libredis++.a"],
     deps = ["@hiredis//:hiredis"]

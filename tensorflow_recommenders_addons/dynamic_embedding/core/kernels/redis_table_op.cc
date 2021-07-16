@@ -46,7 +46,7 @@ https://github.com/redis/redis/blob/be6ce8a92a9acbecfaaa6c57a45037fc1018fefe/src
 */
 // constexpr long long multi_redis_cmd_max_argc = 1024 * 1024;
 constexpr long long multi_redis_cmd_max_argc =
-    1024 * 8; // For better parallelism performance
+    1024*8; // For better parallelism performance
 
 using sw::redis::OptionalString;
 using sw::redis::Redis;
@@ -99,7 +99,7 @@ private:
     const int64 max_parallelism = (total / multi_redis_cmd_max_argc) + 1;
 
     if (max_parallelism > static_cast<int64>(threads_Find.size()))
-      threads_Find.resize(max_parallelism);
+      threads_Find.resize(max_parallelism << 1);
 
     std::atomic_uint thread_id_a(0);
     auto shard = [this, &total, &keys_prefix_name_slices, &keys, &values,
@@ -158,7 +158,7 @@ private:
     const int64 max_parallelism = (total / multi_redis_cmd_max_argc) + 1;
 
     if (max_parallelism > static_cast<int64>(threads_Insert.size()))
-      threads_Insert.resize(max_parallelism);
+      threads_Insert.resize(max_parallelism << 1);
 
     std::atomic_uint thread_id_a(0);
     auto shard = [this, &total, &keys_prefix_name_slices, &keys, &values,
@@ -197,7 +197,7 @@ private:
     const int64 max_parallelism = (total / multi_redis_cmd_max_argc) + 1;
 
     if (max_parallelism > static_cast<int64>(threads_Delete.size()))
-      threads_Delete.resize(max_parallelism);
+      threads_Delete.resize(max_parallelism << 1);
 
     std::atomic_uint thread_id_a(0);
     auto shard = [this, &total, &keys_prefix_name_slices, &keys,
@@ -298,8 +298,9 @@ public:
     json_hangar_it = json_hangar.find("redis_master_name");
     if (json_hangar_it != json_hangar.end()) {
       if (json_hangar_it->second->type == json_string) {
-        redis_connection_params.redis_master_name = std::string(
-            json_hangar_it->second->u.string.ptr, json_hangar_it->second->u.string.length);
+        redis_connection_params.redis_master_name =
+            std::string(json_hangar_it->second->u.string.ptr,
+                        json_hangar_it->second->u.string.length);
       }
     }
 
@@ -334,8 +335,9 @@ public:
     json_hangar_it = json_hangar.find("redis_password");
     if (json_hangar_it != json_hangar.end()) {
       if (json_hangar_it->second->type == json_string) {
-        redis_connection_params.redis_password = std::string(
-            json_hangar_it->second->u.string.ptr, json_hangar_it->second->u.string.length);
+        redis_connection_params.redis_password =
+            std::string(json_hangar_it->second->u.string.ptr,
+                        json_hangar_it->second->u.string.length);
       }
     }
 
@@ -373,7 +375,8 @@ public:
     json_hangar_it = json_hangar.find("redis_wait_timeout");
     if (json_hangar_it != json_hangar.end()) {
       if (json_hangar_it->second->type == json_integer) {
-        redis_connection_params.redis_wait_timeout = json_hangar_it->second->u.integer;
+        redis_connection_params.redis_wait_timeout =
+            json_hangar_it->second->u.integer;
       }
     }
 
@@ -404,7 +407,8 @@ public:
     json_hangar_it = json_hangar.find("storage_slice");
     if (json_hangar_it != json_hangar.end()) {
       if (json_hangar_it->second->type == json_integer) {
-        redis_connection_params.storage_slice = json_hangar_it->second->u.integer;
+        redis_connection_params.storage_slice =
+            json_hangar_it->second->u.integer;
       }
     }
 
@@ -419,23 +423,26 @@ public:
     json_hangar_it = json_hangar.find("model_tag");
     if (json_hangar_it != json_hangar.end()) {
       if (json_hangar_it->second->type == json_string) {
-        redis_connection_params.model_tag = std::string(
-            json_hangar_it->second->u.string.ptr, json_hangar_it->second->u.string.length);
+        redis_connection_params.model_tag =
+            std::string(json_hangar_it->second->u.string.ptr,
+                        json_hangar_it->second->u.string.length);
       }
     }
 
     json_hangar_it = json_hangar.find("using_model_lib");
     if (json_hangar_it != json_hangar.end()) {
       if (json_hangar_it->second->type == json_boolean) {
-        redis_connection_params.using_model_lib = json_hangar_it->second->u.boolean;
+        redis_connection_params.using_model_lib =
+            json_hangar_it->second->u.boolean;
       }
     }
 
     json_hangar_it = json_hangar.find("model_lib_abs_dir");
     if (json_hangar_it != json_hangar.end()) {
       if (json_hangar_it->second->type == json_string) {
-        redis_connection_params.model_lib_abs_dir = std::string(
-            json_hangar_it->second->u.string.ptr, json_hangar_it->second->u.string.length);
+        redis_connection_params.model_lib_abs_dir =
+            std::string(json_hangar_it->second->u.string.ptr,
+                        json_hangar_it->second->u.string.length);
       }
     }
 
@@ -563,6 +570,15 @@ public:
     }
     for (auto ex_aiocb_obj : EXPORT_content) {
       free((void *)ex_aiocb_obj.aio_buf);
+    }
+    for (auto threads_Find_i : threads_Find) {
+      threads_Find_i.HandleRelease();
+    }
+    for (auto threads_Insert_i : threads_Insert) {
+      threads_Insert_i.HandleRelease();
+    }
+    for (auto threads_Delete_i : threads_Delete) {
+      threads_Delete_i.HandleRelease();
     }
   }
 

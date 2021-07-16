@@ -356,8 +356,8 @@ public:
     auto cmd = [](::sw::redis::Connection &connection,
                   const std::vector<const char *> &ptrs_0,
                   const std::vector<std::size_t> &sizes_0) {
-      assert(strcmp(ptrs_0[0], "RESTORE") == 0);
-      assert(sizes_0[0] == 7);
+      assert(strcmp(ptrs_0.front(), "RESTORE") == 0);
+      assert(sizes_0.front() == 7);
       connection.send(static_cast<int>(ptrs_0.size()),
                       const_cast<const char **>(ptrs_0.data()), sizes_0.data());
     };
@@ -471,19 +471,19 @@ Redis command sequence because m-cmd can only be used in same hash tag)
 
     thread_context.HandleReserve(1U, argc, 0);
 
-    std::vector<const char *> &ptrs_0 = thread_context.slots[0].ptrs;
-    std::vector<std::size_t> &sizes_0 = thread_context.slots[0].sizes;
+    std::vector<const char *> *ptrs_0 = thread_context.slots->at(0).ptrs;
+    std::vector<std::size_t> *sizes_0 = thread_context.slots->at(0).sizes;
 
     const K *const pk_raw_end = reinterpret_cast<K *>(keys.data()) + max_i;
     const K *pk_raw = reinterpret_cast<K *>(keys.data()) + begin;
 
-    const char **ptrs_iter = &ptrs_0[0];
+    const char **ptrs_iter = &(ptrs_0->front());
     *ptrs_iter = redis_command;
     ++ptrs_iter;
     *ptrs_iter = keys_prefix_name_slices[0].data();
     ++ptrs_iter;
 
-    std::size_t *sizes_iter = &sizes_0[0];
+    std::size_t *sizes_iter = &(sizes_0->front());
     *sizes_iter = redis_command_byte;
     ++sizes_iter;
     *sizes_iter = keys_prefix_name_slices[0].size();
@@ -497,14 +497,14 @@ Redis command sequence because m-cmd can only be used in same hash tag)
       ++sizes_iter;
     }
 
-    assert(ptrs_0[0] == redis_command);
-    assert(sizes_0[0] == redis_command_byte);
+    assert(ptrs_0->front() == redis_command);
+    assert(sizes_0->front() == redis_command_byte);
 
     auto cmd = [](::sw::redis::Connection &connection, const int argc,
-                  const std::vector<const char *> &ptrs_0,
-                  const std::vector<std::size_t> &sizes_0) {
-      connection.send(argc, const_cast<const char **>(ptrs_0.data()),
-                      sizes_0.data());
+                  const std::vector<const char *> *ptrs_0,
+                  const std::vector<std::size_t> *sizes_0) {
+      connection.send(argc, const_cast<const char **>(ptrs_0->data()),
+                      sizes_0->data());
     };
 
     std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>> reply;
@@ -571,8 +571,8 @@ Redis command sequence because m-cmd can only be used in same hash tag)
 
     thread_context.HandleReserve(1U, argc, 0);
 
-    std::vector<const char *> &ptrs_0 = thread_context.slots[0].ptrs;
-    std::vector<std::size_t> &sizes_0 = thread_context.slots[0].sizes;
+    std::vector<const char *> *ptrs_0 = thread_context.slots->at(0).ptrs;
+    std::vector<std::size_t> *sizes_0 = thread_context.slots->at(0).sizes;
 
     const K *const pk_raw_end = reinterpret_cast<K *>(keys.data()) + max_i;
 
@@ -583,13 +583,13 @@ Redis command sequence because m-cmd can only be used in same hash tag)
     const V *pv_raw =
         reinterpret_cast<V *>(values.data()) + begin * Velems_per_dim0;
 
-    const char **ptrs_iter = &ptrs_0[0];
+    const char **ptrs_iter = &(ptrs_0->front());
     *ptrs_iter = redis_command;
     ++ptrs_iter;
     *ptrs_iter = keys_prefix_name_slices[0].data();
     ++ptrs_iter;
 
-    std::size_t *sizes_iter = &sizes_0[0];
+    std::size_t *sizes_iter = &(sizes_0->front());
     *sizes_iter = redis_command_byte;
     ++sizes_iter;
     *sizes_iter = keys_prefix_name_slices[0].size();
@@ -614,14 +614,14 @@ Redis command sequence because m-cmd can only be used in same hash tag)
       ++sizes_iter;
     }
 
-    assert(ptrs_0[0] == redis_command);
-    assert(sizes_0[0] == redis_command_byte);
+    assert(ptrs_0->front() == redis_command);
+    assert(sizes_0->front() == redis_command_byte);
 
     auto cmd = [](::sw::redis::Connection &connection, const int argc,
-                  const std::vector<const char *> &ptrs_0,
-                  const std::vector<std::size_t> &sizes_0) {
-      connection.send(argc, const_cast<const char **>(ptrs_0.data()),
-                      sizes_0.data());
+                  const std::vector<const char *> *ptrs_0,
+                  const std::vector<std::size_t> *sizes_0) {
+      connection.send(argc, const_cast<const char **>(ptrs_0->data()),
+                      sizes_0->data());
     };
 
     try {
@@ -643,19 +643,19 @@ Redis command sequence because m-cmd can only be used in same hash tag)
 
     thread_context.HandleReserve(1U, argc, 0);
 
-    std::vector<const char *> &ptrs_0 = thread_context.slots[0].ptrs;
-    std::vector<std::size_t> &sizes_0 = thread_context.slots[0].sizes;
+    std::vector<const char *> *ptrs_0 = thread_context.slots->at(0).ptrs;
+    std::vector<std::size_t> *sizes_0 = thread_context.slots->at(0).sizes;
 
     const K *const pk_raw_end = reinterpret_cast<K *>(keys.data()) + max_i;
     const K *pk_raw = reinterpret_cast<K *>(keys.data()) + begin;
 
-    const char **ptrs_iter = &ptrs_0[0];
+    const char **ptrs_iter = &(ptrs_0->front());
     *ptrs_iter = redis_command;
     ++ptrs_iter;
     *ptrs_iter = keys_prefix_name_slices[0].data();
     ++ptrs_iter;
 
-    std::size_t *sizes_iter = &sizes_0[0];
+    std::size_t *sizes_iter = &(sizes_0->front());
     *sizes_iter = redis_command_byte;
     ++sizes_iter;
     *sizes_iter = keys_prefix_name_slices[0].size();
@@ -669,14 +669,14 @@ Redis command sequence because m-cmd can only be used in same hash tag)
       ++sizes_iter;
     }
 
-    assert(ptrs_0[0] == redis_command);
-    assert(sizes_0[0] == redis_command_byte);
+    assert(ptrs_0->front() == redis_command);
+    assert(sizes_0->front() == redis_command_byte);
 
     auto cmd = [](::sw::redis::Connection &connection, const int argc,
-                  const std::vector<const char *> &ptrs_0,
-                  const std::vector<std::size_t> &sizes_0) {
-      connection.send(argc, const_cast<const char **>(ptrs_0.data()),
-                      sizes_0.data());
+                  const std::vector<const char *> *ptrs_0,
+                  const std::vector<std::size_t> *sizes_0) {
+      connection.send(argc, const_cast<const char **>(ptrs_0->data()),
+                      sizes_0->data());
     };
 
     try {
