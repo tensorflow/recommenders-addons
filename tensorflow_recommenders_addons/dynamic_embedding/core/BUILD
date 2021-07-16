@@ -52,7 +52,7 @@ custom_op_library(
         "@hiredis//:hiredis",
         "@redis-plus-plus//:redis-plus-plus",
     ]   ,
-    copts = ["-pthread", "-Ofast", "-ffast-math"],
+    copts = ["-pthread", "-O3", "-ffast-math"],
 )
 
 custom_op_library(
