@@ -118,7 +118,7 @@ public:
           }
         }
         LOG(WARNING) << "Can not access the host "
-                     << redis_connection_params.redis_host_ip.at(i)
+                     << redis_connection_params.redis_host_ip[i]
                      << ". Delete it from the host list.";
         redis_connection_params.redis_host_ip.erase(
             redis_connection_params.redis_host_ip.begin() + i);
@@ -151,13 +151,13 @@ private:
     std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>> replies;
     replies.reserve(storage_slice);
     for (unsigned i = 0; i < storage_slice; ++i) {
-      if (thread_context.slots[i].ptrs.size() >= size_check) {
-        ::sw::redis::StringView hkey(thread_context.slots[i].ptrs[1],
-                                     thread_context.slots[i].sizes[1]);
+      if ((*thread_context.slots)[i].ptrs->size() >= size_check) {
+        ::sw::redis::StringView hkey((*(*thread_context.slots)[i].ptrs)[1],
+                                     (*(*thread_context.slots)[i].sizes)[1]);
         try {
-          replies.push_back(redis_conn->command(cmd, hkey,
-                                                thread_context.slots[i].ptrs,
-                                                thread_context.slots[i].sizes));
+          replies.push_back(
+              redis_conn->command(cmd, hkey, (*thread_context.slots)[i].ptrs,
+                                  (*thread_context.slots)[i].sizes));
         } catch (const std::exception &err) {
           LOG(ERROR) << "RedisHandler error in pipe_exec for slices "
                      << hkey.data() << " -- " << err.what();
@@ -420,8 +420,8 @@ public:
                   const ::sw::redis::StringView hkey,
                   const std::vector<const char *> &ptrs_i,
                   const std::vector<std::size_t> &sizes_i) {
-      assert(strcmp(ptrs_i[0], "RESTORE") == 0);
-      assert(sizes_i[0] == 7);
+      assert(strcmp(ptrs_i.front(), "RESTORE") == 0);
+      assert(sizes_i.front() == 7);
       connection.send(static_cast<int>(ptrs_i.size()),
                       const_cast<const char **>(ptrs_i.data()), sizes_i.data());
     };
@@ -570,7 +570,7 @@ Redis command sequence because m-cmd can only be used in same hash tag)
                                     keys_prefix_name_slices[i].size());
     }
 
-    unsigned *pslot_loc = thread_context.slot_locs.data();
+    unsigned *pslot_loc = thread_context.slot_locs->data();
     unsigned key_slot_locs = 0;
     for (; pk_raw != pk_raw_end; ++pk_raw) {
       key_slot_locs = KSlotNum<K>(pk_raw, storage_slice);
@@ -586,14 +586,15 @@ Redis command sequence because m-cmd can only be used in same hash tag)
 
     auto cmd = [](::sw::redis::Connection &connection,
                   const ::sw::redis::StringView hkey,
-                  const std::vector<const char *> &ptrs_i,
-                  const std::vector<std::size_t> &sizes_i) {
-      assert(strcmp(ptrs_i[0], "HMGET") == 0);
-      assert(sizes_i[0] == 5);
+                  const std::vector<const char *> *ptrs_i,
+                  const std::vector<std::size_t> *sizes_i) {
+      assert(strcmp(ptrs_i->front(), "HMGET") == 0);
+      assert(sizes_i->front() == 5);
       assert(std::string(hkey.data()).compare(ptrs_i[1]) == 0);
 
-      connection.send(static_cast<int>(ptrs_i.size()),
-                      const_cast<const char **>(ptrs_i.data()), sizes_i.data());
+      connection.send(static_cast<int>(ptrs_i->size()),
+                      const_cast<const char **>(ptrs_i->data()),
+                      sizes_i->data());
     };
 
     return PipeExec(cmd, storage_slice, 3U, thread_context);
@@ -612,7 +613,7 @@ Redis command sequence because m-cmd can only be used in same hash tag)
     const V *const dft_raw_begin =
         reinterpret_cast<const V *>(default_value.data());
 
-    const std::vector<unsigned> &slot_locs = thread_context.slot_locs;
+    const std::vector<unsigned> *slot_locs = thread_context.slot_locs;
     const unsigned &storage_slice = redis_connection_params.storage_slice;
     unsigned slots_iters_nums[storage_slice];
     unsigned slot_loc;
@@ -620,7 +621,7 @@ Redis command sequence because m-cmd can only be used in same hash tag)
     redisReply *temp_reply;
     for (auto i = 0; i < (max_i - begin);
          ++i, pv_raw += Velems_per_dim0, dft_raw += Velems_per_dim0) {
-      slot_loc = slot_locs[i];
+      slot_loc = (*slot_locs)[i];
       temp_reply = reply[slot_loc]->element[slots_iters_nums[slot_loc]];
       ++(slots_iters_nums[slot_loc]);
       if (temp_reply->type ==
@@ -697,14 +698,15 @@ Redis command sequence because m-cmd can only be used in same hash tag)
 
     auto cmd = [](::sw::redis::Connection &connection,
                   const ::sw::redis::StringView &hkey,
-                  const std::vector<const char *> &ptrs_i,
-                  const std::vector<std::size_t> &sizes_i) {
-      assert(strcmp(ptrs_i[0], "HMSET") == 0);
-      assert(sizes_i[0] == 5);
+                  const std::vector<const char *> *ptrs_i,
+                  const std::vector<std::size_t> *sizes_i) {
+      assert(strcmp(ptrs_i->front(), "HMSET") == 0);
+      assert(sizes_i->front() == 5);
       assert(std::string(hkey.data()).compare(ptrs_i[1]) == 0);
 
-      connection.send(static_cast<int>(ptrs_i.size()),
-                      const_cast<const char **>(ptrs_i.data()), sizes_i.data());
+      connection.send(static_cast<int>(ptrs_i->size()),
+                      const_cast<const char **>(ptrs_i->data()),
+                      sizes_i->data());
     };
 
     PipeExec(cmd, storage_slice, 4U, thread_context);
@@ -737,7 +739,7 @@ Redis command sequence because m-cmd can only be used in same hash tag)
                                     keys_prefix_name_slices[i].size());
     }
 
-    unsigned *pslot_loc = thread_context.slot_locs.data();
+    unsigned *pslot_loc = thread_context.slot_locs->data();
     unsigned key_slot_locs = 0;
     for (; pk_raw != pk_raw_end; ++pk_raw) {
       key_slot_locs = KSlotNum<K>(pk_raw, storage_slice);
@@ -753,14 +755,15 @@ Redis command sequence because m-cmd can only be used in same hash tag)
 
     auto cmd = [](::sw::redis::Connection &connection,
                   const ::sw::redis::StringView hkey,
-                  const std::vector<const char *> &ptrs_i,
-                  const std::vector<std::size_t> &sizes_i) {
-      assert(strcmp(ptrs_i[0], "HDEL") == 0);
-      assert(sizes_i[0] == 4);
+                  const std::vector<const char *> *ptrs_i,
+                  const std::vector<std::size_t> *sizes_i) {
+      assert(strcmp(ptrs_i->front(), "HDEL") == 0);
+      assert(sizes_i->front() == 4);
       assert(std::string(hkey.data()).compare(ptrs_i[1]) == 0);
 
-      connection.send(static_cast<int>(ptrs_i.size()),
-                      const_cast<const char **>(ptrs_i.data()), sizes_i.data());
+      connection.send(static_cast<int>(ptrs_i->size()),
+                      const_cast<const char **>(ptrs_i->data()),
+                      sizes_i->data());
     };
 
     PipeExec(cmd, storage_slice, 3U, thread_context);
