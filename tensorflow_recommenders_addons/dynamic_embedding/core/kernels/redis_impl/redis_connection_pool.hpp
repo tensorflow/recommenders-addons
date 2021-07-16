@@ -471,19 +471,19 @@ Redis command sequence because m-cmd can only be used in same hash tag)
 
     thread_context.HandleReserve(1U, argc, 0);
 
-    std::vector<const char *> *ptrs_0 = thread_context.slots->at(0).ptrs;
-    std::vector<std::size_t> *sizes_0 = thread_context.slots->at(0).sizes;
+    std::vector<const char *> *ptrs_0 = (*thread_context.slots)[0].ptrs;
+    std::vector<std::size_t> *sizes_0 = (*thread_context.slots)[0].sizes;
 
     const K *const pk_raw_end = reinterpret_cast<K *>(keys.data()) + max_i;
     const K *pk_raw = reinterpret_cast<K *>(keys.data()) + begin;
 
-    const char **ptrs_iter = &(ptrs_0->front());
+    auto ptrs_iter = ptrs_0->begin();
     *ptrs_iter = redis_command;
     ++ptrs_iter;
     *ptrs_iter = keys_prefix_name_slices[0].data();
     ++ptrs_iter;
 
-    std::size_t *sizes_iter = &(sizes_0->front());
+    auto sizes_iter = sizes_0->begin();
     *sizes_iter = redis_command_byte;
     ++sizes_iter;
     *sizes_iter = keys_prefix_name_slices[0].size();
@@ -571,8 +571,8 @@ Redis command sequence because m-cmd can only be used in same hash tag)
 
     thread_context.HandleReserve(1U, argc, 0);
 
-    std::vector<const char *> *ptrs_0 = thread_context.slots->at(0).ptrs;
-    std::vector<std::size_t> *sizes_0 = thread_context.slots->at(0).sizes;
+    std::vector<const char *> *ptrs_0 = (*thread_context.slots)[0].ptrs;
+    std::vector<std::size_t> *sizes_0 = (*thread_context.slots)[0].sizes;
 
     const K *const pk_raw_end = reinterpret_cast<K *>(keys.data()) + max_i;
 
@@ -583,13 +583,13 @@ Redis command sequence because m-cmd can only be used in same hash tag)
     const V *pv_raw =
         reinterpret_cast<V *>(values.data()) + begin * Velems_per_dim0;
 
-    const char **ptrs_iter = &(ptrs_0->front());
+    auto ptrs_iter = ptrs_0->begin();
     *ptrs_iter = redis_command;
     ++ptrs_iter;
     *ptrs_iter = keys_prefix_name_slices[0].data();
     ++ptrs_iter;
 
-    std::size_t *sizes_iter = &(sizes_0->front());
+    auto sizes_iter = sizes_0->begin();
     *sizes_iter = redis_command_byte;
     ++sizes_iter;
     *sizes_iter = keys_prefix_name_slices[0].size();
@@ -643,19 +643,19 @@ Redis command sequence because m-cmd can only be used in same hash tag)
 
     thread_context.HandleReserve(1U, argc, 0);
 
-    std::vector<const char *> *ptrs_0 = thread_context.slots->at(0).ptrs;
-    std::vector<std::size_t> *sizes_0 = thread_context.slots->at(0).sizes;
+    std::vector<const char *> *ptrs_0 = (*thread_context.slots)[0].ptrs;
+    std::vector<std::size_t> *sizes_0 = (*thread_context.slots)[0].sizes;
 
     const K *const pk_raw_end = reinterpret_cast<K *>(keys.data()) + max_i;
     const K *pk_raw = reinterpret_cast<K *>(keys.data()) + begin;
 
-    const char **ptrs_iter = &(ptrs_0->front());
+    auto ptrs_iter = ptrs_0->begin();
     *ptrs_iter = redis_command;
     ++ptrs_iter;
     *ptrs_iter = keys_prefix_name_slices[0].data();
     ++ptrs_iter;
 
-    std::size_t *sizes_iter = &(sizes_0->front());
+    auto sizes_iter = sizes_0->begin();
     *sizes_iter = redis_command_byte;
     ++sizes_iter;
     *sizes_iter = keys_prefix_name_slices[0].size();

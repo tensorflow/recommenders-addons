@@ -194,10 +194,14 @@ struct SlotContext {
   void HandleRelease() {
     std::vector<const char *> ptrs_empty;
     std::vector<std::size_t> sizes_empty;
-    ptrs->swap(ptrs_empty);
-    delete ptrs;
-    sizes->swap(sizes_empty);
-    delete sizes;
+    if (ptrs) {
+      this->ptrs->swap(ptrs_empty);
+      delete this->ptrs;
+    }
+    if (sizes) {
+      this->sizes->swap(sizes_empty);
+      delete this->sizes;
+    }
   }
 };
 
@@ -205,35 +209,41 @@ struct ThreadContext {
   std::vector<SlotContext> *slots = new std::vector<SlotContext>(1);
   std::vector<unsigned> *slot_locs = new std::vector<unsigned>(1);
 
-  void HandleReserve(const unsigned &storage_slice, const unsigned &vector_len,
-                     const int &keys_num) {
+  void HandleReserve(const unsigned storage_slice, const unsigned vector_len,
+                     const int keys_num) {
     if (storage_slice > this->slots->size())
       this->slots->resize(storage_slice);
     for (unsigned i = 0; i < storage_slice; ++i) {
-      this->slots->at(i).ptrs->clear();
-      this->slots->at(i).ptrs->reserve(vector_len);
-      this->slots->at(i).sizes->clear();
-      this->slots->at(i).sizes->reserve(vector_len);
+      (*this->slots)[i].ptrs->clear();
+      (*this->slots)[i].ptrs->reserve(vector_len);
+      (*this->slots)[i].sizes->clear();
+      (*this->slots)[i].sizes->reserve(vector_len);
     }
     this->slot_locs->reserve(keys_num);
   }
 
-  void HandlePushBack(const unsigned &slot_num, const char *ptrs_in,
-                      const std::size_t &sizes_in) {
-    this->slots->at(slot_num).ptrs->push_back(ptrs_in);
-    this->slots->at(slot_num).sizes->push_back(sizes_in);
+  void HandlePushBack(const unsigned slot_num, const char *ptrs_in,
+                      const std::size_t sizes_in) {
+    (*this->slots)[slot_num].ptrs->push_back(ptrs_in);
+    (*this->slots)[slot_num].sizes->push_back(sizes_in);
   }
 
   void HandleRelease() {
     std::vector<unsigned> slot_locs_empty;
-    slot_locs->swap(slot_locs_empty);
-    delete slot_locs;
-    for (auto slots_i : *slots) {
-      slots_i.HandleRelease();
+    if (this->slot_locs) {
+      this->slot_locs->swap(slot_locs_empty);
+      delete this->slot_locs;
+    }
+    if (this->slots) {
+      for (auto slots_i : *slots) {
+        slots_i.HandleRelease();
+      }
     }
     std::vector<SlotContext> slots_empty;
-    slots->swap(slots_empty);
-    delete slots;
+    if (this->slots) {
+      this->slots->swap(slots_empty);
+      delete this->slots;
+    }
   }
 };
 

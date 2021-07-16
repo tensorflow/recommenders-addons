@@ -118,7 +118,7 @@ public:
           }
         }
         LOG(WARNING) << "Can not access the host "
-                     << redis_connection_params.redis_host_ip.at(i)
+                     << redis_connection_params.redis_host_ip[i]
                      << ". Delete it from the host list.";
         redis_connection_params.redis_host_ip.erase(
             redis_connection_params.redis_host_ip.begin() + i);
@@ -151,13 +151,13 @@ private:
     std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>> replies;
     replies.reserve(storage_slice);
     for (unsigned i = 0; i < storage_slice; ++i) {
-      if (thread_context.slots->at(i).ptrs->size() >= size_check) {
-        ::sw::redis::StringView hkey(thread_context.slots->at(i).ptrs->at(1),
-                                     thread_context.slots->at(i).sizes->at(1));
+      if ((*thread_context.slots)[i].ptrs->size() >= size_check) {
+        ::sw::redis::StringView hkey((*(*thread_context.slots)[i].ptrs)[1],
+                                     (*(*thread_context.slots)[i].sizes)[1]);
         try {
           replies.push_back(
-              redis_conn->command(cmd, hkey, thread_context.slots->at(i).ptrs,
-                                  thread_context.slots->at(i).sizes));
+              redis_conn->command(cmd, hkey, (*thread_context.slots)[i].ptrs,
+                                  (*thread_context.slots)[i].sizes));
         } catch (const std::exception &err) {
           LOG(ERROR) << "RedisHandler error in pipe_exec for slices "
                      << hkey.data() << " -- " << err.what();
@@ -620,7 +620,7 @@ Redis command sequence because m-cmd can only be used in same hash tag)
     redisReply *temp_reply;
     for (auto i = 0; i < (max_i - begin);
          ++i, pv_raw += Velems_per_dim0, dft_raw += Velems_per_dim0) {
-      slot_loc = slot_locs->at(i);
+      slot_loc = (*slot_locs)[i];
       temp_reply = reply[slot_loc]->element[slots_iters_nums[slot_loc]];
       ++(slots_iters_nums[slot_loc]);
       if (temp_reply->type ==

@@ -20,6 +20,7 @@ limitations under the License.
 #include <time.h>
 
 #include <csignal>
+#include <thread>
 #include <type_traits>
 #include <utility>
 
@@ -45,8 +46,8 @@ times. The source code is shown in the following link:
 https://github.com/redis/redis/blob/be6ce8a92a9acbecfaaa6c57a45037fc1018fefe/src/networking.c#L1851
 */
 // constexpr long long multi_redis_cmd_max_argc = 1024 * 1024;
-constexpr long long multi_redis_cmd_max_argc =
-    1024*8; // For better parallelism performance
+const static long long multi_redis_cmd_max_argc =
+    1024 * std::thread::hardware_concurrency(); // For better parallelism performance
 
 using sw::redis::OptionalString;
 using sw::redis::Redis;
@@ -98,9 +99,6 @@ private:
 
     const int64 max_parallelism = (total / multi_redis_cmd_max_argc) + 1;
 
-    if (max_parallelism > static_cast<int64>(threads_Find.size()))
-      threads_Find.resize(max_parallelism << 1);
-
     std::atomic_uint thread_id_a(0);
     auto shard = [this, &total, &keys_prefix_name_slices, &keys, &values,
                   &default_value, &is_full_default, &Velems_per_flat2_dim0,
@@ -110,14 +108,14 @@ private:
       thread_id_a.store(thread_id + 1, std::memory_order_consume);
 
       auto reply = _table_instance->MgetCommand(
-          keys, threads_Find[thread_id], begin, max_i, keys_prefix_name_slices);
+          keys, threads_Find.at(thread_id), begin, max_i, keys_prefix_name_slices);
 
       assert(
           reply.size() ==
           redis_connection_params.storage_slice); // #define REDIS_REPLY_ARRAY 2
 
       _table_instance->MgetToTensor(values, default_value, is_full_default,
-                                    threads_Find[thread_id], reply, begin,
+                                    threads_Find.at(thread_id), reply, begin,
                                     max_i, Velems_per_flat2_dim0);
     };
     int64 slices_size = std::min(total, multi_redis_cmd_max_argc - 1);
@@ -157,18 +155,15 @@ private:
                              std::vector<ThreadContext> &threads_Insert) {
     const int64 max_parallelism = (total / multi_redis_cmd_max_argc) + 1;
 
-    if (max_parallelism > static_cast<int64>(threads_Insert.size()))
-      threads_Insert.resize(max_parallelism << 1);
-
     std::atomic_uint thread_id_a(0);
     auto shard = [this, &total, &keys_prefix_name_slices, &keys, &values,
                   &Velems_per_flat2_dim0, &threads_Insert,
                   &thread_id_a](int64 begin, int64 end) {
       const int64 max_i = std::min(total, end);
-      unsigned thread_id = thread_id_a.load(std::memory_order_relaxed);
+      uint thread_id = thread_id_a.load(std::memory_order_relaxed);
       thread_id_a.store(thread_id + 1, std::memory_order_consume);
 
-      _table_instance->MsetCommand(keys, values, threads_Insert[thread_id],
+      _table_instance->MsetCommand(keys, values, threads_Insert.at(thread_id),
                                    begin, max_i, Velems_per_flat2_dim0,
                                    keys_prefix_name_slices);
     };
@@ -196,9 +191,6 @@ private:
                              std::vector<ThreadContext> &threads_Delete) {
     const int64 max_parallelism = (total / multi_redis_cmd_max_argc) + 1;
 
-    if (max_parallelism > static_cast<int64>(threads_Delete.size()))
-      threads_Delete.resize(max_parallelism << 1);
-
     std::atomic_uint thread_id_a(0);
     auto shard = [this, &total, &keys_prefix_name_slices, &keys,
                   &threads_Delete, &thread_id_a](int64 begin, int64 end) {
@@ -206,7 +198,7 @@ private:
       unsigned thread_id = thread_id_a.load(std::memory_order_relaxed);
       thread_id_a.store(thread_id + 1, std::memory_order_consume);
 
-      _table_instance->DelCommand(keys, threads_Delete[thread_id], begin, max_i,
+      _table_instance->DelCommand(keys, threads_Delete.at(thread_id), begin, max_i,
                                   keys_prefix_name_slices);
     };
     int64 slices_size = std::min(total, multi_redis_cmd_max_argc - 1);
@@ -548,6 +540,11 @@ public:
           std::invalid_argument("Exit without setting correct slice number."));
     }
 
+    // allocate the memory of threads helper
+    threads_Find.resize(std::thread::hardware_concurrency());
+    threads_Insert.resize(std::thread::hardware_concurrency());
+    threads_Delete.resize(std::thread::hardware_concurrency());
+
     /*
       When there is not a corresponding table existing in Redis service and
       using_model_lib==True, try to restore from a Redis binary dump files
@@ -564,7 +561,6 @@ public:
   }
 
   ~RedisTableOfTensors() {
-    _table_instance.reset();
     for (auto in_aiocb_obj : IMPORT_content) {
       free((void *)in_aiocb_obj.aio_buf);
     }
@@ -580,6 +576,7 @@ public:
     for (auto threads_Delete_i : threads_Delete) {
       threads_Delete_i.HandleRelease();
     }
+    _table_instance.reset();
   }
 
   size_t size() const override {
