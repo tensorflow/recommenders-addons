@@ -575,7 +575,6 @@ Redis command sequence because m-cmd can only be used in same hash tag)
     std::vector<std::size_t> *sizes_0 = (*thread_context.slots)[0].sizes;
 
     const K *const pk_raw_end = reinterpret_cast<K *>(keys.data()) + max_i;
-
     const K *pk_raw = reinterpret_cast<K *>(keys.data()) + begin;
 
     const std::size_t &&V_byte_size = Velems_per_dim0 * sizeof(V);
