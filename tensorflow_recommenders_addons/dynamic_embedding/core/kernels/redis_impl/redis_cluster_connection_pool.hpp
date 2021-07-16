@@ -593,7 +593,8 @@ Redis command sequence because m-cmd can only be used in same hash tag)
       assert(std::string(hkey.data()).compare(ptrs_i[1]) == 0);
 
       connection.send(static_cast<int>(ptrs_i->size()),
-                      const_cast<const char **>(ptrs_i->data()), sizes_i->data());
+                      const_cast<const char **>(ptrs_i->data()),
+                      sizes_i->data());
     };
 
     return PipeExec(cmd, storage_slice, 3U, thread_context);
@@ -704,7 +705,8 @@ Redis command sequence because m-cmd can only be used in same hash tag)
       assert(std::string(hkey.data()).compare(ptrs_i[1]) == 0);
 
       connection.send(static_cast<int>(ptrs_i->size()),
-                      const_cast<const char **>(ptrs_i->data()), sizes_i->data());
+                      const_cast<const char **>(ptrs_i->data()),
+                      sizes_i->data());
     };
 
     PipeExec(cmd, storage_slice, 4U, thread_context);
@@ -760,7 +762,8 @@ Redis command sequence because m-cmd can only be used in same hash tag)
       assert(std::string(hkey.data()).compare(ptrs_i[1]) == 0);
 
       connection.send(static_cast<int>(ptrs_i->size()),
-                      const_cast<const char **>(ptrs_i->data()), sizes_i->data());
+                      const_cast<const char **>(ptrs_i->data()),
+                      sizes_i->data());
     };
 
     PipeExec(cmd, storage_slice, 3U, thread_context);

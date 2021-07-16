@@ -47,7 +47,8 @@ https://github.com/redis/redis/blob/be6ce8a92a9acbecfaaa6c57a45037fc1018fefe/src
 */
 // constexpr long long multi_redis_cmd_max_argc = 1024 * 1024;
 const static long long multi_redis_cmd_max_argc =
-    1024 * std::thread::hardware_concurrency(); // For better parallelism performance
+    1024 *
+    std::thread::hardware_concurrency(); // For better parallelism performance
 
 using sw::redis::OptionalString;
 using sw::redis::Redis;
@@ -107,8 +108,9 @@ private:
       unsigned thread_id = thread_id_a.load(std::memory_order_relaxed);
       thread_id_a.store(thread_id + 1, std::memory_order_consume);
 
-      auto reply = _table_instance->MgetCommand(
-          keys, threads_Find.at(thread_id), begin, max_i, keys_prefix_name_slices);
+      auto reply =
+          _table_instance->MgetCommand(keys, threads_Find.at(thread_id), begin,
+                                       max_i, keys_prefix_name_slices);
 
       assert(
           reply.size() ==
@@ -198,8 +200,8 @@ private:
       unsigned thread_id = thread_id_a.load(std::memory_order_relaxed);
       thread_id_a.store(thread_id + 1, std::memory_order_consume);
 
-      _table_instance->DelCommand(keys, threads_Delete.at(thread_id), begin, max_i,
-                                  keys_prefix_name_slices);
+      _table_instance->DelCommand(keys, threads_Delete.at(thread_id), begin,
+                                  max_i, keys_prefix_name_slices);
     };
     int64 slices_size = std::min(total, multi_redis_cmd_max_argc - 1);
     auto &worker_threads = *context->device()->tensorflow_cpu_worker_threads();
