@@ -144,7 +144,7 @@ namespace tensorflow {
           OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "read_only", &readOnly));
 
           rocksdb::Options options;
-          options.create_if_missing = true;
+          options.create_if_missing = !readOnly;
 
           // Create or connect to the RocksDB database.
           std::vector<std::string> colFamilies;
