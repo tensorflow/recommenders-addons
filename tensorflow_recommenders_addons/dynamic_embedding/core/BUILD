@@ -33,6 +33,20 @@ custom_op_library(
 )
 
 custom_op_library(
+    name = "_rocksdb_table_ops.so",
+    srcs = [
+        "kernels/rocksdb_table_op.h",
+        "kernels/rocksdb_table_op.cc",
+        "utils/utils.h",
+        "utils/types.h",
+    ],
+    deps = [
+        "@rocksdb//:rocksdb",
+    ],
+    copts = ["-pthread", "-O3", "-ffast-math"],
+)
+
+custom_op_library(
     name = "_math_ops.so",
     srcs = [
         "kernels/segment_reduction_ops.h",

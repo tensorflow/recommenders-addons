@@ -15,6 +15,7 @@ limitations under the License.
 
 #include <iostream>
 #include <fstream>
+#include "tensorflow_recommenders_addons/dynamic_embedding/core/utils/utils.h"
 #include "rocksdb_table_op.h"
 #include "rocksdb/db.h"
 
@@ -42,7 +43,7 @@ namespace tensorflow {
         } while (0)
 
       template<class T>
-      inline void copyToTensor(T *dst, const std::string &slice, const int64 numValues) {
+      void copyToTensor(T *dst, const std::string &slice, const int64 &numValues) {
         if (slice.size() != numValues * sizeof(T)) {
           std::stringstream msg;
           msg << "Expected " << numValues * sizeof(T)
@@ -54,50 +55,58 @@ namespace tensorflow {
       }
 
       template<>
-      inline void copyToTensor(tstring *dst, const std::string &slice, const int64 numValues) {
+      void copyToTensor<tstring>(tstring *dst, const std::string &slice, const int64 &numValues) {
         const char *src = slice.data();
         const char *const srcEnd = &src[slice.size()];
         const tstring *const dstEnd = &dst[numValues];
 
         for (; dst != dstEnd; ++dst) {
           if (src + sizeof(uint32_t) > srcEnd) {
-            throw std::runtime_error("Something is very..very..very wrong. Buffer overflow immanent!");
+            throw std::runtime_error(
+              "Something is very..very..very wrong. Buffer overflow immanent!"
+            );
           }
           const uint32_t length = *reinterpret_cast<const uint32_t *>(src);
           src += sizeof(uint32_t);
 
           if (src + length > srcEnd) {
-            throw std::runtime_error("Something is very..very..very wrong. Buffer overflow immanent!");
+            throw std::runtime_error(
+              "Something is very..very..very wrong. Buffer overflow immanent!"
+            );
           }
           dst->assign(src, length);
           src += length;
         }
 
         if (src != srcEnd) {
-          throw std::runtime_error("RocksDB returned more values than the destination tensor could absorb.");
+          throw std::runtime_error(
+            "RocksDB returned more values than the destination tensor could absorb."
+          );
         }
       }
 
       template<class T>
-      inline void makeSlice(rocksdb::Slice &dst, const T *src) {
-        dst.data_ = reinterpret_cast<const char *>(src);
+      void assignSlice(rocksdb::Slice &dst, const T &src) {
+        dst.data_ = reinterpret_cast<const char *>(&src);
         dst.size_ = sizeof(T);
       }
 
       template<>
-      inline void makeSlice(rocksdb::Slice &dst, const tstring *src) {
-        dst.data_ = src->data();
-        dst.size_ = src->size();
+      void assignSlice<tstring>(rocksdb::Slice &dst, const tstring &src) {
+        dst.data_ = src.data();
+        dst.size_ = src.size();
       }
 
       template<class T>
-      inline void makeSlice(rocksdb::PinnableSlice &dst, const T *src, const int64 numValues) {
+      void assignSlice(rocksdb::PinnableSlice &dst, const T *src, const int64 numValues) {
         dst.data_ = reinterpret_cast<const char *>(src);
         dst.size_ = numValues * sizeof(T);
       }
 
       template<>
-      inline void makeSlice(rocksdb::PinnableSlice &dst, const tstring *src, const int64 numValues) {
+      void assignSlice<tstring>(
+        rocksdb::PinnableSlice &dst, const tstring *src, const int64 numValues
+      ) {
         // Allocate memory to be returned.
         std::string* d = dst.GetSelf();
         d->clear();
@@ -116,19 +125,14 @@ namespace tensorflow {
       }
 
       template<class K, class V>
-      class RocksDBTableOfTensors : public lookup::LookupInterface {
-
+      class RocksDBTableOfTensors : public ClearableLookupInterface {
       public:
-        #pragma region --- BASE INTERFACE ----------------------------------------------------
-
+        /* --- BASE INTERFACE ------------------------------------------------------------------- */
         RocksDBTableOfTensors(OpKernelContext *ctx, OpKernel *kernel) {
-          OP_REQUIRES_OK(ctx, GetNodeAttr(
-            kernel->def(), "value_shape", &valueShape
+          OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "value_shape", &valueShape));
+          OP_REQUIRES(ctx, TensorShapeUtils::IsVector(valueShape), errors::InvalidArgument(
+            "Default value must be a vector, got shape ", valueShape.DebugString()
           ));
-          OP_REQUIRES(ctx,
-            TensorShapeUtils::IsVector(valueShape),
-            errors::InvalidArgument("Default value must be a vector, got shape ", valueShape.DebugString())
-          );
 
           std::string dbPath;
           OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "database_path", &dbPath));
@@ -175,7 +179,7 @@ namespace tensorflow {
 
         ~RocksDBTableOfTensors() override {
           for (auto ch : colHandles) {
-            RDB_OK(db->DestroyColumnFamilyHandle(ch));
+            db->DestroyColumnFamilyHandle(ch);
           }
           colHandles.clear();
           if (db) {
@@ -194,10 +198,8 @@ namespace tensorflow {
 
         TensorShape value_shape() const override { return valueShape; }
 
-        #pragma endregion
-        #pragma region --- LOOKUP ------------------------------------------------------------
-
-        Status Clear(OpKernelContext *ctx) {
+        /* --- LOOKUP --------------------------------------------------------------------------- */
+        Status Clear(OpKernelContext *ctx) override {
           colHandleCache.clear();
 
           // Invalidate old column family.
@@ -226,32 +228,37 @@ namespace tensorflow {
 
           const auto& colHandle = colHandles[colIndex];
 
-          const int64 numKeys = keys.dim_size(0);
-          const int64 numValues = values->dim_size(0);
+          const size_t numKeys = keys.dim_size(0);
+          const size_t numValues = values->dim_size(0);
           if (numKeys != numValues) {
-            return Status(error::Code::INVALID_ARGUMENT, "First dimension of the key and value tensors does not match!");
+            return Status(
+              error::Code::INVALID_ARGUMENT,
+              "First dimension of the key and value tensors does not match!"
+            );
           }
           const int64 valuesPerDim0 = values->NumElements() / numValues;
 
           const K *k = static_cast<K *>(keys.data());
           const K *const kEnd = &k[numKeys];
 
-          const V *const v = static_cast<V *>(values->data());
+          V *const v = static_cast<V *>(values->data());
           int64 vOffset = 0;
 
           const V *const d = static_cast<V *>(default_value.data());
           const int64 dSize = default_value.NumElements();
 
           if (dSize % valuesPerDim0 != 0) {
-            throw std::runtime_error("The shapes of the values and default_value tensors are not compatible.");
+            throw std::runtime_error(
+              "The shapes of the values and default_value tensors are not compatible."
+            );
           }
 
           if (numKeys < BATCH_MODE_MIN_QUERY_SIZE) {
             rocksdb::Slice kSlice;
 
             for (; k != kEnd; ++k, vOffset += valuesPerDim0) {
-              makeSlice(kSlice, k);
-              rocksdb::PinnableSlice vSlice;
+              assignSlice(kSlice, k);
+              std::string vSlice;
               auto status = db->Get(readOptions, colHandle, kSlice, &vSlice);
               if (status.ok()) {
                 copyToTensor(&v[vOffset], vSlice, valuesPerDim0);
@@ -272,19 +279,22 @@ namespace tensorflow {
 
             // Query all keys using a single Multi-Get.
             std::vector<std::string> vSlices;
-            const std::vector<rocksdb::Slice> kSlices(numKeys);
-            for (int64 i = 0; i < numKeys; ++i) {
-              makeSlice(kSlices[i], k[i]);
+            std::vector<rocksdb::Slice> kSlices(numKeys);
+            for (size_t i = 0; i < numKeys; ++i) {
+              assignSlice(kSlices[i], k[i]);
             }
-            const std::vector<rocksdb::Status> &statuses = db->MultiGet(readOptions, colHandles, kSlices, &vSlices);
+            const std::vector<rocksdb::Status> &statuses = db->MultiGet(
+              readOptions, colHandles, kSlices, &vSlices
+            );
             if (statuses.size() != numKeys) {
               std::stringstream msg;
-              msg << "Requested " << numKeys << " keys, but only got " << statuses.size() << " responses.";
+              msg << "Requested " << numKeys << " keys, but only got " << statuses.size()
+                  << " responses.";
               throw std::runtime_error(msg.str());
             }
 
             // Process results.
-            for (int64 i = 0; i < numKeys; ++i, vOffset += valuesPerDim0) {
+            for (size_t i = 0; i < numKeys; ++i, vOffset += valuesPerDim0) {
               const auto& status = statuses[i];
               const auto& vSlice = vSlices[i];
 
@@ -314,7 +324,10 @@ namespace tensorflow {
           const int64 numKeys = keys.dim_size(0);
           const int64 numValues = values.dim_size(0);
           if (numKeys != numValues) {
-            return Status(error::Code::INVALID_ARGUMENT, "First dimension of the key and value tensors does not match!");
+            return Status(
+              error::Code::INVALID_ARGUMENT,
+              "First dimension of the key and value tensors does not match!"
+            );
           }
           const int64 valuesPerDim0 = values.NumElements() / numValues;
 
@@ -328,19 +341,19 @@ namespace tensorflow {
 
           if (numKeys < BATCH_MODE_MIN_QUERY_SIZE) {
             for (; k != kEnd; ++k, v += valuesPerDim0) {
-              makeSlice(kSlice, k);
-              makeSlice(vSlice, v, valuesPerDim0);
-              RDB_OK(db->Put(readOptions, colHandle, kSlice, vSlice));
+              assignSlice(kSlice, k);
+              assignSlice(vSlice, v, valuesPerDim0);
+              RDB_OK(db->Put(writeOptions, colHandle, kSlice, vSlice));
             }
           }
           else {
             rocksdb::WriteBatch batch;
             for (; k != kEnd; ++k, v += valuesPerDim0) {
-              makeSlice(kSlice, k);
-              makeSlice(vSlice, v, valuesPerDim0);
+              assignSlice(kSlice, k);
+              assignSlice(vSlice, v, valuesPerDim0);
               RDB_OK(batch.Put(colHandle, kSlice, vSlice));
             }
-            RDB_OK(db->Write(readOptions, &batch));
+            RDB_OK(db->Write(writeOptions, &batch));
           }
 
           // TODO: Instead of hard failing, return proper error code?!
@@ -362,14 +375,14 @@ namespace tensorflow {
 
           if (numKeys < BATCH_MODE_MIN_QUERY_SIZE) {
             for (; k != kEnd; ++k) {
-              makeSlice(kSlice, k);
+              assignSlice(kSlice, k);
               RDB_OK(db->Delete(writeOptions, colHandle, kSlice));
             }
           }
           else {
             rocksdb::WriteBatch batch;
             for (; k != kEnd; ++k) {
-              makeSlice(kSlice, k);
+              assignSlice(kSlice, k);
               RDB_OK(batch.Delete(colHandle, kSlice));
             }
             RDB_OK(db->Write(writeOptions, &batch));
@@ -379,17 +392,19 @@ namespace tensorflow {
           return Status::OK();
         }
 
-        #pragma endregion
-        #pragma region --- IMPORT / EXPORT ---------------------------------------------------
-
+        /* --- IMPORT / EXPORT ------------------------------------------------------------------ */
         Status ExportValues(OpKernelContext *ctx) override {
           // Create file header.
           std::ofstream file("/tmp/db.dump", std::ofstream::binary);
           if (!file) {
             return Status(error::Code::UNKNOWN, "Could not open dump file.");
           }
-          file.write(reinterpret_cast<const char *>(&EXPORT_FILE_MAGIC), sizeof(EXPORT_FILE_MAGIC));
-          file.write(reinterpret_cast<const char *>(&EXPORT_FILE_VERSION), sizeof(EXPORT_FILE_VERSION));
+          file.write(
+            reinterpret_cast<const char *>(&EXPORT_FILE_MAGIC), sizeof(EXPORT_FILE_MAGIC)
+          );
+          file.write(
+            reinterpret_cast<const char *>(&EXPORT_FILE_VERSION), sizeof(EXPORT_FILE_VERSION)
+          );
 
           // Iterate through entries one-by-one and append them to the file.
           const auto& colHandle = colHandles[colIndex];
@@ -399,7 +414,9 @@ namespace tensorflow {
           for (; iter->Valid(); iter->Next()) {
             const auto& kSlice = iter->key();
             if (kSlice.size() > std::numeric_limits<uint8_t>::max()) {
-              throw std::runtime_error("A key in the database is too long. Has the database been tampered with?");
+              throw std::runtime_error(
+                "A key in the database is too long. Has the database been tampered with?"
+              );
             }
             const auto kSize = static_cast<uint8_t>(kSlice.size());
             file.write(reinterpret_cast<const char *>(&kSize), sizeof(kSize));
@@ -407,7 +424,9 @@ namespace tensorflow {
 
             const auto vSlice = iter->value();
             if (vSlice.size() > std::numeric_limits<uint32_t>::max()) {
-              throw std::runtime_error("A value in the database is too large. Has the database been tampered with?");
+              throw std::runtime_error(
+                "A value in the database is too large. Has the database been tampered with?"
+              );
             }
             const auto vSize = static_cast<uint32_t>(vSlice.size());
             file.write(reinterpret_cast<const char *>(&vSize), sizeof(vSize));
@@ -417,8 +436,12 @@ namespace tensorflow {
           return Status::OK();
         }
 
-        Status ImportValues(OpKernelContext *ctx, const Tensor &keys, const Tensor &values) override {
-          static const Status error_eof(error::Code::OUT_OF_RANGE, "Unexpected end of file.");
+        Status ImportValues(
+          OpKernelContext *ctx, const Tensor &keys, const Tensor &values
+        ) override {
+          static const Status error_eof(
+            error::Code::OUT_OF_RANGE, "Unexpected end of file."
+          );
 
           // Make sure the column family is clean.
           RDB_OK(Clear(ctx));
@@ -486,8 +509,6 @@ namespace tensorflow {
           return Status::OK();
         }
 
-        #pragma endregion
-
       protected:
         TensorShape valueShape;
         rocksdb::DB *db;
@@ -499,39 +520,71 @@ namespace tensorflow {
         std::vector<rocksdb::ColumnFamilyHandle*> colHandleCache;
       };
 
-      #pragma region --- KERNEL REGISTRATION -----------------------------------------------
+      #undef RDB_OK
 
-      // Register the RocksDBTableOfTensors op.
-      #define REGISTER_KERNEL(key_dtype, value_dtype)                                         \
-        REGISTER_KERNEL_BUILDER(                                                              \
-          Name("TFRA>RocksDBTableOfTensors")                                                  \
-            .Device(DEVICE_CPU)                                                               \
-            .TypeConstraint<key_dtype>("key_dtype")                                           \
-            .TypeConstraint<value_dtype>("value_dtype"),                                      \
-          HashTableOp<RocksDBTableOfTensors<key_dtype, value_dtype>, key_dtype, value_dtype>  \
+      /* --- KERNEL REGISTRATION ---------------------------------------------------------------- */
+      #define RDB_REGISTER_KERNEL_BUILDER(key_dtype, value_dtype)                                \
+        REGISTER_KERNEL_BUILDER(                                                                 \
+          Name(PREFIX_OP_NAME(RocksDBTableOfTensors))                                            \
+            .Device(DEVICE_CPU)                                                                  \
+            .TypeConstraint<key_dtype>("key_dtype")                                              \
+            .TypeConstraint<value_dtype>("value_dtype"),                                         \
+          RocksDBTableOp<RocksDBTableOfTensors<key_dtype, value_dtype>, key_dtype, value_dtype>  \
         )
 
-      REGISTER_KERNEL(int32, double);
-      REGISTER_KERNEL(int32, float);
-      REGISTER_KERNEL(int32, int32);
-      REGISTER_KERNEL(int64, double);
-      REGISTER_KERNEL(int64, float);
-      REGISTER_KERNEL(int64, int32);
-      REGISTER_KERNEL(int64, int64);
-      REGISTER_KERNEL(int64, tstring);
-      REGISTER_KERNEL(int64, int8);
-      REGISTER_KERNEL(int64, Eigen::half);
-      REGISTER_KERNEL(tstring, bool);
-      REGISTER_KERNEL(tstring, double);
-      REGISTER_KERNEL(tstring, float);
-      REGISTER_KERNEL(tstring, int32);
-      REGISTER_KERNEL(tstring, int64);
-      REGISTER_KERNEL(tstring, int8);
-      REGISTER_KERNEL(tstring, Eigen::half);
+      RDB_REGISTER_KERNEL_BUILDER(int32, bool);
+      RDB_REGISTER_KERNEL_BUILDER(int32, int8);
+      RDB_REGISTER_KERNEL_BUILDER(int32, int16);
+      RDB_REGISTER_KERNEL_BUILDER(int32, int32);
+      RDB_REGISTER_KERNEL_BUILDER(int32, int64);
+      RDB_REGISTER_KERNEL_BUILDER(int64, Eigen::half);
+      RDB_REGISTER_KERNEL_BUILDER(int32, float);
+      RDB_REGISTER_KERNEL_BUILDER(int32, double);
+      RDB_REGISTER_KERNEL_BUILDER(int32, tstring);
 
-      #undef REGISTER_KERNEL
+      RDB_REGISTER_KERNEL_BUILDER(int64, bool);
+      RDB_REGISTER_KERNEL_BUILDER(int64, int8);
+      RDB_REGISTER_KERNEL_BUILDER(int64, int16);
+      RDB_REGISTER_KERNEL_BUILDER(int64, int32);
+      RDB_REGISTER_KERNEL_BUILDER(int64, int64);
+      RDB_REGISTER_KERNEL_BUILDER(int64, Eigen::half);
+      RDB_REGISTER_KERNEL_BUILDER(int64, float);
+      RDB_REGISTER_KERNEL_BUILDER(int64, double);
+      RDB_REGISTER_KERNEL_BUILDER(int64, tstring);
 
-      #pragma endregion
+      RDB_REGISTER_KERNEL_BUILDER(tstring, bool);
+      RDB_REGISTER_KERNEL_BUILDER(tstring, int8);
+      RDB_REGISTER_KERNEL_BUILDER(tstring, int16);
+      RDB_REGISTER_KERNEL_BUILDER(tstring, int32);
+      RDB_REGISTER_KERNEL_BUILDER(tstring, int64);
+      RDB_REGISTER_KERNEL_BUILDER(tstring, Eigen::half);
+      RDB_REGISTER_KERNEL_BUILDER(tstring, float);
+      RDB_REGISTER_KERNEL_BUILDER(tstring, double);
+      RDB_REGISTER_KERNEL_BUILDER(tstring, tstring);
+
+      #undef RDB_TABLE_REGISTER_KERNEL_BUILDER
+
+      REGISTER_KERNEL_BUILDER(
+        Name(PREFIX_OP_NAME(RocksDBTableClear)).Device(DEVICE_CPU), RocksDBTableClear
+      );
+      REGISTER_KERNEL_BUILDER(
+        Name(PREFIX_OP_NAME(RocksDBTableExport)).Device(DEVICE_CPU), RocksDBTableExport
+      );
+      REGISTER_KERNEL_BUILDER(
+        Name(PREFIX_OP_NAME(RocksDBTableFind)).Device(DEVICE_CPU), RocksDBTableFind
+      );
+      REGISTER_KERNEL_BUILDER(
+        Name(PREFIX_OP_NAME(RocksDBTableImport)).Device(DEVICE_CPU), RocksDBTableImport
+      );
+      REGISTER_KERNEL_BUILDER(
+        Name(PREFIX_OP_NAME(RocksDBTableInsert)).Device(DEVICE_CPU), RocksDBTableInsert
+      );
+      REGISTER_KERNEL_BUILDER(
+        Name(PREFIX_OP_NAME(RocksDBTableRemove)).Device(DEVICE_CPU), RocksDBTableRemove
+      );
+      REGISTER_KERNEL_BUILDER(
+        Name(PREFIX_OP_NAME(RocksDBTableSize)).Device(DEVICE_CPU), RocksDBTableSize
+      );
 
     }  // namespace rocksdb_lookup
   }  // namespace recommenders_addons
