@@ -137,10 +137,8 @@ namespace tensorflow {
           std::string dbPath;
           OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "database_path", &dbPath));
 
-          std::string embName;
-          OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "embedding_name", &embName));
+          OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "embedding_name", &embeddingName));
 
-          bool readOnly;
           OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "read_only", &readOnly));
 
           rocksdb::Options options;
@@ -155,7 +153,7 @@ namespace tensorflow {
           std::vector<rocksdb::ColumnFamilyDescriptor> colDescriptors;
           for (const auto& cf : colFamilies) {
             colDescriptors.emplace_back(cf, rocksdb::ColumnFamilyOptions());
-            colFamilyExists |= cf == embName;
+            colFamilyExists |= cf == embeddingName;
             if (!colFamilyExists) {
               ++colIndex;
             }
@@ -171,9 +169,7 @@ namespace tensorflow {
 
           // If desired column family does not exist yet, create it.
           if (!colFamilyExists) {
-            rocksdb::ColumnFamilyHandle* handle;
-            RDB_OK(db->CreateColumnFamily(rocksdb::ColumnFamilyOptions(), embName, &handle));
-            colHandles.push_back(handle);
+
           }
         }
 
@@ -199,19 +195,34 @@ namespace tensorflow {
         TensorShape value_shape() const override { return valueShape; }
 
         /* --- LOOKUP --------------------------------------------------------------------------- */
+        rocksdb::ColumnFamilyHandle* GetOrCreateColumnHandle() {
+          if (colIndex >= colHandles.size()) {
+            if (readOnly) {
+              return nullptr;
+            }
+            rocksdb::ColumnFamilyHandle *colHandle;
+            RDB_OK(db->CreateColumnFamily(
+              rocksdb::ColumnFamilyOptions(), embeddingName, &colHandle
+            ));
+            colHandles.push_back(colHandle);
+          }
+          return colHandles[colIndex];
+        }
+
         Status Clear(OpKernelContext *ctx) override {
           colHandleCache.clear();
 
-          // Invalidate old column family.
-          const std::string name = colHandles[colIndex]->GetName();
-          RDB_OK(db->DropColumnFamily(colHandles[colIndex]));
-          RDB_OK(db->DestroyColumnFamilyHandle(colHandles[colIndex]));
+          // Correct behavior if clear invoked multiple times.
+          if (colIndex < colHandles.size()) {
+            if (readOnly) {
+              return Status(error::Code::PERMISSION_DENIED, "Cannot clear in read_only mode.");
+            }
+            RDB_OK(db->DropColumnFamily(colHandles[colIndex]));
+            RDB_OK(db->DestroyColumnFamilyHandle(colHandles[colIndex]));
+            colHandles.erase(colHandles.begin() + colIndex);
+          }
 
           // Create substitute in-place.
-          rocksdb::ColumnFamilyHandle* handle;
-          RDB_OK(db->CreateColumnFamily(rocksdb::ColumnFamilyOptions(), name, &handle));
-          colHandles[colIndex] = handle;
-
           return Status::OK();
         }
 
@@ -226,7 +237,7 @@ namespace tensorflow {
             return Status(error::Code::INVALID_ARGUMENT, "Tensor dtypes are incompatible!");
           }
 
-          const auto& colHandle = colHandles[colIndex];
+          rocksdb::ColumnFamilyHandle *const colHandle = GetOrCreateColumnHandle();
 
           const size_t numKeys = keys.dim_size(0);
           const size_t numValues = values->dim_size(0);
@@ -259,7 +270,9 @@ namespace tensorflow {
             for (; k != kEnd; ++k, vOffset += valuesPerDim0) {
               assignSlice(kSlice, k);
               std::string vSlice;
-              auto status = db->Get(readOptions, colHandle, kSlice, &vSlice);
+              auto status = colHandle
+                ? db->Get(readOptions, colHandle, kSlice, &vSlice)
+                : rocksdb::Status::NotFound();
               if (status.ok()) {
                 copyToTensor(&v[vOffset], vSlice, valuesPerDim0);
               }
@@ -283,9 +296,9 @@ namespace tensorflow {
             for (size_t i = 0; i < numKeys; ++i) {
               assignSlice(kSlices[i], k[i]);
             }
-            const std::vector<rocksdb::Status> &statuses = db->MultiGet(
-              readOptions, colHandles, kSlices, &vSlices
-            );
+            const std::vector<rocksdb::Status> &statuses = colHandle
+              ? db->MultiGet(readOptions, colHandles, kSlices, &vSlices)
+              : std::vector<rocksdb::Status>(numKeys, rocksdb::Status::NotFound());
             if (statuses.size() != numKeys) {
               std::stringstream msg;
               msg << "Requested " << numKeys << " keys, but only got " << statuses.size()
@@ -319,7 +332,10 @@ namespace tensorflow {
             return Status(error::Code::INVALID_ARGUMENT, "Tensor dtypes are incompatible!");
           }
 
-          const auto& colHandle = colHandles[colIndex];
+          rocksdb::ColumnFamilyHandle *const colHandle = GetOrCreateColumnHandle();
+          if (!colHandle || readOnly) {
+            return Status(error::Code::PERMISSION_DENIED, "Cannot insert in read_only mode.");
+          }
 
           const int64 numKeys = keys.dim_size(0);
           const int64 numValues = values.dim_size(0);
@@ -365,7 +381,10 @@ namespace tensorflow {
             return Status(error::Code::INVALID_ARGUMENT, "Tensor dtypes are incompatible!");
           }
 
-          const auto& colHandle = colHandles[colIndex];
+          rocksdb::ColumnFamilyHandle *const colHandle = GetOrCreateColumnHandle();
+          if (!colHandle || readOnly) {
+            return Status(error::Code::PERMISSION_DENIED, "Cannot remove in read_only mode.");
+          }
 
           const int64 numKeys = keys.dim_size(0);
           const K *k = static_cast<K *>(keys.data());
@@ -407,7 +426,7 @@ namespace tensorflow {
           );
 
           // Iterate through entries one-by-one and append them to the file.
-          const auto& colHandle = colHandles[colIndex];
+          rocksdb::ColumnFamilyHandle *const colHandle = GetOrCreateColumnHandle();
           std::unique_ptr<rocksdb::Iterator> iter(db->NewIterator(readOptions, colHandle));
           iter->SeekToFirst();
 
@@ -439,9 +458,7 @@ namespace tensorflow {
         Status ImportValues(
           OpKernelContext *ctx, const Tensor &keys, const Tensor &values
         ) override {
-          static const Status error_eof(
-            error::Code::OUT_OF_RANGE, "Unexpected end of file."
-          );
+          static const Status errorEOF(error::Code::OUT_OF_RANGE, "Unexpected end of file.");
 
           // Make sure the column family is clean.
           RDB_OK(Clear(ctx));
@@ -453,18 +470,22 @@ namespace tensorflow {
           }
           uint32_t magic;
           if (!file.read(reinterpret_cast<char *>(&magic), sizeof(magic))) {
-            return error_eof;
+            return errorEOF;
           }
           uint32_t version;
           if (!file.read(reinterpret_cast<char *>(&version), sizeof(version))) {
-            return error_eof;
+            return errorEOF;
           }
           if (magic != EXPORT_FILE_MAGIC || version != EXPORT_FILE_VERSION) {
             return Status(error::Code::INTERNAL, "Unsupported file-type.");
           }
 
           // Read payload ans subsequently populate column family.
-          const auto& colHandle = colHandles[colIndex];
+          rocksdb::ColumnFamilyHandle *const colHandle = GetOrCreateColumnHandle();
+          if (!colHandle || readOnly) {
+            return Status(error::Code::PERMISSION_DENIED, "Cannot import in read_only mode.");
+          }
+
           rocksdb::WriteBatch batch;
 
           std::string k;
@@ -474,21 +495,21 @@ namespace tensorflow {
             // Read key.
             uint8_t kSize;
             if (!file.read(reinterpret_cast<char *>(&kSize), sizeof(kSize))) {
-              return error_eof;
+              return errorEOF;
             }
             k.resize(kSize);
             if (!file.read(&k.front(), kSize)) {
-              return error_eof;
+              return errorEOF;
             }
 
             // Read value.
             uint32_t vSize;
             if (!file.read(reinterpret_cast<char *>(&vSize), sizeof(vSize))) {
-              return error_eof;
+              return errorEOF;
             }
             v.resize(vSize);
             if (!file.read(&v.front(), vSize)) {
-              return error_eof;
+              return errorEOF;
             }
 
             // Append to batch.
@@ -511,9 +532,11 @@ namespace tensorflow {
 
       protected:
         TensorShape valueShape;
+        std::string embeddingName;
+        bool readOnly;
         rocksdb::DB *db;
         std::vector<rocksdb::ColumnFamilyHandle*> colHandles;
-        int colIndex;
+        size_t colIndex;
         rocksdb::ReadOptions readOptions;
         rocksdb::WriteOptions writeOptions;
 
