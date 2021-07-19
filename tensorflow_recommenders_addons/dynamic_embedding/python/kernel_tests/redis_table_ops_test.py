@@ -283,6 +283,21 @@ default_config = config_pb2.ConfigProto(
     allow_soft_placement=False,
     gpu_options=config_pb2.GPUOptions(allow_growth=True))
 
+redis_config_dir = os.path.join(
+    tempfile.mkdtemp(dir=os.environ.get('TEST_TMPDIR')), "save_restore")
+redis_config_path = os.path.join(tempfile.mkdtemp(prefix=redis_config_dir),
+                                 "hash")
+os.makedirs(redis_config_path)
+redis_config_path = os.path.join(redis_config_path, "redis_config.json")
+redis_config_params = {
+    "redis_host_ip": ["127.0.0.1"],
+    "redis_host_port": [6379],
+    "using_model_lib": False
+}
+with open(redis_config_path, 'w', encoding='utf-8') as f:
+  f.write(json.dumps(redis_config_params, indent=2, ensure_ascii=True))
+redis_config = de.RedisTableConfig(redis_config_abs_dir=redis_config_path)
+
 
 redis_config_dir = os.path.join(tempfile.mkdtemp(dir=os.environ.get('TEST_TMPDIR')), "save_restore")
 redis_config_path = os.path.join(tempfile.mkdtemp(prefix=redis_config_dir), "hash")
@@ -683,16 +698,16 @@ class RedisVariableTest(test.TestCase):
       os.makedirs(save_path)
       redis_config_path = os.path.join(save_path, "redis_config_modify.json")
       redis_config_params_modify = {
-        "redis_host_ip":["127.0.0.1"],
-        "redis_host_port":[6379],
-        "using_model_lib":True,
-        "model_lib_abs_dir":save_path
+          "redis_host_ip": ["127.0.0.1"],
+          "redis_host_port": [6379],
+          "using_model_lib": True,
+          "model_lib_abs_dir": save_path
       }
       with open(redis_config_path, 'w', encoding='utf-8') as f:
-        f.write(json.dumps(redis_config_params_modify, indent=2, ensure_ascii=True))
+        f.write(
+            json.dumps(redis_config_params_modify, indent=2, ensure_ascii=True))
       redis_config_modify = de.RedisTableConfig(
-        redis_config_abs_dir=redis_config_path
-      )
+          redis_config_abs_dir=redis_config_path)
 
       ids = script_ops.py_func(_create_dynamic_shape_tensor(),
                                inp=[],
@@ -700,7 +715,8 @@ class RedisVariableTest(test.TestCase):
                                stateful=True)
 
       params = de.get_variable(
-          name="params-test-0916-" + str(id) + '_test_training_save_restore_by_files',
+          name="params-test-0916-" + str(id) +
+          '_test_training_save_restore_by_files',
           key_dtype=key_dtype,
           value_dtype=value_dtype,
           initializer=0,
@@ -716,8 +732,8 @@ class RedisVariableTest(test.TestCase):
       opt_slots = [opt.get_slot(var0, _s) for _s in opt.get_slot_names()]
       _saver = saver.Saver([params] + [_s.params for _s in opt_slots])
 
-      keys = np.random.randint(1,100,dim)
-      values = np.random.rand(keys.shape[0],dim)
+      keys = np.random.randint(1, 100, dim)
+      values = np.random.rand(keys.shape[0], dim)
 
       with self.session(config=default_config,
                         use_gpu=test_util.is_gpu_available()) as sess:
@@ -745,7 +761,7 @@ class RedisVariableTest(test.TestCase):
             np.sort(np_params_vals_before_saved, axis=0),
             np.sort(np_params_vals_after_restored, axis=0),
         )
-      
+
       params.clear()
 
   def test_get_variable(self):

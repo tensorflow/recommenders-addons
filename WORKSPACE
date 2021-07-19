@@ -1,7 +1,6 @@
 workspace(name = "tf_recommenders_addons")
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
-
 load("//build_deps/tf_dependency:tf_configure.bzl", "tf_configure")
 load("//build_deps/toolchains/gpu:cuda_configure.bzl", "cuda_configure")
 
@@ -40,19 +39,19 @@ http_archive(
 )
 
 http_archive(
-   name = "hiredis",
-   build_file = "//build_deps/toolchains/redis:hiredis.BUILD",
-   sha256 = "71fded144c038ce911d7745e22d901daa226e1b8f023e60f87a499356f77befa",
-   strip_prefix = "hiredis-1.0.0",
-   url = "https://github.com/redis/hiredis/archive/refs/tags/v1.0.0.zip",
+    name = "hiredis",
+    build_file = "//build_deps/toolchains/redis:hiredis.BUILD",
+    sha256 = "71fded144c038ce911d7745e22d901daa226e1b8f023e60f87a499356f77befa",
+    strip_prefix = "hiredis-1.0.0",
+    url = "https://github.com/redis/hiredis/archive/refs/tags/v1.0.0.zip",
 )
 
 http_archive(
-   name = "redis-plus-plus",
-   build_file = "//build_deps/toolchains/redis:redis-plus-plus.BUILD",
-   sha256 = "3221e1df7bbe95669aecaec1c6c6f4c9a52f472dd4e694e681da951bc738d6bd",
-   strip_prefix = "redis-plus-plus-1.2.3",
-   url = "https://github.com/sewenew/redis-plus-plus/archive/refs/tags/1.2.3.zip",
+    name = "redis-plus-plus",
+    build_file = "//build_deps/toolchains/redis:redis-plus-plus.BUILD",
+    sha256 = "3221e1df7bbe95669aecaec1c6c6f4c9a52f472dd4e694e681da951bc738d6bd",
+    strip_prefix = "redis-plus-plus-1.2.3",
+    url = "https://github.com/sewenew/redis-plus-plus/archive/refs/tags/1.2.3.zip",
 )
 
 tf_configure(

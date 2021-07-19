@@ -133,6 +133,7 @@ class RedisTableConfig(object):
       Refer to the default_redis_params variable in RedisTable class 
     for the description of the JSON configuration file
   """
+
   def __init__(
       self,
       redis_config_abs_dir="/tmp/redis_config.json",
@@ -145,6 +146,7 @@ class RedisTableCreator(KVCreator):
       RedisTableCreator will create a object to pass itself to the others classes
     for creating a real Redis client instance which can interact with TF.
   """
+
   def create(
       self,
       key_dtype=None,

@@ -14,18 +14,18 @@ limitations under the License.
 ==============================================================================*/
 
 #include <inttypes.h>
+#include <sw/redis++/connection.h>
+#include <sw/redis++/connection_pool.h>
+#include <sw/redis++/redis++.h>
+#include <sw/redis++/sentinel.h>
 #include <unistd.h>
 
 #include <chrono>
 #include <iostream>
 
-#include "tensorflow/core/framework/tensor.h"
-#include <sw/redis++/connection.h>
-#include <sw/redis++/connection_pool.h>
-#include <sw/redis++/redis++.h>
-#include <sw/redis++/sentinel.h>
-
 #include "redis_connection_util.hpp"
+#include "tensorflow/core/framework/tensor.h"
+#include "tensorflow/core/framework/types.h"
 
 using sw::redis::ConnectionOptions;
 using sw::redis::ConnectionPoolOptions;
@@ -40,14 +40,14 @@ class RedisWrapper<RedisInstance, K, V,
                    typename std::enable_if<
                        std::is_same<RedisInstance, RedisCluster>::value>::type>
     : public RedisVirtualWrapper {
-private:
+ private:
   ConnectionOptions conn_opts;
   ConnectionPoolOptions pool_opts;
 
-public:
-  std::shared_ptr<RedisInstance> redis_conn; // for the hungry singleton mode
+ public:
+  std::shared_ptr<RedisInstance> redis_conn;  // for the hungry singleton mode
 
-public:
+ public:
   RedisWrapper(RedisInstance &&) = delete;
   RedisWrapper(const RedisInstance &) = delete;
   RedisWrapper &operator=(const RedisInstance &) = delete;
@@ -60,21 +60,21 @@ public:
     LOG(INFO) << "RedisCluster connection pool destructor called!";
   }
 
-private:
-  RedisWrapper() // In singleton mode, classes should not be initialized
-                 // through constructor
+ private:
+  RedisWrapper()  // In singleton mode, classes should not be initialized
+                  // through constructor
   {
     LOG(INFO) << "RedisCluster connection pool constructor called!";
   }
 
-public:
+ public:
   std::shared_ptr<RedisInstance> StartConn(size_t ip_port_count) {
     conn_opts.host = redis_connection_params.redis_host_ip[ip_port_count];
     conn_opts.port = redis_connection_params.redis_host_port[ip_port_count];
     // Redis connection options
     conn_opts.password =
         redis_connection_params
-            .redis_password; // Optional. No redis_password by default.
+            .redis_password;  // Optional. No redis_password by default.
     conn_opts.db = redis_connection_params.redis_db;
     conn_opts.connect_timeout = std::chrono::milliseconds(
         redis_connection_params.redis_connect_timeout);
@@ -107,7 +107,6 @@ public:
     assert(redis_connection_params.redis_host_ip.size() ==
            redis_connection_params.redis_host_port.size());
     if (isRedisConnect == false) {
-
       for (size_t i = 0; i < redis_connection_params.redis_host_ip.size();
            ++i) {
         for (short j = 0; j < 10; j++) {
@@ -136,18 +135,16 @@ public:
     /* for the Meyer's Singleton mode.
       When make Class constructor private, it will be not allow using
       make_shared to init the Class. It' not safe, but having no choice. */
-    // static std::shared_ptr<RedisWrapper<RedisInstance, K, V>> instance_ptr =
-    //     std::make_shared<RedisWrapper<RedisInstance, K, V>>();
     static std::shared_ptr<RedisWrapper<RedisInstance, K, V>> instance_ptr(
         new RedisWrapper<RedisInstance, K, V>());
     return instance_ptr;
   }
 
-private:
+ private:
   template <typename Cmd>
-  std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>>
-  PipeExec(Cmd cmd, const unsigned &storage_slice, const unsigned &size_check,
-           const ThreadContext &thread_context) {
+  std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>> PipeExec(
+      Cmd cmd, const unsigned &storage_slice, const unsigned &size_check,
+      const ThreadContext &thread_context) {
     std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>> replies;
     replies.reserve(storage_slice);
     for (unsigned i = 0; i < storage_slice; ++i) {
@@ -169,7 +166,7 @@ private:
     return replies;
   }
 
-public:
+ public:
   /*
     If the number of slices in the Redis service is the same as the number set
     by the user, then 1 is returned. If there is no corresponding table in the
@@ -207,16 +204,16 @@ public:
     ConnectionOptions connection_options;
     size_t slices_in_redis = 0;
     for (size_t i = 0; i < ip_set.size(); ++i) {
-      connection_options.host = ip_set[i]; // Required.
+      connection_options.host = ip_set[i];  // Required.
       connection_options.port =
           redis_connection_params
-              .redis_host_port[0]; // Optional. The default port is 6379.
+              .redis_host_port[0];  // Optional. The default port is 6379.
       connection_options.password =
           redis_connection_params
-              .redis_password; // Optional. No redis_password by default.
+              .redis_password;  // Optional. No redis_password by default.
       connection_options.db =
           redis_connection_params
-              .redis_db; // Optional. Use the 0th database by default.
+              .redis_db;  // Optional. Use the 0th database by default.
       redis_client.reset(new Redis(connection_options));
       auto cmd_per_server = [](::sw::redis::Connection &connection,
                                const char *str) { connection.send(str); };
@@ -271,9 +268,9 @@ public:
         LOG(ERROR) << "RedisHandler error in table_size_in_slots for slices "
                    << keys_prefix_name_slices[i] << " -- " << err.what();
       }
-      if (reply->type == REDIS_REPLY_INTEGER) // #define REDIS_REPLY_STRING 1
+      if (reply->type == REDIS_REPLY_INTEGER)  // #define REDIS_REPLY_STRING 1
       {
-        size += reply->integer; // decimal
+        size += reply->integer;  // decimal
       }
     }
 
@@ -334,16 +331,16 @@ public:
   /*
   fds are the return of POSIX open file function declared in <fcntl.h>
   */
-  virtual void
-  DumpToDisk(const std::vector<std::string> &keys_prefix_name_slices,
-             std::vector<aiocb> &wrs, const std::vector<int> &fds) override {
+  virtual void DumpToDisk(
+      const std::vector<std::string> &keys_prefix_name_slices,
+      std::vector<aiocb> &wrs, const std::vector<int> &fds) override {
     if (fds.size() == 0) {
       return;
     }
 
     std::string redis_command;
     aiocb *wr;
-    int ret; // int fd;
+    int ret;  // int fd;
 
     auto cmd = [](::sw::redis::Connection &connection,
                   ::sw::redis::StringView hkey,
@@ -377,25 +374,23 @@ public:
                          << " did not finish writing last round. "
                          << "Try to write " << i << " more times";
             ret = aio_write(wr);
-            if (ret < 0)
-              perror("aio_write");
+            if (ret < 0) perror("aio_write");
           }
         }
       }
-      if (reply->type == REDIS_REPLY_STRING) // #define REDIS_REPLY_STRING 1
+      if (reply->type == REDIS_REPLY_STRING)  // #define REDIS_REPLY_STRING 1
       {
         buf_len = reply->len;
         tem_aio_buf = wr->aio_buf;
         wr->aio_buf = realloc((void *)tem_aio_buf,
-                              buf_len); // Be careful! The memory requested
-                                        // here should be freed somewhere!
+                              buf_len);  // Be careful! The memory requested
+                                         // here should be freed somewhere!
         memcpy((void *)(wr->aio_buf), reply->str, buf_len);
         wr->aio_nbytes = buf_len;
         wr->aio_fildes = fds[i];
         wr->aio_offset = 0;
         ret = aio_write(wr);
-        if (ret < 0)
-          perror("aio_write");
+        if (ret < 0) perror("aio_write");
       } else {
         LOG(ERROR) << "HKEY " << keys_prefix_name_slices[i]
                    << " does not exist in the Redis server. ";
@@ -403,10 +398,10 @@ public:
     }
   }
 
-  virtual void
-  RestoreFromDisk(const std::vector<std::string> &keys_prefix_name_slices,
-                  std::vector<aiocb> &rds, const std::vector<int> &fds,
-                  const std::vector<unsigned long> &buf_sizes) override {
+  virtual void RestoreFromDisk(
+      const std::vector<std::string> &keys_prefix_name_slices,
+      std::vector<aiocb> &rds, const std::vector<int> &fds,
+      const std::vector<unsigned long> &buf_sizes) override {
     if (fds.size() == 0) {
       return;
     }
@@ -414,7 +409,7 @@ public:
     // std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply;
     const unsigned &&storage_slice = fds.size();
     aiocb *rd;
-    int ret; // int fd;
+    int ret;  // int fd;
 
     auto cmd = [](::sw::redis::Connection &connection,
                   const ::sw::redis::StringView hkey,
@@ -446,14 +441,13 @@ public:
 
       tem_aio_buf = rd->aio_buf;
       rd->aio_buf = realloc((void *)tem_aio_buf,
-                            buf_len); // Be careful! The memory requested here
-                                      // should be freed somewhere!
+                            buf_len);  // Be careful! The memory requested here
+                                       // should be freed somewhere!
       rd->aio_nbytes = buf_len;
       rd->aio_fildes = fds[i];
       rd->aio_offset = 0;
       ret = aio_read(rd);
-      if (ret < 0)
-        perror("aio_read");
+      if (ret < 0) perror("aio_read");
 
       ptrs_i_i[i].reserve(5);
       ptrs_i_i[i].clear();
@@ -504,8 +498,7 @@ public:
                            << " more times";
               if (reread_countdown[i] > 0) {
                 ret = aio_read(rd);
-                if (ret < 0)
-                  perror("aio_read");
+                if (ret < 0) perror("aio_read");
                 --reread_countdown[i];
               }
             }
@@ -515,7 +508,7 @@ public:
     }
   }
 
-public:
+ public:
   /*
   The structure of ptrs and sizes which for storing Redis command char
 sequence pointer and size of parameters. For example: vector<ThreadContext>
@@ -625,20 +618,20 @@ Redis command sequence because m-cmd can only be used in same hash tag)
       temp_reply = reply[slot_loc]->element[slots_iters_nums[slot_loc]];
       ++(slots_iters_nums[slot_loc]);
       if (temp_reply->type ==
-          REDIS_REPLY_STRING) // #define REDIS_REPLY_STRING 1
+          REDIS_REPLY_STRING)  // #define REDIS_REPLY_STRING 1
       {
         ReplyMemcpyToValTensor<V>(
             pv_raw, temp_reply->str,
-            Velems_per_dim0); // Direct access to Tensor data in TensorFlow
+            Velems_per_dim0);  // Direct access to Tensor data in TensorFlow
       } else {
         if (is_full_default) {
           DefaultMemcpyToTensor<V>(
               pv_raw, dft_raw,
-              Velems_per_dim0); // Direct access to Tensor data in TensorFlow
+              Velems_per_dim0);  // Direct access to Tensor data in TensorFlow
         } else {
           DefaultMemcpyToTensor<V>(
               pv_raw, dft_raw_begin,
-              Velems_per_dim0); // Direct access to Tensor data in TensorFlow
+              Velems_per_dim0);  // Direct access to Tensor data in TensorFlow
         }
       }
     }
@@ -687,7 +680,7 @@ Redis command sequence because m-cmd can only be used in same hash tag)
       VCATS_temp = VContentAndTypeSize<V>(VCATS_temp, Velems_per_dim0,
                                           V_byte_size, pv_raw, buff_temp[i]);
       key_slot_locs =
-          KSlotNum<K>(pk_raw, storage_slice); // TODO: change it to AVX512
+          KSlotNum<K>(pk_raw, storage_slice);  // TODO: change it to AVX512
 
       // Direct access to ::tensorflow::Tensor data in TensorFlow
       thread_context.HandlePushBack(key_slot_locs, KContentPointer<K>(pk_raw),
@@ -712,10 +705,10 @@ Redis command sequence because m-cmd can only be used in same hash tag)
     PipeExec(cmd, storage_slice, 4U, thread_context);
   }
 
-  virtual void
-  DelCommand(const ::tensorflow::Tensor &keys, ThreadContext &thread_context,
-             const ::tensorflow::int64 &begin, const ::tensorflow::int64 &max_i,
-             const std::vector<std::string> &keys_prefix_name_slices) override {
+  virtual void DelCommand(
+      const ::tensorflow::Tensor &keys, ThreadContext &thread_context,
+      const ::tensorflow::int64 &begin, const ::tensorflow::int64 &max_i,
+      const std::vector<std::string> &keys_prefix_name_slices) override {
     const int &&total = max_i - begin;
     const int &&argc = total + 2;
 
@@ -769,6 +762,6 @@ Redis command sequence because m-cmd can only be used in same hash tag)
     PipeExec(cmd, storage_slice, 3U, thread_context);
   }
 };
-} // namespace redis_connection
-} // namespace recommenders_addons
-} // namespace tensorflow
+}  // namespace redis_connection
+}  // namespace recommenders_addons
+}  // namespace tensorflow

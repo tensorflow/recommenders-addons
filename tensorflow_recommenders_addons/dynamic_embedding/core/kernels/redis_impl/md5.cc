@@ -70,29 +70,29 @@ static unsigned char PADDING[64] = {
 /* FF, GG, HH, and II transformations for rounds 1, 2, 3, and 4.
 Rotation is separate from addition to prevent recomputation.
 */
-#define FF(a, b, c, d, x, s, ac)                                               \
-  {                                                                            \
-    (a) += F((b), (c), (d)) + (x) + (UINT4)(ac);                               \
-    (a) = ROTATE_LEFT((a), (s));                                               \
-    (a) += (b);                                                                \
+#define FF(a, b, c, d, x, s, ac)                 \
+  {                                              \
+    (a) += F((b), (c), (d)) + (x) + (UINT4)(ac); \
+    (a) = ROTATE_LEFT((a), (s));                 \
+    (a) += (b);                                  \
   }
-#define GG(a, b, c, d, x, s, ac)                                               \
-  {                                                                            \
-    (a) += G((b), (c), (d)) + (x) + (UINT4)(ac);                               \
-    (a) = ROTATE_LEFT((a), (s));                                               \
-    (a) += (b);                                                                \
+#define GG(a, b, c, d, x, s, ac)                 \
+  {                                              \
+    (a) += G((b), (c), (d)) + (x) + (UINT4)(ac); \
+    (a) = ROTATE_LEFT((a), (s));                 \
+    (a) += (b);                                  \
   }
-#define HH(a, b, c, d, x, s, ac)                                               \
-  {                                                                            \
-    (a) += H((b), (c), (d)) + (x) + (UINT4)(ac);                               \
-    (a) = ROTATE_LEFT((a), (s));                                               \
-    (a) += (b);                                                                \
+#define HH(a, b, c, d, x, s, ac)                 \
+  {                                              \
+    (a) += H((b), (c), (d)) + (x) + (UINT4)(ac); \
+    (a) = ROTATE_LEFT((a), (s));                 \
+    (a) += (b);                                  \
   }
-#define II(a, b, c, d, x, s, ac)                                               \
-  {                                                                            \
-    (a) += I((b), (c), (d)) + (x) + (UINT4)(ac);                               \
-    (a) = ROTATE_LEFT((a), (s));                                               \
-    (a) += (b);                                                                \
+#define II(a, b, c, d, x, s, ac)                 \
+  {                                              \
+    (a) += I((b), (c), (d)) + (x) + (UINT4)(ac); \
+    (a) = ROTATE_LEFT((a), (s));                 \
+    (a) += (b);                                  \
   }
 
 /* MD5 initialization. Begins an MD5 operation, writing a new context.
@@ -291,8 +291,7 @@ static void Decode(UINT4 *output, unsigned char *input, unsigned int len) {
 static void MD5_memcpy(POINTER output, POINTER input, unsigned int len) {
   unsigned int i;
 
-  for (i = 0; i < len; i++)
-    output[i] = input[i];
+  for (i = 0; i < len; i++) output[i] = input[i];
 }
 
 /* Note: Replace "for loop" with standard memset if possible.
@@ -300,6 +299,5 @@ static void MD5_memcpy(POINTER output, POINTER input, unsigned int len) {
 static void MD5_memset(POINTER output, int value, unsigned int len) {
   unsigned int i;
 
-  for (i = 0; i < len; i++)
-    ((char *)output)[i] = (char)value;
+  for (i = 0; i < len; i++) ((char *)output)[i] = (char)value;
 }

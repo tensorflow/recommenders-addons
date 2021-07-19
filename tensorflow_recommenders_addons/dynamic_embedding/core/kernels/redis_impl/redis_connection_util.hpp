@@ -25,13 +25,13 @@ limitations under the License.
 extern "C" {
 #include <hiredis/sds.h>
 }
-#include "tensorflow/core/framework/types.h"
 #include <sw/redis++/connection.h>
 #include <sw/redis++/connection_pool.h>
 #include <sw/redis++/redis++.h>
 #include <sw/redis++/sentinel.h>
 
 #include "md5.h"
+#include "tensorflow/core/framework/types.h"
 
 namespace tensorflow {
 namespace recommenders_addons {
@@ -45,8 +45,7 @@ inline unsigned round_next_power_two_bitlen(int v) {
     return 0;
   }
 
-  if ((v | 1) == 1)
-    return v;
+  if ((v | 1) == 1) return v;
   // prevent v is already a power_two
   --v;
   // How many bits for storing v at least.
@@ -75,8 +74,7 @@ inline int createDirectory(const std::string path) {
     if (tmpDirPath[i] == '\\' || tmpDirPath[i] == '/') {
       if (access(tmpDirPath, 0) == -1) {
         int ret = mkdir(tmpDirPath, S_IRWXU | S_IRWXG | S_IRWXO);
-        if (ret == -1)
-          return ret;
+        if (ret == -1) return ret;
       }
     }
   }
@@ -88,7 +86,7 @@ inline std::string check_dir(const std::string path_in) {
   if (path.back() != '/') {
     path.push_back('/');
   }
-  if (access(path.c_str(), 0) == -1) // if folder doesn't exist
+  if (access(path.c_str(), 0) == -1)  // if folder doesn't exist
   {
     LOG(INFO) << "folder " << path << " doesn't exist";
     if (createDirectory(path) == 0) {
@@ -130,7 +128,7 @@ enum Connection_Mode { ClusterMode = 0, SentinelMode = 1, StreamMode = 2 };
 
 struct Redis_Connection_Params {
   int redis_connection_mode =
-      1; // ClusterMode = 0, SentinelMode = 1, StreamMode = 2
+      1;  // ClusterMode = 0, SentinelMode = 1, StreamMode = 2
   std::string redis_master_name = "master";
   // connection_options
   std::vector<std::string> redis_host_ip = {"127.0.0.1"};
@@ -138,24 +136,24 @@ struct Redis_Connection_Params {
   std::string redis_password = "";
   int redis_db = 0;
   //
-  int redis_connect_timeout = 1000; // milliseconds
-  int redis_socket_timeout = 1000;  // milliseconds
+  int redis_connect_timeout = 1000;  // milliseconds
+  int redis_socket_timeout = 1000;   // milliseconds
   // connection_pool_options
   int redis_conn_pool_size = 20;
-  int redis_wait_timeout = 100000000;  // milliseconds
-  int redis_connection_lifetime = 100; // minutes
+  int redis_wait_timeout = 100000000;   // milliseconds
+  int redis_connection_lifetime = 100;  // minutes
   // sentinel_connection_options
-  int redis_sentinel_connect_timeout = 1000; // milliseconds
-  int redis_sentinel_socket_timeout = 1000;  // milliseconds
+  int redis_sentinel_connect_timeout = 1000;  // milliseconds
+  int redis_sentinel_socket_timeout = 1000;   // milliseconds
   //
   // Below there is user-defined parameters in this custom op, not Redis
   // setting parameters
   unsigned storage_slice =
-      1; // For deciding hash tag, which usually is how many Redis instance
-         // may be used in the trainning.
-  unsigned storage_slice_log2 = 0; // For fast calculation.
+      1;  // For deciding hash tag, which usually is how many Redis instance
+          // may be used in the trainning.
+  unsigned storage_slice_log2 = 0;  // For fast calculation.
   std::string model_tag =
-      "test"; //  model_tag for version and any other information
+      "test";  //  model_tag for version and any other information
   bool using_md5_prefix_name = false;
   std::string model_lib_abs_dir = "/tmp/";
   bool using_model_lib = true;
@@ -167,17 +165,17 @@ struct Redis_Connection_Params {
     redis_host_port.assign(x.redis_host_port.begin(), x.redis_host_port.end());
     redis_password = x.redis_password;
     redis_db = x.redis_db;
-    redis_connect_timeout = x.redis_connect_timeout; // milliseconds
-    redis_socket_timeout = x.redis_socket_timeout;   // milliseconds
+    redis_connect_timeout = x.redis_connect_timeout;  // milliseconds
+    redis_socket_timeout = x.redis_socket_timeout;    // milliseconds
     redis_conn_pool_size = x.redis_conn_pool_size;
-    redis_wait_timeout = x.redis_wait_timeout;               // milliseconds
-    redis_connection_lifetime = x.redis_connection_lifetime; // minutes
+    redis_wait_timeout = x.redis_wait_timeout;                // milliseconds
+    redis_connection_lifetime = x.redis_connection_lifetime;  // minutes
     redis_sentinel_connect_timeout =
-        x.redis_sentinel_connect_timeout; // milliseconds
+        x.redis_sentinel_connect_timeout;  // milliseconds
     redis_sentinel_socket_timeout =
-        x.redis_sentinel_socket_timeout; // milliseconds
+        x.redis_sentinel_socket_timeout;  // milliseconds
     storage_slice_log2 =
-        round_next_power_two_bitlen(x.storage_slice); // beter for modding.
+        round_next_power_two_bitlen(x.storage_slice);  // beter for modding.
     storage_slice = 1 << storage_slice_log2;
     model_tag = x.model_tag;
     using_md5_prefix_name = x.using_md5_prefix_name;
@@ -211,8 +209,7 @@ struct ThreadContext {
 
   void HandleReserve(const unsigned storage_slice, const unsigned vector_len,
                      const int keys_num) {
-    if (storage_slice > this->slots->size())
-      this->slots->resize(storage_slice);
+    if (storage_slice > this->slots->size()) this->slots->resize(storage_slice);
     for (unsigned i = 0; i < storage_slice; ++i) {
       (*this->slots)[i].ptrs->clear();
       (*this->slots)[i].ptrs->reserve(vector_len);
@@ -248,11 +245,11 @@ struct ThreadContext {
 };
 
 class RedisVirtualWrapper {
-protected:
+ protected:
   bool isRedisConnect = false;
   Redis_Connection_Params redis_connection_params;
 
-public:
+ public:
   void set_params(struct Redis_Connection_Params &conn_params_input) {
     this->redis_connection_params = conn_params_input;
   }
@@ -261,8 +258,8 @@ public:
 
   virtual int CheckSlicesNum(const std::string &keys_prefix_name) = 0;
 
-  virtual size_t
-  TableSizeInSlots(const std::vector<std::string> &keys_prefix_name_slices) = 0;
+  virtual size_t TableSizeInSlots(
+      const std::vector<std::string> &keys_prefix_name_slices) = 0;
 
   virtual void RemoveHkeysInSlots(
       const std::vector<std::string> &keys_prefix_name_slices) = 0;
@@ -270,14 +267,14 @@ public:
   virtual std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>>
   GetKeysInHkeys(const std::vector<std::string> &keys_prefix_name_slices) = 0;
 
-  virtual void
-  DumpToDisk(const std::vector<std::string> &keys_prefix_name_slices,
-             std::vector<aiocb> &wrs, const std::vector<int> &fds) = 0;
+  virtual void DumpToDisk(
+      const std::vector<std::string> &keys_prefix_name_slices,
+      std::vector<aiocb> &wrs, const std::vector<int> &fds) = 0;
 
-  virtual void
-  RestoreFromDisk(const std::vector<std::string> &keys_prefix_name_slices,
-                  std::vector<aiocb> &rds, const std::vector<int> &fds,
-                  const std::vector<unsigned long> &buf_sizes) = 0;
+  virtual void RestoreFromDisk(
+      const std::vector<std::string> &keys_prefix_name_slices,
+      std::vector<aiocb> &rds, const std::vector<int> &fds,
+      const std::vector<unsigned long> &buf_sizes) = 0;
 
   virtual std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>>
   MgetCommand(const ::tensorflow::Tensor &keys, ThreadContext &thread_context,
@@ -293,18 +290,17 @@ public:
       const ::tensorflow::int64 &begin, const ::tensorflow::int64 &max_i,
       const ::tensorflow::int64 &Velems_per_dim0) = 0;
 
-  virtual void
-  MsetCommand(const ::tensorflow::Tensor &keys,
-              const ::tensorflow::Tensor &values, ThreadContext &thread_context,
-              const ::tensorflow::int64 &begin,
-              const ::tensorflow::int64 &max_i,
-              const ::tensorflow::int64 &Velems_per_dim0,
-              const std::vector<std::string> &keys_prefix_name_slices) = 0;
+  virtual void MsetCommand(
+      const ::tensorflow::Tensor &keys, const ::tensorflow::Tensor &values,
+      ThreadContext &thread_context, const ::tensorflow::int64 &begin,
+      const ::tensorflow::int64 &max_i,
+      const ::tensorflow::int64 &Velems_per_dim0,
+      const std::vector<std::string> &keys_prefix_name_slices) = 0;
 
-  virtual void
-  DelCommand(const ::tensorflow::Tensor &keys, ThreadContext &thread_context,
-             const ::tensorflow::int64 &begin, const ::tensorflow::int64 &max_i,
-             const std::vector<std::string> &keys_prefix_name_slices) = 0;
+  virtual void DelCommand(
+      const ::tensorflow::Tensor &keys, ThreadContext &thread_context,
+      const ::tensorflow::int64 &begin, const ::tensorflow::int64 &max_i,
+      const std::vector<std::string> &keys_prefix_name_slices) = 0;
 };
 
 template <typename RedisInstance, typename K, typename V, typename = void>
@@ -315,13 +311,14 @@ struct VContentAndTypeSizeResult {
   const char *VContentPointer;
 };
 
-template <typename T> constexpr inline size_t KTypeSize(const T *in) {
+template <typename T>
+constexpr inline size_t KTypeSize(const T *in) {
   return sizeof(T);
 }
 
 template <>
-inline size_t
-KTypeSize<::tensorflow::tstring>(const ::tensorflow::tstring *in) {
+inline size_t KTypeSize<::tensorflow::tstring>(
+    const ::tensorflow::tstring *in) {
   return in->size();
 }
 
@@ -331,8 +328,8 @@ constexpr inline const char *KContentPointer(const T *in) {
 }
 
 template <>
-inline const char *
-KContentPointer<::tensorflow::tstring>(const ::tensorflow::tstring *in) {
+inline const char *KContentPointer<::tensorflow::tstring>(
+    const ::tensorflow::tstring *in) {
   return in->data();
 }
 
@@ -349,11 +346,10 @@ inline unsigned KSlotNum<::tensorflow::tstring>(const ::tensorflow::tstring *in,
 }
 
 template <typename T>
-inline const VContentAndTypeSizeResult &
-VContentAndTypeSize(VContentAndTypeSizeResult &_VContentAndTypeSizeResult,
-                    const ::tensorflow::int64 &Velems_per_dim0,
-                    const std::size_t &V_byte_size, const T *in,
-                    std::vector<char> &buff) {
+inline const VContentAndTypeSizeResult &VContentAndTypeSize(
+    VContentAndTypeSizeResult &_VContentAndTypeSizeResult,
+    const ::tensorflow::int64 &Velems_per_dim0, const std::size_t &V_byte_size,
+    const T *in, std::vector<char> &buff) {
   _VContentAndTypeSizeResult.VTypeSize = V_byte_size;
   _VContentAndTypeSizeResult.VContentPointer =
       reinterpret_cast<const char *>(in);
@@ -373,7 +369,6 @@ VContentAndTypeSize<::tensorflow::tstring>(
     VContentAndTypeSizeResult &_VContentAndTypeSizeResult,
     const ::tensorflow::int64 &Velems_per_dim0, const std::size_t &V_byte_size,
     const ::tensorflow::tstring *in, std::vector<char> &buff) {
-
   const ::tensorflow::tstring *ps_end = in + Velems_per_dim0;
   unsigned tot = 0;
 
@@ -386,7 +381,7 @@ VContentAndTypeSize<::tensorflow::tstring>(
   buff.reserve(tot);
   _VContentAndTypeSizeResult.VContentPointer = buff.data();
 
-  ps = in; // Reset the content pointer.
+  ps = in;  // Reset the content pointer.
 
   unsigned tem_byte_size = 0;
   char *chars = nullptr;
@@ -394,9 +389,9 @@ VContentAndTypeSize<::tensorflow::tstring>(
   for (; ps != ps_end; ++ps) {
     tem_byte_size = static_cast<unsigned>(ps->size());
     chars = reinterpret_cast<char *>(&tem_byte_size);
-    buff.insert(buff.end(), chars,
-                chars +
-                    sizeof(unsigned)); // Firstly store how long the string is
+    buff.insert(
+        buff.end(), chars,
+        chars + sizeof(unsigned));  // Firstly store how long the string is
     buff.insert(buff.end(), ps->begin(), ps->end());
   }
 
@@ -408,7 +403,7 @@ void DefaultMemcpyToTensor(T *pv_raw, const T *dft,
                            const ::tensorflow::int64 &Velems_per_dim0) {
   memcpy(reinterpret_cast<void *>(pv_raw), reinterpret_cast<const void *>(dft),
          Velems_per_dim0 *
-             sizeof(T)); // Direct access to Tensor data in TensorFlow
+             sizeof(T));  // Direct access to Tensor data in TensorFlow
 }
 
 template <>
@@ -427,7 +422,7 @@ template <typename T>
 void ReplyMemcpyToKeyTensor(T *pk_raw, const char *str,
                             const size_t &byte_size) {
   memcpy(reinterpret_cast<void *>(pk_raw), str,
-         byte_size); // Direct access to Tensor data in TensorFlow
+         byte_size);  // Direct access to Tensor data in TensorFlow
 }
 
 template <>
@@ -442,7 +437,7 @@ void ReplyMemcpyToValTensor(T *pv_raw, const char *str,
                             const ::tensorflow::int64 &Velems_per_dim0) {
   memcpy(reinterpret_cast<void *>(pv_raw), str,
          Velems_per_dim0 *
-             sizeof(T)); // Direct access to Tensor data in TensorFlow
+             sizeof(T));  // Direct access to Tensor data in TensorFlow
 }
 
 template <>
@@ -460,6 +455,6 @@ void ReplyMemcpyToValTensor<::tensorflow::tstring>(
   }
 }
 
-} // namespace redis_connection
-} // namespace recommenders_addons
-} // namespace tensorflow
+}  // namespace redis_connection
+}  // namespace recommenders_addons
+}  // namespace tensorflow
