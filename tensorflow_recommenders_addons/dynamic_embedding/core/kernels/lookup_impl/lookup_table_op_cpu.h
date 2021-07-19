@@ -64,6 +64,20 @@ struct HybridHash<int64> {
   }
 };
 
+template <>
+struct HybridHash<int32> {
+  inline int32 operator()(int32 const& key) const noexcept {
+    uint32_t k = static_cast<uint32_t>(key);
+    k ^= k >> 16;
+    k *= 0x85ebca6b;
+    k ^= k >> 13;
+    k *= 0xc2b2ae35;
+    k ^= k >> 16;
+
+    return static_cast<int32>(k);
+  }
+};
+
 template <class K, class V>
 class TableWrapperBase {
  public:
