@@ -15,6 +15,7 @@ limitations under the License.
 
 #include <fcntl.h>
 #include <signal.h>
+#include <stdio.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <time.h>
@@ -27,6 +28,7 @@ limitations under the License.
 extern "C" {
 #include <hiredis/sds.h>
 }
+
 #include "redis_impl/json.h"
 #include "redis_impl/redis_cluster_connection_pool.hpp"
 #include "redis_impl/redis_connection_pool.hpp"
@@ -726,8 +728,9 @@ class RedisTableOfTensors final : public LookupInterface {
         struct tm *st = localtime(&totalseconds);
         char tmp_time_str[20];
         sprintf(tmp_time_str, "%04d-%02d-%02d-%02d:%02d:%02d",
-                st->tm_year + 1900, st->tm_mon + 1, st->tm_mday, st->tm_hour,
-                st->tm_min, st->tm_sec);
+                (st->tm_year + 1900) % 10000u, (st->tm_mon + 1) % 100u,
+                (st->tm_mday) % 100u, (st->tm_hour) % 100u, (st->tm_min) % 100u,
+                (st->tm_sec) % 100u);
         std::string new_file_path = file_path + "." + tmp_time_str;
         LOG(WARNING) << "Rename the file " + file_path + " into " +
                             new_file_path + " with local time!";
