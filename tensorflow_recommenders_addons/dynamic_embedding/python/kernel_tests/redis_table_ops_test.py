@@ -299,6 +299,22 @@ with open(redis_config_path, 'w', encoding='utf-8') as f:
 redis_config = de.RedisTableConfig(redis_config_abs_dir=redis_config_path)
 
 
+redis_config_dir = os.path.join(tempfile.mkdtemp(dir=os.environ.get('TEST_TMPDIR')), "save_restore")
+redis_config_path = os.path.join(tempfile.mkdtemp(prefix=redis_config_dir), "hash")
+os.makedirs(redis_config_path)
+redis_config_path = os.path.join(redis_config_path, "redis_config.json")
+redis_config_params = {
+  "redis_host_ip":["127.0.0.1"],
+  "redis_host_port":[6379],
+  "using_model_lib":False
+}
+with open(redis_config_path, 'w', encoding='utf-8') as f:
+  f.write(json.dumps(redis_config_params, indent=2, ensure_ascii=True))
+redis_config = de.RedisTableConfig(
+  redis_config_abs_dir=redis_config_path
+)
+
+
 @test_util.run_all_in_graph_and_eager_modes
 class RedisVariableTest(test.TestCase):
 
@@ -399,7 +415,7 @@ class RedisVariableTest(test.TestCase):
       with self.session(config=default_config,
                         use_gpu=test_util.is_gpu_available()):
         id += 1
-        keys = constant_op.constant(list(range(2**17)), dtypes.int64)
+        keys = constant_op.constant(list(range(2**16)), dtypes.int64)
         table = de.get_variable(
             "t1" + str(id) + '_test_variable_initializer',
             key_dtype=dtypes.int64,
