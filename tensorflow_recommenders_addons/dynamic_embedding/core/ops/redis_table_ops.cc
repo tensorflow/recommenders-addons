@@ -19,8 +19,6 @@ limitations under the License.
 #include "tensorflow/core/framework/shape_inference.h"
 #include "tensorflow_recommenders_addons/dynamic_embedding/core/utils/utils.h"
 
-#include "tensorflow_recommenders_addons/dynamic_embedding/core/utils/utils.h"
-
 namespace tensorflow {
 
 using shape_inference::DimensionHandle;

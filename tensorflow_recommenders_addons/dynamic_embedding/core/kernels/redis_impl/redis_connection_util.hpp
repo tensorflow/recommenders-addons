@@ -31,6 +31,7 @@ extern "C" {
 #include <sw/redis++/sentinel.h>
 
 #include "md5.h"
+#include "tensorflow/core/framework/tensor.h"
 #include "tensorflow/core/framework/types.h"
 
 namespace tensorflow {
@@ -277,29 +278,25 @@ class RedisVirtualWrapper {
       const std::vector<unsigned long> &buf_sizes) = 0;
 
   virtual std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>>
-  MgetCommand(const ::tensorflow::Tensor &keys, ThreadContext &thread_context,
-              const ::tensorflow::int64 &begin,
-              const ::tensorflow::int64 &max_i,
+  MgetCommand(const Tensor &keys, ThreadContext &thread_context,
+              const int64 &begin, const int64 &max_i,
               const std::vector<std::string> &keys_prefix_name_slices) = 0;
 
   virtual void MgetToTensor(
-      ::tensorflow::Tensor *values, const ::tensorflow::Tensor &default_value,
-      const bool &is_full_default, ThreadContext &thread_context,
+      Tensor *values, const Tensor &default_value, const bool &is_full_default,
+      ThreadContext &thread_context,
       std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>>
           &reply,
-      const ::tensorflow::int64 &begin, const ::tensorflow::int64 &max_i,
-      const ::tensorflow::int64 &Velems_per_dim0) = 0;
+      const int64 &begin, const int64 &max_i, const int64 &Velems_per_dim0) = 0;
 
   virtual void MsetCommand(
-      const ::tensorflow::Tensor &keys, const ::tensorflow::Tensor &values,
-      ThreadContext &thread_context, const ::tensorflow::int64 &begin,
-      const ::tensorflow::int64 &max_i,
-      const ::tensorflow::int64 &Velems_per_dim0,
+      const Tensor &keys, const Tensor &values, ThreadContext &thread_context,
+      const int64 &begin, const int64 &max_i, const int64 &Velems_per_dim0,
       const std::vector<std::string> &keys_prefix_name_slices) = 0;
 
   virtual void DelCommand(
-      const ::tensorflow::Tensor &keys, ThreadContext &thread_context,
-      const ::tensorflow::int64 &begin, const ::tensorflow::int64 &max_i,
+      const Tensor &keys, ThreadContext &thread_context, const int64 &begin,
+      const int64 &max_i,
       const std::vector<std::string> &keys_prefix_name_slices) = 0;
 };
 
@@ -317,8 +314,7 @@ constexpr inline size_t KTypeSize(const T *in) {
 }
 
 template <>
-inline size_t KTypeSize<::tensorflow::tstring>(
-    const ::tensorflow::tstring *in) {
+inline size_t KTypeSize<tstring>(const tstring *in) {
   return in->size();
 }
 
@@ -328,8 +324,7 @@ constexpr inline const char *KContentPointer(const T *in) {
 }
 
 template <>
-inline const char *KContentPointer<::tensorflow::tstring>(
-    const ::tensorflow::tstring *in) {
+inline const char *KContentPointer<tstring>(const tstring *in) {
   return in->data();
 }
 
@@ -339,8 +334,8 @@ inline unsigned KSlotNum(const T *in, const unsigned storage_slice) {
 }
 
 template <>
-inline unsigned KSlotNum<::tensorflow::tstring>(const ::tensorflow::tstring *in,
-                                                const unsigned storage_slice) {
+inline unsigned KSlotNum<tstring>(const tstring *in,
+                                  const unsigned storage_slice) {
   const auto tem_char = *(reinterpret_cast<const unsigned char *>(in));
   return (_mm_crc32_u8(0xffffffff, tem_char) & (storage_slice - 1));
 }
@@ -348,8 +343,8 @@ inline unsigned KSlotNum<::tensorflow::tstring>(const ::tensorflow::tstring *in,
 template <typename T>
 inline const VContentAndTypeSizeResult &VContentAndTypeSize(
     VContentAndTypeSizeResult &_VContentAndTypeSizeResult,
-    const ::tensorflow::int64 &Velems_per_dim0, const std::size_t &V_byte_size,
-    const T *in, std::vector<char> &buff) {
+    const int64 &Velems_per_dim0, const std::size_t &V_byte_size, const T *in,
+    std::vector<char> &buff) {
   _VContentAndTypeSizeResult.VTypeSize = V_byte_size;
   _VContentAndTypeSizeResult.VContentPointer =
       reinterpret_cast<const char *>(in);
@@ -364,15 +359,14 @@ memory space for sending to Redis server.
 var buff is a std::vector<char> from std::vector<std::vector<char>>
 */
 template <>
-inline const VContentAndTypeSizeResult &
-VContentAndTypeSize<::tensorflow::tstring>(
+inline const VContentAndTypeSizeResult &VContentAndTypeSize<tstring>(
     VContentAndTypeSizeResult &_VContentAndTypeSizeResult,
-    const ::tensorflow::int64 &Velems_per_dim0, const std::size_t &V_byte_size,
-    const ::tensorflow::tstring *in, std::vector<char> &buff) {
-  const ::tensorflow::tstring *ps_end = in + Velems_per_dim0;
+    const int64 &Velems_per_dim0, const std::size_t &V_byte_size,
+    const tstring *in, std::vector<char> &buff) {
+  const tstring *ps_end = in + Velems_per_dim0;
   unsigned tot = 0;
 
-  const ::tensorflow::tstring *ps = in;
+  const tstring *ps = in;
   for (; ps != ps_end; ++ps) {
     tot = tot + sizeof(unsigned) + ps->size();
   }
@@ -400,19 +394,19 @@ VContentAndTypeSize<::tensorflow::tstring>(
 
 template <typename T>
 void DefaultMemcpyToTensor(T *pv_raw, const T *dft,
-                           const ::tensorflow::int64 &Velems_per_dim0) {
+                           const int64 &Velems_per_dim0) {
   memcpy(reinterpret_cast<void *>(pv_raw), reinterpret_cast<const void *>(dft),
          Velems_per_dim0 *
              sizeof(T));  // Direct access to Tensor data in TensorFlow
 }
 
 template <>
-void DefaultMemcpyToTensor<::tensorflow::tstring>(
-    ::tensorflow::tstring *const pv_raw, const ::tensorflow::tstring *const dft,
-    const ::tensorflow::int64 &Velems_per_dim0) {
-  const ::tensorflow::tstring *const pv_raw_end = pv_raw + Velems_per_dim0;
-  ::tensorflow::tstring *pv_it = pv_raw;
-  const ::tensorflow::tstring *dft_it = dft;
+void DefaultMemcpyToTensor<tstring>(tstring *const pv_raw,
+                                    const tstring *const dft,
+                                    const int64 &Velems_per_dim0) {
+  const tstring *const pv_raw_end = pv_raw + Velems_per_dim0;
+  tstring *pv_it = pv_raw;
+  const tstring *dft_it = dft;
   for (; pv_it != pv_raw_end; ++pv_it, ++dft_it) {
     *pv_it = *dft_it;
   }
@@ -426,28 +420,26 @@ void ReplyMemcpyToKeyTensor(T *pk_raw, const char *str,
 }
 
 template <>
-void ReplyMemcpyToKeyTensor<::tensorflow::tstring>(
-    ::tensorflow::tstring *const pk_raw, const char *str,
-    const size_t &byte_size) {
+void ReplyMemcpyToKeyTensor<tstring>(tstring *const pk_raw, const char *str,
+                                     const size_t &byte_size) {
   pk_raw->assign(str, byte_size);
 }
 
 template <typename T>
 void ReplyMemcpyToValTensor(T *pv_raw, const char *str,
-                            const ::tensorflow::int64 &Velems_per_dim0) {
+                            const int64 &Velems_per_dim0) {
   memcpy(reinterpret_cast<void *>(pv_raw), str,
          Velems_per_dim0 *
              sizeof(T));  // Direct access to Tensor data in TensorFlow
 }
 
 template <>
-void ReplyMemcpyToValTensor<::tensorflow::tstring>(
-    ::tensorflow::tstring *const pv_raw, const char *str,
-    const ::tensorflow::int64 &Velems_per_dim0) {
-  const ::tensorflow::tstring *const pv_raw_end = pv_raw + Velems_per_dim0;
+void ReplyMemcpyToValTensor<tstring>(tstring *const pv_raw, const char *str,
+                                     const int64 &Velems_per_dim0) {
+  const tstring *const pv_raw_end = pv_raw + Velems_per_dim0;
   const char *char_view = str;
   unsigned str_bytesize = 0;
-  for (::tensorflow::tstring *pv_it = pv_raw; pv_it != pv_raw_end; ++pv_it) {
+  for (tstring *pv_it = pv_raw; pv_it != pv_raw_end; ++pv_it) {
     str_bytesize = *(reinterpret_cast<const unsigned *>(char_view));
     char_view += sizeof(unsigned);
     pv_it->assign(char_view, str_bytesize);

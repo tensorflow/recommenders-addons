@@ -537,8 +537,8 @@ Redis command sequence because m-cmd can only be used in same hash tag)
   */
   virtual std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>>
   MgetCommand(
-      const ::tensorflow::Tensor &keys, ThreadContext &thread_context,
-      const ::tensorflow::int64 &begin, const ::tensorflow::int64 &max_i,
+      const Tensor &keys, ThreadContext &thread_context, const int64 &begin,
+      const int64 &max_i,
       const std::vector<std::string> &keys_prefix_name_slices) override {
     const int &&total = max_i - begin;
     const int &&argc = total + 2;
@@ -551,7 +551,7 @@ Redis command sequence because m-cmd can only be used in same hash tag)
 
     const unsigned &storage_slice = redis_connection_params.storage_slice;
     const unsigned &&vector_len =
-        (static_cast<::tensorflow::int64>(reinterpret_cast<int>(argc)) >>
+        (static_cast<int64>(reinterpret_cast<int>(argc)) >>
          redis_connection_params.storage_slice_log2) +
         2;
 
@@ -572,7 +572,7 @@ Redis command sequence because m-cmd can only be used in same hash tag)
       *pslot_loc = key_slot_locs;
       ++pslot_loc;
 
-      // Direct access to ::tensorflow::Tensor data in TensorFlow
+      // Direct access to Tensor data in TensorFlow
       thread_context.HandlePushBack(key_slot_locs, KContentPointer<K>(pk_raw),
                                     KTypeSize<K>(pk_raw));
     }
@@ -594,12 +594,12 @@ Redis command sequence because m-cmd can only be used in same hash tag)
   }
 
   virtual void MgetToTensor(
-      ::tensorflow::Tensor *values, const ::tensorflow::Tensor &default_value,
-      const bool &is_full_default, ThreadContext &thread_context,
+      Tensor *values, const Tensor &default_value, const bool &is_full_default,
+      ThreadContext &thread_context,
       std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>>
           &reply,
-      const ::tensorflow::int64 &begin, const ::tensorflow::int64 &max_i,
-      const ::tensorflow::int64 &Velems_per_dim0) override {
+      const int64 &begin, const int64 &max_i,
+      const int64 &Velems_per_dim0) override {
     V *pv_raw = reinterpret_cast<V *>(values->data()) + begin * Velems_per_dim0;
     const V *dft_raw = reinterpret_cast<const V *>(default_value.data()) +
                        begin * Velems_per_dim0;
@@ -638,10 +638,8 @@ Redis command sequence because m-cmd can only be used in same hash tag)
   }
 
   virtual void MsetCommand(
-      const ::tensorflow::Tensor &keys, const ::tensorflow::Tensor &values,
-      ThreadContext &thread_context, const ::tensorflow::int64 &begin,
-      const ::tensorflow::int64 &max_i,
-      const ::tensorflow::int64 &Velems_per_dim0,
+      const Tensor &keys, const Tensor &values, ThreadContext &thread_context,
+      const int64 &begin, const int64 &max_i, const int64 &Velems_per_dim0,
       const std::vector<std::string> &keys_prefix_name_slices) override {
     const int &&total = max_i - begin;
     const int &&argc = total * 2 + 2;
@@ -659,7 +657,7 @@ Redis command sequence because m-cmd can only be used in same hash tag)
 
     const unsigned &storage_slice = redis_connection_params.storage_slice;
     const unsigned &&vector_len =
-        (static_cast<::tensorflow::int64>(reinterpret_cast<int>(argc)) >>
+        (static_cast<int64>(reinterpret_cast<int>(argc)) >>
          redis_connection_params.storage_slice_log2) +
         2;
 
@@ -682,7 +680,7 @@ Redis command sequence because m-cmd can only be used in same hash tag)
       key_slot_locs =
           KSlotNum<K>(pk_raw, storage_slice);  // TODO: change it to AVX512
 
-      // Direct access to ::tensorflow::Tensor data in TensorFlow
+      // Direct access to Tensor data in TensorFlow
       thread_context.HandlePushBack(key_slot_locs, KContentPointer<K>(pk_raw),
                                     KTypeSize<K>(pk_raw));
       thread_context.HandlePushBack(key_slot_locs, VCATS_temp.VContentPointer,
@@ -706,8 +704,8 @@ Redis command sequence because m-cmd can only be used in same hash tag)
   }
 
   virtual void DelCommand(
-      const ::tensorflow::Tensor &keys, ThreadContext &thread_context,
-      const ::tensorflow::int64 &begin, const ::tensorflow::int64 &max_i,
+      const Tensor &keys, ThreadContext &thread_context, const int64 &begin,
+      const int64 &max_i,
       const std::vector<std::string> &keys_prefix_name_slices) override {
     const int &&total = max_i - begin;
     const int &&argc = total + 2;
@@ -720,7 +718,7 @@ Redis command sequence because m-cmd can only be used in same hash tag)
 
     const unsigned &storage_slice = redis_connection_params.storage_slice;
     const unsigned &&vector_len =
-        (static_cast<::tensorflow::int64>(reinterpret_cast<int>(argc)) >>
+        (static_cast<int64>(reinterpret_cast<int>(argc)) >>
          redis_connection_params.storage_slice_log2) +
         2;
 
@@ -741,7 +739,7 @@ Redis command sequence because m-cmd can only be used in same hash tag)
       *pslot_loc = key_slot_locs;
       ++pslot_loc;
 
-      // Direct access to ::tensorflow::Tensor data in TensorFlow
+      // Direct access to Tensor data in TensorFlow
       thread_context.HandlePushBack(key_slot_locs, KContentPointer<K>(pk_raw),
                                     KTypeSize<K>(pk_raw));
     }
