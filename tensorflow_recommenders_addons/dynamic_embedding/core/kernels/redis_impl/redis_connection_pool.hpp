@@ -25,8 +25,6 @@ limitations under the License.
 #include <iostream>
 
 #include "redis_connection_util.hpp"
-#include "tensorflow/core/framework/tensor.h"
-#include "tensorflow/core/framework/types.h"
 
 using sw::redis::ConnectionOptions;
 using sw::redis::ConnectionPoolOptions;
@@ -455,8 +453,8 @@ Redis command sequence because m-cmd can only be used in same hash tag)
   */
   virtual std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>>
   MgetCommand(
-      const ::tensorflow::Tensor &keys, ThreadContext &thread_context,
-      const ::tensorflow::int64 &begin, const ::tensorflow::int64 &max_i,
+      const Tensor &keys, ThreadContext &thread_context, const int64 &begin,
+      const int64 &max_i,
       const std::vector<std::string> &keys_prefix_name_slices) override {
     const int argc = (max_i - begin) + 2;
 
@@ -485,7 +483,7 @@ Redis command sequence because m-cmd can only be used in same hash tag)
 
     for (; pk_raw != pk_raw_end; ++pk_raw) {
       *ptrs_iter = KContentPointer<K>(
-          pk_raw);  // Direct access to ::tensorflow::Tensor data in TensorFlow
+          pk_raw);  // Direct access to Tensor data in TensorFlow
       ++ptrs_iter;
       *sizes_iter = KTypeSize<K>(pk_raw);  // key data char size
       ++sizes_iter;
@@ -513,12 +511,12 @@ Redis command sequence because m-cmd can only be used in same hash tag)
   }
 
   virtual void MgetToTensor(
-      ::tensorflow::Tensor *values, const ::tensorflow::Tensor &default_value,
-      const bool &is_full_default, ThreadContext &thread_context,
+      Tensor *values, const Tensor &default_value, const bool &is_full_default,
+      ThreadContext &thread_context,
       std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>>
           &reply,
-      const ::tensorflow::int64 &begin, const ::tensorflow::int64 &max_i,
-      const ::tensorflow::int64 &Velems_per_dim0) override {
+      const int64 &begin, const int64 &max_i,
+      const int64 &Velems_per_dim0) override {
     V *pv_raw = reinterpret_cast<V *>(values->data()) + begin * Velems_per_dim0;
 
     const V *dft_raw = reinterpret_cast<const V *>(default_value.data()) +
@@ -551,10 +549,8 @@ Redis command sequence because m-cmd can only be used in same hash tag)
   }
 
   virtual void MsetCommand(
-      const ::tensorflow::Tensor &keys, const ::tensorflow::Tensor &values,
-      ThreadContext &thread_context, const ::tensorflow::int64 &begin,
-      const ::tensorflow::int64 &max_i,
-      const ::tensorflow::int64 &Velems_per_dim0,
+      const Tensor &keys, const Tensor &values, ThreadContext &thread_context,
+      const int64 &begin, const int64 &max_i, const int64 &Velems_per_dim0,
       const std::vector<std::string> &keys_prefix_name_slices) override {
     const int &&total = max_i - begin;
     const int &&argc = total * 2 + 2;
@@ -597,7 +593,7 @@ Redis command sequence because m-cmd can only be used in same hash tag)
                                           V_byte_size, pv_raw, buff_temp[i]);
 
       *ptrs_iter = KContentPointer<K>(
-          pk_raw);  // Direct access to ::tensorflow::Tensor data in TensorFlow
+          pk_raw);  // Direct access to Tensor data in TensorFlow
       *(++ptrs_iter) = VCATS_temp.VContentPointer;
       ++ptrs_iter;
 
@@ -625,8 +621,8 @@ Redis command sequence because m-cmd can only be used in same hash tag)
   }
 
   virtual void DelCommand(
-      const ::tensorflow::Tensor &keys, ThreadContext &thread_context,
-      const ::tensorflow::int64 &begin, const ::tensorflow::int64 &max_i,
+      const Tensor &keys, ThreadContext &thread_context, const int64 &begin,
+      const int64 &max_i,
       const std::vector<std::string> &keys_prefix_name_slices) override {
     const int argc = (max_i - begin) + 2;
 
@@ -655,7 +651,7 @@ Redis command sequence because m-cmd can only be used in same hash tag)
 
     for (; pk_raw != pk_raw_end; ++pk_raw) {
       *ptrs_iter = KContentPointer<K>(
-          pk_raw);  // Direct access to ::tensorflow::Tensor data in TensorFlow
+          pk_raw);  // Direct access to Tensor data in TensorFlow
       ++ptrs_iter;
       *sizes_iter = KTypeSize<K>(pk_raw);  // key data char size
       ++sizes_iter;

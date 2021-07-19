@@ -298,21 +298,20 @@ with open(redis_config_path, 'w', encoding='utf-8') as f:
   f.write(json.dumps(redis_config_params, indent=2, ensure_ascii=True))
 redis_config = de.RedisTableConfig(redis_config_abs_dir=redis_config_path)
 
-
-redis_config_dir = os.path.join(tempfile.mkdtemp(dir=os.environ.get('TEST_TMPDIR')), "save_restore")
-redis_config_path = os.path.join(tempfile.mkdtemp(prefix=redis_config_dir), "hash")
+redis_config_dir = os.path.join(
+    tempfile.mkdtemp(dir=os.environ.get('TEST_TMPDIR')), "save_restore")
+redis_config_path = os.path.join(tempfile.mkdtemp(prefix=redis_config_dir),
+                                 "hash")
 os.makedirs(redis_config_path)
 redis_config_path = os.path.join(redis_config_path, "redis_config.json")
 redis_config_params = {
-  "redis_host_ip":["127.0.0.1"],
-  "redis_host_port":[6379],
-  "using_model_lib":False
+    "redis_host_ip": ["127.0.0.1"],
+    "redis_host_port": [6379],
+    "using_model_lib": False
 }
 with open(redis_config_path, 'w', encoding='utf-8') as f:
   f.write(json.dumps(redis_config_params, indent=2, ensure_ascii=True))
-redis_config = de.RedisTableConfig(
-  redis_config_abs_dir=redis_config_path
-)
+redis_config = de.RedisTableConfig(redis_config_abs_dir=redis_config_path)
 
 
 @test_util.run_all_in_graph_and_eager_modes
