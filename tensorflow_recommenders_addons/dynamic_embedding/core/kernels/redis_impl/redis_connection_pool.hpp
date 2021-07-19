@@ -15,18 +15,17 @@ limitations under the License.
 
 #include <inttypes.h>
 #include <nmmintrin.h>
+#include <sw/redis++/connection.h>
+#include <sw/redis++/connection_pool.h>
+#include <sw/redis++/redis++.h>
+#include <sw/redis++/sentinel.h>
 #include <unistd.h>
 
 #include <chrono>
 #include <iostream>
 
-#include "tensorflow/core/framework/tensor.h"
-#include <sw/redis++/connection.h>
-#include <sw/redis++/connection_pool.h>
-#include <sw/redis++/redis++.h>
-#include <sw/redis++/sentinel.h>
-
 #include "redis_connection_util.hpp"
+#include "tensorflow/core/framework/tensor.h"
 
 using sw::redis::ConnectionOptions;
 using sw::redis::ConnectionPoolOptions;
@@ -43,15 +42,15 @@ class RedisWrapper<
     RedisInstance, K, V,
     typename std::enable_if<std::is_same<RedisInstance, Redis>::value>::type>
     : public RedisVirtualWrapper {
-private:
+ private:
   SentinelOptions sentinel_opts;
   ConnectionOptions conn_opts;
   ConnectionPoolOptions pool_opts;
 
-public:
-  std::shared_ptr<RedisInstance> redis_conn; // for the hungry singleton mode
+ public:
+  std::shared_ptr<RedisInstance> redis_conn;  // for the hungry singleton mode
 
-public:
+ public:
   RedisWrapper(RedisInstance &&) = delete;
   RedisWrapper(const RedisInstance &) = delete;
   RedisWrapper &operator=(const RedisInstance &) = delete;
@@ -64,14 +63,14 @@ public:
     LOG(INFO) << "RedisSentinel connection pool destructor called!";
   }
 
-private:
-  RedisWrapper() // In singleton mode, classes should not be initialized
-                 // through constructor
+ private:
+  RedisWrapper()  // In singleton mode, classes should not be initialized
+                  // through constructor
   {
     LOG(INFO) << "RedisSentinel connection pool constructor called!";
   }
 
-public:
+ public:
   std::shared_ptr<RedisInstance> StartConn() {
     assert(redis_connection_params.redis_host_ip.size() ==
            redis_connection_params.redis_host_port.size());
@@ -93,7 +92,7 @@ public:
     // Redis connection options
     conn_opts.password =
         redis_connection_params
-            .redis_password; // Optional. No redis_password by default.
+            .redis_password;  // Optional. No redis_password by default.
     conn_opts.db = redis_connection_params.redis_db;
     conn_opts.connect_timeout = std::chrono::milliseconds(
         redis_connection_params.redis_connect_timeout);
@@ -133,7 +132,7 @@ public:
     conn_opts.port = redis_connection_params.redis_host_port[0];
     conn_opts.password =
         redis_connection_params
-            .redis_password; // Optional. No redis_password by default.
+            .redis_password;  // Optional. No redis_password by default.
     conn_opts.db = redis_connection_params.redis_db;
     conn_opts.connect_timeout = std::chrono::milliseconds(
         redis_connection_params.redis_connect_timeout);
@@ -181,14 +180,12 @@ public:
     /* for the Meyer's Singleton mode.
       When make Class constructor private, it will be not allow using
       make_shared to init the Class. It' not safe, but having no choice. */
-    // static std::shared_ptr<RedisWrapper<RedisInstance, K, V>> instance_ptr =
-    //     std::make_shared<RedisWrapper<RedisInstance, K, V>>();
     static std::shared_ptr<RedisWrapper<RedisInstance, K, V>> instance_ptr(
         new RedisWrapper<RedisInstance, K, V>());
     return instance_ptr;
   }
 
-public:
+ public:
   /*
     If the number of slices in the Redis service is the same as the number set
     by the user, then 1 is returned. If there is no corresponding table in the
@@ -239,9 +236,9 @@ public:
                  << keys_prefix_name_slices[0] << " -- " << err.what();
     }
     size_t size = 0;
-    if (reply->type == REDIS_REPLY_INTEGER) // #define REDIS_REPLY_STRING 1
+    if (reply->type == REDIS_REPLY_INTEGER)  // #define REDIS_REPLY_STRING 1
     {
-      size = reply->integer; // decimal
+      size = reply->integer;  // decimal
     }
     return size;
   }
@@ -279,16 +276,16 @@ public:
   /*
   fds are the return of POSIX open file function declared in <fcntl.h>
   */
-  virtual void
-  DumpToDisk(const std::vector<std::string> &keys_prefix_name_slices,
-             std::vector<aiocb> &wrs, const std::vector<int> &fds) override {
+  virtual void DumpToDisk(
+      const std::vector<std::string> &keys_prefix_name_slices,
+      std::vector<aiocb> &wrs, const std::vector<int> &fds) override {
     if (fds.size() == 0) {
       return;
     }
 
     std::string redis_command = "DUMP " + keys_prefix_name_slices[0];
     aiocb *wr = &wrs.front();
-    int ret; // int fd;
+    int ret;  // int fd;
 
     auto cmd = [](::sw::redis::Connection &connection, const char *str) {
       connection.send(str);
@@ -317,35 +314,33 @@ public:
                        << " did not finish writing last round. "
                        << "Try to write " << i << " more times";
           ret = aio_write(wr);
-          if (ret < 0)
-            perror("aio_write");
+          if (ret < 0) perror("aio_write");
         }
       }
     }
-    if (reply->type == REDIS_REPLY_STRING) // #define REDIS_REPLY_STRING 1
+    if (reply->type == REDIS_REPLY_STRING)  // #define REDIS_REPLY_STRING 1
     {
       buf_len = reply->len;
       tem_aio_buf = wr->aio_buf;
       wr->aio_buf = realloc((void *)tem_aio_buf,
-                            buf_len); // Be careful! The memory requested here
-                                      // should be freed somewhere!
+                            buf_len);  // Be careful! The memory requested here
+                                       // should be freed somewhere!
       memcpy((void *)(wr->aio_buf), reply->str, buf_len);
       wr->aio_nbytes = buf_len;
       wr->aio_fildes = fds[0];
       wr->aio_offset = 0;
       ret = aio_write(wr);
-      if (ret < 0)
-        perror("aio_write");
+      if (ret < 0) perror("aio_write");
     } else {
       LOG(ERROR) << "HKEY " << keys_prefix_name_slices[0]
                  << " does not exist in the Redis server. ";
     }
   }
 
-  virtual void
-  RestoreFromDisk(const std::vector<std::string> &keys_prefix_name_slices,
-                  std::vector<aiocb> &rds, const std::vector<int> &fds,
-                  const std::vector<unsigned long> &buf_sizes) override {
+  virtual void RestoreFromDisk(
+      const std::vector<std::string> &keys_prefix_name_slices,
+      std::vector<aiocb> &rds, const std::vector<int> &fds,
+      const std::vector<unsigned long> &buf_sizes) override {
     if (fds.size() == 0) {
       return;
     }
@@ -381,14 +376,13 @@ public:
 
     tem_aio_buf = rd->aio_buf;
     rd->aio_buf = realloc((void *)tem_aio_buf,
-                          buf_len); // Be careful! The memory requested here
-                                    // should be freed somewhere!
+                          buf_len);  // Be careful! The memory requested here
+                                     // should be freed somewhere!
     rd->aio_nbytes = buf_len;
     rd->aio_fildes = fds[0];
     rd->aio_offset = 0;
     ret = aio_read(rd);
-    if (ret < 0)
-      perror("aio_read");
+    if (ret < 0) perror("aio_read");
 
     ptrs_0.clear();
     ptrs_0.push_back(redis_command);
@@ -417,8 +411,7 @@ public:
                        << " did not finish reading last round. "
                        << "Try to read " << i << " more times";
           ret = aio_read(rd);
-          if (ret < 0)
-            perror("aio_read");
+          if (ret < 0) perror("aio_read");
         }
       }
     }
@@ -432,7 +425,7 @@ public:
     }
   }
 
-public:
+ public:
   /*
   The structure of ptrs and sizes which for storing Redis command char
 sequence pointer and size of parameters. For example: vector<ThreadContext>
@@ -491,9 +484,9 @@ Redis command sequence because m-cmd can only be used in same hash tag)
 
     for (; pk_raw != pk_raw_end; ++pk_raw) {
       *ptrs_iter = KContentPointer<K>(
-          pk_raw); // Direct access to ::tensorflow::Tensor data in TensorFlow
+          pk_raw);  // Direct access to ::tensorflow::Tensor data in TensorFlow
       ++ptrs_iter;
-      *sizes_iter = KTypeSize<K>(pk_raw); // key data char size
+      *sizes_iter = KTypeSize<K>(pk_raw);  // key data char size
       ++sizes_iter;
     }
 
@@ -525,7 +518,6 @@ Redis command sequence because m-cmd can only be used in same hash tag)
           &reply,
       const ::tensorflow::int64 &begin, const ::tensorflow::int64 &max_i,
       const ::tensorflow::int64 &Velems_per_dim0) override {
-
     V *pv_raw = reinterpret_cast<V *>(values->data()) + begin * Velems_per_dim0;
 
     const V *dft_raw = reinterpret_cast<const V *>(default_value.data()) +
@@ -538,20 +530,20 @@ Redis command sequence because m-cmd can only be used in same hash tag)
          ++i, pv_raw += Velems_per_dim0, dft_raw += Velems_per_dim0) {
       temp_reply = reply[0]->element[i];
       if (temp_reply->type ==
-          REDIS_REPLY_STRING) // #define REDIS_REPLY_STRING 1
+          REDIS_REPLY_STRING)  // #define REDIS_REPLY_STRING 1
       {
         ReplyMemcpyToValTensor<V>(
             pv_raw, temp_reply->str,
-            Velems_per_dim0); // Direct access to Tensor data in TensorFlow
+            Velems_per_dim0);  // Direct access to Tensor data in TensorFlow
       } else {
         if (is_full_default) {
           DefaultMemcpyToTensor<V>(
               pv_raw, dft_raw,
-              Velems_per_dim0); // Direct access to Tensor data in TensorFlow
+              Velems_per_dim0);  // Direct access to Tensor data in TensorFlow
         } else {
           DefaultMemcpyToTensor<V>(
               pv_raw, dft_raw_begin,
-              Velems_per_dim0); // Direct access to Tensor data in TensorFlow
+              Velems_per_dim0);  // Direct access to Tensor data in TensorFlow
         }
       }
     }
@@ -604,11 +596,11 @@ Redis command sequence because m-cmd can only be used in same hash tag)
                                           V_byte_size, pv_raw, buff_temp[i]);
 
       *ptrs_iter = KContentPointer<K>(
-          pk_raw); // Direct access to ::tensorflow::Tensor data in TensorFlow
+          pk_raw);  // Direct access to ::tensorflow::Tensor data in TensorFlow
       *(++ptrs_iter) = VCATS_temp.VContentPointer;
       ++ptrs_iter;
 
-      *sizes_iter = KTypeSize<K>(pk_raw); // key data char size
+      *sizes_iter = KTypeSize<K>(pk_raw);  // key data char size
       *(++sizes_iter) = VCATS_temp.VTypeSize;
       ++sizes_iter;
     }
@@ -631,10 +623,10 @@ Redis command sequence because m-cmd can only be used in same hash tag)
     }
   }
 
-  virtual void
-  DelCommand(const ::tensorflow::Tensor &keys, ThreadContext &thread_context,
-             const ::tensorflow::int64 &begin, const ::tensorflow::int64 &max_i,
-             const std::vector<std::string> &keys_prefix_name_slices) override {
+  virtual void DelCommand(
+      const ::tensorflow::Tensor &keys, ThreadContext &thread_context,
+      const ::tensorflow::int64 &begin, const ::tensorflow::int64 &max_i,
+      const std::vector<std::string> &keys_prefix_name_slices) override {
     const int argc = (max_i - begin) + 2;
 
     const static char *redis_command = "HDEL";
@@ -662,9 +654,9 @@ Redis command sequence because m-cmd can only be used in same hash tag)
 
     for (; pk_raw != pk_raw_end; ++pk_raw) {
       *ptrs_iter = KContentPointer<K>(
-          pk_raw); // Direct access to ::tensorflow::Tensor data in TensorFlow
+          pk_raw);  // Direct access to ::tensorflow::Tensor data in TensorFlow
       ++ptrs_iter;
-      *sizes_iter = KTypeSize<K>(pk_raw); // key data char size
+      *sizes_iter = KTypeSize<K>(pk_raw);  // key data char size
       ++sizes_iter;
     }
 
@@ -687,6 +679,6 @@ Redis command sequence because m-cmd can only be used in same hash tag)
   }
 };
 
-} // namespace redis_connection
-} // namespace recommenders_addons
-} // namespace tensorflow
+}  // namespace redis_connection
+}  // namespace recommenders_addons
+}  // namespace tensorflow

@@ -27,16 +27,14 @@ limitations under the License.
 extern "C" {
 #include <hiredis/sds.h>
 }
+#include "redis_impl/json.h"
+#include "redis_impl/redis_cluster_connection_pool.hpp"
+#include "redis_impl/redis_connection_pool.hpp"
+#include "redis_table_op.h"
 #include "tensorflow/core/kernels/lookup_table_op.h"
 #include "tensorflow/core/util/work_sharder.h"
 #include "tensorflow_recommenders_addons/dynamic_embedding/core/utils/types.h"
 #include "tensorflow_recommenders_addons/dynamic_embedding/core/utils/utils.h"
-
-#include "redis_impl/json.h"
-
-#include "redis_impl/redis_cluster_connection_pool.hpp"
-#include "redis_impl/redis_connection_pool.hpp"
-#include "redis_table_op.h"
 
 // constexpr int kv_pairs_default_size = 1024*8;
 /*
@@ -48,7 +46,7 @@ https://github.com/redis/redis/blob/be6ce8a92a9acbecfaaa6c57a45037fc1018fefe/src
 // constexpr long long multi_redis_cmd_max_argc = 1024 * 1024;
 const static long long multi_redis_cmd_max_argc =
     1024 *
-    std::thread::hardware_concurrency(); // For better parallelism performance
+    std::thread::hardware_concurrency();  // For better parallelism performance
 
 using sw::redis::OptionalString;
 using sw::redis::Redis;
@@ -63,7 +61,7 @@ using namespace redis_connection;
 
 template <class K, class V>
 class RedisTableOfTensors final : public LookupInterface {
-private:
+ private:
   TensorShape value_shape_;
   int64 runtime_value_dim_;
   // size_t init_size_;
@@ -85,10 +83,10 @@ private:
   std::vector<aiocb> EXPORT_content;
   std::vector<int> EXPORT_fds;
 
-public:
+ public:
   Redis_Connection_Params redis_connection_params;
 
-private:
+ private:
   void launchFind_parallel(OpKernelContext *context,
                            std::vector<std::string> &keys_prefix_name_slices,
                            const Tensor &keys, Tensor *values,
@@ -112,9 +110,9 @@ private:
           _table_instance->MgetCommand(keys, threads_Find.at(thread_id), begin,
                                        max_i, keys_prefix_name_slices);
 
-      assert(
-          reply.size() ==
-          redis_connection_params.storage_slice); // #define REDIS_REPLY_ARRAY 2
+      assert(reply.size() ==
+             redis_connection_params
+                 .storage_slice);  // #define REDIS_REPLY_ARRAY 2
 
       _table_instance->MgetToTensor(values, default_value, is_full_default,
                                     threads_Find.at(thread_id), reply, begin,
@@ -134,15 +132,14 @@ private:
                   std::vector<ThreadContext> &threads_Find) {
     const bool is_full_default = (total == default_value_flat2_dim0);
 
-    if (1 > threads_Find.size())
-      threads_Find.resize(1);
+    if (1 > threads_Find.size()) threads_Find.resize(1);
 
     auto reply = _table_instance->MgetCommand(keys, threads_Find[0], 0, total,
                                               keys_prefix_name_slices);
 
     assert(
         reply.size() ==
-        redis_connection_params.storage_slice); // #define REDIS_REPLY_ARRAY 2
+        redis_connection_params.storage_slice);  // #define REDIS_REPLY_ARRAY 2
 
     _table_instance->MgetToTensor(values, default_value, is_full_default,
                                   threads_Find[0], reply, 0, total,
@@ -179,8 +176,7 @@ private:
                     const Tensor &keys, const Tensor &values,
                     const int64 &total, const int64 &Velems_per_flat2_dim0,
                     std::vector<ThreadContext> &threads_Insert) {
-    if (1 > threads_Insert.size())
-      threads_Insert.resize(1);
+    if (1 > threads_Insert.size()) threads_Insert.resize(1);
 
     _table_instance->MsetCommand(keys, values, threads_Insert[0], 0, total,
                                  Velems_per_flat2_dim0,
@@ -212,15 +208,13 @@ private:
                     std::vector<std::string> &keys_prefix_name_slices,
                     const Tensor &keys, const int64 &total,
                     std::vector<ThreadContext> &threads_Delete) {
-    if (1 > threads_Delete.size())
-      threads_Delete.resize(1);
+    if (1 > threads_Delete.size()) threads_Delete.resize(1);
     _table_instance->DelCommand(keys, threads_Delete[0], 0, total,
                                 keys_prefix_name_slices);
   }
 
-public:
+ public:
   RedisTableOfTensors(OpKernelContext *ctx, OpKernel *kernel) {
-
     OP_REQUIRES_OK(ctx,
                    GetNodeAttr(kernel->def(), "value_shape", &value_shape_));
     OP_REQUIRES(
@@ -493,35 +487,35 @@ public:
 
     // creat redis instance
     switch (redis_connection_params.redis_connection_mode) {
-    case ClusterMode: {
-      _table_instance = RedisWrapper<RedisCluster, K, V>::get_instance();
-      _table_instance->set_params(redis_connection_params);
-      _table_instance->Conn();
-      break;
-    }
-    case SentinelMode: {
-      _table_instance = RedisWrapper<Redis, K, V>::get_instance();
-      _table_instance->set_params(redis_connection_params);
-      _table_instance->Conn();
-      break;
-    }
-    case StreamMode: {
-      LOG(ERROR) << "Sorry! redis_connection_mode="
-                 << redis_connection_params.redis_connection_mode
-                 << " The Stream connection mode is still being TODO.";
-      throw(std::invalid_argument(
-          std::to_string(redis_connection_params.redis_connection_mode) +
-          " is illegal redis_connection_mode."));
-      break;
-    }
-    default: {
-      LOG(ERROR) << "There are only three Redis connection modes, which "
-                    "Cluster=0/Sentinel=1/Stream=2.";
-      throw(std::invalid_argument(
-          std::to_string(redis_connection_params.redis_connection_mode) +
-          " is illegal redis_connection_mode."));
-      break;
-    }
+      case ClusterMode: {
+        _table_instance = RedisWrapper<RedisCluster, K, V>::get_instance();
+        _table_instance->set_params(redis_connection_params);
+        _table_instance->Conn();
+        break;
+      }
+      case SentinelMode: {
+        _table_instance = RedisWrapper<Redis, K, V>::get_instance();
+        _table_instance->set_params(redis_connection_params);
+        _table_instance->Conn();
+        break;
+      }
+      case StreamMode: {
+        LOG(ERROR) << "Sorry! redis_connection_mode="
+                   << redis_connection_params.redis_connection_mode
+                   << " The Stream connection mode is still being TODO.";
+        throw(std::invalid_argument(
+            std::to_string(redis_connection_params.redis_connection_mode) +
+            " is illegal redis_connection_mode."));
+        break;
+      }
+      default: {
+        LOG(ERROR) << "There are only three Redis connection modes, which "
+                      "Cluster=0/Sentinel=1/Stream=2.";
+        throw(std::invalid_argument(
+            std::to_string(redis_connection_params.redis_connection_mode) +
+            " is illegal redis_connection_mode."));
+        break;
+      }
     }
 
     int &&check_slices_num_return =
@@ -622,7 +616,7 @@ public:
       launchInsert_parallel(
           ctx, keys_prefix_name_slices, keys, values, total,
           Velems_per_flat2_dim0,
-          threads_Insert); // redis commmand args > multi_redis_cmd_max_argc
+          threads_Insert);  // redis commmand args > multi_redis_cmd_max_argc
     }
 
     return Status::OK();
@@ -696,8 +690,7 @@ public:
 
       _table_instance->RestoreFromDisk(keys_prefix_name_slices, IMPORT_content,
                                        IMPORT_fds, IMPORT_fds_sizes);
-      for (auto fd : IMPORT_fds)
-        close(fd);
+      for (auto fd : IMPORT_fds) close(fd);
     }
 
     return Status::OK();
@@ -804,18 +797,17 @@ public:
       for (size_t j = 0; j < keys_replies[i]->elements; ++j) {
         temp_reply = keys_replies[i]->element[j];
         if (temp_reply->type ==
-            REDIS_REPLY_STRING) { // #define REDIS_REPLY_STRING 1
+            REDIS_REPLY_STRING) {  // #define REDIS_REPLY_STRING 1
           ReplyMemcpyToKeyTensor<K>(
               pk_raw, temp_reply->str,
-              temp_reply->len); // Direct access to Tensor data in TensorFlow
+              temp_reply->len);  // Direct access to Tensor data in TensorFlow
         }
         ++pk_raw;
       }
     }
 
     // fill Tensor values
-    if (1 > threads_Find.size())
-      threads_Find.resize(1);
+    if (1 > threads_Find.size()) threads_Find.resize(1);
 
     auto reply = _table_instance->MgetCommand(
         *keys, threads_Find[0], 0, total_size, keys_prefix_name_slices);
@@ -844,13 +836,13 @@ public:
 };
 
 class HashTableOpKernel : public OpKernel {
-public:
+ public:
   explicit HashTableOpKernel(OpKernelConstruction *ctx)
       : OpKernel(ctx),
         expected_input_0_(ctx->input_type(0) == DT_RESOURCE ? DT_RESOURCE
                                                             : DT_STRING_REF) {}
 
-protected:
+ protected:
   Status LookupResource(OpKernelContext *ctx, const ResourceHandle &p,
                         LookupInterface **value) {
     return ctx->resource_manager()->Lookup<LookupInterface, false>(
@@ -875,7 +867,7 @@ protected:
 };
 
 class HashTableFindOp : public HashTableOpKernel {
-public:
+ public:
   using HashTableOpKernel::HashTableOpKernel;
 
   void Compute(OpKernelContext *ctx) override {
@@ -903,7 +895,7 @@ public:
 
 // Table insert op.
 class HashTableInsertOp : public HashTableOpKernel {
-public:
+ public:
   using HashTableOpKernel::HashTableOpKernel;
 
   void Compute(OpKernelContext *ctx) override {
@@ -933,7 +925,7 @@ public:
 
 // Table remove op.
 class HashTableRemoveOp : public HashTableOpKernel {
-public:
+ public:
   using HashTableOpKernel::HashTableOpKernel;
 
   void Compute(OpKernelContext *ctx) override {
@@ -960,8 +952,9 @@ public:
 };
 
 // Table clear op.
-template <class K, class V> class HashTableClearOp : public HashTableOpKernel {
-public:
+template <class K, class V>
+class HashTableClearOp : public HashTableOpKernel {
+ public:
   using HashTableOpKernel::HashTableOpKernel;
 
   void Compute(OpKernelContext *ctx) override {
@@ -986,7 +979,7 @@ public:
 
 // Op that returns the size of the given table.
 class HashTableSizeOp : public HashTableOpKernel {
-public:
+ public:
   using HashTableOpKernel::HashTableOpKernel;
 
   void Compute(OpKernelContext *ctx) override {
@@ -1002,7 +995,7 @@ public:
 
 // Op that outputs tensors of all keys and all values.
 class HashTableExportOp : public HashTableOpKernel {
-public:
+ public:
   using HashTableOpKernel::HashTableOpKernel;
 
   void Compute(OpKernelContext *ctx) override {
@@ -1016,7 +1009,7 @@ public:
 
 // Clear the table and insert data.
 class HashTableImportOp : public HashTableOpKernel {
-public:
+ public:
   using HashTableOpKernel::HashTableOpKernel;
 
   void Compute(OpKernelContext *ctx) override {
@@ -1062,19 +1055,19 @@ REGISTER_KERNEL_BUILDER(
     HashTableImportOp);
 
 // Register the CuckooMutableHashTableOfTensors op.
-#define REGISTER_KERNEL(key_dtype, value_dtype)                                \
-  REGISTER_KERNEL_BUILDER(                                                     \
-      Name(PREFIX_OP_NAME(RedisTableOfTensors))                                \
-          .Device(DEVICE_CPU)                                                  \
-          .TypeConstraint<key_dtype>("key_dtype")                              \
-          .TypeConstraint<value_dtype>("value_dtype"),                         \
-      HashTableOp<redis_table::RedisTableOfTensors<key_dtype, value_dtype>,    \
-                  key_dtype, value_dtype>);                                    \
-  REGISTER_KERNEL_BUILDER(                                                     \
-      Name(PREFIX_OP_NAME(RedisTableClear))                                    \
-          .Device(DEVICE_CPU)                                                  \
-          .TypeConstraint<key_dtype>("key_dtype")                              \
-          .TypeConstraint<value_dtype>("value_dtype"),                         \
+#define REGISTER_KERNEL(key_dtype, value_dtype)                             \
+  REGISTER_KERNEL_BUILDER(                                                  \
+      Name(PREFIX_OP_NAME(RedisTableOfTensors))                             \
+          .Device(DEVICE_CPU)                                               \
+          .TypeConstraint<key_dtype>("key_dtype")                           \
+          .TypeConstraint<value_dtype>("value_dtype"),                      \
+      HashTableOp<redis_table::RedisTableOfTensors<key_dtype, value_dtype>, \
+                  key_dtype, value_dtype>);                                 \
+  REGISTER_KERNEL_BUILDER(                                                  \
+      Name(PREFIX_OP_NAME(RedisTableClear))                                 \
+          .Device(DEVICE_CPU)                                               \
+          .TypeConstraint<key_dtype>("key_dtype")                           \
+          .TypeConstraint<value_dtype>("value_dtype"),                      \
       redis_table::HashTableClearOp<key_dtype, value_dtype>)
 
 REGISTER_KERNEL(int32, double);
@@ -1097,6 +1090,6 @@ REGISTER_KERNEL(tstring, Eigen::half);
 
 #undef REGISTER_KERNEL
 
-} // namespace redis_table
-} // namespace recommenders_addons
-} // namespace tensorflow
+}  // namespace redis_table
+}  // namespace recommenders_addons
+}  // namespace tensorflow

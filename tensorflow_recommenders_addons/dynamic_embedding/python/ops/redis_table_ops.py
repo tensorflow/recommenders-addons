@@ -126,7 +126,7 @@ class RedisTable(LookupInterface):
       for k in self._redis_params.keys():
         if k in params_load:
           self._redis_params[k] = params_load[k]
-    
+
     with open(self._config.redis_config_abs_dir, 'w', encoding='utf-8') as f1:
       f1.write(json.dumps(self._redis_params, indent=2, ensure_ascii=True))
 

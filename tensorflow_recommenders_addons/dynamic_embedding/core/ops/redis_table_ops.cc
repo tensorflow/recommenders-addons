@@ -17,7 +17,6 @@ limitations under the License.
 #include "tensorflow/core/framework/op.h"
 #include "tensorflow/core/framework/op_def_builder.h"
 #include "tensorflow/core/framework/shape_inference.h"
-
 #include "tensorflow_recommenders_addons/dynamic_embedding/core/utils/utils.h"
 
 namespace tensorflow {
@@ -43,7 +42,7 @@ Status ScalarAndTwoElementVectorInputsAndScalarOutputs(InferenceContext *c) {
   return Status::OK();
 }
 
-} // namespace
+}  // namespace
 
 Status ValidateTableResourceHandle(InferenceContext *c, ShapeHandle keys,
                                    const string &key_dtype_attr,
@@ -60,18 +59,20 @@ Status ValidateTableResourceHandle(InferenceContext *c, ShapeHandle keys,
     DataType key_dtype;
     TF_RETURN_IF_ERROR(c->GetAttr(key_dtype_attr, &key_dtype));
     if (key_shape_and_type.dtype != key_dtype) {
-      return errors::InvalidArgument("Trying to read value with wrong dtype. "
-                                     "Expected ",
-                                     DataTypeString(key_shape_and_type.dtype),
-                                     " got ", DataTypeString(key_dtype));
+      return errors::InvalidArgument(
+          "Trying to read value with wrong dtype. "
+          "Expected ",
+          DataTypeString(key_shape_and_type.dtype), " got ",
+          DataTypeString(key_dtype));
     }
     DataType value_dtype;
     TF_RETURN_IF_ERROR(c->GetAttr(value_dtype_attr, &value_dtype));
     if (value_shape_and_type.dtype != value_dtype) {
-      return errors::InvalidArgument("Trying to read value with wrong dtype. "
-                                     "Expected ",
-                                     DataTypeString(value_shape_and_type.dtype),
-                                     " got ", DataTypeString(value_dtype));
+      return errors::InvalidArgument(
+          "Trying to read value with wrong dtype. "
+          "Expected ",
+          DataTypeString(value_shape_and_type.dtype), " got ",
+          DataTypeString(value_dtype));
     }
     output_shape_and_type->dtype = value_shape_and_type.dtype;
 
@@ -246,4 +247,4 @@ REGISTER_OP(PREFIX_OP_NAME(RedisTableOfTensors))
       TF_RETURN_IF_ERROR(c->MakeShapeFromPartialTensorShape(value_p, &value_s));
       return RedisTableShape(c, /*key=*/c->Scalar(), /*value=*/value_s);
     });
-} // namespace tensorflow
+}  // namespace tensorflow

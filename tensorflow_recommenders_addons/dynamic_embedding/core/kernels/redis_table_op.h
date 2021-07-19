@@ -16,6 +16,11 @@ limitations under the License.
 #ifndef TFRA_CORE_KERNELS_REDIS_LOOKUP_TABLE_OP_H_
 #define TFRA_CORE_KERNELS_REDIS_LOOKUP_TABLE_OP_H_
 
+#include <sw/redis++/connection.h>
+#include <sw/redis++/connection_pool.h>
+#include <sw/redis++/redis++.h>
+#include <sw/redis++/sentinel.h>
+
 #include "tensorflow/core/framework/bounds_check.h"
 #include "tensorflow/core/framework/lookup_interface.h"
 #include "tensorflow/core/framework/op_kernel.h"
@@ -33,20 +38,18 @@ limitations under the License.
 #include "tensorflow/core/util/env_var.h"
 #include "tensorflow_recommenders_addons/dynamic_embedding/core/utils/types.h"
 
-#include <sw/redis++/connection.h>
-#include <sw/redis++/connection_pool.h>
-#include <sw/redis++/redis++.h>
-#include <sw/redis++/sentinel.h>
-
 namespace tensorflow {
 namespace recommenders_addons {
 namespace redis_table {
 
-template <class V, size_t DIM> using ValueArray = std::array<V, DIM>;
+template <class V, size_t DIM>
+using ValueArray = std::array<V, DIM>;
 
-template <class V> using Flat1D = typename tensorflow::TTypes<V>::Flat;
+template <class V>
+using Flat1D = typename tensorflow::TTypes<V>::Flat;
 
-template <class V> using Tensor2D = typename tensorflow::TTypes<V, 2>::Tensor;
+template <class V>
+using Tensor2D = typename tensorflow::TTypes<V, 2>::Tensor;
 
 template <class V>
 using ConstFlat1D = const typename tensorflow::TTypes<V>::ConstFlat;
@@ -60,7 +63,7 @@ using tensorflow::lookup::LookupInterface;
 
 template <class Container, class key_dtype, class value_dtype>
 class HashTableOp : public OpKernel {
-public:
+ public:
   explicit HashTableOp(OpKernelConstruction *ctx)
       : OpKernel(ctx), table_handle_set_(false) {
     if (ctx->output_type(0) == DT_RESOURCE) {
@@ -139,7 +142,7 @@ public:
     }
   }
 
-private:
+ private:
   mutex mu_;
   PersistentTensor table_handle_ TF_GUARDED_BY(mu_);
   bool table_handle_set_ TF_GUARDED_BY(mu_);
@@ -149,8 +152,8 @@ private:
   TF_DISALLOW_COPY_AND_ASSIGN(HashTableOp);
 };
 
-} // namespace redis_table
-} // namespace recommenders_addons
-} // namespace tensorflow
+}  // namespace redis_table
+}  // namespace recommenders_addons
+}  // namespace tensorflow
 
-#endif // TFRA_CORE_KERNELS_REDIS_LOOKUP_TABLE_OP_H_
+#endif  // TFRA_CORE_KERNELS_REDIS_LOOKUP_TABLE_OP_H_
