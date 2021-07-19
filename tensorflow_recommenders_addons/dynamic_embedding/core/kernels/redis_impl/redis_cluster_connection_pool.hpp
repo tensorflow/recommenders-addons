@@ -24,6 +24,8 @@ limitations under the License.
 #include <iostream>
 
 #include "redis_connection_util.hpp"
+#include "tensorflow/core/framework/tensor.h"
+#include "tensorflow/core/framework/types.h"
 
 using sw::redis::ConnectionOptions;
 using sw::redis::ConnectionPoolOptions;
