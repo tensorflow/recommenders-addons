@@ -298,6 +298,8 @@ def create_slots(primary, init, slot_name, op_name):
           partitioner=params_var_.partition_fn,
           initializer=init,
           init_size=params_var_.init_size,
+          database_path=params_var_.database_path,
+          embedding_name=params_var_.embedding_name,
           trainable=False,
           checkpoint=params_var_.checkpoint,
       )

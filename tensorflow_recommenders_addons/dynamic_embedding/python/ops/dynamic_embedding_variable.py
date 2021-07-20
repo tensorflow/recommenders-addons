@@ -150,6 +150,9 @@ class Variable(trackable.TrackableResource):
       trainable=True,
       checkpoint=True,
       init_size=0,
+      database_path=None,
+      embedding_name=None,
+      read_only=False,
       restrict_policy=None,
   ):
     """Creates an empty `Variable` object.
@@ -229,6 +232,11 @@ class Variable(trackable.TrackableResource):
 
     self._tables = []
     self.size_ops = []
+
+    self.database_path = database_path
+    self.embedding_name = embedding_name
+    self.read_only = read_only
+
     self.shard_num = len(self.devices)
     self.init_size = int(init_size)
     if restrict_policy is not None:
@@ -262,15 +270,26 @@ class Variable(trackable.TrackableResource):
       with ops.colocate_with(None, ignore_existing=True):
         for idx in range(len(self.devices)):
           with ops.device(self.devices[idx]):
-            mht = None
-            mht = de.CuckooHashTable(
+            if database_path:
+              mht = de.RocksDBTable(
                 key_dtype=self.key_dtype,
                 value_dtype=self.value_dtype,
                 default_value=static_default_value,
                 name=self._make_name(idx),
                 checkpoint=self.checkpoint,
-                init_size=int(self.init_size / self.shard_num),
-            )
+                database_path=self.database_path,
+                embedding_name=self.embedding_name,
+                read_only=self.read_only,
+              )
+            else:
+              mht = de.CuckooHashTable(
+                  key_dtype=self.key_dtype,
+                  value_dtype=self.value_dtype,
+                  default_value=static_default_value,
+                  name=self._make_name(idx),
+                  checkpoint=self.checkpoint,
+                  init_size=int(self.init_size / self.shard_num),
+              )
 
             self._tables.append(mht)
     super(Variable, self).__init__()
@@ -522,6 +541,9 @@ def get_variable(
     trainable=True,
     checkpoint=True,
     init_size=0,
+    database_path=None,
+    embedding_name=None,
+    read_only=False,
     restrict_policy=None,
 ):
   """Gets an `Variable` object with this name if it exists,
@@ -587,6 +609,9 @@ def get_variable(
         trainable=trainable,
         checkpoint=checkpoint,
         init_size=init_size,
+        database_path=database_path,
+        embedding_name=embedding_name,
+        read_only=read_only,
         restrict_policy=restrict_policy,
     )
     scope_store._vars[full_name] = var_

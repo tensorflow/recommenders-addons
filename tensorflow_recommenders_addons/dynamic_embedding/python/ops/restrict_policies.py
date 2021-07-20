@@ -150,6 +150,9 @@ class TimestampRestrictPolicy(RestrictPolicy):
           partitioner=self.var.partition_fn,
           trainable=False,
           init_size=self.var.init_size,
+          database_path=self.var.databaes_path,
+          embedding_name=self.var.embedding_name,
+          read_only=self.var.read_only,
       )
 
   def apply_update(self, ids):
@@ -270,6 +273,9 @@ class FrequencyRestrictPolicy(RestrictPolicy):
           partitioner=self.var.partition_fn,
           trainable=False,
           init_size=self.var.init_size,
+          database_path=self.var.databaes_path,
+          embedding_name=self.var.embedding_name,
+          read_only=self.var.read_only,
       )
 
   def apply_update(self, ids):

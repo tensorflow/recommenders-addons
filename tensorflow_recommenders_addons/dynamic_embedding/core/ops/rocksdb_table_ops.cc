@@ -254,6 +254,7 @@ REGISTER_OP(PREFIX_OP_NAME(RocksdbTableOfTensors))
   .Attr("value_shape: shape = {}")
   .Attr("database_path: string = ''")
   .Attr("embedding_name: string = ''")
+  .Attr("read_only: bool = false")
   .SetIsStateful()
   .SetShapeFn([](InferenceContext *c) {
     PartialTensorShape valueP;
