@@ -21,17 +21,18 @@ limitations under the License.
 
 namespace tensorflow {
   namespace recommenders_addons {
-    namespace rocksdb_lookup {
+    namespace lookup {
 
-      static const int64 BATCH_MODE_MIN_QUERY_SIZE = 2;
-      static const uint32_t BATCH_MODE_MAX_QUERY_SIZE = 128;
-      static const uint32_t EXPORT_FILE_MAGIC= ( // TODO: Little endian / big endian conversion?
+      static const int64 RDB_BATCH_MODE_MIN_QUERY_SIZE = 2;
+      static const uint32_t RDB_BATCH_MODE_MAX_QUERY_SIZE = 128;
+      static const uint32_t RDB_EXPORT_FILE_MAGIC= ( // TODO: Little endian / big endian conversion?
         (static_cast<uint32_t>('T') << 0) |
         (static_cast<uint32_t>('F') << 8) |
         (static_cast<uint32_t>('K') << 16) |
         (static_cast<uint32_t>('V') << 24)
       );
-      static const uint32_t EXPORT_FILE_VERSION = 1;
+      static const uint32_t RDB_EXPORT_FILE_VERSION = 1;
+      static const char RDB_EXPORT_PATH[] = "/tmp/db.dump";
 
       #define RDB_OK(EXPR)                            \
         do {                                          \
@@ -124,7 +125,7 @@ namespace tensorflow {
       }
 
       template<class K, class V>
-      class RocksDBTableOfTensors : public ClearableLookupInterface {
+      class RocksDBTableOfTensors final : public ClearableLookupInterface {
       public:
         /* --- BASE INTERFACE ------------------------------------------------------------------- */
         RocksDBTableOfTensors(OpKernelContext *ctx, OpKernel *kernel) {
@@ -214,7 +215,7 @@ namespace tensorflow {
           // Correct behavior if clear invoked multiple times.
           if (colIndex < colHandles.size()) {
             if (readOnly) {
-              return Status(error::Code::PERMISSION_DENIED, "Cannot clear in read_only mode.");
+              return errors::PermissionDenied("Cannot clear in read_only mode.");
             }
             RDB_OK(db->DropColumnFamily(colHandles[colIndex]));
             RDB_OK(db->DestroyColumnFamilyHandle(colHandles[colIndex]));
@@ -234,7 +235,7 @@ namespace tensorflow {
             values->dtype() != value_dtype() ||
             default_value.dtype() != value_dtype()
           ) {
-            return Status(error::Code::INVALID_ARGUMENT, "Tensor dtypes are incompatible!");
+            return errors::InvalidArgument("Tensor dtypes are incompatible!");
           }
 
           rocksdb::ColumnFamilyHandle *const colHandle = GetOrCreateColumnHandle();
@@ -242,8 +243,7 @@ namespace tensorflow {
           const size_t numKeys = keys.dim_size(0);
           const size_t numValues = values->dim_size(0);
           if (numKeys != numValues) {
-            return Status(
-              error::Code::INVALID_ARGUMENT,
+            return errors::InvalidArgument(
               "First dimension of the key and value tensors does not match!"
             );
           }
@@ -259,12 +259,12 @@ namespace tensorflow {
           const int64 dSize = default_value.NumElements();
 
           if (dSize % valuesPerDim0 != 0) {
-            throw std::runtime_error(
+            return errors::InvalidArgument(
               "The shapes of the values and default_value tensors are not compatible."
             );
           }
 
-          if (numKeys < BATCH_MODE_MIN_QUERY_SIZE) {
+          if (numKeys < RDB_BATCH_MODE_MIN_QUERY_SIZE) {
             rocksdb::Slice kSlice;
 
             for (; k != kEnd; ++k, vOffset += valuesPerDim0) {
@@ -329,19 +329,18 @@ namespace tensorflow {
 
         Status Insert(OpKernelContext *ctx, const Tensor &keys, const Tensor &values) override {
           if (keys.dtype() != key_dtype() || values.dtype() != value_dtype()) {
-            return Status(error::Code::INVALID_ARGUMENT, "Tensor dtypes are incompatible!");
+            return errors::InvalidArgument("Tensor dtypes are incompatible!");
           }
 
           rocksdb::ColumnFamilyHandle *const colHandle = GetOrCreateColumnHandle();
           if (!colHandle || readOnly) {
-            return Status(error::Code::PERMISSION_DENIED, "Cannot insert in read_only mode.");
+            return errors::PermissionDenied("Cannot insert in read_only mode.");
           }
 
           const int64 numKeys = keys.dim_size(0);
           const int64 numValues = values.dim_size(0);
           if (numKeys != numValues) {
-            return Status(
-              error::Code::INVALID_ARGUMENT,
+            return errors::InvalidArgument(
               "First dimension of the key and value tensors does not match!"
             );
           }
@@ -355,7 +354,7 @@ namespace tensorflow {
           rocksdb::Slice kSlice;
           rocksdb::PinnableSlice vSlice;
 
-          if (numKeys < BATCH_MODE_MIN_QUERY_SIZE) {
+          if (numKeys < RDB_BATCH_MODE_MIN_QUERY_SIZE) {
             for (; k != kEnd; ++k, v += valuesPerDim0) {
               assignSlice(kSlice, k);
               assignSlice(vSlice, v, valuesPerDim0);
@@ -378,12 +377,12 @@ namespace tensorflow {
 
         Status Remove(OpKernelContext *ctx, const Tensor &keys) override {
           if (keys.dtype() != key_dtype()) {
-            return Status(error::Code::INVALID_ARGUMENT, "Tensor dtypes are incompatible!");
+            return errors::InvalidArgument("Tensor dtypes are incompatible!");
           }
 
           rocksdb::ColumnFamilyHandle *const colHandle = GetOrCreateColumnHandle();
           if (!colHandle || readOnly) {
-            return Status(error::Code::PERMISSION_DENIED, "Cannot remove in read_only mode.");
+            return errors::PermissionDenied("Cannot remove in read_only mode.");
           }
 
           const int64 numKeys = keys.dim_size(0);
@@ -392,7 +391,7 @@ namespace tensorflow {
 
           rocksdb::Slice kSlice;
 
-          if (numKeys < BATCH_MODE_MIN_QUERY_SIZE) {
+          if (numKeys < RDB_BATCH_MODE_MIN_QUERY_SIZE) {
             for (; k != kEnd; ++k) {
               assignSlice(kSlice, k);
               RDB_OK(db->Delete(writeOptions, colHandle, kSlice));
@@ -414,15 +413,17 @@ namespace tensorflow {
         /* --- IMPORT / EXPORT ------------------------------------------------------------------ */
         Status ExportValues(OpKernelContext *ctx) override {
           // Create file header.
-          std::ofstream file("/tmp/db.dump", std::ofstream::binary);
+          std::ofstream file(RDB_EXPORT_PATH, std::ofstream::binary);
           if (!file) {
-            return Status(error::Code::UNKNOWN, "Could not open dump file.");
+            return errors::Unknown("Could not open dump file.");
           }
           file.write(
-            reinterpret_cast<const char *>(&EXPORT_FILE_MAGIC), sizeof(EXPORT_FILE_MAGIC)
+            reinterpret_cast<const char *>(&RDB_EXPORT_FILE_MAGIC),
+            sizeof(RDB_EXPORT_FILE_MAGIC)
           );
           file.write(
-            reinterpret_cast<const char *>(&EXPORT_FILE_VERSION), sizeof(EXPORT_FILE_VERSION)
+            reinterpret_cast<const char *>(&RDB_EXPORT_FILE_VERSION),
+            sizeof(RDB_EXPORT_FILE_VERSION)
           );
 
           // Iterate through entries one-by-one and append them to the file.
@@ -461,13 +462,13 @@ namespace tensorflow {
           static const Status errorEOF(error::Code::OUT_OF_RANGE, "Unexpected end of file.");
 
           // Make sure the column family is clean.
-          const auto clearStatus = Clear(ctx);
+          const auto &clearStatus = Clear(ctx);
           if (!clearStatus.ok()) {
             return clearStatus;
           }
 
           // Parse header.
-          std::ifstream file("/tmp/db.dump", std::ifstream::binary);
+          std::ifstream file(RDB_EXPORT_PATH, std::ifstream::binary);
           if (!file) {
             return Status(error::Code::NOT_FOUND, "Could not open dump file.");
           }
@@ -479,7 +480,7 @@ namespace tensorflow {
           if (!file.read(reinterpret_cast<char *>(&version), sizeof(version))) {
             return errorEOF;
           }
-          if (magic != EXPORT_FILE_MAGIC || version != EXPORT_FILE_VERSION) {
+          if (magic != RDB_EXPORT_FILE_MAGIC || version != RDB_EXPORT_FILE_VERSION) {
             return Status(error::Code::INTERNAL, "Unsupported file-type.");
           }
 
@@ -519,7 +520,7 @@ namespace tensorflow {
             RDB_OK(batch.Put(colHandle, k, v));
 
             // If batch reached target size, write to database.
-            if ((batch.Count() % BATCH_MODE_MAX_QUERY_SIZE) == 0) {
+            if ((batch.Count() % RDB_BATCH_MODE_MAX_QUERY_SIZE) == 0) {
               RDB_OK(db->Write(writeOptions, &batch));
               batch.Clear();
             }
@@ -589,29 +590,222 @@ namespace tensorflow {
       RDB_REGISTER_KERNEL_BUILDER(tstring, tstring);
 
       #undef RDB_TABLE_REGISTER_KERNEL_BUILDER
-
-      REGISTER_KERNEL_BUILDER(
-        Name(PREFIX_OP_NAME(RocksDBTableClear)).Device(DEVICE_CPU), RocksDBTableClear
-      );
-      REGISTER_KERNEL_BUILDER(
-        Name(PREFIX_OP_NAME(RocksDBTableExport)).Device(DEVICE_CPU), RocksDBTableExport
-      );
-      REGISTER_KERNEL_BUILDER(
-        Name(PREFIX_OP_NAME(RocksDBTableFind)).Device(DEVICE_CPU), RocksDBTableFind
-      );
-      REGISTER_KERNEL_BUILDER(
-        Name(PREFIX_OP_NAME(RocksDBTableImport)).Device(DEVICE_CPU), RocksDBTableImport
-      );
-      REGISTER_KERNEL_BUILDER(
-        Name(PREFIX_OP_NAME(RocksDBTableInsert)).Device(DEVICE_CPU), RocksDBTableInsert
-      );
-      REGISTER_KERNEL_BUILDER(
-        Name(PREFIX_OP_NAME(RocksDBTableRemove)).Device(DEVICE_CPU), RocksDBTableRemove
-      );
-      REGISTER_KERNEL_BUILDER(
-        Name(PREFIX_OP_NAME(RocksDBTableSize)).Device(DEVICE_CPU), RocksDBTableSize
-      );
-
     }  // namespace rocksdb_lookup
+
+    /* --- OP KERNELS --------------------------------------------------------------------------- */
+    class RocksDBTableOpKernel : public OpKernel {
+    public:
+      explicit RocksDBTableOpKernel(OpKernelConstruction *ctx)
+        : OpKernel(ctx)
+        , expected_input_0_(ctx->input_type(0) == DT_RESOURCE ? DT_RESOURCE : DT_STRING_REF) {
+      }
+
+    protected:
+      Status LookupResource(
+        OpKernelContext *ctx, const ResourceHandle &p, LookupInterface **value
+      ) {
+        return ctx->resource_manager()->Lookup<LookupInterface, false>(
+          p.container(), p.name(), value
+        );
+      }
+
+      Status GetResourceHashTable(
+        StringPiece input_name, OpKernelContext *ctx, LookupInterface **table
+      ) {
+        const Tensor *handle_tensor;
+        TF_RETURN_IF_ERROR(ctx->input(input_name, &handle_tensor));
+        const auto &handle = handle_tensor->scalar<ResourceHandle>()();
+        return LookupResource(ctx, handle, table);
+      }
+
+      Status GetTable(OpKernelContext *ctx, LookupInterface **table) {
+        if (expected_input_0_ == DT_RESOURCE) {
+          return GetResourceHashTable("table_handle", ctx, table);
+        } else {
+          return GetReferenceLookupTable("table_handle", ctx, table);
+        }
+      }
+
+    protected:
+      const DataType expected_input_0_;
+    };
+
+    class RocksDBTableClear : public RocksDBTableOpKernel {
+    public:
+      using RocksDBTableOpKernel::RocksDBTableOpKernel;
+
+      void Compute(OpKernelContext *ctx) override {
+        LookupInterface *table;
+        OP_REQUIRES_OK(ctx, GetTable(ctx, &table));
+        core::ScopedUnref unref_me(table);
+
+        auto *rocksTable = dynamic_cast<ClearableLookupInterface *>(table);
+
+        int64 memory_used_before = 0;
+        if (ctx->track_allocations()) {
+          memory_used_before = table->MemoryUsed();
+        }
+        OP_REQUIRES_OK(ctx, rocksTable->Clear(ctx));
+        if (ctx->track_allocations()) {
+          ctx->record_persistent_memory_allocation(table->MemoryUsed() - memory_used_before);
+        }
+      }
+    };
+
+    class RocksDBTableExport : public RocksDBTableOpKernel {
+    public:
+      using RocksDBTableOpKernel::RocksDBTableOpKernel;
+
+      void Compute(OpKernelContext *ctx) override {
+        LookupInterface *table;
+        OP_REQUIRES_OK(ctx, GetTable(ctx, &table));
+        core::ScopedUnref unref_me(table);
+
+        OP_REQUIRES_OK(ctx, table->ExportValues(ctx));
+      }
+    };
+
+    class RocksDBTableFind : public RocksDBTableOpKernel {
+    public:
+      using RocksDBTableOpKernel::RocksDBTableOpKernel;
+
+      void Compute(OpKernelContext *ctx) override {
+        LookupInterface *table;
+        OP_REQUIRES_OK(ctx, GetTable(ctx, &table));
+        core::ScopedUnref unref_me(table);
+
+        DataTypeVector expected_inputs = {expected_input_0_, table->key_dtype(), table->value_dtype()};
+        DataTypeVector expected_outputs = {table->value_dtype()};
+        OP_REQUIRES_OK(ctx, ctx->MatchSignature(expected_inputs, expected_outputs));
+
+        const Tensor &key = ctx->input(1);
+        const Tensor &default_value = ctx->input(2);
+
+        TensorShape output_shape = key.shape();
+        output_shape.RemoveLastDims(table->key_shape().dims());
+        output_shape.AppendShape(table->value_shape());
+        Tensor *out;
+        OP_REQUIRES_OK(ctx, ctx->allocate_output("values", output_shape, &out));
+        OP_REQUIRES_OK(ctx, table->Find(ctx, key, out, default_value));
+      }
+    };
+
+    class RocksDBTableImport : public RocksDBTableOpKernel {
+    public:
+      using RocksDBTableOpKernel::RocksDBTableOpKernel;
+
+      void Compute(OpKernelContext *ctx) override {
+        LookupInterface *table;
+        OP_REQUIRES_OK(ctx, GetTable(ctx, &table));
+        core::ScopedUnref unref_me(table);
+
+        DataTypeVector expected_inputs = {expected_input_0_, table->key_dtype(), table->value_dtype()};
+        OP_REQUIRES_OK(ctx, ctx->MatchSignature(expected_inputs, {}));
+
+        const Tensor &keys = ctx->input(1);
+        const Tensor &values = ctx->input(2);
+        OP_REQUIRES_OK(ctx, table->CheckKeyAndValueTensorsForImport(keys, values));
+
+        int64 memory_used_before = 0;
+        if (ctx->track_allocations()) {
+          memory_used_before = table->MemoryUsed();
+        }
+        OP_REQUIRES_OK(ctx, table->ImportValues(ctx, keys, values));
+        if (ctx->track_allocations()) {
+          ctx->record_persistent_memory_allocation(table->MemoryUsed() - memory_used_before);
+        }
+      }
+    };
+
+    class RocksDBTableInsert : public RocksDBTableOpKernel {
+    public:
+      using RocksDBTableOpKernel::RocksDBTableOpKernel;
+
+      void Compute(OpKernelContext *ctx) override {
+        LookupInterface *table;
+        OP_REQUIRES_OK(ctx, GetTable(ctx, &table));
+        core::ScopedUnref unref_me(table);
+
+        DataTypeVector expected_inputs = {expected_input_0_, table->key_dtype(), table->value_dtype()};
+        OP_REQUIRES_OK(ctx, ctx->MatchSignature(expected_inputs, {}));
+
+        const Tensor &keys = ctx->input(1);
+        const Tensor &values = ctx->input(2);
+        OP_REQUIRES_OK(ctx, table->CheckKeyAndValueTensorsForInsert(keys, values));
+
+        int64 memory_used_before = 0;
+        if (ctx->track_allocations()) {
+          memory_used_before = table->MemoryUsed();
+        }
+        OP_REQUIRES_OK(ctx, table->Insert(ctx, keys, values));
+        if (ctx->track_allocations()) {
+          ctx->record_persistent_memory_allocation(table->MemoryUsed() - memory_used_before);
+        }
+      }
+    };
+
+    class RocksDBTableRemove : public RocksDBTableOpKernel {
+    public:
+      using RocksDBTableOpKernel::RocksDBTableOpKernel;
+
+      void Compute(OpKernelContext *ctx) override {
+        LookupInterface *table;
+        OP_REQUIRES_OK(ctx, GetTable(ctx, &table));
+        core::ScopedUnref unref_me(table);
+
+        DataTypeVector expected_inputs = {expected_input_0_, table->key_dtype()};
+        OP_REQUIRES_OK(ctx, ctx->MatchSignature(expected_inputs, {}));
+
+        const Tensor &key = ctx->input(1);
+        OP_REQUIRES_OK(ctx, table->CheckKeyTensorForRemove(key));
+
+        int64 memory_used_before = 0;
+        if (ctx->track_allocations()) {
+          memory_used_before = table->MemoryUsed();
+        }
+        OP_REQUIRES_OK(ctx, table->Remove(ctx, key));
+        if (ctx->track_allocations()) {
+          ctx->record_persistent_memory_allocation(table->MemoryUsed() - memory_used_before);
+        }
+      }
+    };
+
+    class RocksDBTableSize : public RocksDBTableOpKernel {
+    public:
+      using RocksDBTableOpKernel::RocksDBTableOpKernel;
+
+      void Compute(OpKernelContext *ctx) override {
+        LookupInterface *table;
+        OP_REQUIRES_OK(ctx, GetTable(ctx, &table));
+        core::ScopedUnref unref_me(table);
+
+        Tensor *out;
+        OP_REQUIRES_OK(ctx, ctx->allocate_output("size", TensorShape({}), &out));
+        out->flat<int64>().setConstant(table->size());
+      }
+    };
+
+    REGISTER_KERNEL_BUILDER(
+      Name(PREFIX_OP_NAME(RocksdbTableClear)).Device(DEVICE_CPU), RocksDBTableClear
+    );
+    REGISTER_KERNEL_BUILDER(
+      Name(PREFIX_OP_NAME(RocksdbTableExport)).Device(DEVICE_CPU), RocksDBTableExport
+    );
+    REGISTER_KERNEL_BUILDER(
+      Name(PREFIX_OP_NAME(RocksdbTableFind)).Device(DEVICE_CPU), RocksDBTableFind
+    );
+    REGISTER_KERNEL_BUILDER(
+      Name(PREFIX_OP_NAME(RocksdbTableImport)).Device(DEVICE_CPU), RocksDBTableImport
+    );
+    REGISTER_KERNEL_BUILDER(
+      Name(PREFIX_OP_NAME(RocksdbTableInsert)).Device(DEVICE_CPU), RocksDBTableInsert
+    );
+    REGISTER_KERNEL_BUILDER(
+      Name(PREFIX_OP_NAME(RocksdbTableRemove)).Device(DEVICE_CPU), RocksDBTableRemove
+    );
+    REGISTER_KERNEL_BUILDER(
+      Name(PREFIX_OP_NAME(RocksdbTableSize)).Device(DEVICE_CPU), RocksDBTableSize
+    );
+
   }  // namespace recommenders_addons
 }  // namespace tensorflow

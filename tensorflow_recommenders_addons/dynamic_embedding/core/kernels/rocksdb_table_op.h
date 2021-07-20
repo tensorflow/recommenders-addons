@@ -20,14 +20,15 @@ limitations under the License.
 
 namespace tensorflow {
   namespace recommenders_addons {
-    namespace rocksdb_lookup {
 
-      using tensorflow::lookup::LookupInterface;
+    using tensorflow::lookup::LookupInterface;
 
-      class ClearableLookupInterface : public LookupInterface {
-      public:
-        virtual Status Clear(OpKernelContext *ctx) = 0;
-      };
+    class ClearableLookupInterface : public LookupInterface {
+    public:
+      virtual Status Clear(OpKernelContext *ctx) = 0;
+    };
+
+    namespace lookup {
 
       template<class Container, class key_dtype, class value_dtype>
       class RocksDBTableOp : public OpKernel {
@@ -125,196 +126,7 @@ namespace tensorflow {
           TF_DISALLOW_COPY_AND_ASSIGN(RocksDBTableOp);
       };
 
-      /* --- OP KERNELS ------------------------------------------------------------------------- */
-      class RocksDBTableOpKernel : public OpKernel {
-      public:
-        explicit RocksDBTableOpKernel(OpKernelConstruction *ctx)
-          : OpKernel(ctx)
-          , expected_input_0_(ctx->input_type(0) == DT_RESOURCE ? DT_RESOURCE : DT_STRING_REF) {
-        }
-
-      protected:
-        Status LookupResource(OpKernelContext *ctx, const ResourceHandle &p, LookupInterface **value) {
-          return ctx->resource_manager()->Lookup<LookupInterface, false>(
-            p.container(), p.name(), value
-          );
-        }
-
-        Status GetResourceHashTable(StringPiece input_name, OpKernelContext *ctx, LookupInterface **table) {
-          const Tensor *handle_tensor;
-          TF_RETURN_IF_ERROR(ctx->input(input_name, &handle_tensor));
-          const auto &handle = handle_tensor->scalar<ResourceHandle>()();
-          return LookupResource(ctx, handle, table);
-        }
-
-        Status GetTable(OpKernelContext *ctx, LookupInterface **table) {
-          if (expected_input_0_ == DT_RESOURCE) {
-            return GetResourceHashTable("table_handle", ctx, table);
-          } else {
-            return GetReferenceLookupTable("table_handle", ctx, table);
-          }
-        }
-
-      protected:
-        const DataType expected_input_0_;
-      };
-
-      class RocksDBTableClear : public RocksDBTableOpKernel {
-      public:
-        explicit RocksDBTableClear(OpKernelConstruction *ctx): RocksDBTableOpKernel(ctx) {}
-
-        void Compute(OpKernelContext *ctx) override {
-          LookupInterface *table;
-          OP_REQUIRES_OK(ctx, GetTable(ctx, &table));
-          core::ScopedUnref unref_me(table);
-
-          auto *rocksTable = dynamic_cast<ClearableLookupInterface *>(table);
-
-          int64 memory_used_before = 0;
-          if (ctx->track_allocations()) {
-            memory_used_before = table->MemoryUsed();
-          }
-          OP_REQUIRES_OK(ctx, rocksTable->Clear(ctx));
-          if (ctx->track_allocations()) {
-            ctx->record_persistent_memory_allocation(table->MemoryUsed() - memory_used_before);
-          }
-        }
-      };
-
-      class RocksDBTableExport : public RocksDBTableOpKernel {
-      public:
-        explicit RocksDBTableExport(OpKernelConstruction *ctx): RocksDBTableOpKernel(ctx) {}
-
-        void Compute(OpKernelContext *ctx) override {
-          LookupInterface *table;
-          OP_REQUIRES_OK(ctx, GetTable(ctx, &table));
-          core::ScopedUnref unref_me(table);
-
-          OP_REQUIRES_OK(ctx, table->ExportValues(ctx));
-        }
-      };
-
-      class RocksDBTableFind : public RocksDBTableOpKernel {
-      public:
-        explicit RocksDBTableFind(OpKernelConstruction *ctx): RocksDBTableOpKernel(ctx) {}
-
-        void Compute(OpKernelContext *ctx) override {
-          LookupInterface *table;
-          OP_REQUIRES_OK(ctx, GetTable(ctx, &table));
-          core::ScopedUnref unref_me(table);
-
-          DataTypeVector expected_inputs = {expected_input_0_, table->key_dtype(), table->value_dtype()};
-          DataTypeVector expected_outputs = {table->value_dtype()};
-          OP_REQUIRES_OK(ctx, ctx->MatchSignature(expected_inputs, expected_outputs));
-
-          const Tensor &key = ctx->input(1);
-          const Tensor &default_value = ctx->input(2);
-
-          TensorShape output_shape = key.shape();
-          output_shape.RemoveLastDims(table->key_shape().dims());
-          output_shape.AppendShape(table->value_shape());
-          Tensor *out;
-          OP_REQUIRES_OK(ctx, ctx->allocate_output("values", output_shape, &out));
-          OP_REQUIRES_OK(ctx, table->Find(ctx, key, out, default_value));
-        }
-      };
-
-      class RocksDBTableImport : public RocksDBTableOpKernel {
-      public:
-        explicit RocksDBTableImport(OpKernelConstruction *ctx): RocksDBTableOpKernel(ctx) {}
-
-        void Compute(OpKernelContext *ctx) override {
-          LookupInterface *table;
-          OP_REQUIRES_OK(ctx, GetTable(ctx, &table));
-          core::ScopedUnref unref_me(table);
-
-          DataTypeVector expected_inputs = {expected_input_0_, table->key_dtype(), table->value_dtype()};
-          OP_REQUIRES_OK(ctx, ctx->MatchSignature(expected_inputs, {}));
-
-          const Tensor &keys = ctx->input(1);
-          const Tensor &values = ctx->input(2);
-          OP_REQUIRES_OK(ctx, table->CheckKeyAndValueTensorsForImport(keys, values));
-
-          int64 memory_used_before = 0;
-          if (ctx->track_allocations()) {
-            memory_used_before = table->MemoryUsed();
-          }
-          OP_REQUIRES_OK(ctx, table->ImportValues(ctx, keys, values));
-          if (ctx->track_allocations()) {
-            ctx->record_persistent_memory_allocation(table->MemoryUsed() - memory_used_before);
-          }
-        }
-      };
-
-      class RocksDBTableInsert : public RocksDBTableOpKernel {
-      public:
-        explicit RocksDBTableInsert(OpKernelConstruction *ctx): RocksDBTableOpKernel(ctx) {}
-
-        void Compute(OpKernelContext *ctx) override {
-          LookupInterface *table;
-          OP_REQUIRES_OK(ctx, GetTable(ctx, &table));
-          core::ScopedUnref unref_me(table);
-
-          DataTypeVector expected_inputs = {expected_input_0_, table->key_dtype(), table->value_dtype()};
-          OP_REQUIRES_OK(ctx, ctx->MatchSignature(expected_inputs, {}));
-
-          const Tensor &keys = ctx->input(1);
-          const Tensor &values = ctx->input(2);
-          OP_REQUIRES_OK(ctx, table->CheckKeyAndValueTensorsForInsert(keys, values));
-
-          int64 memory_used_before = 0;
-          if (ctx->track_allocations()) {
-            memory_used_before = table->MemoryUsed();
-          }
-          OP_REQUIRES_OK(ctx, table->Insert(ctx, keys, values));
-          if (ctx->track_allocations()) {
-            ctx->record_persistent_memory_allocation(table->MemoryUsed() - memory_used_before);
-          }
-        }
-      };
-
-      class RocksDBTableRemove : public RocksDBTableOpKernel {
-      public:
-        explicit RocksDBTableRemove(OpKernelConstruction *ctx): RocksDBTableOpKernel(ctx) {}
-
-        void Compute(OpKernelContext *ctx) override {
-          LookupInterface *table;
-          OP_REQUIRES_OK(ctx, GetTable(ctx, &table));
-          core::ScopedUnref unref_me(table);
-
-          DataTypeVector expected_inputs = {expected_input_0_, table->key_dtype()};
-          OP_REQUIRES_OK(ctx, ctx->MatchSignature(expected_inputs, {}));
-
-          const Tensor &key = ctx->input(1);
-          OP_REQUIRES_OK(ctx, table->CheckKeyTensorForRemove(key));
-
-          int64 memory_used_before = 0;
-          if (ctx->track_allocations()) {
-            memory_used_before = table->MemoryUsed();
-          }
-          OP_REQUIRES_OK(ctx, table->Remove(ctx, key));
-          if (ctx->track_allocations()) {
-            ctx->record_persistent_memory_allocation(table->MemoryUsed() - memory_used_before);
-          }
-        }
-      };
-
-      class RocksDBTableSize : public RocksDBTableOpKernel {
-      public:
-        explicit RocksDBTableSize(OpKernelConstruction *ctx): RocksDBTableOpKernel(ctx) {}
-
-        void Compute(OpKernelContext *ctx) override {
-          LookupInterface *table;
-          OP_REQUIRES_OK(ctx, GetTable(ctx, &table));
-          core::ScopedUnref unref_me(table);
-
-          Tensor *out;
-          OP_REQUIRES_OK(ctx, ctx->allocate_output("size", TensorShape({}), &out));
-          out->flat<int64>().setConstant(table->size());
-        }
-      };
-
-    }  // namespace rocksdb_lookup
+    }  // namespace lookup
   }  // namespace recommenders_addons
 }  // namespace tensorflow
 
