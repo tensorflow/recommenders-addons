@@ -30,8 +30,8 @@ cmake_external(
     cmake_options = [
         "-DCMAKE_BUILD_TYPE=Release",
         "-DREDIS_PLUS_PLUS_BUILD_TEST=OFF",
-        D_GLIBCXX_USE_CXX11_ABI,
         "-DREDIS_PLUS_PLUS_CXX_STANDARD=11",
+        "-DCMAKE_CXX_FLAGS="+D_GLIBCXX_USE_CXX11_ABI,
     ],
     lib_source = "@redis-plus-plus//:all_srcs",
     static_libraries = ["libredis++.a"],
