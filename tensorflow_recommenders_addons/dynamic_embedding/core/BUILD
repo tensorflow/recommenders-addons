@@ -37,6 +37,7 @@ custom_op_library(
     srcs = [
         "kernels/rocksdb_table_op.h",
         "kernels/rocksdb_table_op.cc",
+        "ops/rocksdb_table_ops.cc",
         "utils/utils.h",
         "utils/types.h",
     ],
