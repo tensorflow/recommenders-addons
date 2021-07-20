@@ -263,7 +263,7 @@ class RocksDBTable(LookupInterface):
             values = ops.convert_to_tensor(values, self._value_dtype, name="values")
 
             with ops.colocate_with(self.resource_handle):
-                op = rocksdb_table_ops.tfra_rockdsb_table_insert(self.resource_handle, keys, values)
+                op = rocksdb_table_ops.tfra_rocksdb_table_insert(self.resource_handle, keys, values)
 
         return op
 
