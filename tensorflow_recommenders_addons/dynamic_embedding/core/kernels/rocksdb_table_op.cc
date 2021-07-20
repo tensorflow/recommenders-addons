@@ -552,7 +552,7 @@ namespace tensorflow {
       /* --- KERNEL REGISTRATION ---------------------------------------------------------------- */
       #define RDB_REGISTER_KERNEL_BUILDER(key_dtype, value_dtype)                                \
         REGISTER_KERNEL_BUILDER(                                                                 \
-          Name(PREFIX_OP_NAME(RocksDBTableOfTensors))                                            \
+          Name(PREFIX_OP_NAME(RocksdbTableOfTensors))                                            \
             .Device(DEVICE_CPU)                                                                  \
             .TypeConstraint<key_dtype>("key_dtype")                                              \
             .TypeConstraint<value_dtype>("value_dtype"),                                         \
