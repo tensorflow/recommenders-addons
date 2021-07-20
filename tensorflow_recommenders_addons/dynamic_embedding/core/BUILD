@@ -43,7 +43,11 @@ custom_op_library(
     deps = [
         "@rocksdb//:rocksdb",
     ],
-    copts = ["-pthread", "-O3", "-ffast-math"],
+    linkopts = [
+        "-lbz2",
+        "-llz4",
+        "-lzstd",
+    ],
 )
 
 custom_op_library(

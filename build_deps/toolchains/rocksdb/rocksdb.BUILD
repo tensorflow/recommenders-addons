@@ -14,7 +14,10 @@ filegroup(
 
 make(
     make_commands = [
-        "make -j`nproc` EXTRA_CXXFLAGS=-fPIC static_lib",
+        # Uncomment
+        # "make -j`nproc` EXTRA_CXXFLAGS=\"-fPIC -D_GLIBCXX_USE_CXX11_ABI=0\" rocksdbjavastatic_deps",
+        # to build static dependencies in $$BUILD_TMPDIR$$.
+        "make -j`nproc` EXTRA_CXXFLAGS=\"-fPIC -D_GLIBCXX_USE_CXX11_ABI=0\" static_lib",
         # TODO: Temporary hack. RocksDB people to fix symlink resolution on their side.
         "cat Makefile | sed 's/\$(FIND) \"include\/rocksdb\" -type f/$(FIND) -L \"include\/rocksdb\" -type f/g' | make -f - static_lib install-static PREFIX=$$INSTALLDIR$$",
     ],

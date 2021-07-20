@@ -33,12 +33,11 @@ namespace tensorflow {
       );
       static const uint32_t EXPORT_FILE_VERSION = 1;
 
-      // Note: Works for rocksdb::Status and tensorflow::Status.
       #define RDB_OK(EXPR)                            \
         do {                                          \
           const auto& s = EXPR;                       \
           if (!s.ok()) {                              \
-            throw std::runtime_error(s.ToString());   \
+            throw std::runtime_error(s.getState());   \
           }                                           \
         } while (0)
 
@@ -220,6 +219,7 @@ namespace tensorflow {
             RDB_OK(db->DropColumnFamily(colHandles[colIndex]));
             RDB_OK(db->DestroyColumnFamilyHandle(colHandles[colIndex]));
             colHandles.erase(colHandles.begin() + colIndex);
+            colIndex = colHandles.size();
           }
 
           // Create substitute in-place.
@@ -280,7 +280,7 @@ namespace tensorflow {
                 std::copy_n(&d[vOffset % dSize], valuesPerDim0, &v[vOffset]);
               }
               else {
-                throw std::runtime_error(status.ToString());
+                throw std::runtime_error(status.getState());
               }
             }
           }
@@ -318,7 +318,7 @@ namespace tensorflow {
                 std::copy_n(&d[vOffset % dSize], valuesPerDim0, &v[vOffset]);
               }
               else {
-                throw std::runtime_error(status.ToString());
+                throw std::runtime_error(status.getState());
               }
             }
           }
@@ -461,7 +461,10 @@ namespace tensorflow {
           static const Status errorEOF(error::Code::OUT_OF_RANGE, "Unexpected end of file.");
 
           // Make sure the column family is clean.
-          RDB_OK(Clear(ctx));
+          const auto clearStatus = Clear(ctx);
+          if (!clearStatus.ok()) {
+            return clearStatus;
+          }
 
           // Parse header.
           std::ifstream file("/tmp/db.dump", std::ifstream::binary);
