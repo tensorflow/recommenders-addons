@@ -15,6 +15,8 @@ limitations under the License.
 
 #include <iostream>
 #include <fstream>
+#include <sys/stat.h>
+#include <filesystem>
 #include "tensorflow_recommenders_addons/dynamic_embedding/core/utils/utils.h"
 #include "rocksdb_table_op.h"
 #include "rocksdb/db.h"
@@ -38,7 +40,11 @@ namespace tensorflow {
         do {                                          \
           const auto& s = EXPR;                       \
           if (!s.ok()) {                              \
-            throw std::runtime_error(s.getState());   \
+            std::stringstream msg;                    \
+            msg << "RocksDB error " << s.code();      \
+            msg << "; reason: " << s.getState();      \
+            msg << "; expr: " << #EXPR;               \
+            throw std::runtime_error(msg.str());      \
           }                                           \
         } while (0)
 
@@ -146,7 +152,30 @@ namespace tensorflow {
 
           // Create or connect to the RocksDB database.
           std::vector<std::string> colFamilies;
-          RDB_OK(rocksdb::DB::ListColumnFamilies(options, dbPath, &colFamilies));
+          #if __cplusplus >= 201703L
+          if (!std::filesystem::exists(dbPath)) {
+            colFamilies.push_back(ROCKSDB_NAMESPACE::kDefaultColumnFamilyName);
+          }
+          else if (std::filesystem::is_directory(dbPath)){
+            RDB_OK(rocksdb::DB::ListColumnFamilies(options, dbPath, &colFamilies));
+          }
+          else {
+            throw std::runtime_error("Provided database path is invalid.");
+          }
+          #else
+          struct stat dbPathStat;
+          if (stat(dbPath.c_str(), &dbPathStat) == 0) {
+            if (S_ISDIR(dbPathStat.st_mode)) {
+              RDB_OK(rocksdb::DB::ListColumnFamilies(options, dbPath, &colFamilies));
+            }
+            else {
+              throw std::runtime_error("Provided database path is invalid.");
+            }
+          }
+          else {
+            colFamilies.push_back(ROCKSDB_NAMESPACE::kDefaultColumnFamilyName);
+          }
+          #endif
 
           colIndex = 0;
           bool colFamilyExists = false;
