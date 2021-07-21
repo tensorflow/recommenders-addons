@@ -79,7 +79,7 @@ RUN apt-get update && apt-get install -y \
     rm -rf /var/lib/apt/lists/*
 
 COPY install/install_bazel.sh /install/
-RUN /install/install_bazel.sh "3.1.0"
+RUN /install/install_bazel.sh "3.2.0"
 
 COPY install/build_and_install_python.sh /install/
 RUN /install/build_and_install_python.sh "3.5.9"

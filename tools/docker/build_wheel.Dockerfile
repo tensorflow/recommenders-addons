@@ -65,9 +65,6 @@ RUN apt-get update && apt-get install -y redis-server
 RUN nohup redis-server --port 6479 --bind 0.0.0.0 --protected-mode no &
 EXPOSE 6479
 
-# specific bazel version
-RUN ln -snf /usr/local/lib/bazel/bin/bazel-3.1.0-linux-x86_64 /usr/local/bin/bazel
-
 RUN python configure.py
 
 RUN bash tools/testing/build_and_run_tests.sh && \
