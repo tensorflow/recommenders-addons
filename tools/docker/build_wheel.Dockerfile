@@ -66,7 +66,7 @@ RUN nohup redis-server --port 6479 &
 EXPOSE 6479
 
 # specific bazel version
-RUN rm -r /usr/bin/bazel && ln -sf /usr/bin/bazel-3.1.0 /usr/bin/bazel
+RUN echo $(which bazel) && echo $(ll $(which bazel))
 
 RUN python configure.py
 
