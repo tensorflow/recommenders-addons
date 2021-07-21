@@ -60,10 +60,13 @@ ENV TF_NEED_CUDA=$TF_NEED_CUDA
 ENV TF_CUDA_VERSION=$TF_CUDA_VERSION
 ENV TF_CUDNN_VERSION=$TF_CUDNN_VERSION
 
-# For redis backend unit test
-RUN apt-get update && apt-get install -y redis-server
-RUN nohup redis-server --port 6479 --bind 0.0.0.0 --protected-mode no &
-EXPOSE 6479
+COPY install/install_bazel.sh /install/
+RUN /install/install_bazel.sh "3.1.0"
+
+# # For redis backend unit test
+# RUN apt-get update && apt-get install -y redis-server
+# RUN nohup redis-server --port 6379 --bind 0.0.0.0 --protected-mode no &
+# EXPOSE 6379
 
 RUN python configure.py
 
