@@ -61,7 +61,7 @@ ENV TF_CUDA_VERSION=$TF_CUDA_VERSION
 ENV TF_CUDNN_VERSION=$TF_CUDNN_VERSION
 
 # For redis backend unit test
-RUN apt install -y redis > /dev/null 2> /dev/null
+RUN sudo apt install -y redis
 RUN nohup redis-server --port 6479 &
 
 RUN python configure.py
