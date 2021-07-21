@@ -66,7 +66,7 @@ ARG DEBIAN_FRONTEND=noninteractive
 RUN /install/install_bootstrap_deb_packages.sh
 RUN /install/install_deb_packages.sh
 RUN /install/install_latest_clang.sh
-RUN /install/install_bazel.sh "0.26.1"
+RUN /install/install_bazel.sh "3.1.0"
 
 # Install many python
 COPY install/build_and_install_python.sh /install/
