@@ -466,8 +466,10 @@ Redis command sequence because m-cmd can only be used in same hash tag)
     std::vector<const char *> *ptrs_0 = (*thread_context.slots)[0].ptrs;
     std::vector<std::size_t> *sizes_0 = (*thread_context.slots)[0].sizes;
 
-    const K *const pk_raw_end = reinterpret_cast<K *>(keys.data()) + max_i;
-    const K *pk_raw = reinterpret_cast<K *>(keys.data()) + begin;
+    const K *const pk_raw_end =
+        reinterpret_cast<const K *>(keys.tensor_data().data()) + max_i;
+    const K *pk_raw =
+        reinterpret_cast<const K *>(keys.tensor_data().data()) + begin;
 
     auto ptrs_iter = ptrs_0->begin();
     *ptrs_iter = redis_command;
@@ -517,7 +519,9 @@ Redis command sequence because m-cmd can only be used in same hash tag)
           &reply,
       const int64 &begin, const int64 &max_i,
       const int64 &Velems_per_dim0) override {
-    V *pv_raw = reinterpret_cast<V *>(values->data()) + begin * Velems_per_dim0;
+    const V *pv_raw =
+        reinterpret_cast<const V *>(values->tensor_data().data()) +
+        begin * Velems_per_dim0;
 
     const V *dft_raw = reinterpret_cast<const V *>(default_value.data()) +
                        begin * Velems_per_dim0;
@@ -563,13 +567,15 @@ Redis command sequence because m-cmd can only be used in same hash tag)
     std::vector<const char *> *ptrs_0 = (*thread_context.slots)[0].ptrs;
     std::vector<std::size_t> *sizes_0 = (*thread_context.slots)[0].sizes;
 
-    const K *const pk_raw_end = reinterpret_cast<K *>(keys.data()) + max_i;
-    const K *pk_raw = reinterpret_cast<K *>(keys.data()) + begin;
+    const K *const pk_raw_end =
+        reinterpret_cast<const K *>(keys.tensor_data().data()) + max_i;
+    const K *pk_raw =
+        reinterpret_cast<const K *>(keys.tensor_data().data()) + begin;
 
     const std::size_t &&V_byte_size = Velems_per_dim0 * sizeof(V);
 
-    const V *pv_raw =
-        reinterpret_cast<V *>(values.data()) + begin * Velems_per_dim0;
+    const V *pv_raw = reinterpret_cast<const V *>(values.tensor_data().data()) +
+                      begin * Velems_per_dim0;
 
     auto ptrs_iter = ptrs_0->begin();
     *ptrs_iter = redis_command;
@@ -634,8 +640,10 @@ Redis command sequence because m-cmd can only be used in same hash tag)
     std::vector<const char *> *ptrs_0 = (*thread_context.slots)[0].ptrs;
     std::vector<std::size_t> *sizes_0 = (*thread_context.slots)[0].sizes;
 
-    const K *const pk_raw_end = reinterpret_cast<K *>(keys.data()) + max_i;
-    const K *pk_raw = reinterpret_cast<K *>(keys.data()) + begin;
+    const K *const pk_raw_end =
+        reinterpret_cast<const K *>(keys.tensor_data().data()) + max_i;
+    const K *pk_raw =
+        reinterpret_cast<const K *>(keys.tensor_data().data()) + begin;
 
     auto ptrs_iter = ptrs_0->begin();
     *ptrs_iter = redis_command;
