@@ -794,7 +794,7 @@ class RedisTableOfTensors final : public LookupInterface {
     }
 
     // fill Tensor keys
-    K *pk_raw = reinterpret_cast<K *>(keys->tensor_data().data());
+    const K *pk_raw = reinterpret_cast<const K *>(keys->tensor_data().data());
     redisReply *temp_reply;
     for (size_t i = 0; i < keys_replies.size(); ++i) {
       for (size_t j = 0; j < keys_replies[i]->elements; ++j) {
