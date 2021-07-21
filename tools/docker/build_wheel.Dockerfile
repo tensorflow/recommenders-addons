@@ -27,6 +27,9 @@ ENV LD_LIBRARY_PATH=/dt7/user/lib64:${LD_LIBRARY_PATH}
 ENV LD_LIBRARY_PATH=/dt7/user/lib:${LD_LIBRARY_PATH}
 ENV MANPATH=/dt7/user/share/man:${LD_LIBRARY_PATH}
 ENV INFOPATH=/dt7/user/share/info
+RUN ln -sf /dt7/usr/bin/cc /usr/bin/gcc
+RUN ln -sf /dt7/usr/bin/gcc /usr/bin/gcc
+RUN ln -sf /dt7/usr/bin/g++ /usr/bin/g++
 
 ARG TF_VERSION
 ARG TF_NAME
@@ -38,8 +41,6 @@ RUN python -m pip install -r /install_deps/pytest.txt
 
 COPY requirements.txt .
 RUN python -m pip install -r requirements.txt
-
-RUN sudo apt-get install -y gcc build-essential
 
 COPY ./ /recommenders-addons
 WORKDIR /recommenders-addons
@@ -58,6 +59,10 @@ ARG TF_CUDNN_VERSION
 ENV TF_NEED_CUDA=$TF_NEED_CUDA
 ENV TF_CUDA_VERSION=$TF_CUDA_VERSION
 ENV TF_CUDNN_VERSION=$TF_CUDNN_VERSION
+
+# For redis backend unit test
+RUN sudo apt install -y redis > /dev/null 2> /dev/null
+RUN nohup redis-server --port 6479 &
 
 RUN python configure.py
 

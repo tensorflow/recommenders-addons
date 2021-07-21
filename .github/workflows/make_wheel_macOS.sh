@@ -5,6 +5,9 @@ export TF_NEED_CUDA=0
 python --version
 python -m pip install --default-timeout=1000 delocate wheel setuptools tensorflow==$TF_VERSION
 
+sudo brew install redis
+sudo nohup redis-server --port 6479 &
+
 bash tools/testing/build_and_run_tests.sh
 
 bazel build \
