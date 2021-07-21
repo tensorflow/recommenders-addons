@@ -42,7 +42,8 @@ jobs:
     strategy:
       matrix:
         # TODO: add back 'windows-latest' when it can be compiled.
-        os: ['macos-latest', 'ubuntu-18.04']
+        # os: ['macos-latest', 'ubuntu-18.04']
+        os: ['ubuntu-18.04']
         py-version: ['3.6', '3.7', '3.8']
         tf-version: ['1.15.2', '2.4.1']
         tf-need-cuda: ['1', '0']
@@ -50,8 +51,8 @@ jobs:
         tf-cudnn-version: ['7.6', '8.0']
         exclude:
           # excludes cuda on macOS
-          - os: 'macos-latest'
-            tf-need-cuda: '1'
+          # - os: 'macos-latest'
+          #   tf-need-cuda: '1'
           # excludes TF1.15.2 on py38
           - py-version: '3.8'
             tf-version: '1.15.2'
@@ -121,14 +122,15 @@ jobs:
     strategy:
       matrix:
         # TODO: add back 'Windows' when it can be compiled.
-        os: ['macOS', 'Linux']
+        # os: ['macOS', 'Linux']
+        os: ['Linux']
         py-version: ['3.6', '3.7', '3.8']
         tf-version: ['2.4.1']
         tf-need-cuda: ['1', '0']
         exclude:
-          # excludes cuda on macOS
-          - os: 'macOS'
-            tf-need-cuda: '1'
+          # # excludes cuda on macOS
+          # - os: 'macOS'
+          #   tf-need-cuda: '1'
       fail-fast: false
     if: (github.event_name == 'push' && github.ref == 'refs/heads/master') || github.event_name == 'release'
     steps:
