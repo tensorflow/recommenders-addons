@@ -115,52 +115,52 @@ jobs:
         with:
           name: ${{ runner.os }}-${{ matrix.py-version }}-tf${{ matrix.tf-version }}-${{ steps.device.outputs.value }}-wheel
           path: wheelhouse
-  upload-wheels:
-    name: Publish wheels to PyPi
-    needs: [release-wheel, test-with-bazel]
-    runs-on: ubuntu-18.04
-    strategy:
-      matrix:
-        # TODO: add back 'Windows' when it can be compiled.
-        # os: ['macOS', 'Linux']
-        os: ['Linux']
-        py-version: ['3.6', '3.7', '3.8']
-        tf-version: ['2.4.1']
-        tf-need-cuda: ['1', '0']
-        # exclude:
-          # # excludes cuda on macOS
-          # - os: 'macOS'
-          #   tf-need-cuda: '1'
-      fail-fast: false
-    if: (github.event_name == 'push' && github.ref == 'refs/heads/master') || github.event_name == 'release'
-    steps:
-      - uses: haya14busa/action-cond@v1
-        id: device
-        with:
-          cond: ${{ matrix.tf-need-cuda == '1' }}
-          if_true: "gpu"
-          if_false: "cpu"
-      - uses: actions/download-artifact@v1
-        with:
-          name: ${{ matrix.os }}-${{ matrix.py-version }}-tf${{ matrix.tf-version }}-${{ steps.device.outputs.value }}-wheel
-          path: ./dist
-      - run: |
-          set -e -x
-          ls -la dist/
-          sha256sum dist/*.whl
-      - uses: pypa/gh-action-pypi-publish@v1.1.0
-        with:
-          user: __token__
-          password: ${{ secrets.PYPI_API_TOKEN }}
-  upload-dev-container:
-    name: Upload dev container to DockerHub
-    needs: [release-wheel, test-with-bazel]
-    runs-on: ubuntu-18.04
-    if: (github.event_name == 'push' && github.ref == 'refs/heads/master')
-    steps:
-      - uses: actions/checkout@v2
-      - run: |
-          set -e -x
-          echo ${{ secrets.DOCKER_PW }} | docker login --username ${{ secrets.DOCKER_USER }} --password-stdin
-          bash .github/workflows/github_build_dev_container.sh
-          docker push tfra/dev_container:latest-cpu
+  # upload-wheels:
+  #   name: Publish wheels to PyPi
+  #   needs: [release-wheel, test-with-bazel]
+  #   runs-on: ubuntu-18.04
+  #   strategy:
+  #     matrix:
+  #       # TODO: add back 'Windows' when it can be compiled.
+  #       # os: ['macOS', 'Linux']
+  #       os: ['Linux']
+  #       py-version: ['3.6', '3.7', '3.8']
+  #       tf-version: ['2.4.1']
+  #       tf-need-cuda: ['1', '0']
+  #       # exclude:
+  #         # # excludes cuda on macOS
+  #         # - os: 'macOS'
+  #         #   tf-need-cuda: '1'
+  #     fail-fast: false
+  #   if: (github.event_name == 'push' && github.ref == 'refs/heads/master') || github.event_name == 'release'
+  #   steps:
+  #     - uses: haya14busa/action-cond@v1
+  #       id: device
+  #       with:
+  #         cond: ${{ matrix.tf-need-cuda == '1' }}
+  #         if_true: "gpu"
+  #         if_false: "cpu"
+  #     - uses: actions/download-artifact@v1
+  #       with:
+  #         name: ${{ matrix.os }}-${{ matrix.py-version }}-tf${{ matrix.tf-version }}-${{ steps.device.outputs.value }}-wheel
+  #         path: ./dist
+  #     - run: |
+  #         set -e -x
+  #         ls -la dist/
+  #         sha256sum dist/*.whl
+  #     - uses: pypa/gh-action-pypi-publish@v1.1.0
+  #       with:
+  #         user: __token__
+  #         password: ${{ secrets.PYPI_API_TOKEN }}
+  # upload-dev-container:
+  #   name: Upload dev container to DockerHub
+  #   needs: [release-wheel, test-with-bazel]
+  #   runs-on: ubuntu-18.04
+  #   if: (github.event_name == 'push' && github.ref == 'refs/heads/master')
+  #   steps:
+  #     - uses: actions/checkout@v2
+  #     - run: |
+  #         set -e -x
+  #         echo ${{ secrets.DOCKER_PW }} | docker login --username ${{ secrets.DOCKER_USER }} --password-stdin
+  #         bash .github/workflows/github_build_dev_container.sh
+  #         docker push tfra/dev_container:latest-cpu
