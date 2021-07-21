@@ -16,7 +16,9 @@ RUN pip install -r requirements.txt
 COPY tools/install_deps/pytest.txt ./
 RUN pip install -r pytest.txt pytest-cov
 
-RUN sudo apt-get install -y gcc build-essential 
+# For redis backend unit test
+RUN apt-get update && apt-get install -y redis-server
+RUN redis-server --port 6379 --bind 0.0.0.0 --protected-mode no --daemonize yes
 
 COPY ./ /recommenders-addons
 WORKDIR recommenders-addons
