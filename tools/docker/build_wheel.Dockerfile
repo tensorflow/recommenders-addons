@@ -63,10 +63,10 @@ ENV TF_CUDNN_VERSION=$TF_CUDNN_VERSION
 COPY tools/docker/install/install_bazel.sh /install/
 RUN /install/install_bazel.sh "3.1.0"
 
-# # For redis backend unit test
-# RUN apt-get update && apt-get install -y redis-server
-# RUN nohup redis-server --port 6379 --bind 0.0.0.0 --protected-mode no &
-# EXPOSE 6379
+# For redis backend unit test
+RUN apt-get update && apt-get install -y redis-server
+RUN redis-server --port 6379 --bind 0.0.0.0 --protected-mode no &
+EXPOSE 6379
 
 RUN python configure.py
 

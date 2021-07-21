@@ -38,7 +38,8 @@ jobs:
   #         bazel test -c opt -k --test_timeout 300,450,1200,3600 --test_output=errors //tensorflow_recommenders_addons/...
   release-wheel:
     name: Build release wheels
-    runs-on: ${{ matrix.os }}
+    # runs-on: ${{ matrix.os }}
+    runs-on: self-hosted
     strategy:
       matrix:
         # TODO: add back 'windows-latest' when it can be compiled.
@@ -95,10 +96,6 @@ jobs:
         # Ubuntu bazel is run inside of the docker image
         if: matrix.os != 'ubuntu-18.04'
         run: bash tools/install_deps/install_bazelisk.sh ./
-      - name: Start Redis
-        uses: supercharge/redis-github-action@1.2.0
-        with:
-          redis-version: ${{ matrix.redis-version }}
       - name: Build wheels
         env:
           OS: ${{ runner.os }}
