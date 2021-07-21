@@ -39,7 +39,7 @@ RUN python -m pip install -r /install_deps/pytest.txt
 COPY requirements.txt .
 RUN python -m pip install -r requirements.txt
 
-RUN sudo apt-get install -y build-essential
+RUN sudo apt-get install -y gcc build-essential
 
 COPY ./ /recommenders-addons
 WORKDIR /recommenders-addons

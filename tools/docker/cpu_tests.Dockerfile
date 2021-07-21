@@ -16,7 +16,7 @@ RUN pip install -r requirements.txt
 COPY tools/install_deps/pytest.txt ./
 RUN pip install -r pytest.txt pytest-cov
 
-RUN sudo apt-get install -y build-essential
+RUN sudo apt-get install -y gcc build-essential 
 
 COPY ./ /recommenders-addons
 WORKDIR recommenders-addons
