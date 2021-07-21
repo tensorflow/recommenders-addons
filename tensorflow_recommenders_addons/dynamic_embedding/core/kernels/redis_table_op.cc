@@ -851,6 +851,27 @@ class HashTableOpKernel : public OpKernel {
     return ctx->resource_manager()->Lookup<LookupInterface, false>(
         p.container(), p.name(), value);
   }
+
+  Status GetTableHandle(StringPiece input_name, OpKernelContext *ctx,
+                        string *container, string *table_handle) {
+    {
+      mutex *mu;
+      TF_RETURN_IF_ERROR(ctx->input_ref_mutex(input_name, &mu));
+      mutex_lock l(*mu);
+      Tensor tensor;
+      TF_RETURN_IF_ERROR(ctx->mutable_input(input_name, &tensor, true));
+      if (tensor.NumElements() != 2) {
+        return errors::InvalidArgument(
+            "Lookup table handle must be scalar, but had shape: ",
+            tensor.shape().DebugString());
+      }
+      auto h = tensor.flat<tstring>();
+      *container = h(0);
+      *table_handle = h(1);
+    }
+    return Status::OK();
+  }
+
   Status GetResourceHashTable(StringPiece input_name, OpKernelContext *ctx,
                               LookupInterface **table) {
     const Tensor *handle_tensor;
@@ -858,11 +879,21 @@ class HashTableOpKernel : public OpKernel {
     const ResourceHandle &handle = handle_tensor->scalar<ResourceHandle>()();
     return this->LookupResource(ctx, handle, table);
   }
+
+  Status GetReferenceLookupTable(StringPiece input_name, OpKernelContext *ctx,
+                                 LookupInterface **table) {
+    string container;
+    string table_handle;
+    TF_RETURN_IF_ERROR(
+        this->GetTableHandle(input_name, ctx, &container, &table_handle));
+    return ctx->resource_manager()->Lookup(container, table_handle, table);
+  }
+
   Status GetTable(OpKernelContext *ctx, LookupInterface **table) {
     if (expected_input_0_ == DT_RESOURCE) {
       return this->GetResourceHashTable("table_handle", ctx, table);
     } else {
-      return GetReferenceLookupTable("table_handle", ctx, table);
+      return this->GetReferenceLookupTable("table_handle", ctx, table);
     }
   }
 
