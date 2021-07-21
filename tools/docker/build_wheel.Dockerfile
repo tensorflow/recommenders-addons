@@ -62,11 +62,11 @@ ENV TF_CUDNN_VERSION=$TF_CUDNN_VERSION
 
 # For redis backend unit test
 RUN apt-get update && apt-get install -y redis-server
-RUN nohup redis-server --port 6479 &
+RUN nohup redis-server --port 6479 --bind 0.0.0.0 --protected-mode no &
 EXPOSE 6479
 
 # specific bazel version
-RUN echo $(which bazel) && echo $(ll $(which bazel))
+RUN ln -snf /usr/local/lib/bazel/bin/bazel-3.1.0-linux-x86_64 /usr/local/bin/bazel
 
 RUN python configure.py
 

@@ -6,7 +6,7 @@ python --version
 python -m pip install --default-timeout=1000 delocate wheel setuptools tensorflow==$TF_VERSION
 
 brew install redis
-nohup redis-server --port 6479 &
+nohup redis-server --port 6479 --bind 0.0.0.0 --protected-mode no &
 
 bash tools/testing/build_and_run_tests.sh
 
