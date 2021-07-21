@@ -127,7 +127,7 @@ jobs:
         py-version: ['3.6', '3.7', '3.8']
         tf-version: ['2.4.1']
         tf-need-cuda: ['1', '0']
-        exclude:
+        # exclude:
           # # excludes cuda on macOS
           # - os: 'macOS'
           #   tf-need-cuda: '1'
