@@ -603,10 +603,11 @@ Redis command sequence because m-cmd can only be used in same hash tag)
     const V *pv_raw =
         reinterpret_cast<const V *>(values->tensor_data().data()) +
         begin * Velems_per_dim0;
-    const V *dft_raw = reinterpret_cast<const V *>(default_value.data()) +
-                       begin * Velems_per_dim0;
+    const V *dft_raw =
+        reinterpret_cast<const V *>(default_value.tensor_data().data()) +
+        begin * Velems_per_dim0;
     const V *const dft_raw_begin =
-        reinterpret_cast<const V *>(default_value.data());
+        reinterpret_cast<const V *>(default_value.tensor_data().data());
 
     const std::vector<unsigned> *slot_locs = thread_context.slot_locs;
     const unsigned &storage_slice = redis_connection_params.storage_slice;

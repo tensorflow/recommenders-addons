@@ -523,10 +523,11 @@ Redis command sequence because m-cmd can only be used in same hash tag)
         reinterpret_cast<const V *>(values->tensor_data().data()) +
         begin * Velems_per_dim0;
 
-    const V *dft_raw = reinterpret_cast<const V *>(default_value.data()) +
-                       begin * Velems_per_dim0;
+    const V *dft_raw =
+        reinterpret_cast<const V *>(default_value.tensor_data().data()) +
+        begin * Velems_per_dim0;
     const V *const dft_raw_begin =
-        reinterpret_cast<const V *>(default_value.data());
+        reinterpret_cast<const V *>(default_value.tensor_data().data());
 
     redisReply *temp_reply;
     for (auto i = 0; i < max_i - begin;
