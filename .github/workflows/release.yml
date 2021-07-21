@@ -94,7 +94,7 @@ jobs:
       - name: Setup Bazel
         # Ubuntu bazel is run inside of the docker image
         if: matrix.os != 'ubuntu-18.04'
-          run: bash tools/install_deps/install_bazelisk.sh ./
+        run: bash tools/install_deps/install_bazelisk.sh ./
       - name: Start Redis
         uses: supercharge/redis-github-action@1.2.0
         with:
