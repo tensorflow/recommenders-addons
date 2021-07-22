@@ -36,7 +36,7 @@ fi
 tar -C ${install_dir} -xvf ${install_dir}/$REDIS_VERSION.tar.gz
 cd ${install_dir}/redis-$REDIS_VERSION
 make -j4
-make PREFIX=${install_dir} install
+make install
 rm -f ${install_dir}/$REDIS_VERSION.tar.gz
 
 # Enable bazel auto completion.
