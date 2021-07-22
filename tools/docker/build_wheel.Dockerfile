@@ -65,8 +65,8 @@ RUN /install/install_bazel.sh "3.1.0"
 
 # # For redis backend unit test
 RUN apt-get update && apt-get install -y redis-server
-RUN redis-cli -h 127.0.0.1 -p 6379
-# RUN redis-server --port 6379 --bind 0.0.0.06379 --daemonize yes
+# RUN redis-server --port 6379 --bind 0.0.0.0 --daemonize yes
+# RUN redis-cli -h 127.0.0.1 -p 6379
 # EXPOSE 6379
 
 RUN python configure.py
