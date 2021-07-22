@@ -1478,6 +1478,7 @@ class RedisVariableTest(test.TestCase):
 
 
 if __name__ == "__main__":
+  print("fuck")
   print(
       os.popen(
           "redis-server --port 6479 --bind 0.0.0.0 --daemonize yes").read())
