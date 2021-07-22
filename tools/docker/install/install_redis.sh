@@ -34,7 +34,7 @@ mkdir ${install_dir}/redis-$REDIS_VERSION
 if [[ ! -f "bazel-$REDIS_VERSION.tar.gz" ]]; then
   wget https://github.com/redis/redis/archive/refs/tags/$REDIS_VERSION.tar.gz
 fi
-tar -cvxf ${install_dir}/bazel-$REDIS_VERSION.tar.gz -C ${install_dir}/redis-$REDIS_VERSION
+tar -C ${install_dir}/redis-$REDIS_VERSION -xvzf ${install_dir}/bazel-$REDIS_VERSION.tar.gz
 cd ${install_dir}/redis-$REDIS_VERSION
 make -j4
 make PREFIX=${install_dir} install
