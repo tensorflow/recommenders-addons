@@ -35,6 +35,8 @@ fi
 
 # setup redis service for testing redis table ops.
 redis-server --port 6379 --bind 0.0.0.0 --daemonize yes
+sleep 5s
+wait
 redis-cli -p 6379 INFO
 
 python -m pytest -v -s --functions-durations=20 --modules-durations=5 $EXTRA_ARGS ./tensorflow_recommenders_addons

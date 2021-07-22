@@ -7,6 +7,8 @@ python -m pip install --default-timeout=1000 delocate wheel setuptools tensorflo
 
 brew install redis
 redis-server --port 6379 --bind 0.0.0.0 --daemonize yes
+sleep 5s
+wait
 redis-cli -p 6379 INFO
 
 bash tools/testing/build_and_run_tests.sh

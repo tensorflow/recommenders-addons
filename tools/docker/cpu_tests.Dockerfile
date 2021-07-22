@@ -23,10 +23,6 @@ COPY ./ /recommenders-addons
 WORKDIR recommenders-addons
 RUN python configure.py
 RUN pip install -e ./
-# RUN --mount=type=cache,id=cache_bazel,target=/root/.cache/bazel \
-#     bash tools/install_so_files.sh
-# RUN pytest -v -s -n auto --durations=25 --doctest-modules ./tensorflow_recommenders_addons \
-#     --cov=tensorflow_recommenders_addons ./tensorflow_recommenders_addons/
 RUN bash tools/testing/build_and_run_tests.sh
 
 RUN bazel build --enable_runfiles build_pip_pkg

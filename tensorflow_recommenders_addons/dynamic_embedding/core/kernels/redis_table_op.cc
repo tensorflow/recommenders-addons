@@ -112,11 +112,6 @@ class RedisTableOfTensors final : public LookupInterface {
       if (threads_Find.size() <= thread_id) {
         threads_Find.resize(thread_id + 1);
       }
-      try {
-        threads_Find.at(thread_id);
-      } catch (const std::exception &e) {
-        std::cerr << "fuck" << e.what() << '\n';
-      }
 
       auto reply =
           _table_instance->MgetCommand(keys, threads_Find.at(thread_id), begin,
