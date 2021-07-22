@@ -291,7 +291,7 @@ os.makedirs(redis_config_path)
 redis_config_path = os.path.join(redis_config_path, "redis_config.json")
 redis_config_params = {
     "redis_host_ip": ["127.0.0.1"],
-    "redis_host_port": [6479],
+    "redis_host_port": [6379],
     "using_model_lib": False
 }
 with open(redis_config_path, 'w', encoding='utf-8') as f:
@@ -306,7 +306,7 @@ os.makedirs(redis_config_path)
 redis_config_path = os.path.join(redis_config_path, "redis_config.json")
 redis_config_params = {
     "redis_host_ip": ["127.0.0.1"],
-    "redis_host_port": [6479],
+    "redis_host_port": [6379],
     "using_model_lib": False
 }
 with open(redis_config_path, 'w', encoding='utf-8') as f:
@@ -698,7 +698,7 @@ class RedisVariableTest(test.TestCase):
       redis_config_path = os.path.join(save_path, "redis_config_modify.json")
       redis_config_params_modify = {
           "redis_host_ip": ["127.0.0.1"],
-          "redis_host_port": [6479],
+          "redis_host_port": [6379],
           "using_model_lib": True,
           "model_lib_abs_dir": save_path
       }
@@ -1481,8 +1481,8 @@ if __name__ == "__main__":
   print("fuck")
   print(
       os.popen(
-          "redis-server --port 6479 --bind 0.0.0.0 --daemonize yes").read())
-  print(os.popen("redis-cli -p 6479 INFO").read())
+          "redis-server --port 6379 --bind 0.0.0.0 --daemonize yes").read())
+  print(os.popen("redis-cli -p 6379 INFO").read())
   print(
       os.popen('redis-cli -h ' + redis_config_params["redis_host_ip"][0] +
                ' -p ' + str(redis_config_params["redis_host_port"][0]) +

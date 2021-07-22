@@ -65,9 +65,9 @@ RUN /install/install_bazel.sh "3.1.0"
 
 # # For redis backend unit test
 # RUN apt-get update && apt-get install -y redis-server
-# RUN redis-server --port 6479 --bind 0.0.0.0 --daemonize yes
-# RUN redis-cli -h 127.0.0.1 -p 6479
-# EXPOSE 6479
+# RUN redis-server --port 6379 --bind 0.0.0.0 --daemonize yes
+# RUN redis-cli -h 127.0.0.1 -p 6379
+# EXPOSE 6379
 COPY tools/docker/install/install_redis.sh /install/
 RUN /install/install_redis.sh "5.0.13"
 

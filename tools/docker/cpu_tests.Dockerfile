@@ -18,7 +18,7 @@ RUN pip install -r pytest.txt pytest-cov
 
 # For redis backend unit test
 # RUN apt-get update && apt-get install -y redis-server
-# RUN redis-server --port 6479 --bind 0.0.0.0 --daemonize yes
+# RUN redis-server --port 6379 --bind 0.0.0.0 --daemonize yes
 COPY tools/docker/install/install_redis.sh /install/
 RUN /install/install_redis.sh "5.0.13"
 
@@ -26,10 +26,11 @@ COPY ./ /recommenders-addons
 WORKDIR recommenders-addons
 RUN python configure.py
 RUN pip install -e ./
-RUN --mount=type=cache,id=cache_bazel,target=/root/.cache/bazel \
-    bash tools/install_so_files.sh
-RUN pytest -v -s -n auto --durations=25 --doctest-modules ./tensorflow_recommenders_addons \
-    --cov=tensorflow_recommenders_addons ./tensorflow_recommenders_addons/
+# RUN --mount=type=cache,id=cache_bazel,target=/root/.cache/bazel \
+#     bash tools/install_so_files.sh
+# RUN pytest -v -s -n auto --durations=25 --doctest-modules ./tensorflow_recommenders_addons \
+#     --cov=tensorflow_recommenders_addons ./tensorflow_recommenders_addons/
+RUN bash tools/testing/build_and_run_tests.sh
 
 RUN bazel build --enable_runfiles build_pip_pkg
 RUN bazel-bin/build_pip_pkg artifacts
