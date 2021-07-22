@@ -32,6 +32,6 @@ EXTRA_ARGS="-n 10"
 if ! [ -x "$(command -v nvidia-smi)" ]; then
   EXTRA_ARGS="-n auto"
 fi
-
-
+redis-server --port 6379 --bind 0.0.0.0 --daemonize yes
+redis-cli --port 6379 INFO
 python -m pytest -v -s --functions-durations=20 --modules-durations=5 $EXTRA_ARGS ./tensorflow_recommenders_addons
