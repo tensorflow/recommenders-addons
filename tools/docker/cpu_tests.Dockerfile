@@ -18,7 +18,7 @@ RUN pip install -r pytest.txt pytest-cov
 
 # For redis backend unit test
 # RUN apt-get update && apt-get install -y redis-server
-# RUN redis-server --port 6379 --bind 0.0.0.0 --daemonize yes
+# RUN redis-server --port 6479 --bind 0.0.0.0 --daemonize yes
 COPY tools/docker/install/install_redis.sh /install/
 RUN /install/install_redis.sh "5.0.13"
 

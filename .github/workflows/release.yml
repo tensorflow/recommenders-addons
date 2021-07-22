@@ -32,7 +32,7 @@ jobs:
   #       run: |
   #         pip install --default-timeout=1000 -r tools/install_deps/pytest.txt -r tools/install_deps/tensorflow-cpu.txt -r requirements.txt
   #         sudo apt install -y redis > /dev/null 2> /dev/null
-  #       # redis-server --port 6379 --bind 0.0.0.0 --daemonize yes
+  #       # redis-server --port 6479 --bind 0.0.0.0 --daemonize yes
   #         bash tools/install_deps/install_bazelisk.sh ./
   #         python configure.py
   #         bazel test -c opt -k --test_timeout 300,450,1200,3600 --test_output=errors //tensorflow_recommenders_addons/...
