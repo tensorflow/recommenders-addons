@@ -61,7 +61,7 @@ ENV TF_CUDA_VERSION=$TF_CUDA_VERSION
 ENV TF_CUDNN_VERSION=$TF_CUDNN_VERSION
 
 COPY tools/docker/install/install_bazel.sh /install/
-RUN /install/install_bazel.sh "5.0.13"
+RUN /install/install_bazel.sh "3.1.0"
 
 # # For redis backend unit test
 # RUN apt-get update && apt-get install -y redis-server
