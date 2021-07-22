@@ -46,9 +46,10 @@ times. The source code is shown in the following link:
 https://github.com/redis/redis/blob/be6ce8a92a9acbecfaaa6c57a45037fc1018fefe/src/networking.c#L1851
 */
 // constexpr long long multi_redis_cmd_max_argc = 1024 * 1024;
+const static unsigned hardware_concurrency_ =
+    std::thread::hardware_concurrency();
 const static long long multi_redis_cmd_max_argc =
-    1024 *
-    std::thread::hardware_concurrency();  // For better parallelism performance
+    1024 * hardware_concurrency_;  // For better parallelism performance
 
 using sw::redis::OptionalString;
 using sw::redis::Redis;
@@ -108,6 +109,10 @@ class RedisTableOfTensors final : public LookupInterface {
       unsigned thread_id = thread_id_a.load(std::memory_order_relaxed);
       thread_id_a.store(thread_id + 1, std::memory_order_consume);
 
+      if (threads_Find.size() < thread_id) {
+        threads_Find.resize(thread_id);
+      }
+
       auto reply =
           _table_instance->MgetCommand(keys, threads_Find.at(thread_id), begin,
                                        max_i, keys_prefix_name_slices);
@@ -164,6 +169,10 @@ class RedisTableOfTensors final : public LookupInterface {
       uint thread_id = thread_id_a.load(std::memory_order_relaxed);
       thread_id_a.store(thread_id + 1, std::memory_order_consume);
 
+      if (threads_Insert.size() < thread_id) {
+        threads_Insert.resize(thread_id);
+      }
+
       _table_instance->MsetCommand(keys, values, threads_Insert.at(thread_id),
                                    begin, max_i, Velems_per_flat2_dim0,
                                    keys_prefix_name_slices);
@@ -197,6 +206,10 @@ class RedisTableOfTensors final : public LookupInterface {
       const int64 max_i = std::min(total, end);
       unsigned thread_id = thread_id_a.load(std::memory_order_relaxed);
       thread_id_a.store(thread_id + 1, std::memory_order_consume);
+
+      if (threads_Delete.size() < thread_id) {
+        threads_Delete.resize(thread_id);
+      }
 
       _table_instance->DelCommand(keys, threads_Delete.at(thread_id), begin,
                                   max_i, keys_prefix_name_slices);
@@ -539,9 +552,9 @@ class RedisTableOfTensors final : public LookupInterface {
     }
 
     // allocate the memory of threads helper
-    threads_Find.resize(std::thread::hardware_concurrency());
-    threads_Insert.resize(std::thread::hardware_concurrency());
-    threads_Delete.resize(std::thread::hardware_concurrency());
+    threads_Find.resize(hardware_concurrency_);
+    threads_Insert.resize(hardware_concurrency_);
+    threads_Delete.resize(hardware_concurrency_);
 
     /*
       When there is not a corresponding table existing in Redis service and

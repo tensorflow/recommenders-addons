@@ -32,8 +32,9 @@ EXTRA_ARGS="-n 10"
 if ! [ -x "$(command -v nvidia-smi)" ]; then
   EXTRA_ARGS="-n auto"
 fi
+
+# setup redis service for testing redis table ops.
 redis-server --port 6379 --bind 0.0.0.0 --daemonize yes
 redis-cli -p 6379 INFO
-echo "fuck0"
+
 python -m pytest -v -s --functions-durations=20 --modules-durations=5 $EXTRA_ARGS ./tensorflow_recommenders_addons
-echo "fuck1"
