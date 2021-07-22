@@ -69,7 +69,7 @@ RUN /install/install_bazel.sh "5.0.13"
 # RUN redis-cli -h 127.0.0.1 -p 6379
 # EXPOSE 6379
 COPY tools/docker/install/install_redis.sh /install/
-RUN /install/install_redis.sh
+RUN /install/install_redis.sh "5.0.13"
 
 RUN python configure.py
 

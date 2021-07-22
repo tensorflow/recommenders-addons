@@ -30,15 +30,14 @@ set -e
 install_dir=${2:-"/usr/local/bin"}
 mkdir -p ${install_dir}
 cd ${install_dir}
-mkdir ${install_dir}/redis-$REDIS_VERSION
 if [[ ! -f "bazel-$REDIS_VERSION.tar.gz" ]]; then
   wget https://github.com/redis/redis/archive/refs/tags/$REDIS_VERSION.tar.gz
 fi
-tar -C ${install_dir}/redis-$REDIS_VERSION -xvzf ${install_dir}/bazel-$REDIS_VERSION.tar.gz
+tar -C ${install_dir} -xvf ${install_dir}/$REDIS_VERSION.tar.gz
 cd ${install_dir}/redis-$REDIS_VERSION
 make -j4
 make PREFIX=${install_dir} install
-rm -f ${install_dir}/bazel-$REDIS_VERSION.tar.gz
+rm -f ${install_dir}/$REDIS_VERSION.tar.gz
 
 # Enable bazel auto completion.
 echo "export PATH=${install_dir}:$PATH" >> ~/.bashrc
