@@ -110,7 +110,7 @@ class RedisTableOfTensors final : public LookupInterface {
       thread_id_a.store(thread_id + 1, std::memory_order_consume);
 
       try {
-        threads_Find.at(thread_id)
+        threads_Find.at(thread_id);
       } catch (const std::exception &e) {
         threads_Find.resize(thread_id);
         std::cerr << "fuck " << e.what() << '\n';
@@ -173,7 +173,7 @@ class RedisTableOfTensors final : public LookupInterface {
       thread_id_a.store(thread_id + 1, std::memory_order_consume);
 
       try {
-        threads_Insert.at(thread_id)
+        threads_Insert.at(thread_id);
       } catch (const std::exception &e) {
         threads_Insert.resize(thread_id);
       }
@@ -213,7 +213,7 @@ class RedisTableOfTensors final : public LookupInterface {
       thread_id_a.store(thread_id + 1, std::memory_order_consume);
 
       try {
-        threads_Delete.at(thread_id)
+        threads_Delete.at(thread_id);
       } catch (const std::exception &e) {
         threads_Delete.resize(thread_id);
       }
