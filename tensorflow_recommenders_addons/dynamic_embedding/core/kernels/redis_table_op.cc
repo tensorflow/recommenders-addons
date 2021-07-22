@@ -113,7 +113,7 @@ class RedisTableOfTensors final : public LookupInterface {
         threads_Find.resize(thread_id + 1);
       }
       try {
-        threads_Find.at(thread_id)
+        threads_Find.at(thread_id);
       } catch (const std::exception &e) {
         std::cerr << "fuck" << e.what() << '\n';
       }
