@@ -15,6 +15,7 @@ limitations under the License.
 
 #include <ios>
 #include <iostream>
+#include <iomanip>
 #include <fstream>
 #if __cplusplus >= 201703L
   #include <filesystem>
@@ -40,7 +41,6 @@ namespace tensorflow {
       );
       static const uint32_t RDB_EXPORT_FILE_VERSION = 1;
       static const char RDB_EXPORT_PATH[] = "/tmp/db.dump";
-      static const bool RDB_EXACT_COUNT = true;
       static const bool RDB_VERBOSITY = 100;
 
 
@@ -102,15 +102,15 @@ namespace tensorflow {
       }
 
       template<class T>
-      inline void assignSlice(rocksdb::Slice &dst, const T &src) {
-        dst.data_ = reinterpret_cast<const char *>(&src);
+      inline void assignSlice(rocksdb::Slice &dst, const T *src) {
+        dst.data_ = reinterpret_cast<const char *>(src);
         dst.size_ = sizeof(T);
       }
 
       template<>
-      inline void assignSlice<tstring>(rocksdb::Slice &dst, const tstring &src) {
-        dst.data_ = src.data();
-        dst.size_ = src.size();
+      inline void assignSlice<tstring>(rocksdb::Slice &dst, const tstring *src) {
+        dst.data_ = src->data();
+        dst.size_ = src->size();
       }
 
       template<class T>
@@ -146,6 +146,7 @@ namespace tensorflow {
         : db(nullptr), readOnly_(readOnly) {
           rocksdb::Options options;
           options.create_if_missing = !readOnly;
+          options.manual_wal_flush = true;
 
           // Create or connect to the RocksDB database.
           std::vector<std::string> colFamilies;
@@ -195,6 +196,9 @@ namespace tensorflow {
 
         ~RocksDBLink() {
           for (const auto &item : colHandles) {
+            if (!readOnly_) {
+              db->FlushWAL(true);
+            }
             db->DestroyColumnFamilyHandle(item.second);
           }
           colHandles.clear();
@@ -253,7 +257,7 @@ namespace tensorflow {
       private:
         rocksdb::DB *db;
         bool readOnly_;
-        std::mutex lock;
+        mutable std::mutex lock;
         std::unordered_map<std::string, rocksdb::ColumnFamilyHandle*> colHandles;
       };
 
@@ -313,7 +317,8 @@ namespace tensorflow {
       public:
         /* --- BASE INTERFACE ------------------------------------------------------------------- */
         RocksDBTableOfTensors(OpKernelContext *ctx, OpKernel *kernel)
-        : readOnly(false) {
+        : readOnly(false), estimateSize(true), flushInterval(1)
+        , writeOpCount(0), prevColHandle(nullptr) {
           OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "value_shape", &valueShape));
           OP_REQUIRES(ctx, TensorShapeUtils::IsVector(valueShape), errors::InvalidArgument(
             "Default value must be a vector, got shape ", valueShape.DebugString()
@@ -322,10 +327,10 @@ namespace tensorflow {
           OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "database_path", &path));
           OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "embedding_name", &embeddingName));
           OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "read_only", &readOnly));
+          OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "estimate_size", &estimateSize));
 
           // Open the database.
           link = RocksDBConnectionPool::instance().open(path, readOnly);
-          prevColID = -1;
         }
 
         ~RocksDBTableOfTensors() override {
@@ -340,21 +345,49 @@ namespace tensorflow {
 
         TensorShape key_shape() const override { return TensorShape(); }
 
-        size_t size() const override { return 0; }
+        size_t size() const override {
+          rocksdb::ColumnFamilyHandle *const colHandle = GetColumnHandle();
+
+          // If allowed, try to just estimate of the number of keys.
+          if (estimateSize) {
+            uint64_t numKeys;
+            if ((*link)->GetIntProperty(
+              colHandle, rocksdb::DB::Properties::kEstimateNumKeys, &numKeys
+            )) {
+              return numKeys;
+            }
+          }
+
+          // Alternative method, walk the entire database column and count the keys.
+          std::unique_ptr<rocksdb::Iterator> iter((*link)->NewIterator(readOptions, colHandle));
+          iter->SeekToFirst();
+
+          size_t numKeys = 0;
+          for (; iter->Valid(); iter->Next()) {
+            // std::cout << "[ "<< numKeys << " ] " << *reinterpret_cast<const size_t *>(iter->key().data()) << " : ";
+            // for (size_t i = 0; i < iter->key().size(); ++i) {
+            //   std::cout << std::hex << std::setw(2) << (int)iter->key().data()[i] << " ";
+            // }
+            // std::cout << std::endl;
+            ++numKeys;
+          }
+          return numKeys;
+        }
 
         TensorShape value_shape() const override { return valueShape; }
 
         /* --- LOOKUP --------------------------------------------------------------------------- */
-        rocksdb::ColumnFamilyHandle *GetColumnHandle() {
-          const auto &colHandle = link->getColumn(embeddingName);
-          const auto &colID = colHandle ? colHandle->GetID() : -1;
-          if (colID != prevColID) {
+      protected:
+        rocksdb::ColumnFamilyHandle *GetColumnHandle() const {
+          rocksdb::ColumnFamilyHandle *const colHandle = link->getColumn(embeddingName);
+          if (colHandle != prevColHandle) {
             std::fill(colHandleCache.begin(), colHandleCache.end(), colHandle);
-            prevColID = colID;
+            prevColHandle = colHandle;
           }
           return colHandle;
         }
 
+      public:
         Status Clear(OpKernelContext *ctx) override { return link->deleteColumn(embeddingName); }
 
         Status Find(
@@ -416,15 +449,17 @@ namespace tensorflow {
           }
           else {
             // There is no point in filling this vector time and again as long as it is big enough.
-            while (colHandleCache.size() < numKeys) {
-              colHandleCache.push_back(colHandle);
+            if (colHandleCache.size() < numKeys) {
+              colHandleCache.insert(
+                colHandleCache.end(), numKeys - colHandleCache.size(), prevColHandle
+              );
             }
 
             // Query all keys using a single Multi-Get.
             std::vector<std::string> vSlices;
             std::vector<rocksdb::Slice> kSlices(numKeys);
             for (size_t i = 0; i < numKeys; ++i) {
-              assignSlice(kSlices[i], k[i]);
+              assignSlice(kSlices[i], &k[i]);
             }
             const std::vector<rocksdb::Status> &statuses = colHandle
               ? (*link)->MultiGet(readOptions, colHandleCache, kSlices, &vSlices)
@@ -502,7 +537,12 @@ namespace tensorflow {
             RDB_OK((*link)->Write(writeOptions, &batch));
           }
 
-          // TODO: Instead of hard failing, return proper error code?!
+          // Handle interval flushing.
+          writeOpCount += 1;
+          if (writeOpCount % flushInterval == 0) {
+            (*link)->FlushWAL(true);
+          }
+
           return Status::OK();
         }
 
@@ -537,7 +577,12 @@ namespace tensorflow {
             RDB_OK((*link)->Write(writeOptions, &batch));
           }
 
-          // TODO: Instead of hard failing, return proper error code?!
+          // Handle interval flushing.
+          writeOpCount += 1;
+          if (writeOpCount % flushInterval == 0) {
+            (*link)->FlushWAL(true);
+          }
+
           return Status::OK();
         }
 
@@ -662,6 +707,10 @@ namespace tensorflow {
             RDB_OK((*link)->Write(writeOptions, &batch));
           }
 
+          // Reset interval flushing.
+          writeOpCount = 0;
+          (*link)->FlushWAL(true);
+
           return Status::OK();
         }
 
@@ -670,12 +719,16 @@ namespace tensorflow {
         std::string path;
         std::string embeddingName;
         bool readOnly;
+        bool estimateSize;
+        size_t flushInterval;
+        size_t writeOpCount;
         RocksDBLink *link;
         rocksdb::ReadOptions readOptions;
         rocksdb::WriteOptions writeOptions;
+        rocksdb::FlushOptions flushOptions;
 
-        long prevColID;
-        std::vector<rocksdb::ColumnFamilyHandle*> colHandleCache;
+        mutable rocksdb::ColumnFamilyHandle *prevColHandle;
+        mutable std::vector<rocksdb::ColumnFamilyHandle *> colHandleCache;
       };
 
       #undef RDB_OK

@@ -56,7 +56,7 @@ class RocksDBTable(LookupInterface):
     def __init__(
         self,
         key_dtype, value_dtype, default_value,
-        database_path, embedding_name=None, read_only=False,
+        database_path, embedding_name=None, read_only=False, estimate_size=False,
         name="RocksDBTable",
         checkpoint=False,
     ):
@@ -91,6 +91,7 @@ class RocksDBTable(LookupInterface):
         self._database_path = database_path
         self._embedding_name = embedding_name if embedding_name else self._name.split('_mht_', 1)[0]
         self._read_only = read_only
+        self._estimate_size = estimate_size
 
         self._shared_name = None
         if context.executing_eagerly():
@@ -130,6 +131,7 @@ class RocksDBTable(LookupInterface):
             database_path=self._database_path,
             embedding_name=self._embedding_name,
             read_only=self._read_only,
+            estimate_size=self._estimate_size,
         )
 
         if context.executing_eagerly():
