@@ -13,17 +13,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#include <algorithm>
-#include <ios>
 #include <iostream>
-#include <iomanip>
 #include <fstream>
 #if __cplusplus >= 201703L
-  #include <filesystem>
+#include <filesystem>
 #else
-  #include <sys/stat.h>
+#include <sys/stat.h>
 #endif
-#include <sstream>
 #include "../utils/utils.h"
 #include "rocksdb_table_op.h"
 #include "rocksdb/db.h"
@@ -369,36 +365,8 @@ namespace tensorflow {
 
         inline bool readOnly() const { return readOnly_; }
 
-        ROCKSDB_NAMESPACE::ColumnFamilyHandle *getColumn(const std::string &colName) {
-          // Make sure we are alone.
-          std::lock_guard<std::mutex> guard(lock);
-          return doGetColumn(colName);
-        }
-
-        ROCKSDB_NAMESPACE::ColumnFamilyHandle *doGetColumn(const std::string &colName) {
-          // Try to locate column handle.
-          const auto &item = colHandles.find(colName);
-          if (item != colHandles.end()) {
-            return item->second;
-          }
-
-          // Do not create an actual column handle in readonly mode.
-          if (readOnly_) {
-            return nullptr;
-          }
-
-          // Create a new column handle.
-          ROCKSDB_NAMESPACE::ColumnFamilyOptions colFamilyOptions;
-          ROCKSDB_NAMESPACE::ColumnFamilyHandle *colHandle;
-          ROCKSDB_OK(database_->CreateColumnFamily(colFamilyOptions, colName, &colHandle));
-          colHandles[colName] = colHandle;
-
-          return colHandle;
-        }
-
         void deleteColumn(const std::string &colName) {
-          // Make sure we are alone.
-          std::lock_guard<std::mutex> guard(lock);
+          mutex_lock guard(lock);
 
           // Try to locate column handle, and return if it anyway doe not exist.
           const auto &item = colHandles.find(colName);
@@ -422,22 +390,43 @@ namespace tensorflow {
           const std::string &colName,
           std::function<T(ROCKSDB_NAMESPACE::ColumnFamilyHandle *const)> fn
         ) {
-          // Make sure we are alone.
-          std::lock_guard<std::mutex> guard(lock);
+          tf_shared_lock guard(lock);
 
           // Invoke the function while we are guarded.
-          const auto &colHandle = doGetColumn(colName);
+          const auto &colHandle = getColumn(colName);
           return fn(colHandle);
         }
 
         inline ROCKSDB_NAMESPACE::DB *operator->() { return database_.get(); }
 
       private:
+        ROCKSDB_NAMESPACE::ColumnFamilyHandle *getColumn(const std::string &colName) {
+          // Try to locate column handle.
+          const auto &item = colHandles.find(colName);
+          if (item != colHandles.end()) {
+            return item->second;
+          }
+
+          // Do not create an actual column handle in readonly mode.
+          if (readOnly_) {
+            return nullptr;
+          }
+
+          // Create a new column handle.
+          ROCKSDB_NAMESPACE::ColumnFamilyOptions colFamilyOptions;
+          ROCKSDB_NAMESPACE::ColumnFamilyHandle *colHandle;
+          ROCKSDB_OK(database_->CreateColumnFamily(colFamilyOptions, colName, &colHandle));
+          colHandles[colName] = colHandle;
+
+          return colHandle;
+        }
+
+      private:
         const std::string path_;
         const bool readOnly_;
         std::unique_ptr<ROCKSDB_NAMESPACE::DB> database_;
 
-        std::mutex lock;
+        mutex lock;
         std::unordered_map<std::string, ROCKSDB_NAMESPACE::ColumnFamilyHandle*> colHandles;
       };
 
@@ -457,8 +446,7 @@ namespace tensorflow {
         std::shared_ptr<DBWrapper> connect(
           const std::string &databasePath, const bool &readOnly
         ) {
-          // Make sure we are alone.
-          std::lock_guard<std::mutex> guard(lock);
+          mutex_lock guard(lock);
 
           // Try to find database, or open it if it is not open yet.
           std::shared_ptr<DBWrapper> db;
@@ -487,7 +475,7 @@ namespace tensorflow {
           const std::string path = wrapper->path();
 
           // Make sure we are alone.
-          std::lock_guard<std::mutex> guard(registry.lock);
+          mutex_lock guard(registry.lock);
 
           // Destroy the wrapper.
           defaultDeleter(wrapper);
@@ -508,7 +496,7 @@ namespace tensorflow {
         }
 
       private:
-        std::mutex lock;
+        mutex lock;
         std::unordered_map<std::string, std::weak_ptr<DBWrapper>> wrappers;
       };
 
