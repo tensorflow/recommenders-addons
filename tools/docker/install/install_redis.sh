@@ -31,12 +31,12 @@ install_dir=${2:-"/usr/local/bin"}
 mkdir -p ${install_dir}
 cd ${install_dir}
 if [[ ! -f "bazel-$REDIS_VERSION.tar.gz" ]]; then
-  wget https://github.com/redis/redis/archive/refs/tags/$REDIS_VERSION.tar.gz
+  wget https://github.com/redis/redis/archive/refs/tags/$REDIS_VERSION.tar.gz >/dev/null
 fi
-tar -C ${install_dir} -xvf ${install_dir}/$REDIS_VERSION.tar.gz
+tar -C ${install_dir} -xvf ${install_dir}/$REDIS_VERSION.tar.gz >/dev/null
 cd ${install_dir}/redis-$REDIS_VERSION
-make -j4
-make install
+make -j4 > /dev/null >/dev/null
+make install > /dev/null >/dev/null
 rm -f ${install_dir}/$REDIS_VERSION.tar.gz
 
 # Enable bazel auto completion.
