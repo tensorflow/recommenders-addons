@@ -38,7 +38,6 @@ namespace tensorflow {
         (static_cast<uint32_t>('V') << 24)
       );
       static const uint32_t FILE_VERSION = 1;
-      static const char RDB_EXPORT_PATH[] = "/tmp/db.dump";
 
       typedef uint16_t KEY_SIZE_TYPE;
       typedef uint32_t VALUE_SIZE_TYPE;
@@ -516,6 +515,7 @@ namespace tensorflow {
           OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "read_only", &readOnly));
           OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "estimate_size", &estimateSize));
           flushInterval = 1;
+          OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "export_path", &defaultExportPath));
 
           db = DBWrapperRegistry::instance().connect(databasePath, readOnly);
           LOG(INFO) << "Acquired reference to database wrapper " << db->path()
@@ -843,7 +843,7 @@ namespace tensorflow {
             return clearStatus;
           }
 
-          std::ifstream file(RDB_EXPORT_PATH, std::ifstream::binary);
+          std::ifstream file(path, std::ifstream::binary);
           if (!file) {
             return errors::NotFound("Accessing file system failed.");
           }

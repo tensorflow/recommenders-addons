@@ -154,6 +154,7 @@ class TimestampRestrictPolicy(RestrictPolicy):
           embedding_name=self.var.embedding_name,
           read_only=self.var.read_only,
           estimate_size=self.var.estimate_size,
+          export_path=self.var.export_path,
       )
 
   def apply_update(self, ids):
@@ -278,6 +279,7 @@ class FrequencyRestrictPolicy(RestrictPolicy):
           embedding_name=self.var.embedding_name,
           read_only=self.var.read_only,
           estimate_size=self.var.estimate_size,
+          export_path=self.var.export_path,
       )
 
   def apply_update(self, ids):

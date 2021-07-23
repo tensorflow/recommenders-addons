@@ -154,6 +154,7 @@ class Variable(trackable.TrackableResource):
       embedding_name=None,
       read_only=False,
       estimate_size=False,
+      export_path=None,
       restrict_policy=None,
   ):
     """Creates an empty `Variable` object.
@@ -238,6 +239,7 @@ class Variable(trackable.TrackableResource):
     self.embedding_name = embedding_name
     self.read_only = read_only
     self.estimate_size = estimate_size
+    self.export_path = export_path
 
     self.shard_num = len(self.devices)
     self.init_size = int(init_size)
@@ -283,6 +285,7 @@ class Variable(trackable.TrackableResource):
                 embedding_name=self.embedding_name,
                 read_only=self.read_only,
                 estimate_size=self.estimate_size,
+                export_path=self.export_path,
               )
             else:
               mht = de.CuckooHashTable(
@@ -548,6 +551,7 @@ def get_variable(
     embedding_name=None,
     read_only=False,
     estimate_size=False,
+    export_path=None,
     restrict_policy=None,
 ):
   """Gets an `Variable` object with this name if it exists,
@@ -617,6 +621,7 @@ def get_variable(
         embedding_name=embedding_name,
         read_only=read_only,
         estimate_size=estimate_size,
+        export_path=export_path,
         restrict_policy=restrict_policy,
     )
     scope_store._vars[full_name] = var_

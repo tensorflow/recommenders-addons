@@ -56,7 +56,7 @@ class RocksDBTable(LookupInterface):
     def __init__(
         self,
         key_dtype, value_dtype, default_value,
-        database_path, embedding_name=None, read_only=False, estimate_size=False,
+        database_path, embedding_name=None, read_only=False, estimate_size=False, export_path=None,
         name="RocksDBTable",
         checkpoint=False,
     ):
@@ -92,6 +92,7 @@ class RocksDBTable(LookupInterface):
         self._embedding_name = embedding_name if embedding_name else self._name.split('_mht_', 1)[0]
         self._read_only = read_only
         self._estimate_size = estimate_size
+        self._export_path = export_path
 
         self._shared_name = None
         if context.executing_eagerly():
@@ -132,6 +133,7 @@ class RocksDBTable(LookupInterface):
             embedding_name=self._embedding_name,
             read_only=self._read_only,
             estimate_size=self._estimate_size,
+            export_path=self._export_path,
         )
 
         if context.executing_eagerly():
@@ -153,6 +155,7 @@ class RocksDBTable(LookupInterface):
         Returns:
             A scalar tensor containing the number of elements in this table.
         """
+        print('SIZE CALLED')
         with ops.name_scope(name, f"{self.name}_Size", (self.resource_handle,)):
             with ops.colocate_with(self.resource_handle):
                 size = rocksdb_table_ops.tfra_rocksdb_table_size(self.resource_handle)
@@ -175,6 +178,7 @@ class RocksDBTable(LookupInterface):
         Raises:
             TypeError: when `keys` do not match the table data types.
         """
+        print('REMOVE CALLED')
         if keys.dtype != self._key_dtype:
             raise TypeError(
                 f"Signature mismatch. Keys must be dtype {self._key_dtype}, got {keys.dtype}."
@@ -199,6 +203,7 @@ class RocksDBTable(LookupInterface):
         Returns:
             The created Operation.
         """
+        print('CLEAR CALLED')
         with ops.name_scope(
             name, f"{self.name}_lookup_table_clear",
             (self.resource_handle, self._default_value)
@@ -228,6 +233,7 @@ class RocksDBTable(LookupInterface):
         Raises:
             TypeError: when `keys` do not match the table data types.
         """
+        print('LOOKUP CALLED')
         with ops.name_scope(name, f"{self.name}_lookup_table_find", (
             self.resource_handle, keys, self._default_value
         )):
@@ -258,6 +264,7 @@ class RocksDBTable(LookupInterface):
         Raises:
             TypeError: when `keys` or `values` doesn't match the table data types.
         """
+        print('INSERT CALLED')
         with ops.name_scope(name, f"{self.name}_lookup_table_insert", (
             self.resource_handle, keys, values
         )):
@@ -280,7 +287,8 @@ class RocksDBTable(LookupInterface):
             A pair of tensors with the first tensor containing all keys and the second tensors
             containing all values in the table.
         """
-        with ops.name_scope(name, "%s_lookup_table_export_values" % self.name, (
+        print('EXPORT CALLED')
+        with ops.name_scope(name, f"{self.name}_lookup_table_export_values", (
             self.resource_handle,
         )):
             with ops.colocate_with(self.resource_handle):
@@ -300,10 +308,7 @@ class RocksDBTable(LookupInterface):
 
         return {
             "table": functools.partial(
-                self._Saveable,
-                table=self,
-                name=self._name,
-                full_name=full_name,
+                self._Saveable, table=self, name=self._name, full_name=full_name,
             )
         }
 
@@ -320,6 +325,7 @@ class RocksDBTable(LookupInterface):
             self.full_name = full_name
 
         def restore(self, restored_tensors, restored_shapes, name=None):
+            print('RESTORE CALLED')
             del restored_shapes  # unused
             # pylint: disable=protected-access
             with ops.name_scope(name, f"{self.name}_table_restore"):
