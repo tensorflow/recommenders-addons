@@ -32,10 +32,10 @@ namespace tensorflow {
       static const size_t BATCH_SIZE_MAX = 128;
 
       static const uint32_t FILE_MAGIC = (  // TODO: Little endian / big endian conversion?
-        (static_cast<uint32_t>('T') <<  0) |
-        (static_cast<uint32_t>('F') <<  8) |
-        (static_cast<uint32_t>('K') << 16) |
-        (static_cast<uint32_t>('V') << 24)
+        (static_cast<uint32_t>('R') <<  0) |
+        (static_cast<uint32_t>('O') <<  8) |
+        (static_cast<uint32_t>('C') << 16) |
+        (static_cast<uint32_t>('K') << 24)
       );
       static const uint32_t FILE_VERSION = 1;
 
@@ -510,6 +510,12 @@ namespace tensorflow {
             "Default value must be a vector, got shape ", valueShape.DebugString()
           ));
 
+          // Try to estimate value size.
+          valueSize = valueShape.num_elements();
+          if (valueShape.dims() > 1) {
+            valueSize /= valueShape.dim_size(0);
+          }
+
           OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "database_path", &databasePath));
           OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "embedding_name", &embeddingName));
           OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "read_only", &readOnly));
@@ -806,7 +812,7 @@ namespace tensorflow {
         }
 
         Status ExportValuesToFile(OpKernelContext *ctx, const std::string &path) {
-          std::ofstream file(path, std::ofstream::binary);
+          std::ofstream file(path + "/" + embeddingName + ".rock", std::ofstream::binary);
           if (!file) {
             return errors::Unknown("Could not open dump file.");
           }
@@ -834,7 +840,19 @@ namespace tensorflow {
             return Status::OK();
           };
 
-          return db->withColumn<Status>(embeddingName, fn);
+          const auto &status = db->withColumn<Status>(embeddingName, fn);
+          if (!status.ok()) {
+            return status;
+          }
+
+          // Creat dummy tensors.
+          Tensor *kTensor;
+          TF_RETURN_IF_ERROR(ctx->allocate_output("keys", TensorShape({0}), &kTensor));
+
+          Tensor *vTensor;
+          TF_RETURN_IF_ERROR(ctx->allocate_output("values", TensorShape({0, valueSize}), &vTensor));
+
+          return status;
         }
         Status ImportValuesFromFile(OpKernelContext *ctx, const std::string &path) {
           // Make sure the column family is clean.
@@ -843,7 +861,7 @@ namespace tensorflow {
             return clearStatus;
           }
 
-          std::ifstream file(path, std::ifstream::binary);
+          std::ifstream file(path + "/" + embeddingName + ".rock", std::ifstream::binary);
           if (!file) {
             return errors::NotFound("Accessing file system failed.");
           }
@@ -945,7 +963,12 @@ namespace tensorflow {
           if (!status.ok()) {
             return status;
           }
+
           valueCount = std::max(valueCount, 0LL);
+          if (valueCount != valueSize) {
+            LOG(WARNING) << "Retrieved values differ from configured size ("
+                         << valueCount << " != " << valueSize << ").";
+          }
           const auto numKeys = static_cast<int64>(kBuffer.size());
 
           // Populate keys tensor.
@@ -981,6 +1004,7 @@ namespace tensorflow {
 
       protected:
         TensorShape valueShape;
+        int64 valueSize;
         std::string databasePath;
         std::string embeddingName;
         bool readOnly;
