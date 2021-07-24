@@ -71,14 +71,22 @@ namespace tensorflow {
 
         template<class T>
         inline void getValue(T *dst, const std::string &src, const size_t &n) {
-          if (src.size() != n * sizeof(T)) {
+          const size_t dstSize = n * sizeof(T);
+
+          if (src.size() < dstSize) {
             std::stringstream msg(std::stringstream::out);
             msg << "Expected " << n * sizeof(T)
-                << " bytes, but " << src.size()
+                << " bytes, but only " << src.size()
                 << " bytes were returned by the database.";
             throw std::runtime_error(msg.str());
           }
-          std::memcpy(dst, src.data(), src.size());
+          else if (src.size() > dstSize) {
+            LOG(WARNING) << "Expected " << dstSize
+                         << " bytes. The database returned " << src.size()
+                         << ", which is more. Truncating!";
+          }
+
+          std::memcpy(dst, src.data(), dstSize);
         }
 
         template<>
@@ -236,30 +244,38 @@ namespace tensorflow {
         }
 
         template<class T>
-        inline size_t readValue(std::vector<T> &dst, const ROCKSDB_NAMESPACE::Slice &src_) {
+        inline size_t readValue(
+          std::vector<T> &dst, const ROCKSDB_NAMESPACE::Slice &src_,
+          const size_t &nLimit
+        ) {
           const size_t n = src_.size() / sizeof(T);
+
           if (n * sizeof(T) != src_.size()) {
             std::stringstream msg(std::stringstream::out);
             msg << "Vector value is out of bounds "
                 << "[ " << n * sizeof(T) << " != " << src_.size() << " ].";
             throw std::out_of_range(msg.str());
           }
+          else if (n < nLimit) {
+            throw std::underflow_error("Database entry violates nLimit.");
+          }
 
           const T *const src = reinterpret_cast<const T *>(src_.data());
-          dst.insert(dst.end(), src, &src[n]);
+          dst.insert(dst.end(), src, &src[nLimit]);
           return n;
         }
 
         template<>
         inline size_t readValue<tstring>(
-          std::vector<tstring> &dst, const ROCKSDB_NAMESPACE::Slice &src_
+          std::vector<tstring> &dst, const ROCKSDB_NAMESPACE::Slice &src_,
+          const size_t &nLimit
         ) {
-          const size_t dstSizePrev = dst.size();
+          size_t n = 0;
 
           const char *src = src_.data();
           const char *const srcEnd = &src[src_.size()];
 
-          while (src < srcEnd) {
+          for (; src < srcEnd; ++n) {
             const char *const srcSize = src;
             src += sizeof(STRING_SIZE_TYPE);
             if (src > srcEnd) {
@@ -272,13 +288,18 @@ namespace tensorflow {
             if (src > srcEnd) {
               throw std::out_of_range("String value is malformed!");
             }
-            dst.emplace_back(srcData, size);
+            if (n < nLimit) {
+              dst.emplace_back(srcData, size);
+            }
           }
 
           if (src != srcEnd) {
             throw std::out_of_range("String value is malformed!");
           }
-          return dst.size() - dstSizePrev;
+          else if (n < nLimit) {
+            throw std::underflow_error("Database entry violates nLimit.");
+          }
+          return n;
         }
 
       }
@@ -364,6 +385,29 @@ namespace tensorflow {
 
         inline bool readOnly() const { return readOnly_; }
 
+        ROCKSDB_NAMESPACE::ColumnFamilyHandle *getColumn(const std::string &colName) {
+          mutex_lock guard(lock);
+
+          // Try to locate column handle.
+          const auto &item = colHandles.find(colName);
+          if (item != colHandles.end()) {
+            return item->second;
+          }
+
+          // Do not create an actual column handle in readonly mode.
+          if (readOnly_) {
+            return nullptr;
+          }
+
+          // Create a new column handle.
+          ROCKSDB_NAMESPACE::ColumnFamilyOptions colFamilyOptions;
+          ROCKSDB_NAMESPACE::ColumnFamilyHandle *colHandle;
+          ROCKSDB_OK(database_->CreateColumnFamily(colFamilyOptions, colName, &colHandle));
+          colHandles[colName] = colHandle;
+
+          return colHandle;
+        }
+
         void deleteColumn(const std::string &colName) {
           mutex_lock guard(lock);
 
@@ -389,36 +433,14 @@ namespace tensorflow {
           const std::string &colName,
           std::function<T(ROCKSDB_NAMESPACE::ColumnFamilyHandle *const)> fn
         ) {
-          tf_shared_lock guard(lock);
-
-          // Invoke the function while we are guarded.
           const auto &colHandle = getColumn(colName);
-          return fn(colHandle);
+
+          tf_shared_lock guard(lock);
+          const auto &result = fn(colHandle);
+          return result;
         }
 
         inline ROCKSDB_NAMESPACE::DB *operator->() { return database_.get(); }
-
-      private:
-        ROCKSDB_NAMESPACE::ColumnFamilyHandle *getColumn(const std::string &colName) {
-          // Try to locate column handle.
-          const auto &item = colHandles.find(colName);
-          if (item != colHandles.end()) {
-            return item->second;
-          }
-
-          // Do not create an actual column handle in readonly mode.
-          if (readOnly_) {
-            return nullptr;
-          }
-
-          // Create a new column handle.
-          ROCKSDB_NAMESPACE::ColumnFamilyOptions colFamilyOptions;
-          ROCKSDB_NAMESPACE::ColumnFamilyHandle *colHandle;
-          ROCKSDB_OK(database_->CreateColumnFamily(colFamilyOptions, colName, &colHandle));
-          colHandles[colName] = colHandle;
-
-          return colHandle;
-        }
 
       private:
         const std::string path_;
@@ -604,7 +626,7 @@ namespace tensorflow {
           V *const v = static_cast<V *>(values->data());
           const V *const d = static_cast<V *>(default_value.data());
 
-          auto fn = [this, numKeys, valuesPerKey, defaultSize, &k, v, d](
+          auto fn = [this, numKeys, valuesPerKey, &keys, values, &default_value, defaultSize, &k, v, d](
             ROCKSDB_NAMESPACE::ColumnFamilyHandle *const colHandle
           ) -> Status {
             if (!colHandle) {
@@ -935,9 +957,10 @@ namespace tensorflow {
           // Fetch data from database.
           std::vector<K> kBuffer;
           std::vector<V> vBuffer;
-          int64 valueCount = -1;
+          const size_t valueSize = valueShape.num_elements();
+          size_t valueCount = std::numeric_limits<size_t>::max();
 
-          auto fn = [this, &kBuffer, &vBuffer, &valueCount](
+          auto fn = [this, &kBuffer, &vBuffer, valueSize, &valueCount](
             ROCKSDB_NAMESPACE::ColumnFamilyHandle *const colHandle
           ) -> Status {
             std::unique_ptr<ROCKSDB_NAMESPACE::Iterator> iter(
@@ -950,13 +973,13 @@ namespace tensorflow {
               _it::readKey(kBuffer, kSlice);
 
               const auto vSlice = iter->value();
-              const int64 vSize = _it::readValue(vBuffer, vSlice);
+              const size_t vCount = _it::readValue(vBuffer, vSlice, valueSize);
 
               // Make sure we have a square tensor.
-              if (valueCount < 0) {
-                valueCount = vSize;
+              if (valueCount == std::numeric_limits<size_t>::max()) {
+                valueCount = vCount;
               }
-              else if (vSize != valueCount) {
+              else if (vCount != valueCount) {
                 return errors::Internal("The returned tensor sizes differ.");
               }
             }
@@ -969,10 +992,9 @@ namespace tensorflow {
             return status;
           }
 
-          valueCount = std::max(valueCount, 0LL);
-          if (valueCount != valueShape.num_elements()) {
+          if (valueCount != valueSize) {
             LOG(WARNING) << "Retrieved values differ from signature size ("
-                         << valueCount << " != " << valueShape.num_elements() << ").";
+                         << valueCount << " != " << valueSize << ").";
           }
           const auto numKeys = static_cast<int64>(kBuffer.size());
 
@@ -987,7 +1009,7 @@ namespace tensorflow {
           // Populate values tensor.
           Tensor *vTensor;
           TF_RETURN_IF_ERROR(ctx->allocate_output(
-            "values", TensorShape({numKeys, valueCount}), &vTensor
+            "values", TensorShape({numKeys, static_cast<int64>(valueSize)}), &vTensor
           ));
           V *const v = reinterpret_cast<V *>(vTensor->data());
           std::copy(vBuffer.begin(), vBuffer.end(), v);
