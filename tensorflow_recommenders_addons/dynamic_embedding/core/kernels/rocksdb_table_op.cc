@@ -167,18 +167,18 @@ namespace tensorflow {
         }
 
         template<class T>
-        inline void readKey(std::istream &src, std::string &dst) {
-          dst.resize(sizeof(T));
-          if (!src.read(&dst.front(), sizeof(T))) {
+        inline void readKey(std::istream &src, std::string *dst) {
+          dst->resize(sizeof(T));
+          if (!src.read(&dst->front(), sizeof(T))) {
             throw std::overflow_error("Unexpected end of file!");
           }
         }
 
         template<>
-        inline void readKey<tstring>(std::istream &src, std::string &dst) {
+        inline void readKey<tstring>(std::istream &src, std::string *dst) {
           const auto size = read<KEY_SIZE_TYPE>(src);
-          dst.resize(size);
-          if (!src.read(&dst.front(), size)) {
+          dst->resize(size);
+          if (!src.read(&dst->front(), size)) {
             throw std::overflow_error("Unexpected end of file!");
           }
         }
@@ -200,10 +200,10 @@ namespace tensorflow {
           }
         }
 
-        inline void readValue(std::istream &src, std::string &dst) {
+        inline void readValue(std::istream &src, std::string *dst) {
           const auto size = read<VALUE_SIZE_TYPE>(src);
-          dst.resize(size);
-          if (!src.read(&dst.front(), size)) {
+          dst->resize(size);
+          if (!src.read(&dst->front(), size)) {
             throw std::overflow_error("Unexpected end of file!");
           }
         }
@@ -837,6 +837,8 @@ namespace tensorflow {
         }
 
         Status ExportValuesToFile(OpKernelContext *ctx, const std::string &path) {
+          mutex_lock guard(importExportLock);
+
           std::ofstream file(path + "/" + embeddingName + ".rock", std::ofstream::binary);
           if (!file) {
             return errors::Unknown("Could not open dump file.");
@@ -881,12 +883,9 @@ namespace tensorflow {
 
           return status;
         }
+
         Status ImportValuesFromFile(OpKernelContext *ctx, const std::string &path) {
-          // Make sure the column family is clean.
-          const auto &clearStatus = Clear(ctx);
-          if (!clearStatus.ok()) {
-            return clearStatus;
-          }
+          mutex_lock guard(importExportLock);
 
           std::ifstream file(path + "/" + embeddingName + ".rock", std::ifstream::binary);
           if (!file) {
@@ -911,6 +910,12 @@ namespace tensorflow {
             );
           }
 
+          // Make sure the column family is clean.
+          const auto &clearStatus = Clear(ctx);
+          if (!clearStatus.ok()) {
+            return clearStatus;
+          }
+
           auto fn = [this, &file](
             ROCKSDB_NAMESPACE::ColumnFamilyHandle *const colHandle
           ) -> Status {
@@ -925,8 +930,9 @@ namespace tensorflow {
             ROCKSDB_NAMESPACE::PinnableSlice vSlice;
 
             while (file.peek() != EOF) {
-              _io::readKey<K>(file, *kSlice.GetSelf()); kSlice.PinSelf();
-              _io::readValue(file, *vSlice.GetSelf()); vSlice.PinSelf();
+              _io::readKey<K>(file, kSlice.GetSelf()); kSlice.PinSelf();
+              _io::readValue(file, vSlice.GetSelf()); vSlice.PinSelf();
+
               ROCKSDB_OK(batch.Put(colHandle, kSlice, vSlice));
 
               // If batch reached target size, write to database.
@@ -954,6 +960,8 @@ namespace tensorflow {
         }
 
         Status ExportValuesToTensor(OpKernelContext *ctx) {
+          mutex_lock guard(importExportLock);
+
           // Fetch data from database.
           std::vector<K> kBuffer;
           std::vector<V> vBuffer;
@@ -1019,6 +1027,8 @@ namespace tensorflow {
         Status ImportValuesFromTensor(
           OpKernelContext *ctx, const Tensor &keys, const Tensor &values
         ) {
+          mutex_lock guard(importExportLock);
+
           // Make sure the column family is clean.
           const auto &clearStatus = Clear(ctx);
           if (!clearStatus.ok()) {
@@ -1042,6 +1052,7 @@ namespace tensorflow {
         ROCKSDB_NAMESPACE::ReadOptions readOptions;
         ROCKSDB_NAMESPACE::WriteOptions writeOptions;
         size_t dirtyCount;
+        mutex importExportLock;
 
         std::vector<ROCKSDB_NAMESPACE::ColumnFamilyHandle *> colHandleCache;
       };
