@@ -510,12 +510,6 @@ namespace tensorflow {
             "Default value must be a vector, got shape ", valueShape.DebugString()
           ));
 
-          // Try to estimate value size.
-          valueSize = valueShape.num_elements();
-          if (valueShape.dims() > 1) {
-            valueSize /= valueShape.dim_size(0);
-          }
-
           OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "database_path", &databasePath));
           OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "embedding_name", &embeddingName));
           OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "read_only", &readOnly));
@@ -582,52 +576,57 @@ namespace tensorflow {
             values->dtype() != value_dtype() ||
             default_value.dtype() != value_dtype()
           ) {
-            return errors::InvalidArgument("Tensor dtypes are incompatible!");
+            return errors::InvalidArgument("The tensor dtypes are incompatible.");
+          }
+          if (keys.dims() <= values->dims()) {
+            for (int i = 0; i < keys.dims(); ++i) {
+              if (keys.dim_size(i) != values->dim_size(i)) {
+                return errors::InvalidArgument("The tensor sizes are incompatible.");
+              }
+            }
+          }
+          else {
+            return errors::InvalidArgument("The tensor sizes are incompatible.");
           }
 
-          const size_t numKeys = keys.dim_size(0);
-          const size_t numValues = values->dim_size(0);
-          if (numKeys != numValues) {
-            return errors::InvalidArgument(
-              "First dimension of the key and value tensors does not match!"
-            );
+          const size_t numKeys = keys.NumElements();
+          const size_t numValues = values->NumElements();
+          const size_t valuesPerKey = numValues / numKeys;
+          const size_t defaultSize = default_value.NumElements();
+          if (defaultSize % valuesPerKey != 0) {
+            std::stringstream msg(std::stringstream::out);
+            msg << "The shapes of the 'values' and 'default_value' tensors are incompatible"
+                << " (" << defaultSize << " % " << valuesPerKey << " != 0).";
+            return errors::InvalidArgument(msg.str());
           }
-          const size_t valuesPerDim0 = values->NumElements() / numValues;
 
           const K *k = static_cast<K *>(keys.data());
           V *const v = static_cast<V *>(values->data());
-
           const V *const d = static_cast<V *>(default_value.data());
-          const size_t dSize = default_value.NumElements();
 
-          if (dSize % valuesPerDim0 != 0) {
-            return errors::InvalidArgument(
-              "The shapes of the values and default_value tensors are not compatible."
-            );
-          }
-
-          auto fn = [this, &numKeys, &valuesPerDim0, &k, &v, &d, &dSize](
+          auto fn = [this, numKeys, valuesPerKey, defaultSize, &k, v, d](
             ROCKSDB_NAMESPACE::ColumnFamilyHandle *const colHandle
           ) -> Status {
-            size_t vOffset = 0;
-
-            if (numKeys < BATCH_SIZE_MIN) {
+            if (!colHandle) {
               const K *const kEnd = &k[numKeys];
+              for (size_t offset = 0; k != kEnd; ++k, offset += valuesPerKey) {
+                std::copy_n(&d[offset % defaultSize], valuesPerKey, &v[offset]);
+              }
+            }
+            else if (numKeys < BATCH_SIZE_MIN) {
               ROCKSDB_NAMESPACE::Slice kSlice;
 
-              for (; k != kEnd; ++k, vOffset += valuesPerDim0) {
+              const K *const kEnd = &k[numKeys];
+              for (size_t offset = 0; k != kEnd; ++k, offset += valuesPerKey) {
                 _if::putKey(kSlice, k);
                 std::string vSlice;
 
-                auto status = colHandle
-                  ? (*db)->Get(readOptions, colHandle, kSlice, &vSlice)
-                  : ROCKSDB_NAMESPACE::Status::NotFound();
-
+                const auto &status = (*db)->Get(readOptions, colHandle, kSlice, &vSlice);
                 if (status.ok()) {
-                  _if::getValue(&v[vOffset], vSlice, valuesPerDim0);
+                  _if::getValue(&v[offset], vSlice, valuesPerKey);
                 }
                 else if (status.IsNotFound()) {
-                  std::copy_n(&d[vOffset % dSize], valuesPerDim0, &v[vOffset]);
+                  std::copy_n(&d[offset % defaultSize], valuesPerKey, &v[offset]);
                 }
                 else {
                   throw std::runtime_error(status.getState());
@@ -646,36 +645,31 @@ namespace tensorflow {
               }
 
               // Query all keys using a single Multi-Get.
-              std::vector<std::string> vSlices;
               std::vector<ROCKSDB_NAMESPACE::Slice> kSlices(numKeys);
               for (size_t i = 0; i < numKeys; ++i) {
                 _if::putKey(kSlices[i], &k[i]);
               }
+              std::vector<std::string> vSlices;
 
-              const std::vector<ROCKSDB_NAMESPACE::Status> &statuses = colHandle
-                ? (*db)->MultiGet(readOptions, colHandleCache, kSlices, &vSlices)
-                : std::vector<ROCKSDB_NAMESPACE::Status>(
-                  numKeys, ROCKSDB_NAMESPACE::Status::NotFound()
-                );
-
-              if (statuses.size() != numKeys) {
+              const auto &s = (*db)->MultiGet(readOptions, colHandleCache, kSlices, &vSlices);
+              if (s.size() != numKeys) {
                 std::stringstream msg(std::stringstream::out);
                 msg << "Requested " << numKeys
-                    << " keys, but only got " << statuses.size()
+                    << " keys, but only got " << s.size()
                     << " responses.";
                 throw std::runtime_error(msg.str());
               }
 
               // Process results.
-              for (size_t i = 0; i < numKeys; ++i, vOffset += valuesPerDim0) {
-                const auto &status = statuses[i];
+              for (size_t i = 0, offset = 0; i < numKeys; ++i, offset += valuesPerKey) {
+                const auto &status = s[i];
                 const auto &vSlice = vSlices[i];
 
                 if (status.ok()) {
-                  _if::getValue(&v[vOffset], vSlice, valuesPerDim0);
+                  _if::getValue(&v[offset], vSlice, valuesPerKey);
                 }
                 else if (status.IsNotFound()) {
-                  std::copy_n(&d[vOffset % dSize], valuesPerDim0, &v[vOffset]);
+                  std::copy_n(&d[offset % defaultSize], valuesPerKey, &v[offset]);
                 }
                 else {
                   throw std::runtime_error(status.getState());
@@ -691,22 +685,31 @@ namespace tensorflow {
 
         Status Insert(OpKernelContext *ctx, const Tensor &keys, const Tensor &values) override {
           if (keys.dtype() != key_dtype() || values.dtype() != value_dtype()) {
-            return errors::InvalidArgument("Tensor dtypes are incompatible!");
+            return errors::InvalidArgument("The tensor dtypes are incompatible!");
+          }
+          if (keys.dims() <= values.dims()) {
+            for (int i = 0; i < keys.dims(); ++i) {
+              if (keys.dim_size(i) != values.dim_size(i)) {
+                return errors::InvalidArgument("The tensor sizes are incompatible!");
+              }
+            }
+          }
+          else {
+            return errors::InvalidArgument("The tensor sizes are incompatible!");
           }
 
-          const size_t numKeys = keys.dim_size(0);
-          const size_t numValues = values.dim_size(0);
-          if (numKeys != numValues) {
-            return errors::InvalidArgument(
-              "First dimension of the key and value tensors does not match!"
-            );
+          const size_t numKeys = keys.NumElements();
+          const size_t numValues = values.NumElements();
+          const size_t valuesPerKey = numValues / numKeys;
+          if (valuesPerKey != static_cast<size_t>(valueShape.num_elements())) {
+            LOG(WARNING) << "The number of values provided does not match the signature ("
+                         << valuesPerKey << " != " << valueShape.num_elements() << ").";
           }
-          const size_t valuesPerDim0 = values.NumElements() / numValues;
 
           const K *k = static_cast<K *>(keys.data());
           const V *v = static_cast<V *>(values.data());
 
-          auto fn = [this, &numKeys, &valuesPerDim0, &k, &v](
+          auto fn = [this, numKeys, valuesPerKey, &k, &v](
             ROCKSDB_NAMESPACE::ColumnFamilyHandle *const colHandle
           ) -> Status {
             if (readOnly || !colHandle) {
@@ -718,17 +721,17 @@ namespace tensorflow {
             ROCKSDB_NAMESPACE::PinnableSlice vSlice;
 
             if (numKeys < BATCH_SIZE_MIN) {
-              for (; k != kEnd; ++k, v += valuesPerDim0) {
+              for (; k != kEnd; ++k, v += valuesPerKey) {
                 _if::putKey(kSlice, k);
-                _if::putValue(vSlice, v, valuesPerDim0);
+                _if::putValue(vSlice, v, valuesPerKey);
                 ROCKSDB_OK((*db)->Put(writeOptions, colHandle, kSlice, vSlice));
               }
             }
             else {
               ROCKSDB_NAMESPACE::WriteBatch batch;
-              for (; k != kEnd; ++k, v += valuesPerDim0) {
+              for (; k != kEnd; ++k, v += valuesPerKey) {
                 _if::putKey(kSlice, k);
-                _if::putValue(vSlice, v, valuesPerDim0);
+                _if::putValue(vSlice, v, valuesPerKey);
                 ROCKSDB_OK(batch.Put(colHandle, kSlice, vSlice));
               }
               ROCKSDB_OK((*db)->Write(writeOptions, &batch));
@@ -850,7 +853,9 @@ namespace tensorflow {
           TF_RETURN_IF_ERROR(ctx->allocate_output("keys", TensorShape({0}), &kTensor));
 
           Tensor *vTensor;
-          TF_RETURN_IF_ERROR(ctx->allocate_output("values", TensorShape({0, valueSize}), &vTensor));
+          TF_RETURN_IF_ERROR(ctx->allocate_output(
+            "values", TensorShape({0, valueShape.num_elements()}), &vTensor
+          ));
 
           return status;
         }
@@ -965,9 +970,9 @@ namespace tensorflow {
           }
 
           valueCount = std::max(valueCount, 0LL);
-          if (valueCount != valueSize) {
-            LOG(WARNING) << "Retrieved values differ from configured size ("
-                         << valueCount << " != " << valueSize << ").";
+          if (valueCount != valueShape.num_elements()) {
+            LOG(WARNING) << "Retrieved values differ from signature size ("
+                         << valueCount << " != " << valueShape.num_elements() << ").";
           }
           const auto numKeys = static_cast<int64>(kBuffer.size());
 
@@ -1004,7 +1009,6 @@ namespace tensorflow {
 
       protected:
         TensorShape valueShape;
-        int64 valueSize;
         std::string databasePath;
         std::string embeddingName;
         bool readOnly;
