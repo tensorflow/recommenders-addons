@@ -385,29 +385,6 @@ namespace tensorflow {
 
         inline bool readOnly() const { return readOnly_; }
 
-        ROCKSDB_NAMESPACE::ColumnFamilyHandle *getColumn(const std::string &colName) {
-          mutex_lock guard(lock);
-
-          // Try to locate column handle.
-          const auto &item = colHandles.find(colName);
-          if (item != colHandles.end()) {
-            return item->second;
-          }
-
-          // Do not create an actual column handle in readonly mode.
-          if (readOnly_) {
-            return nullptr;
-          }
-
-          // Create a new column handle.
-          ROCKSDB_NAMESPACE::ColumnFamilyOptions colFamilyOptions;
-          ROCKSDB_NAMESPACE::ColumnFamilyHandle *colHandle;
-          ROCKSDB_OK(database_->CreateColumnFamily(colFamilyOptions, colName, &colHandle));
-          colHandles[colName] = colHandle;
-
-          return colHandle;
-        }
-
         void deleteColumn(const std::string &colName) {
           mutex_lock guard(lock);
 
@@ -423,8 +400,9 @@ namespace tensorflow {
           }
 
           // Perform actual removal.
-          ROCKSDB_OK(database_->DropColumnFamily(item->second));
-          ROCKSDB_OK(database_->DestroyColumnFamilyHandle(item->second));
+          ROCKSDB_NAMESPACE::ColumnFamilyHandle *colHandle = item->second;
+          ROCKSDB_OK(database_->DropColumnFamily(colHandle));
+          ROCKSDB_OK(database_->DestroyColumnFamilyHandle(colHandle));
           colHandles.erase(colName);
         }
 
@@ -433,11 +411,27 @@ namespace tensorflow {
           const std::string &colName,
           std::function<T(ROCKSDB_NAMESPACE::ColumnFamilyHandle *const)> fn
         ) {
-          const auto &colHandle = getColumn(colName);
+          mutex_lock guard(lock);
 
-          tf_shared_lock guard(lock);
-          const auto &result = fn(colHandle);
-          return result;
+          ROCKSDB_NAMESPACE::ColumnFamilyHandle *colHandle = nullptr;
+
+          // Try to locate column handle.
+          const auto &item = colHandles.find(colName);
+          if (item != colHandles.end()) {
+            colHandle = item->second;
+          }
+          // Do not create an actual column handle in readonly mode.
+          else if (readOnly_) {
+            colHandle = nullptr;
+          }
+          // Create a new column handle.
+          else {
+            ROCKSDB_NAMESPACE::ColumnFamilyOptions colFamilyOptions;
+            ROCKSDB_OK(database_->CreateColumnFamily(colFamilyOptions, colName, &colHandle));
+            colHandles[colName] = colHandle;
+          }
+
+          return fn(colHandle);
         }
 
         inline ROCKSDB_NAMESPACE::DB *operator->() { return database_.get(); }
@@ -559,6 +553,11 @@ namespace tensorflow {
           auto fn = [this](
             ROCKSDB_NAMESPACE::ColumnFamilyHandle *const colHandle
           ) -> size_t {
+            // Empty database.
+            if (!colHandle) {
+              return 0;
+            }
+
             // If allowed, try to just estimate of the number of keys.
             if (estimateSize) {
               uint64_t numKeys;
@@ -586,6 +585,9 @@ namespace tensorflow {
       public:
         /* --- LOOKUP --------------------------------------------------------------------------- */
         Status Clear(OpKernelContext *ctx) override {
+          if (readOnly) {
+            return errors::PermissionDenied("Cannot clear in read_only mode.");
+          }
           db->deleteColumn(embeddingName);
           return Status::OK();
         }
@@ -837,31 +839,31 @@ namespace tensorflow {
         }
 
         Status ExportValuesToFile(OpKernelContext *ctx, const std::string &path) {
-          mutex_lock guard(importExportLock);
-
-          std::ofstream file(path + "/" + embeddingName + ".rock", std::ofstream::binary);
-          if (!file) {
-            return errors::Unknown("Could not open dump file.");
-          }
-
-          // Create file header.
-          _io::write(file, FILE_MAGIC);
-          _io::write(file, FILE_VERSION);
-          _io::write(file, key_dtype());
-          _io::write(file, value_dtype());
-
-          auto fn = [this, &file](
+          auto fn = [this, path](
             ROCKSDB_NAMESPACE::ColumnFamilyHandle *const colHandle
           ) -> Status {
-            // Iterate through entries one-by-one and append them to the file.
-            std::unique_ptr<ROCKSDB_NAMESPACE::Iterator> iter(
-              (*db)->NewIterator(readOptions, colHandle)
-            );
-            iter->SeekToFirst();
+            std::ofstream file(path + "/" + embeddingName + ".rock", std::ofstream::binary);
+            if (!file) {
+              return errors::Unknown("Could not open dump file.");
+            }
 
-            for (; iter->Valid(); iter->Next()) {
-              _io::writeKey<K>(file, iter->key());
-              _io::writeValue(file, iter->value());
+            // Create file header.
+            _io::write(file, FILE_MAGIC);
+            _io::write(file, FILE_VERSION);
+            _io::write(file, key_dtype());
+            _io::write(file, value_dtype());
+
+            // Iterate through entries one-by-one and append them to the file.
+            if (colHandle) {
+              std::unique_ptr<ROCKSDB_NAMESPACE::Iterator> iter(
+                (*db)->NewIterator(readOptions, colHandle)
+              );
+              iter->SeekToFirst();
+
+              for (; iter->Valid(); iter->Next()) {
+                _io::writeKey<K>(file, iter->key());
+                _io::writeValue(file, iter->value());
+              }
             }
 
             return Status::OK();
@@ -885,42 +887,40 @@ namespace tensorflow {
         }
 
         Status ImportValuesFromFile(OpKernelContext *ctx, const std::string &path) {
-          mutex_lock guard(importExportLock);
-
-          std::ifstream file(path + "/" + embeddingName + ".rock", std::ifstream::binary);
-          if (!file) {
-            return errors::NotFound("Accessing file system failed.");
-          }
-
-          // Parse header.
-          const auto magic = _io::read<uint32_t>(file);
-          if (magic != FILE_MAGIC) {
-            return errors::Unknown("Not a RocksDB export file.");
-          }
-          const auto version = _io::read<uint32_t>(file);
-          if (version != FILE_VERSION) {
-            return errors::Unimplemented("File version ", version, " is not supported");
-          }
-          const auto kDType = _io::read<DataType>(file);
-          const auto vDType = _io::read<DataType>(file);
-          if (kDType != key_dtype() || vDType != value_dtype()) {
-            return errors::Internal(
-              "DataType of file [k=", kDType, ", v=", vDType, "] ",
-              "do not match module DataType [k=", key_dtype(), ", v=", value_dtype(), "]."
-            );
-          }
-
           // Make sure the column family is clean.
           const auto &clearStatus = Clear(ctx);
           if (!clearStatus.ok()) {
             return clearStatus;
           }
 
-          auto fn = [this, &file](
+          auto fn = [this, path](
             ROCKSDB_NAMESPACE::ColumnFamilyHandle *const colHandle
           ) -> Status {
             if (readOnly || !colHandle) {
               return errors::PermissionDenied("Cannot import in read_only mode.");
+            }
+
+            std::ifstream file(path + "/" + embeddingName + ".rock", std::ifstream::binary);
+            if (!file) {
+              return errors::NotFound("Accessing file system failed.");
+            }
+
+            // Parse header.
+            const auto magic = _io::read<uint32_t>(file);
+            if (magic != FILE_MAGIC) {
+              return errors::Unknown("Not a RocksDB export file.");
+            }
+            const auto version = _io::read<uint32_t>(file);
+            if (version != FILE_VERSION) {
+              return errors::Unimplemented("File version ", version, " is not supported");
+            }
+            const auto kDType = _io::read<DataType>(file);
+            const auto vDType = _io::read<DataType>(file);
+            if (kDType != key_dtype() || vDType != value_dtype()) {
+              return errors::Internal(
+                "DataType of file [k=", kDType, ", v=", vDType, "] ",
+                "do not match module DataType [k=", key_dtype(), ", v=", value_dtype(), "]."
+              );
             }
 
             // Read payload and subsequently populate column family.
@@ -960,8 +960,6 @@ namespace tensorflow {
         }
 
         Status ExportValuesToTensor(OpKernelContext *ctx) {
-          mutex_lock guard(importExportLock);
-
           // Fetch data from database.
           std::vector<K> kBuffer;
           std::vector<V> vBuffer;
@@ -971,24 +969,26 @@ namespace tensorflow {
           auto fn = [this, &kBuffer, &vBuffer, valueSize, &valueCount](
             ROCKSDB_NAMESPACE::ColumnFamilyHandle *const colHandle
           ) -> Status {
-            std::unique_ptr<ROCKSDB_NAMESPACE::Iterator> iter(
-              (*db)->NewIterator(readOptions, colHandle)
-            );
-            iter->SeekToFirst();
+            if (colHandle) {
+              std::unique_ptr<ROCKSDB_NAMESPACE::Iterator> iter(
+                (*db)->NewIterator(readOptions, colHandle)
+              );
+              iter->SeekToFirst();
 
-            for (; iter->Valid(); iter->Next()) {
-              const auto &kSlice = iter->key();
-              _it::readKey(kBuffer, kSlice);
+              for (; iter->Valid(); iter->Next()) {
+                const auto &kSlice = iter->key();
+                _it::readKey(kBuffer, kSlice);
 
-              const auto vSlice = iter->value();
-              const size_t vCount = _it::readValue(vBuffer, vSlice, valueSize);
+                const auto vSlice = iter->value();
+                const size_t vCount = _it::readValue(vBuffer, vSlice, valueSize);
 
-              // Make sure we have a square tensor.
-              if (valueCount == std::numeric_limits<size_t>::max()) {
-                valueCount = vCount;
-              }
-              else if (vCount != valueCount) {
-                return errors::Internal("The returned tensor sizes differ.");
+                // Make sure we have a square tensor.
+                if (valueCount == std::numeric_limits<size_t>::max()) {
+                  valueCount = vCount;
+                }
+                else if (vCount != valueCount) {
+                  return errors::Internal("The returned tensor sizes differ.");
+                }
               }
             }
 
@@ -1027,8 +1027,6 @@ namespace tensorflow {
         Status ImportValuesFromTensor(
           OpKernelContext *ctx, const Tensor &keys, const Tensor &values
         ) {
-          mutex_lock guard(importExportLock);
-
           // Make sure the column family is clean.
           const auto &clearStatus = Clear(ctx);
           if (!clearStatus.ok()) {
@@ -1052,7 +1050,6 @@ namespace tensorflow {
         ROCKSDB_NAMESPACE::ReadOptions readOptions;
         ROCKSDB_NAMESPACE::WriteOptions writeOptions;
         size_t dirtyCount;
-        mutex importExportLock;
 
         std::vector<ROCKSDB_NAMESPACE::ColumnFamilyHandle *> colHandleCache;
       };
