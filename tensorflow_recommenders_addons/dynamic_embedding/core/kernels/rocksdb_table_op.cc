@@ -210,7 +210,7 @@ namespace tensorflow {
 
         inline void writeValue(std::ostream &dst, const ROCKSDB_NAMESPACE::Slice &src) {
           const auto size = static_cast<VALUE_SIZE_TYPE>(src.size());
-          write(dst, &size);
+          write(dst, size);
           if (!dst.write(src.data(), size)) {
             throw std::runtime_error("Writing file failed!");
           }
