@@ -393,19 +393,20 @@ inline const VContentAndTypeSizeResult &VContentAndTypeSize<tstring>(
 }
 
 template <typename T>
-void DefaultMemcpyToTensor(T *pv_raw, const T *dft,
+void DefaultMemcpyToTensor(const T *const pv_raw, const T *dft,
                            const int64 &Velems_per_dim0) {
-  memcpy(reinterpret_cast<void *>(pv_raw), reinterpret_cast<const void *>(dft),
+  void *pv_raw_ = reinterpret_cast<void *>(const_cast<T *>(pv_raw));
+  memcpy(pv_raw_, reinterpret_cast<const void *>(dft),
          Velems_per_dim0 *
              sizeof(T));  // Direct access to Tensor data in TensorFlow
 }
 
 template <>
-void DefaultMemcpyToTensor<tstring>(tstring *const pv_raw,
+void DefaultMemcpyToTensor<tstring>(const tstring *const pv_raw,
                                     const tstring *const dft,
                                     const int64 &Velems_per_dim0) {
   const tstring *const pv_raw_end = pv_raw + Velems_per_dim0;
-  tstring *pv_it = pv_raw;
+  tstring *pv_it = const_cast<tstring *>(pv_raw);
   const tstring *dft_it = dft;
   for (; pv_it != pv_raw_end; ++pv_it, ++dft_it) {
     *pv_it = *dft_it;
@@ -413,33 +414,37 @@ void DefaultMemcpyToTensor<tstring>(tstring *const pv_raw,
 }
 
 template <typename T>
-void ReplyMemcpyToKeyTensor(T *pk_raw, const char *str,
+void ReplyMemcpyToKeyTensor(const T *const pk_raw, const char *str,
                             const size_t &byte_size) {
-  memcpy(reinterpret_cast<void *>(pk_raw), str,
+  void *pk_raw_ = reinterpret_cast<void *>(const_cast<T *>(pk_raw));
+  memcpy(pk_raw_, str,
          byte_size);  // Direct access to Tensor data in TensorFlow
 }
 
 template <>
-void ReplyMemcpyToKeyTensor<tstring>(tstring *const pk_raw, const char *str,
-                                     const size_t &byte_size) {
-  pk_raw->assign(str, byte_size);
+void ReplyMemcpyToKeyTensor<tstring>(const tstring *const pk_raw,
+                                     const char *str, const size_t &byte_size) {
+  (const_cast<tstring *const>(pk_raw))->assign(str, byte_size);
 }
 
 template <typename T>
-void ReplyMemcpyToValTensor(T *pv_raw, const char *str,
+void ReplyMemcpyToValTensor(const T *const pv_raw, const char *str,
                             const int64 &Velems_per_dim0) {
-  memcpy(reinterpret_cast<void *>(pv_raw), str,
+  void *pv_raw_ = reinterpret_cast<void *>(const_cast<T *>(pv_raw));
+  memcpy(pv_raw_, str,
          Velems_per_dim0 *
              sizeof(T));  // Direct access to Tensor data in TensorFlow
 }
 
 template <>
-void ReplyMemcpyToValTensor<tstring>(tstring *const pv_raw, const char *str,
+void ReplyMemcpyToValTensor<tstring>(const tstring *const pv_raw,
+                                     const char *str,
                                      const int64 &Velems_per_dim0) {
   const tstring *const pv_raw_end = pv_raw + Velems_per_dim0;
   const char *char_view = str;
   unsigned str_bytesize = 0;
-  for (tstring *pv_it = pv_raw; pv_it != pv_raw_end; ++pv_it) {
+  for (tstring *pv_it = const_cast<tstring *>(pv_raw); pv_it != pv_raw_end;
+       ++pv_it) {
     str_bytesize = *(reinterpret_cast<const unsigned *>(char_view));
     char_view += sizeof(unsigned);
     pv_it->assign(char_view, str_bytesize);

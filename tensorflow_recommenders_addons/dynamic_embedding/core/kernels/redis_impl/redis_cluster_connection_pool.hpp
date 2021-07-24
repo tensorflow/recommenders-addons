@@ -544,8 +544,10 @@ Redis command sequence because m-cmd can only be used in same hash tag)
     const static char *redis_command = "HMGET";
     const static std::size_t &&redis_command_byte = 5;
 
-    const K *const pk_raw_end = reinterpret_cast<K *>(keys.data()) + max_i;
-    const K *pk_raw = reinterpret_cast<K *>(keys.data()) + begin;
+    const K *const pk_raw_end =
+        reinterpret_cast<const K *>(keys.tensor_data().data()) + max_i;
+    const K *pk_raw =
+        reinterpret_cast<const K *>(keys.tensor_data().data()) + begin;
 
     const unsigned &storage_slice = redis_connection_params.storage_slice;
     const unsigned &&vector_len =
@@ -598,11 +600,14 @@ Redis command sequence because m-cmd can only be used in same hash tag)
           &reply,
       const int64 &begin, const int64 &max_i,
       const int64 &Velems_per_dim0) override {
-    V *pv_raw = reinterpret_cast<V *>(values->data()) + begin * Velems_per_dim0;
-    const V *dft_raw = reinterpret_cast<const V *>(default_value.data()) +
-                       begin * Velems_per_dim0;
+    const V *pv_raw =
+        reinterpret_cast<const V *>(values->tensor_data().data()) +
+        begin * Velems_per_dim0;
+    const V *dft_raw =
+        reinterpret_cast<const V *>(default_value.tensor_data().data()) +
+        begin * Velems_per_dim0;
     const V *const dft_raw_begin =
-        reinterpret_cast<const V *>(default_value.data());
+        reinterpret_cast<const V *>(default_value.tensor_data().data());
 
     const std::vector<unsigned> *slot_locs = thread_context.slot_locs;
     const unsigned &storage_slice = redis_connection_params.storage_slice;
@@ -645,13 +650,15 @@ Redis command sequence because m-cmd can only be used in same hash tag)
     const static char *redis_command = "HMSET";
     const static std::size_t &&redis_command_byte = 5;
 
-    const K *const pk_raw_end = reinterpret_cast<K *>(keys.data()) + max_i;
-    const K *pk_raw = reinterpret_cast<K *>(keys.data()) + begin;
+    const K *const pk_raw_end =
+        reinterpret_cast<const K *>(keys.tensor_data().data()) + max_i;
+    const K *pk_raw =
+        reinterpret_cast<const K *>(keys.tensor_data().data()) + begin;
 
     const std::size_t &&V_byte_size = Velems_per_dim0 * sizeof(V);
 
-    const V *pv_raw =
-        reinterpret_cast<V *>(values.data()) + begin * Velems_per_dim0;
+    const V *pv_raw = reinterpret_cast<const V *>(values.tensor_data().data()) +
+                      begin * Velems_per_dim0;
 
     const unsigned &storage_slice = redis_connection_params.storage_slice;
     const unsigned &&vector_len =
@@ -711,8 +718,10 @@ Redis command sequence because m-cmd can only be used in same hash tag)
     const static char *redis_command = "HDEL";
     const static std::size_t &&redis_command_byte = 4;
 
-    const K *const pk_raw_end = reinterpret_cast<K *>(keys.data()) + max_i;
-    const K *pk_raw = reinterpret_cast<K *>(keys.data()) + begin;
+    const K *const pk_raw_end =
+        reinterpret_cast<const K *>(keys.tensor_data().data()) + max_i;
+    const K *pk_raw =
+        reinterpret_cast<const K *>(keys.tensor_data().data()) + begin;
 
     const unsigned &storage_slice = redis_connection_params.storage_slice;
     const unsigned &&vector_len =

@@ -1478,6 +1478,13 @@ class RedisVariableTest(test.TestCase):
 
 
 if __name__ == "__main__":
-  os.system('redis-cli -h ' + redis_config_params["redis_host_ip"][0] + ' -p ' +
-            str(redis_config_params["redis_host_port"][0]) + ' FLUSHALL')
+  print("fuck")
+  print(
+      os.popen(
+          "redis-server --port 6379 --bind 0.0.0.0 --daemonize yes").read())
+  print(os.popen("redis-cli -p 6379 INFO").read())
+  print(
+      os.popen('redis-cli -h ' + redis_config_params["redis_host_ip"][0] +
+               ' -p ' + str(redis_config_params["redis_host_port"][0]) +
+               ' FLUSHALL').read())
   test.main()
