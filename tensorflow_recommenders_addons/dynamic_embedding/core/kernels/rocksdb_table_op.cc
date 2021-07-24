@@ -613,7 +613,7 @@ namespace tensorflow {
 
           const size_t numKeys = keys.NumElements();
           const size_t numValues = values->NumElements();
-          const size_t valuesPerKey = numValues / numKeys;
+          const size_t valuesPerKey = numValues / std::max(numKeys, 1UL);
           const size_t defaultSize = default_value.NumElements();
           if (defaultSize % valuesPerKey != 0) {
             std::stringstream msg(std::stringstream::out);
@@ -722,7 +722,7 @@ namespace tensorflow {
 
           const size_t numKeys = keys.NumElements();
           const size_t numValues = values.NumElements();
-          const size_t valuesPerKey = numValues / numKeys;
+          const size_t valuesPerKey = numValues / std::max(numKeys, 1UL);
           if (valuesPerKey != static_cast<size_t>(valueShape.num_elements())) {
             LOG(WARNING) << "The number of values provided does not match the signature ("
                          << valuesPerKey << " != " << valueShape.num_elements() << ").";
