@@ -289,8 +289,9 @@ DATABASE_PATH = os.path.join(tempfile.gettempdir(), 'test_rocksdb_4711')
 DELETE_DATABASE_AT_STARTUP = False
 
 SKIP_PASSING = False
-SKIP_PASSING_WITH_QUESTIONS = True
+SKIP_PASSING_WITH_QUESTIONS = False
 SKIP_FAILING = True
+SKIP_FAILING_WITH_QUESTIONS = True
 
 
 @test_util.run_all_in_graph_and_eager_modes
@@ -592,7 +593,7 @@ class RocksDBVariableTest(test.TestCase):
             self.evaluate(table.clear())
             del table
 
-    @test_util.skip_if(SKIP_FAILING)
+    @test_util.skip_if(SKIP_PASSING)
     def test_training_save_restore(self):
         opt = de.DynamicEmbeddingOptimizer(adam.AdamOptimizer(0.3))
         if test_util.is_gpu_available():
@@ -684,7 +685,7 @@ class RocksDBVariableTest(test.TestCase):
             self.evaluate(params.clear())
             del params
 
-    @test_util.skip_if(SKIP_FAILING)
+    @test_util.skip_if(SKIP_PASSING)
     def test_training_save_restore_by_files(self):
         opt = de.DynamicEmbeddingOptimizer(adam.AdamOptimizer(0.3))
         for _id, (key_dtype, value_dtype, dim, step) in enumerate(itertools.product(
@@ -718,9 +719,9 @@ class RocksDBVariableTest(test.TestCase):
             mini = opt.minimize(loss, var_list=[var0])
             opt_slots = [opt.get_slot(var0, _s) for _s in opt.get_slot_names()]
             _saver = saver.Saver([params] + [_s.params for _s in opt_slots])
-    
-            keys = np.random.randint(1,100,dim)
-            values = np.random.rand(keys.shape[0],dim)
+
+            keys = np.random.randint(1, 100, dim)
+            values = np.random.rand(keys.shape[0], dim)
     
             with self.session(config=default_config, use_gpu=test_util.is_gpu_available()) as sess:
                 self.evaluate(variables.global_variables_initializer())
@@ -732,7 +733,7 @@ class RocksDBVariableTest(test.TestCase):
                 np_params_vals_before_saved = self.evaluate(params_vals)
                 params_size = self.evaluate(params.size())
                 _saver.save(sess, save_path)
-    
+
             with self.session(config=default_config, use_gpu=test_util.is_gpu_available()) as sess:
                 _saver.restore(sess, save_path)
                 self.evaluate(variables.global_variables_initializer())
@@ -1368,7 +1369,7 @@ class RocksDBVariableTest(test.TestCase):
             result = self.evaluate(output)
             self.assertNotEqual([-1.0], result[2])
 
-    @test_util.skip_if(SKIP_PASSING_WITH_QUESTIONS)
+    @test_util.skip_if(SKIP_FAILING_WITH_QUESTIONS)
     def test_dynamic_embedding_variable_with_restrict_v1(self):
         if context.executing_eagerly():
             self.skipTest('skip eager test when using legacy optimizers.')
@@ -1384,11 +1385,7 @@ class RocksDBVariableTest(test.TestCase):
         # TODO: These tests do something odd. They write 32 byte entries to the table, but
         #       then expect the responses to be 4 bytes. Is there a bug in TFRA?
         #       >> See LOG(WARNING) outputs I added.
-        # TODO: Will occasionally fail because external race conditions cause situations where you
-        #       want to read 32 bytes, whereas you only stored 4 bytes in the database for that
-        #       entry. I cannot fix this. This is the sequence in which calls come from TFRA.
-        #       >> Watch out for:
-        #       std::runtime_error Expected "32 bytes, but only 4 bytes were returned by the database."
+        # TODO: Will fail with TF2.
         var_guard_by_tstp = de.get_variable(
             'tstp_guard' + '_test_dynamic_embedding_variable_with_restrict_v1',
             key_dtype=dtypes.int64,
