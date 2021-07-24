@@ -924,7 +924,7 @@ namespace tensorflow {
             ROCKSDB_NAMESPACE::PinnableSlice kSlice;
             ROCKSDB_NAMESPACE::PinnableSlice vSlice;
 
-            while (!file.eof()) {
+            while (file.peek() != EOF) {
               _io::readKey<K>(file, *kSlice.GetSelf()); kSlice.PinSelf();
               _io::readValue(file, *vSlice.GetSelf()); vSlice.PinSelf();
               ROCKSDB_OK(batch.Put(colHandle, kSlice, vSlice));
