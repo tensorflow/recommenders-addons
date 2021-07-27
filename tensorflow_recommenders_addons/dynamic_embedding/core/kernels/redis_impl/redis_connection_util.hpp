@@ -202,6 +202,8 @@ struct SlotContext {
       delete this->sizes;
     }
   }
+
+  ~SlotContext() { HandleRelease(); }
 };
 
 struct ThreadContext {
@@ -232,17 +234,13 @@ struct ThreadContext {
       this->slot_locs->swap(slot_locs_empty);
       delete this->slot_locs;
     }
-    if (this->slots) {
-      for (auto slots_i : *slots) {
-        slots_i.HandleRelease();
-      }
-    }
     std::vector<SlotContext> slots_empty;
     if (this->slots) {
       this->slots->swap(slots_empty);
-      delete this->slots;
     }
   }
+
+  ~ThreadContext() { HandleRelease(); }
 };
 
 class RedisVirtualWrapper {

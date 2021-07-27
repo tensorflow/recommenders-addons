@@ -839,7 +839,7 @@ class RedisVariableTest(test.TestCase):
         initializer=0,
         dim=1,
         kv_creator=de.RedisTableCreator(config=redis_config))
-    table.clear()
+    self.evaluate(table.clear())
 
     # Populate the table in the first session
     with session1:

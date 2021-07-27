@@ -76,10 +76,6 @@ class RedisTableOfTensors final : public LookupInterface {
 
   std::shared_ptr<RedisVirtualWrapper> _table_instance;
 
-  std::vector<ThreadContext> threads_Find;
-  std::vector<ThreadContext> threads_Insert;
-  std::vector<ThreadContext> threads_Delete;
-
   std::vector<aiocb> IMPORT_content;
   std::vector<int> IMPORT_fds;
   std::vector<unsigned long> IMPORT_fds_sizes;
@@ -551,11 +547,6 @@ class RedisTableOfTensors final : public LookupInterface {
           std::invalid_argument("Exit without setting correct slice number."));
     }
 
-    // allocate the memory of threads helper
-    threads_Find.resize(hardware_concurrency_);
-    threads_Insert.resize(hardware_concurrency_);
-    threads_Delete.resize(hardware_concurrency_);
-
     /*
       When there is not a corresponding table existing in Redis service and
       using_model_lib==True, try to restore from a Redis binary dump files
@@ -573,19 +564,14 @@ class RedisTableOfTensors final : public LookupInterface {
 
   ~RedisTableOfTensors() {
     for (auto in_aiocb_obj : IMPORT_content) {
-      free((void *)in_aiocb_obj.aio_buf);
+      if (in_aiocb_obj.aio_buf) {
+        free((void *)in_aiocb_obj.aio_buf);
+      }
     }
     for (auto ex_aiocb_obj : EXPORT_content) {
-      free((void *)ex_aiocb_obj.aio_buf);
-    }
-    for (auto threads_Find_i : threads_Find) {
-      threads_Find_i.HandleRelease();
-    }
-    for (auto threads_Insert_i : threads_Insert) {
-      threads_Insert_i.HandleRelease();
-    }
-    for (auto threads_Delete_i : threads_Delete) {
-      threads_Delete_i.HandleRelease();
+      if (ex_aiocb_obj.aio_buf) {
+        free((void *)ex_aiocb_obj.aio_buf);
+      }
     }
     _table_instance.reset();
   }
@@ -602,11 +588,13 @@ class RedisTableOfTensors final : public LookupInterface {
     const int64 default_value_dim0 = default_value.dim_size(0);
 
     if (total < (multi_redis_cmd_max_argc - 1)) {
+      std::vector<ThreadContext> threads_Find(1);
       launchFind(ctx, keys_prefix_name_slices, keys, values, default_value,
                  total, default_value_dim0, Velems_per_flat2_dim0,
                  threads_Find);
     } else {
       // redis commmand args > multi_redis_cmd_max_argc
+      std::vector<ThreadContext> threads_Find(hardware_concurrency_);
       launchFind_parallel(ctx, keys_prefix_name_slices, keys, values,
                           default_value, total, default_value_dim0,
                           Velems_per_flat2_dim0, threads_Find);
@@ -625,9 +613,11 @@ class RedisTableOfTensors final : public LookupInterface {
       _table_instance->RemoveHkeysInSlots(keys_prefix_name_slices);
     }
     if (total < (multi_redis_cmd_max_argc - 1)) {
+      std::vector<ThreadContext> threads_Insert(1);
       launchInsert(ctx, keys_prefix_name_slices, keys, values, total,
                    Velems_per_flat2_dim0, threads_Insert);
     } else {
+      std::vector<ThreadContext> threads_Insert(hardware_concurrency_);
       launchInsert_parallel(
           ctx, keys_prefix_name_slices, keys, values, total,
           Velems_per_flat2_dim0,
@@ -645,9 +635,11 @@ class RedisTableOfTensors final : public LookupInterface {
   Status Remove(OpKernelContext *ctx, const Tensor &keys) override {
     int64 total = keys.NumElements();
     if (total < (multi_redis_cmd_max_argc - 1)) {
+      std::vector<ThreadContext> threads_Delete(1);
       launchDelete(ctx, keys_prefix_name_slices, keys, total, threads_Delete);
     } else {
       // redis commmand args > multi_redis_cmd_max_argc
+      std::vector<ThreadContext> threads_Delete(hardware_concurrency_);
       launchDelete_parallel(ctx, keys_prefix_name_slices, keys, total,
                             threads_Delete);
     }
@@ -823,8 +815,7 @@ class RedisTableOfTensors final : public LookupInterface {
     }
 
     // fill Tensor values
-    if (1 > threads_Find.size()) threads_Find.resize(1);
-
+    std::vector<ThreadContext> threads_Find(1);
     auto reply = _table_instance->MgetCommand(
         *keys, threads_Find[0], 0, total_size, keys_prefix_name_slices);
 
