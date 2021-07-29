@@ -21,6 +21,7 @@ limitations under the License.
 #include <time.h>
 
 #include <csignal>
+#include <mutex>
 #include <thread>
 #include <type_traits>
 #include <utility>
@@ -49,7 +50,7 @@ https://github.com/redis/redis/blob/be6ce8a92a9acbecfaaa6c57a45037fc1018fefe/src
 const static unsigned hardware_concurrency_ =
     std::thread::hardware_concurrency();
 const static long long multi_redis_cmd_max_argc =
-    1024 * hardware_concurrency_;  // For better parallelism performance
+    1024 * 8;  // For better parallelism performance
 
 using sw::redis::OptionalString;
 using sw::redis::Redis;
@@ -76,6 +77,13 @@ class RedisTableOfTensors final : public LookupInterface {
 
   std::shared_ptr<RedisVirtualWrapper> _table_instance;
 
+  std::vector<ThreadContext *> threads_Find;
+  std::vector<ThreadContext *> threads_Insert;
+  std::vector<ThreadContext *> threads_Delete;
+  std::mutex threads_Find_mutex;
+  std::mutex threads_Insert_mutex;
+  std::mutex threads_Delete_mutex;
+
   std::vector<aiocb> IMPORT_content;
   std::vector<int> IMPORT_fds;
   std::vector<unsigned long> IMPORT_fds_sizes;
@@ -92,34 +100,50 @@ class RedisTableOfTensors final : public LookupInterface {
                            const Tensor &default_value, const int64 &total,
                            const int64 &default_value_flat2_dim0,
                            const int64 &Velems_per_flat2_dim0,
-                           std::vector<ThreadContext> &threads_Find) {
+                           std::vector<ThreadContext *> &threads_Find) {
     const bool is_full_default = (total == default_value_flat2_dim0);
 
     const int64 max_parallelism = (total / multi_redis_cmd_max_argc) + 1;
 
-    std::atomic_uint thread_id_a(0);
     auto shard = [this, &total, &keys_prefix_name_slices, &keys, &values,
                   &default_value, &is_full_default, &Velems_per_flat2_dim0,
-                  &threads_Find, &thread_id_a](int64 begin, int64 end) {
+                  &threads_Find](int64 begin, int64 end) {
       const int64 max_i = std::min(total, end);
-      unsigned thread_id = thread_id_a.load(std::memory_order_relaxed);
-      thread_id_a.store(thread_id + 1, std::memory_order_consume);
+      size_t thread_context_id = 0;
+
+      for (; thread_context_id < threads_Find.size(); ++thread_context_id) {
+        if (threads_Find[thread_context_id]->thread_occupied.load(
+                std::memory_order_consume) == false) {
+          threads_Find[thread_context_id]->thread_occupied.store(
+              true, std::memory_order_consume);
+          break;
+        }
+      }
+      if (thread_context_id == threads_Find.size()) {
+        std::lock_guard<std::mutex> guard(threads_Find_mutex);
+        threads_Find.push_back(new ThreadContext());
+        threads_Find.back()->thread_occupied.store(true,
+                                                   std::memory_order_consume);
+      }
 
       if (threads_Find.size() <= thread_id) {
         threads_Find.resize(thread_id + 1);
       }
 
       auto reply =
-          _table_instance->MgetCommand(keys, threads_Find.at(thread_id), begin,
-                                       max_i, keys_prefix_name_slices);
+          _table_instance->MgetCommand(keys, threads_Find.at(thread_context_id),
+                                       begin, max_i, keys_prefix_name_slices);
 
       assert(reply.size() ==
              redis_connection_params
                  .storage_slice);  // #define REDIS_REPLY_ARRAY 2
 
       _table_instance->MgetToTensor(values, default_value, is_full_default,
-                                    threads_Find.at(thread_id), reply, begin,
-                                    max_i, Velems_per_flat2_dim0);
+                                    threads_Find.at(thread_context_id), reply,
+                                    begin, max_i, Velems_per_flat2_dim0);
+
+      threads_Find[thread_context_id]->thread_occupied.store(
+          false, std::memory_order_release);
     };
     int64 slices_size = std::min(total, multi_redis_cmd_max_argc - 1);
     auto &worker_threads = *context->device()->tensorflow_cpu_worker_threads();
@@ -132,21 +156,39 @@ class RedisTableOfTensors final : public LookupInterface {
                   const Tensor &default_value, const int64 &total,
                   const int64 &default_value_flat2_dim0,
                   const int64 &Velems_per_flat2_dim0,
-                  std::vector<ThreadContext> &threads_Find) {
+                  std::vector<ThreadContext *> &threads_Find) {
     const bool is_full_default = (total == default_value_flat2_dim0);
+    size_t thread_context_id = 0;
 
-    if (1 > threads_Find.size()) threads_Find.resize(1);
+    for (; thread_context_id < threads_Find.size(); ++thread_context_id) {
+      if (threads_Find[thread_context_id]->thread_occupied.load(
+              std::memory_order_consume) == false) {
+        threads_Find[thread_context_id]->thread_occupied.store(
+            true, std::memory_order_consume);
+        break;
+      }
+    }
+    if (thread_context_id == threads_Find.size()) {
+      std::lock_guard<std::mutex> guard(threads_Find_mutex);
+      threads_Find.push_back(new ThreadContext());
+      threads_Find.back()->thread_occupied.store(true,
+                                                 std::memory_order_consume);
+    }
 
-    auto reply = _table_instance->MgetCommand(keys, threads_Find[0], 0, total,
-                                              keys_prefix_name_slices);
+    auto reply =
+        _table_instance->MgetCommand(keys, threads_Find.at(thread_context_id),
+                                     0, total, keys_prefix_name_slices);
 
     assert(
         reply.size() ==
         redis_connection_params.storage_slice);  // #define REDIS_REPLY_ARRAY 2
 
     _table_instance->MgetToTensor(values, default_value, is_full_default,
-                                  threads_Find[0], reply, 0, total,
-                                  Velems_per_flat2_dim0);
+                                  threads_Find.at(thread_context_id), reply, 0,
+                                  total, Velems_per_flat2_dim0);
+
+    threads_Find[thread_context_id]->thread_occupied.store(
+        false, std::memory_order_release);
   }
 
   void launchInsert_parallel(OpKernelContext *context,
@@ -154,24 +196,36 @@ class RedisTableOfTensors final : public LookupInterface {
                              const Tensor &keys, const Tensor &values,
                              const int64 &total,
                              const int64 &Velems_per_flat2_dim0,
-                             std::vector<ThreadContext> &threads_Insert) {
+                             std::vector<ThreadContext *> &threads_Insert) {
     const int64 max_parallelism = (total / multi_redis_cmd_max_argc) + 1;
 
-    std::atomic_uint thread_id_a(0);
     auto shard = [this, &total, &keys_prefix_name_slices, &keys, &values,
-                  &Velems_per_flat2_dim0, &threads_Insert,
-                  &thread_id_a](int64 begin, int64 end) {
+                  &Velems_per_flat2_dim0,
+                  &threads_Insert](int64 begin, int64 end) {
       const int64 max_i = std::min(total, end);
-      uint thread_id = thread_id_a.load(std::memory_order_relaxed);
-      thread_id_a.store(thread_id + 1, std::memory_order_consume);
+      size_t thread_context_id = 0;
 
-      if (threads_Insert.size() <= thread_id) {
-        threads_Insert.resize(thread_id + 1);
+      for (; thread_context_id < threads_Insert.size(); ++thread_context_id) {
+        if (threads_Insert[thread_context_id]->thread_occupied.load(
+                std::memory_order_consume) == false) {
+          threads_Insert[thread_context_id]->thread_occupied.store(
+              true, std::memory_order_consume);
+          break;
+        }
+      }
+      if (thread_context_id == threads_Insert.size()) {
+        std::lock_guard<std::mutex> guard(threads_Insert_mutex);
+        threads_Insert.push_back(new ThreadContext());
+        threads_Insert.back()->thread_occupied.store(true,
+                                                     std::memory_order_consume);
       }
 
-      _table_instance->MsetCommand(keys, values, threads_Insert.at(thread_id),
-                                   begin, max_i, Velems_per_flat2_dim0,
-                                   keys_prefix_name_slices);
+      _table_instance->MsetCommand(
+          keys, values, threads_Insert.at(thread_context_id), begin, max_i,
+          Velems_per_flat2_dim0, keys_prefix_name_slices);
+
+      threads_Insert[thread_context_id]->thread_occupied.store(
+          false, std::memory_order_release);
     };
     int64 slices_size = std::min(total, multi_redis_cmd_max_argc - 1);
     auto &worker_threads = *context->device()->tensorflow_cpu_worker_threads();
@@ -182,33 +236,63 @@ class RedisTableOfTensors final : public LookupInterface {
                     std::vector<std::string> &keys_prefix_name_slices,
                     const Tensor &keys, const Tensor &values,
                     const int64 &total, const int64 &Velems_per_flat2_dim0,
-                    std::vector<ThreadContext> &threads_Insert) {
-    if (1 > threads_Insert.size()) threads_Insert.resize(1);
+                    std::vector<ThreadContext *> &threads_Insert) {
+    size_t thread_context_id = 0;
 
-    _table_instance->MsetCommand(keys, values, threads_Insert[0], 0, total,
-                                 Velems_per_flat2_dim0,
-                                 keys_prefix_name_slices);
+    for (; thread_context_id < threads_Insert.size(); ++thread_context_id) {
+      if (threads_Insert[thread_context_id]->thread_occupied.load(
+              std::memory_order_consume) == false) {
+        threads_Insert[thread_context_id]->thread_occupied.store(
+            true, std::memory_order_consume);
+        break;
+      }
+    }
+    if (thread_context_id == threads_Insert.size()) {
+      std::lock_guard<std::mutex> guard(threads_Insert_mutex);
+      threads_Insert.push_back(new ThreadContext());
+      threads_Insert.back()->thread_occupied.store(true,
+                                                   std::memory_order_consume);
+    }
+
+    _table_instance->MsetCommand(
+        keys, values, threads_Insert.at(thread_context_id), 0, total,
+        Velems_per_flat2_dim0, keys_prefix_name_slices);
+
+    threads_Insert[thread_context_id]->thread_occupied.store(
+        false, std::memory_order_release);
   }
 
   void launchDelete_parallel(OpKernelContext *context,
                              std::vector<std::string> &keys_prefix_name_slices,
                              const Tensor &keys, const int64 &total,
-                             std::vector<ThreadContext> &threads_Delete) {
+                             std::vector<ThreadContext *> &threads_Delete) {
     const int64 max_parallelism = (total / multi_redis_cmd_max_argc) + 1;
 
-    std::atomic_uint thread_id_a(0);
     auto shard = [this, &total, &keys_prefix_name_slices, &keys,
-                  &threads_Delete, &thread_id_a](int64 begin, int64 end) {
+                  &threads_Delete](int64 begin, int64 end) {
       const int64 max_i = std::min(total, end);
-      unsigned thread_id = thread_id_a.load(std::memory_order_relaxed);
-      thread_id_a.store(thread_id + 1, std::memory_order_consume);
+      size_t thread_context_id = 0;
 
-      if (threads_Delete.size() <= thread_id) {
-        threads_Delete.resize(thread_id + 1);
+      for (; thread_context_id < threads_Delete.size(); ++thread_context_id) {
+        if (threads_Delete[thread_context_id]->thread_occupied.load(
+                std::memory_order_consume) == false) {
+          threads_Delete[thread_context_id]->thread_occupied.store(
+              true, std::memory_order_consume);
+          break;
+        }
+      }
+      if (thread_context_id == threads_Delete.size()) {
+        std::lock_guard<std::mutex> guard(threads_Delete_mutex);
+        threads_Delete.push_back(new ThreadContext());
+        threads_Delete.back()->thread_occupied.store(true,
+                                                     std::memory_order_consume);
       }
 
-      _table_instance->DelCommand(keys, threads_Delete.at(thread_id), begin,
-                                  max_i, keys_prefix_name_slices);
+      _table_instance->DelCommand(keys, threads_Delete.at(thread_context_id),
+                                  begin, max_i, keys_prefix_name_slices);
+
+      threads_Delete[thread_context_id]->thread_occupied.store(
+          false, std::memory_order_release);
     };
     int64 slices_size = std::min(total, multi_redis_cmd_max_argc - 1);
     auto &worker_threads = *context->device()->tensorflow_cpu_worker_threads();
@@ -218,10 +302,29 @@ class RedisTableOfTensors final : public LookupInterface {
   void launchDelete(OpKernelContext *context,
                     std::vector<std::string> &keys_prefix_name_slices,
                     const Tensor &keys, const int64 &total,
-                    std::vector<ThreadContext> &threads_Delete) {
-    if (1 > threads_Delete.size()) threads_Delete.resize(1);
-    _table_instance->DelCommand(keys, threads_Delete[0], 0, total,
-                                keys_prefix_name_slices);
+                    std::vector<ThreadContext *> &threads_Delete) {
+    size_t thread_context_id = 0;
+
+    for (; thread_context_id < threads_Delete.size(); ++thread_context_id) {
+      if (threads_Delete[thread_context_id]->thread_occupied.load(
+              std::memory_order_consume) == false) {
+        threads_Delete[thread_context_id]->thread_occupied.store(
+            true, std::memory_order_consume);
+        break;
+      }
+    }
+    if (thread_context_id == threads_Delete.size()) {
+      std::lock_guard<std::mutex> guard(threads_Delete_mutex);
+      threads_Delete.push_back(new ThreadContext());
+      threads_Delete.back()->thread_occupied.store(true,
+                                                   std::memory_order_consume);
+    }
+
+    _table_instance->DelCommand(keys, threads_Delete.at(thread_context_id), 0,
+                                total, keys_prefix_name_slices);
+
+    threads_Delete[thread_context_id]->thread_occupied.store(
+        false, std::memory_order_release);
   }
 
  public:
@@ -547,6 +650,13 @@ class RedisTableOfTensors final : public LookupInterface {
           std::invalid_argument("Exit without setting correct slice number."));
     }
 
+    // allocate the memory of threads helper
+    for (size_t i = 0; i < hardware_concurrency_; ++i) {
+      threads_Find.emplace_back(new ThreadContext());
+      threads_Insert.emplace_back(new ThreadContext());
+      threads_Delete.emplace_back(new ThreadContext());
+    }
+
     /*
       When there is not a corresponding table existing in Redis service and
       using_model_lib==True, try to restore from a Redis binary dump files
@@ -572,6 +682,15 @@ class RedisTableOfTensors final : public LookupInterface {
       if (ex_aiocb_obj.aio_buf) {
         free((void *)ex_aiocb_obj.aio_buf);
       }
+    }
+    for (auto threads_Find_i : threads_Find) {
+      threads_Find_i->HandleRelease();
+    }
+    for (auto threads_Insert_i : threads_Insert) {
+      threads_Insert_i->HandleRelease();
+    }
+    for (auto threads_Delete_i : threads_Delete) {
+      threads_Delete_i->HandleRelease();
     }
     _table_instance.reset();
   }
@@ -815,7 +934,7 @@ class RedisTableOfTensors final : public LookupInterface {
     }
 
     // fill Tensor values
-    std::vector<ThreadContext> threads_Find(1);
+    if (1 > threads_Find.size()) threads_Find.resize(1);
     auto reply = _table_instance->MgetCommand(
         *keys, threads_Find[0], 0, total_size, keys_prefix_name_slices);
 

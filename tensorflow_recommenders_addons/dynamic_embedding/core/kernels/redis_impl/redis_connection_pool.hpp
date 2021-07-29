@@ -113,7 +113,7 @@ class RedisWrapper<
       redis_client->ping();
       return redis_client;
     } catch (const std::exception &err) {
-      LOG(ERROR) << "RedisHandler--other " << err.what();
+      LOG(ERROR) << "RedisHandler--error: " << err.what();
       LOG(INFO)
           << "Failed to connect to the Sentinel server. Try to connect "
              "directly with the input IP address as if it were a Redis server.";
@@ -150,7 +150,7 @@ class RedisWrapper<
       redis_client->ping();
       return redis_client;
     } catch (const std::exception &err) {
-      LOG(ERROR) << "RedisHandler--other " << err.what();
+      LOG(ERROR) << "RedisHandler--error: " << err.what();
       return nullptr;
     } catch (...) {
       LOG(ERROR) << "RedisHandler--other crash";
@@ -213,8 +213,7 @@ class RedisWrapper<
       LOG(ERROR) << "storage_slice in redis_connection_params which is "
                  << redis_connection_params.storage_slice
                  << " did not equal to the slices number of this "
-                 << keys_prefix_name
-                 << " in the Redis Cluster servers which is "
+                 << keys_prefix_name << " in the Redis Single servers which is "
                  << reply->elements;
       return -1;
     }
@@ -261,7 +260,6 @@ class RedisWrapper<
     };
 
     std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>> reply;
-    reply.reserve(1);
     try {
       reply.push_back(redis_conn->command(cmd, redis_command.data()));
     } catch (const std::exception &err) {
@@ -384,18 +382,18 @@ class RedisWrapper<
     if (ret < 0) perror("aio_read");
 
     ptrs_0.clear();
-    ptrs_0.push_back(redis_command);
-    ptrs_0.push_back(keys_prefix_name_slices[0].data());
-    ptrs_0.push_back(redis_command_param);
-    ptrs_0.push_back((const char *)rd->aio_buf);
-    ptrs_0.push_back(replace_command);
+    ptrs_0.emplace_back(redis_command);
+    ptrs_0.emplace_back(keys_prefix_name_slices[0].data());
+    ptrs_0.emplace_back(redis_command_param);
+    ptrs_0.emplace_back((const char *)rd->aio_buf);
+    ptrs_0.emplace_back(replace_command);
 
     sizes_0.clear();
-    sizes_0.push_back(redis_command_byte);
-    sizes_0.push_back(keys_prefix_name_slices[0].size());
-    sizes_0.push_back(redis_command_byte_param);
-    sizes_0.push_back(rd->aio_nbytes);
-    sizes_0.push_back(replace_command_byte);
+    sizes_0.emplace_back(redis_command_byte);
+    sizes_0.emplace_back(keys_prefix_name_slices[0].size());
+    sizes_0.emplace_back(redis_command_byte_param);
+    sizes_0.emplace_back(rd->aio_nbytes);
+    sizes_0.emplace_back(replace_command_byte);
 
     if (rd->aio_nbytes > 0) {
       for (size_t i = 3; i > 0; --i) {
@@ -430,41 +428,40 @@ class RedisWrapper<
 sequence pointer and size of parameters. For example: vector<ThreadContext>
 (for multi-threads, index is thread id, also vector<vector<vector<const char
 *>>>)
-                                  |
-                                /   \
-                               /     \    upper var is outside of the
-MXXX_COMMAND function /       \
------------------------------------------------------  (std::vector<unsigned>
-slot_locs for this thread) /         \  under var is inside of the
-MXXX_COMMAND function
-                            /           \
-            vector<SlotContext>    vector<vector<const char *>>   (Different
-thread, map for storing different hash tag in Redis. Reserve(storage_slice) )
-                  /   \
-                 /     \    better to be reserved before entering this
-function /       \ -----------------------------------------------------
-(std::vector<unsigned> slot_locs for this thread) /         \  be reserved in
-this function
-              /           \
-vector<const char *>     vector<const char *>          ............ (Real
-Redis command sequence because m-cmd can only be used in same hash tag)
+
+std::vector<ThreadContext> (better to be reserved before enter MXXX_COMMAND)
+-------------upper var is outside of the MXXX_COMMAND function---------------
+      |
+      | Thread0 has its own ThreadContext
+      |
+every slot has its own SlotContext for sending data---for locating the reply-
+    |                                               |
+    | std::vector<SlotContext>                      | std::vector<unsigned>
+    |
+    |
+--char* point to the data and size_t indicates the length of data------------
+  |                    |
+  | std::vector        | std::vector
+  |  <const char*>     |  <std::size_t>
+  |                    |
+(Real Redis command sequence because m-cmd can only be used in same hash tag)
 
   PS: vector slot_locs is only allocated in Redis Cluster mode!
   */
   virtual std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>>
   MgetCommand(
-      const Tensor &keys, ThreadContext &thread_context, const int64 &begin,
-      const int64 &max_i,
+      const Tensor &keys, ThreadContext *thread_context, const int64 begin,
+      const int64 max_i,
       const std::vector<std::string> &keys_prefix_name_slices) override {
     const int argc = (max_i - begin) + 2;
 
     const static char *redis_command = "HMGET";
     const static std::size_t redis_command_byte = 5;
 
-    thread_context.HandleReserve(1U, argc, 0);
+    thread_context->HandleReserve(1U, argc, 0);
 
-    std::vector<const char *> *ptrs_0 = (*thread_context.slots)[0].ptrs;
-    std::vector<std::size_t> *sizes_0 = (*thread_context.slots)[0].sizes;
+    std::vector<const char *> *ptrs_0 = thread_context->slots[0]->ptrs;
+    std::vector<std::size_t> *sizes_0 = thread_context->slots[0]->sizes;
 
     const K *const pk_raw_end =
         reinterpret_cast<const K *>(keys.tensor_data().data()) + max_i;
@@ -502,7 +499,6 @@ Redis command sequence because m-cmd can only be used in same hash tag)
     };
 
     std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>> reply;
-    reply.reserve(1);
     try {
       reply.push_back(redis_conn->command(cmd, argc, ptrs_0, sizes_0));
     } catch (const std::exception &err) {
@@ -512,13 +508,28 @@ Redis command sequence because m-cmd can only be used in same hash tag)
     return reply;
   }
 
+  inline void CopyDefaultToTensor(const bool is_full_default, const V *pv_raw,
+                                  const V *dft_raw,
+                                  const V *const dft_raw_begin,
+                                  const int64 Velems_per_dim0) {
+    if (is_full_default) {
+      DefaultMemcpyToTensor<V>(
+          pv_raw, dft_raw,
+          Velems_per_dim0);  // Direct access to Tensor data in TensorFlow
+    } else {
+      DefaultMemcpyToTensor<V>(
+          pv_raw, dft_raw_begin,
+          Velems_per_dim0);  // Direct access to Tensor data in TensorFlow
+    }
+  }
+
   virtual void MgetToTensor(
-      Tensor *values, const Tensor &default_value, const bool &is_full_default,
-      ThreadContext &thread_context,
+      Tensor *values, const Tensor &default_value, const bool is_full_default,
+      ThreadContext *thread_context,
       std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>>
           &reply,
-      const int64 &begin, const int64 &max_i,
-      const int64 &Velems_per_dim0) override {
+      const int64 begin, const int64 max_i,
+      const int64 Velems_per_dim0) override {
     const V *pv_raw =
         reinterpret_cast<const V *>(values->tensor_data().data()) +
         begin * Velems_per_dim0;
@@ -532,30 +543,28 @@ Redis command sequence because m-cmd can only be used in same hash tag)
     redisReply *temp_reply;
     for (auto i = 0; i < max_i - begin;
          ++i, pv_raw += Velems_per_dim0, dft_raw += Velems_per_dim0) {
-      temp_reply = reply[0]->element[i];
-      if (temp_reply->type ==
-          REDIS_REPLY_STRING)  // #define REDIS_REPLY_STRING 1
-      {
-        ReplyMemcpyToValTensor<V>(
-            pv_raw, temp_reply->str,
-            Velems_per_dim0);  // Direct access to Tensor data in TensorFlow
-      } else {
-        if (is_full_default) {
-          DefaultMemcpyToTensor<V>(
-              pv_raw, dft_raw,
+      if (reply[0]->type == REDIS_REPLY_ARRAY) {
+        temp_reply = reply[0]->element[i];
+        if (temp_reply->type ==
+            REDIS_REPLY_STRING)  // #define REDIS_REPLY_STRING 1
+        {
+          ReplyMemcpyToValTensor<V>(
+              pv_raw, temp_reply->str,
               Velems_per_dim0);  // Direct access to Tensor data in TensorFlow
         } else {
-          DefaultMemcpyToTensor<V>(
-              pv_raw, dft_raw_begin,
-              Velems_per_dim0);  // Direct access to Tensor data in TensorFlow
+          CopyDefaultToTensor(is_full_default, pv_raw, dft_raw, dft_raw_begin,
+                              Velems_per_dim0);
         }
+      } else {
+        CopyDefaultToTensor(is_full_default, pv_raw, dft_raw, dft_raw_begin,
+                            Velems_per_dim0);
       }
     }
   }
 
   virtual void MsetCommand(
-      const Tensor &keys, const Tensor &values, ThreadContext &thread_context,
-      const int64 &begin, const int64 &max_i, const int64 &Velems_per_dim0,
+      const Tensor &keys, const Tensor &values, ThreadContext *thread_context,
+      const int64 begin, const int64 max_i, const int64 Velems_per_dim0,
       const std::vector<std::string> &keys_prefix_name_slices) override {
     const int &&total = max_i - begin;
     const int &&argc = total * 2 + 2;
@@ -563,10 +572,10 @@ Redis command sequence because m-cmd can only be used in same hash tag)
     const static char *redis_command = "HMSET";
     const static std::size_t redis_command_byte = 5;
 
-    thread_context.HandleReserve(1U, argc, 0);
+    thread_context->HandleReserve(1U, argc, 0);
 
-    std::vector<const char *> *ptrs_0 = (*thread_context.slots)[0].ptrs;
-    std::vector<std::size_t> *sizes_0 = (*thread_context.slots)[0].sizes;
+    std::vector<const char *> *ptrs_0 = thread_context->slots[0]->ptrs;
+    std::vector<std::size_t> *sizes_0 = thread_context->slots[0]->sizes;
 
     const K *const pk_raw_end =
         reinterpret_cast<const K *>(keys.tensor_data().data()) + max_i;
@@ -628,18 +637,18 @@ Redis command sequence because m-cmd can only be used in same hash tag)
   }
 
   virtual void DelCommand(
-      const Tensor &keys, ThreadContext &thread_context, const int64 &begin,
-      const int64 &max_i,
+      const Tensor &keys, ThreadContext *thread_context, const int64 begin,
+      const int64 max_i,
       const std::vector<std::string> &keys_prefix_name_slices) override {
     const int argc = (max_i - begin) + 2;
 
     const static char *redis_command = "HDEL";
     const static std::size_t redis_command_byte = 4;
 
-    thread_context.HandleReserve(1U, argc, 0);
+    thread_context->HandleReserve(1U, argc, 0);
 
-    std::vector<const char *> *ptrs_0 = (*thread_context.slots)[0].ptrs;
-    std::vector<std::size_t> *sizes_0 = (*thread_context.slots)[0].sizes;
+    std::vector<const char *> *ptrs_0 = thread_context->slots[0]->ptrs;
+    std::vector<std::size_t> *sizes_0 = thread_context->slots[0]->sizes;
 
     const K *const pk_raw_end =
         reinterpret_cast<const K *>(keys.tensor_data().data()) + max_i;

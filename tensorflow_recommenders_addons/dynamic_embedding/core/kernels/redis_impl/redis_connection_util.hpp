@@ -186,58 +186,71 @@ struct Redis_Connection_Params {
   }
 };
 
-struct SlotContext {
-  std::vector<const char *> *ptrs = new std::vector<const char *>(1);
-  std::vector<std::size_t> *sizes = new std::vector<std::size_t>(1);
+class SlotContext {
+ public:
+  std::vector<const char *> *ptrs;
+  std::vector<std::size_t> *sizes;
 
   void HandleRelease() {
-    std::vector<const char *> ptrs_empty;
-    std::vector<std::size_t> sizes_empty;
-    if (ptrs) {
-      this->ptrs->swap(ptrs_empty);
+    if (this->ptrs) {
       delete this->ptrs;
     }
-    if (sizes) {
-      this->sizes->swap(sizes_empty);
+    if (this->sizes) {
       delete this->sizes;
     }
+  }
+
+  SlotContext() {
+    this->ptrs = new std::vector<const char *>();
+    this->ptrs->reserve(8);
+    this->sizes = new std::vector<std::size_t>();
+    this->sizes->reserve(8);
   }
 
   ~SlotContext() { HandleRelease(); }
 };
 
-struct ThreadContext {
-  std::vector<SlotContext> *slots = new std::vector<SlotContext>(1);
-  std::vector<unsigned> *slot_locs = new std::vector<unsigned>(1);
+class ThreadContext {
+ public:
+  std::atomic<bool> thread_occupied{false};
+  std::vector<SlotContext *> slots;
+  std::vector<unsigned> *slot_locs;
 
   void HandleReserve(const unsigned storage_slice, const unsigned vector_len,
                      const int keys_num) {
-    if (storage_slice > this->slots->size()) this->slots->resize(storage_slice);
+    for (size_t i = this->slots.size(); i != storage_slice; ++i) {
+      slots.emplace_back(new SlotContext());
+    }
     for (unsigned i = 0; i < storage_slice; ++i) {
-      (*this->slots)[i].ptrs->clear();
-      (*this->slots)[i].ptrs->reserve(vector_len);
-      (*this->slots)[i].sizes->clear();
-      (*this->slots)[i].sizes->reserve(vector_len);
+      this->slots[i]->ptrs->clear();
+      this->slots[i]->ptrs->reserve(vector_len);
+      this->slots[i]->sizes->clear();
+      this->slots[i]->sizes->reserve(vector_len);
     }
     this->slot_locs->reserve(keys_num);
   }
 
   void HandlePushBack(const unsigned slot_num, const char *ptrs_in,
                       const std::size_t sizes_in) {
-    (*this->slots)[slot_num].ptrs->push_back(ptrs_in);
-    (*this->slots)[slot_num].sizes->push_back(sizes_in);
+    this->slots[slot_num]->ptrs->emplace_back(ptrs_in);
+    this->slots[slot_num]->sizes->emplace_back(sizes_in);
   }
 
   void HandleRelease() {
-    std::vector<unsigned> slot_locs_empty;
     if (this->slot_locs) {
-      this->slot_locs->swap(slot_locs_empty);
       delete this->slot_locs;
     }
-    std::vector<SlotContext> slots_empty;
-    if (this->slots) {
-      this->slots->swap(slots_empty);
+    for (auto slots_ : this->slots) {
+      if (slots_) {
+        delete slots_;
+      }
     }
+  }
+
+  ThreadContext() {
+    this->slots.emplace_back(new SlotContext());
+    this->slot_locs = new std::vector<unsigned>();
+    this->slot_locs->reserve(8);
   }
 
   ~ThreadContext() { HandleRelease(); }
@@ -276,25 +289,25 @@ class RedisVirtualWrapper {
       const std::vector<unsigned long> &buf_sizes) = 0;
 
   virtual std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>>
-  MgetCommand(const Tensor &keys, ThreadContext &thread_context,
-              const int64 &begin, const int64 &max_i,
+  MgetCommand(const Tensor &keys, ThreadContext *thread_context,
+              const int64 begin, const int64 max_i,
               const std::vector<std::string> &keys_prefix_name_slices) = 0;
 
   virtual void MgetToTensor(
-      Tensor *values, const Tensor &default_value, const bool &is_full_default,
-      ThreadContext &thread_context,
+      Tensor *values, const Tensor &default_value, const bool is_full_default,
+      ThreadContext *thread_context,
       std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>>
           &reply,
-      const int64 &begin, const int64 &max_i, const int64 &Velems_per_dim0) = 0;
+      const int64 begin, const int64 max_i, const int64 Velems_per_dim0) = 0;
 
   virtual void MsetCommand(
-      const Tensor &keys, const Tensor &values, ThreadContext &thread_context,
-      const int64 &begin, const int64 &max_i, const int64 &Velems_per_dim0,
+      const Tensor &keys, const Tensor &values, ThreadContext *thread_context,
+      const int64 begin, const int64 max_i, const int64 Velems_per_dim0,
       const std::vector<std::string> &keys_prefix_name_slices) = 0;
 
   virtual void DelCommand(
-      const Tensor &keys, ThreadContext &thread_context, const int64 &begin,
-      const int64 &max_i,
+      const Tensor &keys, ThreadContext *thread_context, const int64 begin,
+      const int64 max_i,
       const std::vector<std::string> &keys_prefix_name_slices) = 0;
 };
 
@@ -341,7 +354,7 @@ inline unsigned KSlotNum<tstring>(const tstring *in,
 template <typename T>
 inline const VContentAndTypeSizeResult &VContentAndTypeSize(
     VContentAndTypeSizeResult &_VContentAndTypeSizeResult,
-    const int64 &Velems_per_dim0, const std::size_t &V_byte_size, const T *in,
+    const int64 Velems_per_dim0, const std::size_t &V_byte_size, const T *in,
     std::vector<char> &buff) {
   _VContentAndTypeSizeResult.VTypeSize = V_byte_size;
   _VContentAndTypeSizeResult.VContentPointer =
@@ -359,7 +372,7 @@ var buff is a std::vector<char> from std::vector<std::vector<char>>
 template <>
 inline const VContentAndTypeSizeResult &VContentAndTypeSize<tstring>(
     VContentAndTypeSizeResult &_VContentAndTypeSizeResult,
-    const int64 &Velems_per_dim0, const std::size_t &V_byte_size,
+    const int64 Velems_per_dim0, const std::size_t &V_byte_size,
     const tstring *in, std::vector<char> &buff) {
   const tstring *ps_end = in + Velems_per_dim0;
   unsigned tot = 0;
@@ -392,7 +405,7 @@ inline const VContentAndTypeSizeResult &VContentAndTypeSize<tstring>(
 
 template <typename T>
 void DefaultMemcpyToTensor(const T *const pv_raw, const T *dft,
-                           const int64 &Velems_per_dim0) {
+                           const int64 Velems_per_dim0) {
   void *pv_raw_ = reinterpret_cast<void *>(const_cast<T *>(pv_raw));
   memcpy(pv_raw_, reinterpret_cast<const void *>(dft),
          Velems_per_dim0 *
@@ -402,7 +415,7 @@ void DefaultMemcpyToTensor(const T *const pv_raw, const T *dft,
 template <>
 void DefaultMemcpyToTensor<tstring>(const tstring *const pv_raw,
                                     const tstring *const dft,
-                                    const int64 &Velems_per_dim0) {
+                                    const int64 Velems_per_dim0) {
   const tstring *const pv_raw_end = pv_raw + Velems_per_dim0;
   tstring *pv_it = const_cast<tstring *>(pv_raw);
   const tstring *dft_it = dft;
@@ -427,7 +440,7 @@ void ReplyMemcpyToKeyTensor<tstring>(const tstring *const pk_raw,
 
 template <typename T>
 void ReplyMemcpyToValTensor(const T *const pv_raw, const char *str,
-                            const int64 &Velems_per_dim0) {
+                            const int64 Velems_per_dim0) {
   void *pv_raw_ = reinterpret_cast<void *>(const_cast<T *>(pv_raw));
   memcpy(pv_raw_, str,
          Velems_per_dim0 *
@@ -437,7 +450,7 @@ void ReplyMemcpyToValTensor(const T *const pv_raw, const char *str,
 template <>
 void ReplyMemcpyToValTensor<tstring>(const tstring *const pv_raw,
                                      const char *str,
-                                     const int64 &Velems_per_dim0) {
+                                     const int64 Velems_per_dim0) {
   const tstring *const pv_raw_end = pv_raw + Velems_per_dim0;
   const char *char_view = str;
   unsigned str_bytesize = 0;
