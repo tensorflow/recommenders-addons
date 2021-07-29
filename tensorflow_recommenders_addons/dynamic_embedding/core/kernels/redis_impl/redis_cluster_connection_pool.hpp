@@ -171,22 +171,68 @@ class RedisWrapper<RedisInstance, K, V,
   */
   virtual int CheckSlicesNum(const std::string &keys_prefix_name) override {
     std::string redis_command = "KEYS " + keys_prefix_name + "[0123456789]*";
+
+    // get cluster info
     auto cmd = [](::sw::redis::Connection &connection,
-                  ::sw::redis::StringView hkey,
-                  const char *str) { connection.send(str); };
+                  ::sw::redis::StringView hkey) {
+      connection.send("CLUSTER SLOTS");
+    };
+    ::sw::redis::StringView _hkey("0");
     std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply;
     try {
-      reply = redis_conn->command(cmd, keys_prefix_name, redis_command.data());
+      reply = redis_conn->command(cmd, _hkey);
     } catch (const std::exception &err) {
-      LOG(ERROR) << "RedisHandler error in check_slices_num for KEYS "
-                 << keys_prefix_name << " -- " << err.what();
+      LOG(ERROR) << "RedisHandler error in CheckSlicesNum(CLUSTER SLOTS) --  "
+                 << err.what();
       return -1;
     }
-    if (reply->elements == redis_connection_params.storage_slice) {
+
+    std::vector<std::string> ip_set;
+    std::vector<long long> port_set;
+    size_t servers_num = reply->elements;
+    ip_set.reserve(servers_num);
+    port_set.reserve(servers_num);
+    for (size_t i = 0; i < servers_num; ++i) {
+      ip_set.emplace_back(
+          std::string(reply->element[i]->element[2]->element[0]->str,
+                      reply->element[i]->element[2]->element[0]->len));
+      port_set.emplace_back(reply->element[i]->element[2]->element[1]->integer);
+    }
+
+    std::unique_ptr<Redis> redis_client;
+    std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply_server;
+    ConnectionOptions connection_options;
+    size_t slices_in_redis = 0;
+    for (size_t i = 0; i < ip_set.size(); ++i) {
+      connection_options.host = ip_set[i];  // Required.
+      connection_options.port =
+          port_set[i];  // Optional. The default port is 6379.
+      connection_options.password =
+          redis_connection_params
+              .redis_password;  // Optional. No redis_password by default.
+      connection_options.db =
+          redis_connection_params
+              .redis_db;  // Optional. Use the 0th database by default.
+      redis_client.reset(new Redis(connection_options));
+      auto cmd_per_server = [](::sw::redis::Connection &connection,
+                               const char *str) { connection.send(str); };
+      reply_server.reset();
+      try {
+        reply_server =
+            redis_client->command(cmd_per_server, redis_command.data());
+      } catch (const std::exception &err) {
+        LOG(ERROR) << "RedisHandler error CheckSlicesNum(KEYS) in for IP "
+                   << ip_set[i] << " --  " << err.what();
+        return -1;
+      }
+      slices_in_redis += reply_server->elements;
+    }
+
+    if (slices_in_redis == redis_connection_params.storage_slice) {
       return 1;
-    } else if (reply->elements == 0) {
+    } else if (slices_in_redis == 0) {
       LOG(INFO) << "There is not a corresponding table " << keys_prefix_name
-                << " existing in Redis server";
+                << " existing in Redis cluster servers";
       return 0;
     } else {
       LOG(ERROR) << "storage_slice in redis_connection_params which is "
@@ -194,7 +240,7 @@ class RedisWrapper<RedisInstance, K, V,
                  << " did not equal to the slices number of this "
                  << keys_prefix_name
                  << " in the Redis Cluster servers which is "
-                 << reply->elements;
+                 << slices_in_redis;
       return -1;
     }
     return -1;
