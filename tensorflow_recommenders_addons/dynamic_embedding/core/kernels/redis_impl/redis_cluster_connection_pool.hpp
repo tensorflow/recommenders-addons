@@ -142,17 +142,16 @@ class RedisWrapper<RedisInstance, K, V,
   template <typename Cmd>
   std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>> PipeExec(
       Cmd cmd, const unsigned &storage_slice, const unsigned &size_check,
-      const ThreadContext &thread_context) {
+      const ThreadContext *thread_context) {
     std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>> replies;
-    replies.reserve(storage_slice);
     for (unsigned i = 0; i < storage_slice; ++i) {
-      if ((*thread_context.slots)[i].ptrs->size() >= size_check) {
-        ::sw::redis::StringView hkey((*(*thread_context.slots)[i].ptrs)[1],
-                                     (*(*thread_context.slots)[i].sizes)[1]);
+      if (thread_context->slots[i]->ptrs->size() >= size_check) {
+        ::sw::redis::StringView hkey((*thread_context->slots[i]->ptrs)[1],
+                                     (*thread_context->slots[i]->sizes)[1]);
         try {
           replies.push_back(
-              redis_conn->command(cmd, hkey, (*thread_context.slots)[i].ptrs,
-                                  (*thread_context.slots)[i].sizes));
+              redis_conn->command(cmd, hkey, thread_context->slots[i]->ptrs,
+                                  thread_context->slots[i]->sizes));
         } catch (const std::exception &err) {
           LOG(ERROR) << "RedisHandler error in pipe_exec for slices "
                      << hkey.data() << " -- " << err.what();
@@ -308,22 +307,21 @@ class RedisWrapper<RedisInstance, K, V,
 
     auto &storage_slice = redis_connection_params.storage_slice;
 
-    std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>> reply;
-    reply.reserve(storage_slice);
+    std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>> replies;
     for (unsigned i = 0; i < storage_slice; ++i) {
       command_string.clear();
       command_string =
           command_string + redis_command + keys_prefix_name_slices[i];
       try {
-        reply.push_back(redis_conn->command(cmd, keys_prefix_name_slices[i],
-                                            command_string.data()));
+        replies.push_back(redis_conn->command(cmd, keys_prefix_name_slices[i],
+                                              command_string.data()));
       } catch (const std::exception &err) {
         LOG(ERROR) << "RedisHandler error in get_keys_in_hkeys for slices "
                    << keys_prefix_name_slices[i] << " -- " << err.what();
       }
     }
 
-    return reply;
+    return replies;
   }
 
   /*
@@ -449,19 +447,19 @@ class RedisWrapper<RedisInstance, K, V,
 
       ptrs_i_i[i].reserve(5);
       ptrs_i_i[i].clear();
-      ptrs_i_i[i].push_back(redis_command);
-      ptrs_i_i[i].push_back(keys_prefix_name_slices[i].data());
-      ptrs_i_i[i].push_back(redis_command_param);
-      ptrs_i_i[i].push_back((const char *)rd->aio_buf);
-      ptrs_i_i[i].push_back(replace_command);
+      ptrs_i_i[i].emplace_back(redis_command);
+      ptrs_i_i[i].emplace_back(keys_prefix_name_slices[i].data());
+      ptrs_i_i[i].emplace_back(redis_command_param);
+      ptrs_i_i[i].emplace_back((const char *)rd->aio_buf);
+      ptrs_i_i[i].emplace_back(replace_command);
 
       sizes_i_i[i].reserve(5);
       sizes_i_i[i].clear();
-      sizes_i_i[i].push_back(redis_command_byte);
-      sizes_i_i[i].push_back(keys_prefix_name_slices[i].size());
-      sizes_i_i[i].push_back(redis_command_byte_param);
-      sizes_i_i[i].push_back(rd->aio_nbytes);
-      sizes_i_i[i].push_back(replace_command_byte);
+      sizes_i_i[i].emplace_back(redis_command_byte);
+      sizes_i_i[i].emplace_back(keys_prefix_name_slices[i].size());
+      sizes_i_i[i].emplace_back(redis_command_byte_param);
+      sizes_i_i[i].emplace_back(rd->aio_nbytes);
+      sizes_i_i[i].emplace_back(replace_command_byte);
     }
 
     size_t count_down = storage_slice;
@@ -535,7 +533,7 @@ Redis command sequence because m-cmd can only be used in same hash tag)
   */
   virtual std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>>
   MgetCommand(
-      const Tensor &keys, ThreadContext &thread_context, const int64 &begin,
+      const Tensor &keys, ThreadContext *thread_context, const int64 &begin,
       const int64 &max_i,
       const std::vector<std::string> &keys_prefix_name_slices) override {
     const int &&total = max_i - begin;
@@ -555,15 +553,15 @@ Redis command sequence because m-cmd can only be used in same hash tag)
          redis_connection_params.storage_slice_log2) +
         2;
 
-    thread_context.HandleReserve(storage_slice, vector_len, total);
+    thread_context->HandleReserve(storage_slice, vector_len, total);
 
     for (unsigned i = 0; i < storage_slice; ++i) {
-      thread_context.HandlePushBack(i, redis_command, redis_command_byte);
-      thread_context.HandlePushBack(i, keys_prefix_name_slices[i].data(),
-                                    keys_prefix_name_slices[i].size());
+      thread_context->HandlePushBack(i, redis_command, redis_command_byte);
+      thread_context->HandlePushBack(i, keys_prefix_name_slices[i].data(),
+                                     keys_prefix_name_slices[i].size());
     }
 
-    unsigned *pslot_loc = thread_context.slot_locs->data();
+    unsigned *pslot_loc = thread_context->slot_locs->data();
     unsigned key_slot_locs = 0;
     for (; pk_raw != pk_raw_end; ++pk_raw) {
       key_slot_locs = KSlotNum<K>(pk_raw, storage_slice);
@@ -573,8 +571,8 @@ Redis command sequence because m-cmd can only be used in same hash tag)
       ++pslot_loc;
 
       // Direct access to Tensor data in TensorFlow
-      thread_context.HandlePushBack(key_slot_locs, KContentPointer<K>(pk_raw),
-                                    KTypeSize<K>(pk_raw));
+      thread_context->HandlePushBack(key_slot_locs, KContentPointer<K>(pk_raw),
+                                     KTypeSize<K>(pk_raw));
     }
 
     auto cmd = [](::sw::redis::Connection &connection,
@@ -593,13 +591,28 @@ Redis command sequence because m-cmd can only be used in same hash tag)
     return PipeExec(cmd, storage_slice, 3U, thread_context);
   }
 
+  inline void CopyDefaultToTensor(const bool is_full_default, const V *pv_raw,
+                                  const V *dft_raw,
+                                  const V *const dft_raw_begin,
+                                  const int64 Velems_per_dim0) {
+    if (is_full_default) {
+      DefaultMemcpyToTensor<V>(
+          pv_raw, dft_raw,
+          Velems_per_dim0);  // Direct access to Tensor data in TensorFlow
+    } else {
+      DefaultMemcpyToTensor<V>(
+          pv_raw, dft_raw_begin,
+          Velems_per_dim0);  // Direct access to Tensor data in TensorFlow
+    }
+  }
+
   virtual void MgetToTensor(
-      Tensor *values, const Tensor &default_value, const bool &is_full_default,
-      ThreadContext &thread_context,
+      Tensor *values, const Tensor &default_value, const bool is_full_default,
+      ThreadContext *thread_context,
       std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>>
           &reply,
-      const int64 &begin, const int64 &max_i,
-      const int64 &Velems_per_dim0) override {
+      const int64 begin, const int64 max_i,
+      const int64 Velems_per_dim0) override {
     const V *pv_raw =
         reinterpret_cast<const V *>(values->tensor_data().data()) +
         begin * Velems_per_dim0;
@@ -609,7 +622,7 @@ Redis command sequence because m-cmd can only be used in same hash tag)
     const V *const dft_raw_begin =
         reinterpret_cast<const V *>(default_value.tensor_data().data());
 
-    const std::vector<unsigned> *slot_locs = thread_context.slot_locs;
+    const std::vector<unsigned> *slot_locs = thread_context->slot_locs;
     const unsigned &storage_slice = redis_connection_params.storage_slice;
     unsigned slots_iters_nums[storage_slice];
     unsigned slot_loc;
@@ -618,30 +631,28 @@ Redis command sequence because m-cmd can only be used in same hash tag)
     for (auto i = 0; i < (max_i - begin);
          ++i, pv_raw += Velems_per_dim0, dft_raw += Velems_per_dim0) {
       slot_loc = (*slot_locs)[i];
-      temp_reply = reply[slot_loc]->element[slots_iters_nums[slot_loc]];
-      ++(slots_iters_nums[slot_loc]);
-      if (temp_reply->type ==
-          REDIS_REPLY_STRING)  // #define REDIS_REPLY_STRING 1
-      {
-        ReplyMemcpyToValTensor<V>(
-            pv_raw, temp_reply->str,
-            Velems_per_dim0);  // Direct access to Tensor data in TensorFlow
-      } else {
-        if (is_full_default) {
-          DefaultMemcpyToTensor<V>(
-              pv_raw, dft_raw,
+      if (reply[slot_loc]->type == REDIS_REPLY_ARRAY) {
+        temp_reply = reply[slot_loc]->element[slots_iters_nums[slot_loc]];
+        ++(slots_iters_nums[slot_loc]);
+        if (temp_reply->type ==
+            REDIS_REPLY_STRING)  // #define REDIS_REPLY_STRING 1
+        {
+          ReplyMemcpyToValTensor<V>(
+              pv_raw, temp_reply->str,
               Velems_per_dim0);  // Direct access to Tensor data in TensorFlow
         } else {
-          DefaultMemcpyToTensor<V>(
-              pv_raw, dft_raw_begin,
-              Velems_per_dim0);  // Direct access to Tensor data in TensorFlow
+          CopyDefaultToTensor(is_full_default, pv_raw, dft_raw, dft_raw_begin,
+                              Velems_per_dim0);
         }
+      } else {
+        CopyDefaultToTensor(is_full_default, pv_raw, dft_raw, dft_raw_begin,
+                            Velems_per_dim0);
       }
     }
   }
 
   virtual void MsetCommand(
-      const Tensor &keys, const Tensor &values, ThreadContext &thread_context,
+      const Tensor &keys, const Tensor &values, ThreadContext *thread_context,
       const int64 &begin, const int64 &max_i, const int64 &Velems_per_dim0,
       const std::vector<std::string> &keys_prefix_name_slices) override {
     const int &&total = max_i - begin;
@@ -666,12 +677,12 @@ Redis command sequence because m-cmd can only be used in same hash tag)
          redis_connection_params.storage_slice_log2) +
         2;
 
-    thread_context.HandleReserve(storage_slice, vector_len, total);
+    thread_context->HandleReserve(storage_slice, vector_len, total);
 
     for (unsigned i = 0; i < storage_slice; ++i) {
-      thread_context.HandlePushBack(i, redis_command, redis_command_byte);
-      thread_context.HandlePushBack(i, keys_prefix_name_slices[i].data(),
-                                    keys_prefix_name_slices[i].size());
+      thread_context->HandlePushBack(i, redis_command, redis_command_byte);
+      thread_context->HandlePushBack(i, keys_prefix_name_slices[i].data(),
+                                     keys_prefix_name_slices[i].size());
     }
 
     VContentAndTypeSizeResult VCATS_temp;
@@ -686,10 +697,10 @@ Redis command sequence because m-cmd can only be used in same hash tag)
           KSlotNum<K>(pk_raw, storage_slice);  // TODO: change it to AVX512
 
       // Direct access to Tensor data in TensorFlow
-      thread_context.HandlePushBack(key_slot_locs, KContentPointer<K>(pk_raw),
-                                    KTypeSize<K>(pk_raw));
-      thread_context.HandlePushBack(key_slot_locs, VCATS_temp.VContentPointer,
-                                    VCATS_temp.VTypeSize);
+      thread_context->HandlePushBack(key_slot_locs, KContentPointer<K>(pk_raw),
+                                     KTypeSize<K>(pk_raw));
+      thread_context->HandlePushBack(key_slot_locs, VCATS_temp.VContentPointer,
+                                     VCATS_temp.VTypeSize);
     }
 
     auto cmd = [](::sw::redis::Connection &connection,
@@ -709,7 +720,7 @@ Redis command sequence because m-cmd can only be used in same hash tag)
   }
 
   virtual void DelCommand(
-      const Tensor &keys, ThreadContext &thread_context, const int64 &begin,
+      const Tensor &keys, ThreadContext *thread_context, const int64 &begin,
       const int64 &max_i,
       const std::vector<std::string> &keys_prefix_name_slices) override {
     const int &&total = max_i - begin;
@@ -729,15 +740,15 @@ Redis command sequence because m-cmd can only be used in same hash tag)
          redis_connection_params.storage_slice_log2) +
         2;
 
-    thread_context.HandleReserve(storage_slice, vector_len, total);
+    thread_context->HandleReserve(storage_slice, vector_len, total);
 
     for (unsigned i = 0; i < storage_slice; ++i) {
-      thread_context.HandlePushBack(i, redis_command, redis_command_byte);
-      thread_context.HandlePushBack(i, keys_prefix_name_slices[i].data(),
-                                    keys_prefix_name_slices[i].size());
+      thread_context->HandlePushBack(i, redis_command, redis_command_byte);
+      thread_context->HandlePushBack(i, keys_prefix_name_slices[i].data(),
+                                     keys_prefix_name_slices[i].size());
     }
 
-    unsigned *pslot_loc = thread_context.slot_locs->data();
+    unsigned *pslot_loc = thread_context->slot_locs->data();
     unsigned key_slot_locs = 0;
     for (; pk_raw != pk_raw_end; ++pk_raw) {
       key_slot_locs = KSlotNum<K>(pk_raw, storage_slice);
@@ -747,8 +758,8 @@ Redis command sequence because m-cmd can only be used in same hash tag)
       ++pslot_loc;
 
       // Direct access to Tensor data in TensorFlow
-      thread_context.HandlePushBack(key_slot_locs, KContentPointer<K>(pk_raw),
-                                    KTypeSize<K>(pk_raw));
+      thread_context->HandlePushBack(key_slot_locs, KContentPointer<K>(pk_raw),
+                                     KTypeSize<K>(pk_raw));
     }
 
     auto cmd = [](::sw::redis::Connection &connection,

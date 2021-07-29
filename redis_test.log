@@ -1,0 +1,1170 @@
+/bin/sh: 1: redis-server: not found
+redis-cli: error while loading shared libraries: libhiredis.so.0.14: cannot open shared object file: No such file or directory
+redis-cli: error while loading shared libraries: libhiredis.so.0.14: cannot open shared object file: No such file or directory
+/home/hejia/Documents/recommenders-addons/tensorflow_recommenders_addons/utils/ensure_tf_install.py:66: UserWarning: Tensorflow Recommenders Addons supports using Python ops for all Tensorflow versions above or equal to 2.4.1 and strictly below 2.4.1 (nightly versions are not supported). 
+ The versions of TensorFlow you are currently using is 1.15.2 and is not supported. 
+Some things might work, some things might not.
+If you were to encounter a bug, do not file an issue.
+If you want to make sure you're using a tested and supported configuration, either change the TensorFlow version or the Recommenders Addons's version. 
+You can find the compatibility matrix in Recommenders Addon's readme:
+https://github.com/tensorflow/recommenders-addons
+  UserWarning,
+/home/hejia/Documents/recommenders-addons/tensorflow_recommenders_addons/utils/resource_loader.py:38: UserWarning: Fail to get TFRA package information, if you are running on bazel test mode, please ignore this warning, 
+or you should check TFRA installation.
+  UserWarning,
+Running tests under Python 3.6.13: /home/hejia/.conda/envs/tf1152py36/bin/python
+[ RUN      ] RedisVariableTest.test_basic
+WARNING:tensorflow:From /home/hejia/.conda/envs/tf1152py36/lib/python3.6/contextlib.py:60: TensorFlowTestCase.test_session (from tensorflow.python.framework.test_util) is deprecated and will be removed in a future version.
+Instructions for updating:
+Use `self.session()` or `self.cached_session()` instead.
+W0729 10:22:43.216366 140124957620032 deprecation.py:323] From /home/hejia/.conda/envs/tf1152py36/lib/python3.6/contextlib.py:60: TensorFlowTestCase.test_session (from tensorflow.python.framework.test_util) is deprecated and will be removed in a future version.
+Instructions for updating:
+Use `self.session()` or `self.cached_session()` instead.
+2021-07-29 10:22:43.217478: I tensorflow/core/platform/cpu_feature_guard.cc:142] Your CPU supports instructions that this TensorFlow binary was not compiled to use: AVX2 AVX512F FMA
+2021-07-29 10:22:43.247369: I tensorflow/core/platform/profile_utils/cpu_utils.cc:94] CPU Frequency: 2100000000 Hz
+2021-07-29 10:22:43.250666: I tensorflow/compiler/xla/service/service.cc:168] XLA service 0x55b01c0532d0 initialized for platform Host (this does not guarantee that XLA will be used). Devices:
+2021-07-29 10:22:43.250709: I tensorflow/compiler/xla/service/service.cc:176]   StreamExecutor device (0): Host, Default Version
+2021-07-29 10:22:43.304029: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:69] RedisSentinel connection pool constructor called!
+2021-07-29 10:22:43.305177: E tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:116] RedisHandler--other Failed to create connection with sentinel
+2021-07-29 10:22:43.305270: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:117] Failed to connect to the Sentinel server. Try to connect directly with the input IP address as if it were a Redis server.
+2021-07-29 10:22:43.305840: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:redis-0 existing in Redis server
+2021-07-29 10:22:43.312336: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:redis-0 existing in Redis server
+2021-07-29 10:22:43.313509: W tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:904] There is no embedding table called test:redis-0 existing in the Redis service. Exporting values to Tensor failed.
+2021-07-29 10:22:43.313961: W tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:904] There is no embedding table called test:redis-0 existing in the Redis service. Exporting values to Tensor failed.
+2021-07-29 10:22:43.347836: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:redis-0 existing in Redis server
+2021-07-29 10:22:43.354354: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:redis-0 existing in Redis server
+2021-07-29 10:22:43.355209: W tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:904] There is no embedding table called test:redis-0 existing in the Redis service. Exporting values to Tensor failed.
+2021-07-29 10:22:43.355677: W tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:904] There is no embedding table called test:redis-0 existing in the Redis service. Exporting values to Tensor failed.
+[       OK ] RedisVariableTest.test_basic
+[ RUN      ] RedisVariableTest.test_dynamic_embedding_variable
+2021-07-29 10:22:43.382693: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t10_test_dynamic_embedding_variable existing in Redis server
+/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/tensor_util.py:521: DeprecationWarning: tostring() is deprecated. Use tobytes() instead.
+  tensor_proto.tensor_content = nparray.tostring()
+[       OK ] RedisVariableTest.test_dynamic_embedding_variable
+[ RUN      ] RedisVariableTest.test_dynamic_embedding_variable_duplicate_insert
+2021-07-29 10:22:43.442071: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:69] RedisSentinel connection pool constructor called!
+2021-07-29 10:22:43.442797: E tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:116] RedisHandler--other Failed to create connection with sentinel
+2021-07-29 10:22:43.442844: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:117] Failed to connect to the Sentinel server. Try to connect directly with the input IP address as if it were a Redis server.
+2021-07-29 10:22:43.443289: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t130_test_dynamic_embedding_variable_duplicate_insert existing in Redis server
+[       OK ] RedisVariableTest.test_dynamic_embedding_variable_duplicate_insert
+[ RUN      ] RedisVariableTest.test_dynamic_embedding_variable_export_insert
+2021-07-29 10:22:43.478563: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t101_test_dynamic_embedding_variable_export_insert existing in Redis server
+2021-07-29 10:22:43.517152: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t102_test_dynamic_embedding_variable_export_insert existing in Redis server
+[       OK ] RedisVariableTest.test_dynamic_embedding_variable_export_insert
+[ RUN      ] RedisVariableTest.test_dynamic_embedding_variable_find_high_rank
+2021-07-29 10:22:43.561502: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t140_test_dynamic_embedding_variable_find_high_rank existing in Redis server
+[       OK ] RedisVariableTest.test_dynamic_embedding_variable_find_high_rank
+[ RUN      ] RedisVariableTest.test_dynamic_embedding_variable_insert_high_rank
+2021-07-29 10:22:43.595300: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t170_test_dynamic_embedding_variable_insert_high_rank existing in Redis server
+[       OK ] RedisVariableTest.test_dynamic_embedding_variable_insert_high_rank
+[ RUN      ] RedisVariableTest.test_dynamic_embedding_variable_insert_low_rank
+2021-07-29 10:22:43.629074: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t150_test_dynamic_embedding_variable_insert_low_rank existing in Redis server
+[       OK ] RedisVariableTest.test_dynamic_embedding_variable_insert_low_rank
+[ RUN      ] RedisVariableTest.test_dynamic_embedding_variable_int_float
+2021-07-29 10:22:43.669216: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t220_test_dynamic_embedding_variable_int_float existing in Redis server
+[       OK ] RedisVariableTest.test_dynamic_embedding_variable_int_float
+[ RUN      ] RedisVariableTest.test_dynamic_embedding_variable_invalid_shape
+2021-07-29 10:22:43.711410: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t110_test_dynamic_embedding_variable_invalid_shape existing in Redis server
+2021-07-29 10:22:43.711775: W tensorflow/core/framework/op_kernel.cc:1651] OP_REQUIRES failed at redis_table_op.cc:1059 : Invalid argument: Expected shape [3,2] for value, got [6]
+ERROR:tensorflow:Expected shape [3,2] for value, got [6]
+	 [[node TfraRedisTableOfTensors_lookup_table_insert/TfraRedisTableInsert (defined at /home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/ops.py:1748) ]]
+
+Original stack trace for 'TfraRedisTableOfTensors_lookup_table_insert/TfraRedisTableInsert':
+  File "tensorflow_recommenders_addons/dynamic_embedding/python/kernel_tests/redis_table_ops_test.py", line 1490, in <module>
+    test.main()
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/platform/test.py", line 64, in main
+    return _googletest.main(argv)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/platform/googletest.py", line 65, in main
+    benchmark.benchmarks_main(true_main=main_wrapper)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/platform/benchmark.py", line 407, in benchmarks_main
+    true_main()
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/platform/googletest.py", line 64, in main_wrapper
+    return app.run(main=g_main, argv=args)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/platform/app.py", line 40, in run
+    _run(main=main, argv=argv, flags_parser=_parse_flags_tolerate_undef)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/absl/app.py", line 312, in run
+    _run_main(main, args)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/absl/app.py", line 258, in _run_main
+    sys.exit(main(argv))
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/platform/googletest.py", line 55, in g_main
+    absltest_main(argv=argv)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/absl/testing/absltest.py", line 2065, in main
+    _run_in_app(run_tests, args, kwargs)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/absl/testing/absltest.py", line 2172, in _run_in_app
+    function(argv, args, kwargs)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/absl/testing/absltest.py", line 2572, in run_tests
+    argv, args, kwargs, xml_reporter.TextAndXMLTestRunner)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/absl/testing/absltest.py", line 2542, in _run_and_get_tests_result
+    test_program = unittest.TestProgram(*args, **kwargs)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/unittest/main.py", line 95, in __init__
+    self.runTests()
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/unittest/main.py", line 256, in runTests
+    self.result = testRunner.run(self.test)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/absl/testing/_pretty_print_reporter.py", line 87, in run
+    return super(TextTestRunner, self).run(test)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/unittest/runner.py", line 176, in run
+    test(result)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/unittest/suite.py", line 84, in __call__
+    return self.run(*args, **kwds)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/unittest/suite.py", line 122, in run
+    test(result)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/unittest/suite.py", line 84, in __call__
+    return self.run(*args, **kwds)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/unittest/suite.py", line 122, in run
+    test(result)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/unittest/case.py", line 653, in __call__
+    return self.run(*args, **kwds)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/unittest/case.py", line 605, in run
+    testMethod()
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/test_util.py", line 1080, in decorated
+    f(self, *args, **kwargs)
+  File "tensorflow_recommenders_addons/dynamic_embedding/python/kernel_tests/redis_table_ops_test.py", line 976, in test_dynamic_embedding_variable_invalid_shape
+    self.evaluate(table.upsert(keys, values))
+  File "/home/hejia/Documents/recommenders-addons/tensorflow_recommenders_addons/dynamic_embedding/python/ops/dynamic_embedding_variable.py", line 351, in upsert
+    name=name))
+  File "/home/hejia/Documents/recommenders-addons/tensorflow_recommenders_addons/dynamic_embedding/python/ops/redis_table_ops.py", line 306, in insert
+    values)
+  File "<string>", line 164, in tfra_redis_table_insert
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/op_def_library.py", line 794, in _apply_op_helper
+    op_def=op_def)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/util/deprecation.py", line 507, in new_func
+    return func(*args, **kwargs)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/ops.py", line 3357, in create_op
+    attrs, op_def, compute_device)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/ops.py", line 3426, in _create_op_internal
+    op_def=op_def)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/ops.py", line 1748, in __init__
+    self._traceback = tf_stack.extract_stack()
+
+E0729 10:22:43.721501 140124957620032 test_util.py:1563] Expected shape [3,2] for value, got [6]
+	 [[node TfraRedisTableOfTensors_lookup_table_insert/TfraRedisTableInsert (defined at /home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/ops.py:1748) ]]
+
+Original stack trace for 'TfraRedisTableOfTensors_lookup_table_insert/TfraRedisTableInsert':
+  File "tensorflow_recommenders_addons/dynamic_embedding/python/kernel_tests/redis_table_ops_test.py", line 1490, in <module>
+    test.main()
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/platform/test.py", line 64, in main
+    return _googletest.main(argv)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/platform/googletest.py", line 65, in main
+    benchmark.benchmarks_main(true_main=main_wrapper)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/platform/benchmark.py", line 407, in benchmarks_main
+    true_main()
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/platform/googletest.py", line 64, in main_wrapper
+    return app.run(main=g_main, argv=args)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/platform/app.py", line 40, in run
+    _run(main=main, argv=argv, flags_parser=_parse_flags_tolerate_undef)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/absl/app.py", line 312, in run
+    _run_main(main, args)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/absl/app.py", line 258, in _run_main
+    sys.exit(main(argv))
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/platform/googletest.py", line 55, in g_main
+    absltest_main(argv=argv)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/absl/testing/absltest.py", line 2065, in main
+    _run_in_app(run_tests, args, kwargs)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/absl/testing/absltest.py", line 2172, in _run_in_app
+    function(argv, args, kwargs)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/absl/testing/absltest.py", line 2572, in run_tests
+    argv, args, kwargs, xml_reporter.TextAndXMLTestRunner)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/absl/testing/absltest.py", line 2542, in _run_and_get_tests_result
+    test_program = unittest.TestProgram(*args, **kwargs)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/unittest/main.py", line 95, in __init__
+    self.runTests()
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/unittest/main.py", line 256, in runTests
+    self.result = testRunner.run(self.test)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/absl/testing/_pretty_print_reporter.py", line 87, in run
+    return super(TextTestRunner, self).run(test)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/unittest/runner.py", line 176, in run
+    test(result)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/unittest/suite.py", line 84, in __call__
+    return self.run(*args, **kwds)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/unittest/suite.py", line 122, in run
+    test(result)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/unittest/suite.py", line 84, in __call__
+    return self.run(*args, **kwds)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/unittest/suite.py", line 122, in run
+    test(result)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/unittest/case.py", line 653, in __call__
+    return self.run(*args, **kwds)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/unittest/case.py", line 605, in run
+    testMethod()
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/test_util.py", line 1080, in decorated
+    f(self, *args, **kwargs)
+  File "tensorflow_recommenders_addons/dynamic_embedding/python/kernel_tests/redis_table_ops_test.py", line 976, in test_dynamic_embedding_variable_invalid_shape
+    self.evaluate(table.upsert(keys, values))
+  File "/home/hejia/Documents/recommenders-addons/tensorflow_recommenders_addons/dynamic_embedding/python/ops/dynamic_embedding_variable.py", line 351, in upsert
+    name=name))
+  File "/home/hejia/Documents/recommenders-addons/tensorflow_recommenders_addons/dynamic_embedding/python/ops/redis_table_ops.py", line 306, in insert
+    values)
+  File "<string>", line 164, in tfra_redis_table_insert
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/op_def_library.py", line 794, in _apply_op_helper
+    op_def=op_def)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/util/deprecation.py", line 507, in new_func
+    return func(*args, **kwargs)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/ops.py", line 3357, in create_op
+    attrs, op_def, compute_device)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/ops.py", line 3426, in _create_op_internal
+    op_def=op_def)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/ops.py", line 1748, in __init__
+    self._traceback = tf_stack.extract_stack()
+
+INFO:tensorflow:Searching within error strings: 'Expected shape' within 'Expected shape [3,2] for value, got [6]
+	 [[node TfraRedisTableOfTensors_lookup_table_insert/TfraRedisTableInsert (defined at /home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/ops.py:1748) ]]
+Caused by: TfraRedisTableOfTensors_lookup_table_insert/TfraRedisTableInsert'
+I0729 10:22:43.721781 140124957620032 test_util.py:2746] Searching within error strings: 'Expected shape' within 'Expected shape [3,2] for value, got [6]
+	 [[node TfraRedisTableOfTensors_lookup_table_insert/TfraRedisTableInsert (defined at /home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/ops.py:1748) ]]
+Caused by: TfraRedisTableOfTensors_lookup_table_insert/TfraRedisTableInsert'
+2021-07-29 10:22:43.731375: W tensorflow/core/framework/op_kernel.cc:1651] OP_REQUIRES failed at redis_table_op.cc:1059 : Invalid argument: Expected shape [3,2] for value, got [2,3]
+ERROR:tensorflow:Expected shape [3,2] for value, got [2,3]
+	 [[node TfraRedisTableOfTensors_lookup_table_insert_1/TfraRedisTableInsert (defined at /home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/ops.py:1748) ]]
+
+Original stack trace for 'TfraRedisTableOfTensors_lookup_table_insert_1/TfraRedisTableInsert':
+  File "tensorflow_recommenders_addons/dynamic_embedding/python/kernel_tests/redis_table_ops_test.py", line 1490, in <module>
+    test.main()
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/platform/test.py", line 64, in main
+    return _googletest.main(argv)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/platform/googletest.py", line 65, in main
+    benchmark.benchmarks_main(true_main=main_wrapper)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/platform/benchmark.py", line 407, in benchmarks_main
+    true_main()
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/platform/googletest.py", line 64, in main_wrapper
+    return app.run(main=g_main, argv=args)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/platform/app.py", line 40, in run
+    _run(main=main, argv=argv, flags_parser=_parse_flags_tolerate_undef)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/absl/app.py", line 312, in run
+    _run_main(main, args)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/absl/app.py", line 258, in _run_main
+    sys.exit(main(argv))
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/platform/googletest.py", line 55, in g_main
+    absltest_main(argv=argv)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/absl/testing/absltest.py", line 2065, in main
+    _run_in_app(run_tests, args, kwargs)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/absl/testing/absltest.py", line 2172, in _run_in_app
+    function(argv, args, kwargs)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/absl/testing/absltest.py", line 2572, in run_tests
+    argv, args, kwargs, xml_reporter.TextAndXMLTestRunner)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/absl/testing/absltest.py", line 2542, in _run_and_get_tests_result
+    test_program = unittest.TestProgram(*args, **kwargs)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/unittest/main.py", line 95, in __init__
+    self.runTests()
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/unittest/main.py", line 256, in runTests
+    self.result = testRunner.run(self.test)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/absl/testing/_pretty_print_reporter.py", line 87, in run
+    return super(TextTestRunner, self).run(test)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/unittest/runner.py", line 176, in run
+    test(result)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/unittest/suite.py", line 84, in __call__
+    return self.run(*args, **kwds)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/unittest/suite.py", line 122, in run
+    test(result)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/unittest/suite.py", line 84, in __call__
+    return self.run(*args, **kwds)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/unittest/suite.py", line 122, in run
+    test(result)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/unittest/case.py", line 653, in __call__
+    return self.run(*args, **kwds)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/unittest/case.py", line 605, in run
+    testMethod()
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/test_util.py", line 1080, in decorated
+    f(self, *args, **kwargs)
+  File "tensorflow_recommenders_addons/dynamic_embedding/python/kernel_tests/redis_table_ops_test.py", line 981, in test_dynamic_embedding_variable_invalid_shape
+    self.evaluate(table.upsert(keys, values))
+  File "/home/hejia/Documents/recommenders-addons/tensorflow_recommenders_addons/dynamic_embedding/python/ops/dynamic_embedding_variable.py", line 351, in upsert
+    name=name))
+  File "/home/hejia/Documents/recommenders-addons/tensorflow_recommenders_addons/dynamic_embedding/python/ops/redis_table_ops.py", line 306, in insert
+    values)
+  File "<string>", line 164, in tfra_redis_table_insert
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/op_def_library.py", line 794, in _apply_op_helper
+    op_def=op_def)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/util/deprecation.py", line 507, in new_func
+    return func(*args, **kwargs)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/ops.py", line 3357, in create_op
+    attrs, op_def, compute_device)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/ops.py", line 3426, in _create_op_internal
+    op_def=op_def)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/ops.py", line 1748, in __init__
+    self._traceback = tf_stack.extract_stack()
+
+E0729 10:22:43.736564 140124957620032 test_util.py:1563] Expected shape [3,2] for value, got [2,3]
+	 [[node TfraRedisTableOfTensors_lookup_table_insert_1/TfraRedisTableInsert (defined at /home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/ops.py:1748) ]]
+
+Original stack trace for 'TfraRedisTableOfTensors_lookup_table_insert_1/TfraRedisTableInsert':
+  File "tensorflow_recommenders_addons/dynamic_embedding/python/kernel_tests/redis_table_ops_test.py", line 1490, in <module>
+    test.main()
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/platform/test.py", line 64, in main
+    return _googletest.main(argv)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/platform/googletest.py", line 65, in main
+    benchmark.benchmarks_main(true_main=main_wrapper)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/platform/benchmark.py", line 407, in benchmarks_main
+    true_main()
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/platform/googletest.py", line 64, in main_wrapper
+    return app.run(main=g_main, argv=args)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/platform/app.py", line 40, in run
+    _run(main=main, argv=argv, flags_parser=_parse_flags_tolerate_undef)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/absl/app.py", line 312, in run
+    _run_main(main, args)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/absl/app.py", line 258, in _run_main
+    sys.exit(main(argv))
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/platform/googletest.py", line 55, in g_main
+    absltest_main(argv=argv)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/absl/testing/absltest.py", line 2065, in main
+    _run_in_app(run_tests, args, kwargs)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/absl/testing/absltest.py", line 2172, in _run_in_app
+    function(argv, args, kwargs)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/absl/testing/absltest.py", line 2572, in run_tests
+    argv, args, kwargs, xml_reporter.TextAndXMLTestRunner)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/absl/testing/absltest.py", line 2542, in _run_and_get_tests_result
+    test_program = unittest.TestProgram(*args, **kwargs)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/unittest/main.py", line 95, in __init__
+    self.runTests()
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/unittest/main.py", line 256, in runTests
+    self.result = testRunner.run(self.test)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/absl/testing/_pretty_print_reporter.py", line 87, in run
+    return super(TextTestRunner, self).run(test)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/unittest/runner.py", line 176, in run
+    test(result)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/unittest/suite.py", line 84, in __call__
+    return self.run(*args, **kwds)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/unittest/suite.py", line 122, in run
+    test(result)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/unittest/suite.py", line 84, in __call__
+    return self.run(*args, **kwds)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/unittest/suite.py", line 122, in run
+    test(result)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/unittest/case.py", line 653, in __call__
+    return self.run(*args, **kwds)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/unittest/case.py", line 605, in run
+    testMethod()
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/test_util.py", line 1080, in decorated
+    f(self, *args, **kwargs)
+  File "tensorflow_recommenders_addons/dynamic_embedding/python/kernel_tests/redis_table_ops_test.py", line 981, in test_dynamic_embedding_variable_invalid_shape
+    self.evaluate(table.upsert(keys, values))
+  File "/home/hejia/Documents/recommenders-addons/tensorflow_recommenders_addons/dynamic_embedding/python/ops/dynamic_embedding_variable.py", line 351, in upsert
+    name=name))
+  File "/home/hejia/Documents/recommenders-addons/tensorflow_recommenders_addons/dynamic_embedding/python/ops/redis_table_ops.py", line 306, in insert
+    values)
+  File "<string>", line 164, in tfra_redis_table_insert
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/op_def_library.py", line 794, in _apply_op_helper
+    op_def=op_def)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/util/deprecation.py", line 507, in new_func
+    return func(*args, **kwargs)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/ops.py", line 3357, in create_op
+    attrs, op_def, compute_device)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/ops.py", line 3426, in _create_op_internal
+    op_def=op_def)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/ops.py", line 1748, in __init__
+    self._traceback = tf_stack.extract_stack()
+
+INFO:tensorflow:Searching within error strings: 'Expected shape' within 'Expected shape [3,2] for value, got [2,3]
+	 [[node TfraRedisTableOfTensors_lookup_table_insert_1/TfraRedisTableInsert (defined at /home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/ops.py:1748) ]]
+Caused by: TfraRedisTableOfTensors_lookup_table_insert_1/TfraRedisTableInsert'
+I0729 10:22:43.736920 140124957620032 test_util.py:2746] Searching within error strings: 'Expected shape' within 'Expected shape [3,2] for value, got [2,3]
+	 [[node TfraRedisTableOfTensors_lookup_table_insert_1/TfraRedisTableInsert (defined at /home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/ops.py:1748) ]]
+Caused by: TfraRedisTableOfTensors_lookup_table_insert_1/TfraRedisTableInsert'
+2021-07-29 10:22:43.748757: W tensorflow/core/framework/op_kernel.cc:1651] OP_REQUIRES failed at redis_table_op.cc:1059 : Invalid argument: Expected shape [3,2] for value, got [2,2]
+ERROR:tensorflow:Expected shape [3,2] for value, got [2,2]
+	 [[node TfraRedisTableOfTensors_lookup_table_insert_2/TfraRedisTableInsert (defined at /home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/ops.py:1748) ]]
+
+Original stack trace for 'TfraRedisTableOfTensors_lookup_table_insert_2/TfraRedisTableInsert':
+  File "tensorflow_recommenders_addons/dynamic_embedding/python/kernel_tests/redis_table_ops_test.py", line 1490, in <module>
+    test.main()
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/platform/test.py", line 64, in main
+    return _googletest.main(argv)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/platform/googletest.py", line 65, in main
+    benchmark.benchmarks_main(true_main=main_wrapper)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/platform/benchmark.py", line 407, in benchmarks_main
+    true_main()
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/platform/googletest.py", line 64, in main_wrapper
+    return app.run(main=g_main, argv=args)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/platform/app.py", line 40, in run
+    _run(main=main, argv=argv, flags_parser=_parse_flags_tolerate_undef)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/absl/app.py", line 312, in run
+    _run_main(main, args)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/absl/app.py", line 258, in _run_main
+    sys.exit(main(argv))
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/platform/googletest.py", line 55, in g_main
+    absltest_main(argv=argv)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/absl/testing/absltest.py", line 2065, in main
+    _run_in_app(run_tests, args, kwargs)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/absl/testing/absltest.py", line 2172, in _run_in_app
+    function(argv, args, kwargs)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/absl/testing/absltest.py", line 2572, in run_tests
+    argv, args, kwargs, xml_reporter.TextAndXMLTestRunner)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/absl/testing/absltest.py", line 2542, in _run_and_get_tests_result
+    test_program = unittest.TestProgram(*args, **kwargs)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/unittest/main.py", line 95, in __init__
+    self.runTests()
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/unittest/main.py", line 256, in runTests
+    self.result = testRunner.run(self.test)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/absl/testing/_pretty_print_reporter.py", line 87, in run
+    return super(TextTestRunner, self).run(test)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/unittest/runner.py", line 176, in run
+    test(result)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/unittest/suite.py", line 84, in __call__
+    return self.run(*args, **kwds)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/unittest/suite.py", line 122, in run
+    test(result)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/unittest/suite.py", line 84, in __call__
+    return self.run(*args, **kwds)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/unittest/suite.py", line 122, in run
+    test(result)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/unittest/case.py", line 653, in __call__
+    return self.run(*args, **kwds)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/unittest/case.py", line 605, in run
+    testMethod()
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/test_util.py", line 1080, in decorated
+    f(self, *args, **kwargs)
+  File "tensorflow_recommenders_addons/dynamic_embedding/python/kernel_tests/redis_table_ops_test.py", line 986, in test_dynamic_embedding_variable_invalid_shape
+    self.evaluate(table.upsert(keys, values))
+  File "/home/hejia/Documents/recommenders-addons/tensorflow_recommenders_addons/dynamic_embedding/python/ops/dynamic_embedding_variable.py", line 351, in upsert
+    name=name))
+  File "/home/hejia/Documents/recommenders-addons/tensorflow_recommenders_addons/dynamic_embedding/python/ops/redis_table_ops.py", line 306, in insert
+    values)
+  File "<string>", line 164, in tfra_redis_table_insert
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/op_def_library.py", line 794, in _apply_op_helper
+    op_def=op_def)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/util/deprecation.py", line 507, in new_func
+    return func(*args, **kwargs)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/ops.py", line 3357, in create_op
+    attrs, op_def, compute_device)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/ops.py", line 3426, in _create_op_internal
+    op_def=op_def)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/ops.py", line 1748, in __init__
+    self._traceback = tf_stack.extract_stack()
+
+E0729 10:22:43.755928 140124957620032 test_util.py:1563] Expected shape [3,2] for value, got [2,2]
+	 [[node TfraRedisTableOfTensors_lookup_table_insert_2/TfraRedisTableInsert (defined at /home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/ops.py:1748) ]]
+
+Original stack trace for 'TfraRedisTableOfTensors_lookup_table_insert_2/TfraRedisTableInsert':
+  File "tensorflow_recommenders_addons/dynamic_embedding/python/kernel_tests/redis_table_ops_test.py", line 1490, in <module>
+    test.main()
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/platform/test.py", line 64, in main
+    return _googletest.main(argv)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/platform/googletest.py", line 65, in main
+    benchmark.benchmarks_main(true_main=main_wrapper)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/platform/benchmark.py", line 407, in benchmarks_main
+    true_main()
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/platform/googletest.py", line 64, in main_wrapper
+    return app.run(main=g_main, argv=args)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/platform/app.py", line 40, in run
+    _run(main=main, argv=argv, flags_parser=_parse_flags_tolerate_undef)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/absl/app.py", line 312, in run
+    _run_main(main, args)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/absl/app.py", line 258, in _run_main
+    sys.exit(main(argv))
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/platform/googletest.py", line 55, in g_main
+    absltest_main(argv=argv)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/absl/testing/absltest.py", line 2065, in main
+    _run_in_app(run_tests, args, kwargs)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/absl/testing/absltest.py", line 2172, in _run_in_app
+    function(argv, args, kwargs)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/absl/testing/absltest.py", line 2572, in run_tests
+    argv, args, kwargs, xml_reporter.TextAndXMLTestRunner)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/absl/testing/absltest.py", line 2542, in _run_and_get_tests_result
+    test_program = unittest.TestProgram(*args, **kwargs)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/unittest/main.py", line 95, in __init__
+    self.runTests()
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/unittest/main.py", line 256, in runTests
+    self.result = testRunner.run(self.test)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/absl/testing/_pretty_print_reporter.py", line 87, in run
+    return super(TextTestRunner, self).run(test)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/unittest/runner.py", line 176, in run
+    test(result)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/unittest/suite.py", line 84, in __call__
+    return self.run(*args, **kwds)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/unittest/suite.py", line 122, in run
+    test(result)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/unittest/suite.py", line 84, in __call__
+    return self.run(*args, **kwds)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/unittest/suite.py", line 122, in run
+    test(result)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/unittest/case.py", line 653, in __call__
+    return self.run(*args, **kwds)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/unittest/case.py", line 605, in run
+    testMethod()
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/test_util.py", line 1080, in decorated
+    f(self, *args, **kwargs)
+  File "tensorflow_recommenders_addons/dynamic_embedding/python/kernel_tests/redis_table_ops_test.py", line 986, in test_dynamic_embedding_variable_invalid_shape
+    self.evaluate(table.upsert(keys, values))
+  File "/home/hejia/Documents/recommenders-addons/tensorflow_recommenders_addons/dynamic_embedding/python/ops/dynamic_embedding_variable.py", line 351, in upsert
+    name=name))
+  File "/home/hejia/Documents/recommenders-addons/tensorflow_recommenders_addons/dynamic_embedding/python/ops/redis_table_ops.py", line 306, in insert
+    values)
+  File "<string>", line 164, in tfra_redis_table_insert
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/op_def_library.py", line 794, in _apply_op_helper
+    op_def=op_def)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/util/deprecation.py", line 507, in new_func
+    return func(*args, **kwargs)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/ops.py", line 3357, in create_op
+    attrs, op_def, compute_device)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/ops.py", line 3426, in _create_op_internal
+    op_def=op_def)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/ops.py", line 1748, in __init__
+    self._traceback = tf_stack.extract_stack()
+
+INFO:tensorflow:Searching within error strings: 'Expected shape' within 'Expected shape [3,2] for value, got [2,2]
+	 [[node TfraRedisTableOfTensors_lookup_table_insert_2/TfraRedisTableInsert (defined at /home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/ops.py:1748) ]]
+Caused by: TfraRedisTableOfTensors_lookup_table_insert_2/TfraRedisTableInsert'
+I0729 10:22:43.756253 140124957620032 test_util.py:2746] Searching within error strings: 'Expected shape' within 'Expected shape [3,2] for value, got [2,2]
+	 [[node TfraRedisTableOfTensors_lookup_table_insert_2/TfraRedisTableInsert (defined at /home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/ops.py:1748) ]]
+Caused by: TfraRedisTableOfTensors_lookup_table_insert_2/TfraRedisTableInsert'
+2021-07-29 10:22:43.768900: W tensorflow/core/framework/op_kernel.cc:1651] OP_REQUIRES failed at redis_table_op.cc:1059 : Invalid argument: Expected shape [3,2] for value, got [3,1]
+ERROR:tensorflow:Expected shape [3,2] for value, got [3,1]
+	 [[node TfraRedisTableOfTensors_lookup_table_insert_3/TfraRedisTableInsert (defined at /home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/ops.py:1748) ]]
+
+Original stack trace for 'TfraRedisTableOfTensors_lookup_table_insert_3/TfraRedisTableInsert':
+  File "tensorflow_recommenders_addons/dynamic_embedding/python/kernel_tests/redis_table_ops_test.py", line 1490, in <module>
+    test.main()
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/platform/test.py", line 64, in main
+    return _googletest.main(argv)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/platform/googletest.py", line 65, in main
+    benchmark.benchmarks_main(true_main=main_wrapper)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/platform/benchmark.py", line 407, in benchmarks_main
+    true_main()
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/platform/googletest.py", line 64, in main_wrapper
+    return app.run(main=g_main, argv=args)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/platform/app.py", line 40, in run
+    _run(main=main, argv=argv, flags_parser=_parse_flags_tolerate_undef)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/absl/app.py", line 312, in run
+    _run_main(main, args)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/absl/app.py", line 258, in _run_main
+    sys.exit(main(argv))
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/platform/googletest.py", line 55, in g_main
+    absltest_main(argv=argv)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/absl/testing/absltest.py", line 2065, in main
+    _run_in_app(run_tests, args, kwargs)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/absl/testing/absltest.py", line 2172, in _run_in_app
+    function(argv, args, kwargs)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/absl/testing/absltest.py", line 2572, in run_tests
+    argv, args, kwargs, xml_reporter.TextAndXMLTestRunner)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/absl/testing/absltest.py", line 2542, in _run_and_get_tests_result
+    test_program = unittest.TestProgram(*args, **kwargs)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/unittest/main.py", line 95, in __init__
+    self.runTests()
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/unittest/main.py", line 256, in runTests
+    self.result = testRunner.run(self.test)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/absl/testing/_pretty_print_reporter.py", line 87, in run
+    return super(TextTestRunner, self).run(test)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/unittest/runner.py", line 176, in run
+    test(result)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/unittest/suite.py", line 84, in __call__
+    return self.run(*args, **kwds)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/unittest/suite.py", line 122, in run
+    test(result)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/unittest/suite.py", line 84, in __call__
+    return self.run(*args, **kwds)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/unittest/suite.py", line 122, in run
+    test(result)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/unittest/case.py", line 653, in __call__
+    return self.run(*args, **kwds)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/unittest/case.py", line 605, in run
+    testMethod()
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/test_util.py", line 1080, in decorated
+    f(self, *args, **kwargs)
+  File "tensorflow_recommenders_addons/dynamic_embedding/python/kernel_tests/redis_table_ops_test.py", line 991, in test_dynamic_embedding_variable_invalid_shape
+    self.evaluate(table.upsert(keys, values))
+  File "/home/hejia/Documents/recommenders-addons/tensorflow_recommenders_addons/dynamic_embedding/python/ops/dynamic_embedding_variable.py", line 351, in upsert
+    name=name))
+  File "/home/hejia/Documents/recommenders-addons/tensorflow_recommenders_addons/dynamic_embedding/python/ops/redis_table_ops.py", line 306, in insert
+    values)
+  File "<string>", line 164, in tfra_redis_table_insert
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/op_def_library.py", line 794, in _apply_op_helper
+    op_def=op_def)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/util/deprecation.py", line 507, in new_func
+    return func(*args, **kwargs)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/ops.py", line 3357, in create_op
+    attrs, op_def, compute_device)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/ops.py", line 3426, in _create_op_internal
+    op_def=op_def)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/ops.py", line 1748, in __init__
+    self._traceback = tf_stack.extract_stack()
+
+E0729 10:22:43.775974 140124957620032 test_util.py:1563] Expected shape [3,2] for value, got [3,1]
+	 [[node TfraRedisTableOfTensors_lookup_table_insert_3/TfraRedisTableInsert (defined at /home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/ops.py:1748) ]]
+
+Original stack trace for 'TfraRedisTableOfTensors_lookup_table_insert_3/TfraRedisTableInsert':
+  File "tensorflow_recommenders_addons/dynamic_embedding/python/kernel_tests/redis_table_ops_test.py", line 1490, in <module>
+    test.main()
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/platform/test.py", line 64, in main
+    return _googletest.main(argv)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/platform/googletest.py", line 65, in main
+    benchmark.benchmarks_main(true_main=main_wrapper)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/platform/benchmark.py", line 407, in benchmarks_main
+    true_main()
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/platform/googletest.py", line 64, in main_wrapper
+    return app.run(main=g_main, argv=args)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/platform/app.py", line 40, in run
+    _run(main=main, argv=argv, flags_parser=_parse_flags_tolerate_undef)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/absl/app.py", line 312, in run
+    _run_main(main, args)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/absl/app.py", line 258, in _run_main
+    sys.exit(main(argv))
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/platform/googletest.py", line 55, in g_main
+    absltest_main(argv=argv)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/absl/testing/absltest.py", line 2065, in main
+    _run_in_app(run_tests, args, kwargs)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/absl/testing/absltest.py", line 2172, in _run_in_app
+    function(argv, args, kwargs)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/absl/testing/absltest.py", line 2572, in run_tests
+    argv, args, kwargs, xml_reporter.TextAndXMLTestRunner)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/absl/testing/absltest.py", line 2542, in _run_and_get_tests_result
+    test_program = unittest.TestProgram(*args, **kwargs)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/unittest/main.py", line 95, in __init__
+    self.runTests()
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/unittest/main.py", line 256, in runTests
+    self.result = testRunner.run(self.test)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/absl/testing/_pretty_print_reporter.py", line 87, in run
+    return super(TextTestRunner, self).run(test)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/unittest/runner.py", line 176, in run
+    test(result)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/unittest/suite.py", line 84, in __call__
+    return self.run(*args, **kwds)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/unittest/suite.py", line 122, in run
+    test(result)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/unittest/suite.py", line 84, in __call__
+    return self.run(*args, **kwds)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/unittest/suite.py", line 122, in run
+    test(result)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/unittest/case.py", line 653, in __call__
+    return self.run(*args, **kwds)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/unittest/case.py", line 605, in run
+    testMethod()
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/test_util.py", line 1080, in decorated
+    f(self, *args, **kwargs)
+  File "tensorflow_recommenders_addons/dynamic_embedding/python/kernel_tests/redis_table_ops_test.py", line 991, in test_dynamic_embedding_variable_invalid_shape
+    self.evaluate(table.upsert(keys, values))
+  File "/home/hejia/Documents/recommenders-addons/tensorflow_recommenders_addons/dynamic_embedding/python/ops/dynamic_embedding_variable.py", line 351, in upsert
+    name=name))
+  File "/home/hejia/Documents/recommenders-addons/tensorflow_recommenders_addons/dynamic_embedding/python/ops/redis_table_ops.py", line 306, in insert
+    values)
+  File "<string>", line 164, in tfra_redis_table_insert
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/op_def_library.py", line 794, in _apply_op_helper
+    op_def=op_def)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/util/deprecation.py", line 507, in new_func
+    return func(*args, **kwargs)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/ops.py", line 3357, in create_op
+    attrs, op_def, compute_device)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/ops.py", line 3426, in _create_op_internal
+    op_def=op_def)
+  File "/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/ops.py", line 1748, in __init__
+    self._traceback = tf_stack.extract_stack()
+
+INFO:tensorflow:Searching within error strings: 'Expected shape' within 'Expected shape [3,2] for value, got [3,1]
+	 [[node TfraRedisTableOfTensors_lookup_table_insert_3/TfraRedisTableInsert (defined at /home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/ops.py:1748) ]]
+Caused by: TfraRedisTableOfTensors_lookup_table_insert_3/TfraRedisTableInsert'
+I0729 10:22:43.776317 140124957620032 test_util.py:2746] Searching within error strings: 'Expected shape' within 'Expected shape [3,2] for value, got [3,1]
+	 [[node TfraRedisTableOfTensors_lookup_table_insert_3/TfraRedisTableInsert (defined at /home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/ops.py:1748) ]]
+Caused by: TfraRedisTableOfTensors_lookup_table_insert_3/TfraRedisTableInsert'
+2021-07-29 10:22:43.800298: W tensorflow/core/framework/op_kernel.cc:1651] OP_REQUIRES failed at redis_table_op.cc:1059 : Invalid argument: Expected shape [3,2] for value, got [6]
+INFO:tensorflow:Searching within error strings: 'Expected shape' within 'Expected shape [3,2] for value, got [6] [Op:TfraRedisTableInsert]'
+I0729 10:22:43.800438 140124957620032 test_util.py:2746] Searching within error strings: 'Expected shape' within 'Expected shape [3,2] for value, got [6] [Op:TfraRedisTableInsert]'
+2021-07-29 10:22:43.800918: W tensorflow/core/framework/op_kernel.cc:1651] OP_REQUIRES failed at redis_table_op.cc:1059 : Invalid argument: Expected shape [3,2] for value, got [2,3]
+INFO:tensorflow:Searching within error strings: 'Expected shape' within 'Expected shape [3,2] for value, got [2,3] [Op:TfraRedisTableInsert]'
+I0729 10:22:43.800999 140124957620032 test_util.py:2746] Searching within error strings: 'Expected shape' within 'Expected shape [3,2] for value, got [2,3] [Op:TfraRedisTableInsert]'
+2021-07-29 10:22:43.801326: W tensorflow/core/framework/op_kernel.cc:1651] OP_REQUIRES failed at redis_table_op.cc:1059 : Invalid argument: Expected shape [3,2] for value, got [2,2]
+INFO:tensorflow:Searching within error strings: 'Expected shape' within 'Expected shape [3,2] for value, got [2,2] [Op:TfraRedisTableInsert]'
+I0729 10:22:43.801390 140124957620032 test_util.py:2746] Searching within error strings: 'Expected shape' within 'Expected shape [3,2] for value, got [2,2] [Op:TfraRedisTableInsert]'
+2021-07-29 10:22:43.801686: W tensorflow/core/framework/op_kernel.cc:1651] OP_REQUIRES failed at redis_table_op.cc:1059 : Invalid argument: Expected shape [3,2] for value, got [3,1]
+INFO:tensorflow:Searching within error strings: 'Expected shape' within 'Expected shape [3,2] for value, got [3,1] [Op:TfraRedisTableInsert]'
+I0729 10:22:43.801747 140124957620032 test_util.py:2746] Searching within error strings: 'Expected shape' within 'Expected shape [3,2] for value, got [3,1] [Op:TfraRedisTableInsert]'
+[       OK ] RedisVariableTest.test_dynamic_embedding_variable_invalid_shape
+[ RUN      ] RedisVariableTest.test_dynamic_embedding_variable_remove_high_rank
+2021-07-29 10:22:43.819840: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t180_test_dynamic_embedding_variable_remove_high_rank existing in Redis server
+[       OK ] RedisVariableTest.test_dynamic_embedding_variable_remove_high_rank
+[ RUN      ] RedisVariableTest.test_dynamic_embedding_variable_remove_low_rank
+2021-07-29 10:22:43.866881: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t160_test_dynamic_embedding_variable_remove_low_rank existing in Redis server
+[       OK ] RedisVariableTest.test_dynamic_embedding_variable_remove_low_rank
+[ RUN      ] RedisVariableTest.test_dynamic_embedding_variable_with_random_init
+2021-07-29 10:22:43.915050: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t230_test_dynamic_embedding_variable_with_random_init existing in Redis server
+[       OK ] RedisVariableTest.test_dynamic_embedding_variable_with_random_init
+[ RUN      ] RedisVariableTest.test_dynamic_embedding_variable_with_restrict_v1
+WARNING:tensorflow:From /home/hejia/Documents/recommenders-addons/tensorflow_recommenders_addons/dynamic_embedding/python/ops/dynamic_embedding_variable.py:263: calling Zeros.__init__ (from tensorflow.python.ops.init_ops) with dtype is deprecated and will be removed in a future version.
+Instructions for updating:
+Call initializer instance with the dtype argument instead of passing it to the constructor
+W0729 10:22:43.981444 140124957620032 deprecation.py:506] From /home/hejia/Documents/recommenders-addons/tensorflow_recommenders_addons/dynamic_embedding/python/ops/dynamic_embedding_variable.py:263: calling Zeros.__init__ (from tensorflow.python.ops.init_ops) with dtype is deprecated and will be removed in a future version.
+Instructions for updating:
+Call initializer instance with the dtype argument instead of passing it to the constructor
+WARNING:tensorflow:From /home/hejia/Documents/recommenders-addons/tensorflow_recommenders_addons/dynamic_embedding/python/ops/dynamic_embedding_ops.py:340: calling BaseResourceVariable.__init__ (from tensorflow.python.ops.resource_variable_ops) with constraint is deprecated and will be removed in a future version.
+Instructions for updating:
+If using Keras pass *_constraint arguments to layers.
+W0729 10:22:44.039041 140124957620032 deprecation.py:506] From /home/hejia/Documents/recommenders-addons/tensorflow_recommenders_addons/dynamic_embedding/python/ops/dynamic_embedding_ops.py:340: calling BaseResourceVariable.__init__ (from tensorflow.python.ops.resource_variable_ops) with constraint is deprecated and will be removed in a future version.
+Instructions for updating:
+If using Keras pass *_constraint arguments to layers.
+WARNING:tensorflow:From /home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/ops/nn_impl.py:183: where (from tensorflow.python.ops.array_ops) is deprecated and will be removed in a future version.
+Instructions for updating:
+Use tf.where in 2.0, which has the same broadcast rule as np.where
+W0729 10:22:44.695121 140124957620032 deprecation.py:323] From /home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/ops/nn_impl.py:183: where (from tensorflow.python.ops.array_ops) is deprecated and will be removed in a future version.
+Instructions for updating:
+Use tf.where in 2.0, which has the same broadcast rule as np.where
+/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/tensor_util.py:521: DeprecationWarning: tostring() is deprecated. Use tobytes() instead.
+  tensor_proto.tensor_content = nparray.tostring()
+/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/tensor_util.py:521: DeprecationWarning: tostring() is deprecated. Use tobytes() instead.
+  tensor_proto.tensor_content = nparray.tostring()
+/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/tensor_util.py:521: DeprecationWarning: tostring() is deprecated. Use tobytes() instead.
+  tensor_proto.tensor_content = nparray.tostring()
+/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/tensor_util.py:521: DeprecationWarning: tostring() is deprecated. Use tobytes() instead.
+  tensor_proto.tensor_content = nparray.tostring()
+/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/tensor_util.py:521: DeprecationWarning: tostring() is deprecated. Use tobytes() instead.
+  tensor_proto.tensor_content = nparray.tostring()
+/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/tensor_util.py:521: DeprecationWarning: tostring() is deprecated. Use tobytes() instead.
+  tensor_proto.tensor_content = nparray.tostring()
+/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/tensor_util.py:521: DeprecationWarning: tostring() is deprecated. Use tobytes() instead.
+  tensor_proto.tensor_content = nparray.tostring()
+/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/tensor_util.py:521: DeprecationWarning: tostring() is deprecated. Use tobytes() instead.
+  tensor_proto.tensor_content = nparray.tostring()
+/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/tensor_util.py:521: DeprecationWarning: tostring() is deprecated. Use tobytes() instead.
+  tensor_proto.tensor_content = nparray.tostring()
+/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/tensor_util.py:521: DeprecationWarning: tostring() is deprecated. Use tobytes() instead.
+  tensor_proto.tensor_content = nparray.tostring()
+/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/tensor_util.py:521: DeprecationWarning: tostring() is deprecated. Use tobytes() instead.
+  tensor_proto.tensor_content = nparray.tostring()
+/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/tensor_util.py:521: DeprecationWarning: tostring() is deprecated. Use tobytes() instead.
+  tensor_proto.tensor_content = nparray.tostring()
+/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/tensor_util.py:521: DeprecationWarning: tostring() is deprecated. Use tobytes() instead.
+  tensor_proto.tensor_content = nparray.tostring()
+/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/tensor_util.py:521: DeprecationWarning: tostring() is deprecated. Use tobytes() instead.
+  tensor_proto.tensor_content = nparray.tostring()
+/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/tensor_util.py:521: DeprecationWarning: tostring() is deprecated. Use tobytes() instead.
+  tensor_proto.tensor_content = nparray.tostring()
+/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/tensor_util.py:521: DeprecationWarning: tostring() is deprecated. Use tobytes() instead.
+  tensor_proto.tensor_content = nparray.tostring()
+/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/tensor_util.py:521: DeprecationWarning: tostring() is deprecated. Use tobytes() instead.
+  tensor_proto.tensor_content = nparray.tostring()
+/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/tensor_util.py:521: DeprecationWarning: tostring() is deprecated. Use tobytes() instead.
+  tensor_proto.tensor_content = nparray.tostring()
+/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/tensor_util.py:521: DeprecationWarning: tostring() is deprecated. Use tobytes() instead.
+  tensor_proto.tensor_content = nparray.tostring()
+/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/tensor_util.py:521: DeprecationWarning: tostring() is deprecated. Use tobytes() instead.
+  tensor_proto.tensor_content = nparray.tostring()
+/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/tensor_util.py:521: DeprecationWarning: tostring() is deprecated. Use tobytes() instead.
+  tensor_proto.tensor_content = nparray.tostring()
+/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/tensor_util.py:521: DeprecationWarning: tostring() is deprecated. Use tobytes() instead.
+  tensor_proto.tensor_content = nparray.tostring()
+/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/tensor_util.py:521: DeprecationWarning: tostring() is deprecated. Use tobytes() instead.
+  tensor_proto.tensor_content = nparray.tostring()
+/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/tensor_util.py:521: DeprecationWarning: tostring() is deprecated. Use tobytes() instead.
+  tensor_proto.tensor_content = nparray.tostring()
+/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/tensor_util.py:521: DeprecationWarning: tostring() is deprecated. Use tobytes() instead.
+  tensor_proto.tensor_content = nparray.tostring()
+/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/tensor_util.py:521: DeprecationWarning: tostring() is deprecated. Use tobytes() instead.
+  tensor_proto.tensor_content = nparray.tostring()
+/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/tensor_util.py:521: DeprecationWarning: tostring() is deprecated. Use tobytes() instead.
+  tensor_proto.tensor_content = nparray.tostring()
+/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/tensor_util.py:521: DeprecationWarning: tostring() is deprecated. Use tobytes() instead.
+  tensor_proto.tensor_content = nparray.tostring()
+/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/tensor_util.py:521: DeprecationWarning: tostring() is deprecated. Use tobytes() instead.
+  tensor_proto.tensor_content = nparray.tostring()
+/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/tensor_util.py:521: DeprecationWarning: tostring() is deprecated. Use tobytes() instead.
+  tensor_proto.tensor_content = nparray.tostring()
+/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/tensor_util.py:521: DeprecationWarning: tostring() is deprecated. Use tobytes() instead.
+  tensor_proto.tensor_content = nparray.tostring()
+/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/tensor_util.py:521: DeprecationWarning: tostring() is deprecated. Use tobytes() instead.
+  tensor_proto.tensor_content = nparray.tostring()
+/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/tensor_util.py:521: DeprecationWarning: tostring() is deprecated. Use tobytes() instead.
+  tensor_proto.tensor_content = nparray.tostring()
+/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/tensor_util.py:521: DeprecationWarning: tostring() is deprecated. Use tobytes() instead.
+  tensor_proto.tensor_content = nparray.tostring()
+/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/tensor_util.py:521: DeprecationWarning: tostring() is deprecated. Use tobytes() instead.
+  tensor_proto.tensor_content = nparray.tostring()
+/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/tensor_util.py:521: DeprecationWarning: tostring() is deprecated. Use tobytes() instead.
+  tensor_proto.tensor_content = nparray.tostring()
+/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/tensor_util.py:521: DeprecationWarning: tostring() is deprecated. Use tobytes() instead.
+  tensor_proto.tensor_content = nparray.tostring()
+/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/tensor_util.py:521: DeprecationWarning: tostring() is deprecated. Use tobytes() instead.
+  tensor_proto.tensor_content = nparray.tostring()
+/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/tensor_util.py:521: DeprecationWarning: tostring() is deprecated. Use tobytes() instead.
+  tensor_proto.tensor_content = nparray.tostring()
+/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/tensor_util.py:521: DeprecationWarning: tostring() is deprecated. Use tobytes() instead.
+  tensor_proto.tensor_content = nparray.tostring()
+/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/tensor_util.py:521: DeprecationWarning: tostring() is deprecated. Use tobytes() instead.
+  tensor_proto.tensor_content = nparray.tostring()
+/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/tensor_util.py:521: DeprecationWarning: tostring() is deprecated. Use tobytes() instead.
+  tensor_proto.tensor_content = nparray.tostring()
+/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/tensor_util.py:521: DeprecationWarning: tostring() is deprecated. Use tobytes() instead.
+  tensor_proto.tensor_content = nparray.tostring()
+/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/tensor_util.py:521: DeprecationWarning: tostring() is deprecated. Use tobytes() instead.
+  tensor_proto.tensor_content = nparray.tostring()
+/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/tensor_util.py:521: DeprecationWarning: tostring() is deprecated. Use tobytes() instead.
+  tensor_proto.tensor_content = nparray.tostring()
+/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/tensor_util.py:521: DeprecationWarning: tostring() is deprecated. Use tobytes() instead.
+  tensor_proto.tensor_content = nparray.tostring()
+/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/tensor_util.py:521: DeprecationWarning: tostring() is deprecated. Use tobytes() instead.
+  tensor_proto.tensor_content = nparray.tostring()
+/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/tensor_util.py:521: DeprecationWarning: tostring() is deprecated. Use tobytes() instead.
+  tensor_proto.tensor_content = nparray.tostring()
+/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/tensor_util.py:521: DeprecationWarning: tostring() is deprecated. Use tobytes() instead.
+  tensor_proto.tensor_content = nparray.tostring()
+/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/tensor_util.py:521: DeprecationWarning: tostring() is deprecated. Use tobytes() instead.
+  tensor_proto.tensor_content = nparray.tostring()
+/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/tensor_util.py:521: DeprecationWarning: tostring() is deprecated. Use tobytes() instead.
+  tensor_proto.tensor_content = nparray.tostring()
+/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/tensor_util.py:521: DeprecationWarning: tostring() is deprecated. Use tobytes() instead.
+  tensor_proto.tensor_content = nparray.tostring()
+/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/tensor_util.py:521: DeprecationWarning: tostring() is deprecated. Use tobytes() instead.
+  tensor_proto.tensor_content = nparray.tostring()
+/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/tensor_util.py:521: DeprecationWarning: tostring() is deprecated. Use tobytes() instead.
+  tensor_proto.tensor_content = nparray.tostring()
+/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/tensor_util.py:521: DeprecationWarning: tostring() is deprecated. Use tobytes() instead.
+  tensor_proto.tensor_content = nparray.tostring()
+/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/tensor_util.py:521: DeprecationWarning: tostring() is deprecated. Use tobytes() instead.
+  tensor_proto.tensor_content = nparray.tostring()
+/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/tensor_util.py:521: DeprecationWarning: tostring() is deprecated. Use tobytes() instead.
+  tensor_proto.tensor_content = nparray.tostring()
+/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/tensor_util.py:521: DeprecationWarning: tostring() is deprecated. Use tobytes() instead.
+  tensor_proto.tensor_content = nparray.tostring()
+/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/tensor_util.py:521: DeprecationWarning: tostring() is deprecated. Use tobytes() instead.
+  tensor_proto.tensor_content = nparray.tostring()
+/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/tensor_util.py:521: DeprecationWarning: tostring() is deprecated. Use tobytes() instead.
+  tensor_proto.tensor_content = nparray.tostring()
+/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/tensor_util.py:521: DeprecationWarning: tostring() is deprecated. Use tobytes() instead.
+  tensor_proto.tensor_content = nparray.tostring()
+/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/tensor_util.py:521: DeprecationWarning: tostring() is deprecated. Use tobytes() instead.
+  tensor_proto.tensor_content = nparray.tostring()
+/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/tensor_util.py:521: DeprecationWarning: tostring() is deprecated. Use tobytes() instead.
+  tensor_proto.tensor_content = nparray.tostring()
+/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/tensor_util.py:521: DeprecationWarning: tostring() is deprecated. Use tobytes() instead.
+  tensor_proto.tensor_content = nparray.tostring()
+/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/tensor_util.py:521: DeprecationWarning: tostring() is deprecated. Use tobytes() instead.
+  tensor_proto.tensor_content = nparray.tostring()
+/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/tensor_util.py:521: DeprecationWarning: tostring() is deprecated. Use tobytes() instead.
+  tensor_proto.tensor_content = nparray.tostring()
+/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/tensor_util.py:521: DeprecationWarning: tostring() is deprecated. Use tobytes() instead.
+  tensor_proto.tensor_content = nparray.tostring()
+[  SKIPPED ] RedisVariableTest.test_dynamic_embedding_variable_with_restrict_v1
+[ RUN      ] RedisVariableTest.test_dynamic_embedding_variable_with_restrict_v2
+2021-07-29 10:22:47.130687: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:status_tstp_guard_test_dynamic_embedding_variable_with_restrict_v2_timestamp existing in Redis server
+2021-07-29 10:22:47.131139: W tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:904] There is no embedding table called test:status_tstp_guard_test_dynamic_embedding_variable_with_restrict_v2_timestamp existing in the Redis service. Exporting values to Tensor failed.
+2021-07-29 10:22:47.131401: W tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:904] There is no embedding table called test:status_tstp_guard_test_dynamic_embedding_variable_with_restrict_v2_timestamp existing in the Redis service. Exporting values to Tensor failed.
+2021-07-29 10:22:47.133192: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:tstp_guard_test_dynamic_embedding_variable_with_restrict_v2 existing in Redis server
+2021-07-29 10:22:47.133522: W tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:904] There is no embedding table called test:tstp_guard_test_dynamic_embedding_variable_with_restrict_v2 existing in the Redis service. Exporting values to Tensor failed.
+2021-07-29 10:22:47.133782: W tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:904] There is no embedding table called test:tstp_guard_test_dynamic_embedding_variable_with_restrict_v2 existing in the Redis service. Exporting values to Tensor failed.
+2021-07-29 10:22:47.135312: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:status_freq_guard_test_dynamic_embedding_variable_with_restrict_v2_frequency existing in Redis server
+2021-07-29 10:22:47.135632: W tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:904] There is no embedding table called test:status_freq_guard_test_dynamic_embedding_variable_with_restrict_v2_frequency existing in the Redis service. Exporting values to Tensor failed.
+2021-07-29 10:22:47.135800: W tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:904] There is no embedding table called test:status_freq_guard_test_dynamic_embedding_variable_with_restrict_v2_frequency existing in the Redis service. Exporting values to Tensor failed.
+2021-07-29 10:22:47.136904: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:freq_guard_test_dynamic_embedding_variable_with_restrict_v2 existing in Redis server
+2021-07-29 10:22:47.137173: W tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:904] There is no embedding table called test:freq_guard_test_dynamic_embedding_variable_with_restrict_v2 existing in the Redis service. Exporting values to Tensor failed.
+2021-07-29 10:22:47.137343: W tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:904] There is no embedding table called test:freq_guard_test_dynamic_embedding_variable_with_restrict_v2 existing in the Redis service. Exporting values to Tensor failed.
+2021-07-29 10:22:47.267718: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:tstp_guard_test_dynamic_embedding_variable_with_restrict_v2_embedding_lookup_TrainableWrapper_m existing in Redis server
+2021-07-29 10:22:47.268051: W tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:904] There is no embedding table called test:tstp_guard_test_dynamic_embedding_variable_with_restrict_v2_embedding_lookup_TrainableWrapper_m existing in the Redis service. Exporting values to Tensor failed.
+2021-07-29 10:22:47.268233: W tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:904] There is no embedding table called test:tstp_guard_test_dynamic_embedding_variable_with_restrict_v2_embedding_lookup_TrainableWrapper_m existing in the Redis service. Exporting values to Tensor failed.
+2021-07-29 10:22:47.276095: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:freq_guard_test_dynamic_embedding_variable_with_restrict_v2_embedding_lookup_TrainableWrapper_m existing in Redis server
+2021-07-29 10:22:47.276389: W tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:904] There is no embedding table called test:freq_guard_test_dynamic_embedding_variable_with_restrict_v2_embedding_lookup_TrainableWrapper_m existing in the Redis service. Exporting values to Tensor failed.
+2021-07-29 10:22:47.276559: W tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:904] There is no embedding table called test:freq_guard_test_dynamic_embedding_variable_with_restrict_v2_embedding_lookup_TrainableWrapper_m existing in the Redis service. Exporting values to Tensor failed.
+2021-07-29 10:22:47.283459: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:tstp_guard_test_dynamic_embedding_variable_with_restrict_v2_embedding_lookup_TrainableWrapper_v existing in Redis server
+2021-07-29 10:22:47.283772: W tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:904] There is no embedding table called test:tstp_guard_test_dynamic_embedding_variable_with_restrict_v2_embedding_lookup_TrainableWrapper_v existing in the Redis service. Exporting values to Tensor failed.
+2021-07-29 10:22:47.283944: W tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:904] There is no embedding table called test:tstp_guard_test_dynamic_embedding_variable_with_restrict_v2_embedding_lookup_TrainableWrapper_v existing in the Redis service. Exporting values to Tensor failed.
+2021-07-29 10:22:47.294182: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:freq_guard_test_dynamic_embedding_variable_with_restrict_v2_embedding_lookup_TrainableWrapper_v existing in Redis server
+2021-07-29 10:22:47.294828: W tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:904] There is no embedding table called test:freq_guard_test_dynamic_embedding_variable_with_restrict_v2_embedding_lookup_TrainableWrapper_v existing in the Redis service. Exporting values to Tensor failed.
+2021-07-29 10:22:47.295219: W tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:904] There is no embedding table called test:freq_guard_test_dynamic_embedding_variable_with_restrict_v2_embedding_lookup_TrainableWrapper_v existing in the Redis service. Exporting values to Tensor failed.
+[       OK ] RedisVariableTest.test_dynamic_embedding_variable_with_restrict_v2
+[ RUN      ] RedisVariableTest.test_dynamic_embedding_variable_with_tensor_default
+2021-07-29 10:22:47.699153: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t200_test_dynamic_embedding_variable_with_tensor_default existing in Redis server
+/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/tensor_util.py:521: DeprecationWarning: tostring() is deprecated. Use tobytes() instead.
+  tensor_proto.tensor_content = nparray.tostring()
+[       OK ] RedisVariableTest.test_dynamic_embedding_variable_with_tensor_default
+[ RUN      ] RedisVariableTest.test_dynamic_embedding_variables
+2021-07-29 10:22:47.771529: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t191_test_dynamic_embedding_variables existing in Redis server
+2021-07-29 10:22:47.780523: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t192_test_dynamic_embedding_variables existing in Redis server
+2021-07-29 10:22:47.790016: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t193_test_dynamic_embedding_variables existing in Redis server
+[       OK ] RedisVariableTest.test_dynamic_embedding_variables
+[ RUN      ] RedisVariableTest.test_get_variable
+2021-07-29 10:22:47.873707: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:embedding_t1_test_get_variable existing in Redis server
+2021-07-29 10:22:47.874221: W tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:904] There is no embedding table called test:embedding_t1_test_get_variable existing in the Redis service. Exporting values to Tensor failed.
+2021-07-29 10:22:47.874441: W tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:904] There is no embedding table called test:embedding_t1_test_get_variable existing in the Redis service. Exporting values to Tensor failed.
+2021-07-29 10:22:47.875940: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:embedding_t3_test_get_variable existing in Redis server
+2021-07-29 10:22:47.876226: W tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:904] There is no embedding table called test:embedding_t3_test_get_variable existing in the Redis service. Exporting values to Tensor failed.
+2021-07-29 10:22:47.876403: W tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:904] There is no embedding table called test:embedding_t3_test_get_variable existing in the Redis service. Exporting values to Tensor failed.
+[       OK ] RedisVariableTest.test_get_variable
+[ RUN      ] RedisVariableTest.test_get_variable_reuse_error
+[       OK ] RedisVariableTest.test_get_variable_reuse_error
+[ RUN      ] RedisVariableTest.test_save_restore
+2021-07-29 10:22:48.668167: I ./tensorflow_recommenders_addons/dynamic_embedding/core/kernels/lookup_impl/lookup_table_op_cpu.h:91] HashTable on CPU is created on optimized mode: K=x, V=f, DIM=1, init_size=8192
+2021-07-29 10:22:48.724132: I ./tensorflow_recommenders_addons/dynamic_embedding/core/kernels/lookup_impl/lookup_table_op_cpu.h:91] HashTable on CPU is created on optimized mode: K=x, V=f, DIM=1, init_size=8192
+INFO:tensorflow:Restoring parameters from /tmp/redis_table_ops_testtnq3au1r/tmpgupn9n8x/save_restore7lqh6zlv/hash
+I0729 10:22:48.739514 140124957620032 saver.py:1284] Restoring parameters from /tmp/redis_table_ops_testtnq3au1r/tmpgupn9n8x/save_restore7lqh6zlv/hash
+2021-07-29 10:22:48.769426: I ./tensorflow_recommenders_addons/dynamic_embedding/core/kernels/lookup_impl/lookup_table_op_cpu.h:91] HashTable on CPU is created on optimized mode: K=x, V=f, DIM=1, init_size=8192
+WARNING:tensorflow:Saver is deprecated, please switch to tf.train.Checkpoint or tf.keras.Model.save_weights for training checkpoints. When executing eagerly variables do not necessarily have unique names, and so the variable.name-based lookups Saver performs are error-prone.
+W0729 10:22:48.770591 140124957620032 saver.py:798] Saver is deprecated, please switch to tf.train.Checkpoint or tf.keras.Model.save_weights for training checkpoints. When executing eagerly variables do not necessarily have unique names, and so the variable.name-based lookups Saver performs are error-prone.
+2021-07-29 10:22:48.784364: I ./tensorflow_recommenders_addons/dynamic_embedding/core/kernels/lookup_impl/lookup_table_op_cpu.h:91] HashTable on CPU is created on optimized mode: K=x, V=f, DIM=1, init_size=8192
+WARNING:tensorflow:Saver is deprecated, please switch to tf.train.Checkpoint or tf.keras.Model.save_weights for training checkpoints. When executing eagerly variables do not necessarily have unique names, and so the variable.name-based lookups Saver performs are error-prone.
+W0729 10:22:48.785827 140124957620032 saver.py:798] Saver is deprecated, please switch to tf.train.Checkpoint or tf.keras.Model.save_weights for training checkpoints. When executing eagerly variables do not necessarily have unique names, and so the variable.name-based lookups Saver performs are error-prone.
+INFO:tensorflow:Restoring parameters from /tmp/redis_table_ops_testtnq3au1r/tmp3c_g2aju/save_restoredg0_snh4/hash
+I0729 10:22:48.786933 140124957620032 saver.py:1284] Restoring parameters from /tmp/redis_table_ops_testtnq3au1r/tmp3c_g2aju/save_restoredg0_snh4/hash
+[       OK ] RedisVariableTest.test_save_restore
+[ RUN      ] RedisVariableTest.test_save_restore_only_table
+2021-07-29 10:22:48.830369: I ./tensorflow_recommenders_addons/dynamic_embedding/core/kernels/lookup_impl/lookup_table_op_cpu.h:91] HashTable on CPU is created on optimized mode: K=x, V=i, DIM=1, init_size=8192
+2021-07-29 10:22:48.893664: I ./tensorflow_recommenders_addons/dynamic_embedding/core/kernels/lookup_impl/lookup_table_op_cpu.h:91] HashTable on CPU is created on optimized mode: K=x, V=i, DIM=1, init_size=8192
+INFO:tensorflow:Restoring parameters from /tmp/redis_table_ops_testtnq3au1r/tmppleot2yw/save_restorejxs_rxcl/hash
+I0729 10:22:48.907559 140124957620032 saver.py:1284] Restoring parameters from /tmp/redis_table_ops_testtnq3au1r/tmppleot2yw/save_restorejxs_rxcl/hash
+2021-07-29 10:22:48.932148: I ./tensorflow_recommenders_addons/dynamic_embedding/core/kernels/lookup_impl/lookup_table_op_cpu.h:91] HashTable on CPU is created on optimized mode: K=x, V=i, DIM=1, init_size=8192
+WARNING:tensorflow:Saver is deprecated, please switch to tf.train.Checkpoint or tf.keras.Model.save_weights for training checkpoints. When executing eagerly variables do not necessarily have unique names, and so the variable.name-based lookups Saver performs are error-prone.
+W0729 10:22:48.933222 140124957620032 saver.py:798] Saver is deprecated, please switch to tf.train.Checkpoint or tf.keras.Model.save_weights for training checkpoints. When executing eagerly variables do not necessarily have unique names, and so the variable.name-based lookups Saver performs are error-prone.
+2021-07-29 10:22:48.938429: I ./tensorflow_recommenders_addons/dynamic_embedding/core/kernels/lookup_impl/lookup_table_op_cpu.h:91] HashTable on CPU is created on optimized mode: K=x, V=i, DIM=1, init_size=8192
+WARNING:tensorflow:Saver is deprecated, please switch to tf.train.Checkpoint or tf.keras.Model.save_weights for training checkpoints. When executing eagerly variables do not necessarily have unique names, and so the variable.name-based lookups Saver performs are error-prone.
+W0729 10:22:48.939750 140124957620032 saver.py:798] Saver is deprecated, please switch to tf.train.Checkpoint or tf.keras.Model.save_weights for training checkpoints. When executing eagerly variables do not necessarily have unique names, and so the variable.name-based lookups Saver performs are error-prone.
+INFO:tensorflow:Restoring parameters from /tmp/redis_table_ops_testtnq3au1r/tmpy2zktw1v/save_restoret37osv2x/hash
+I0729 10:22:48.940655 140124957620032 saver.py:1284] Restoring parameters from /tmp/redis_table_ops_testtnq3au1r/tmpy2zktw1v/save_restoret37osv2x/hash
+[       OK ] RedisVariableTest.test_save_restore_only_table
+[ RUN      ] RedisVariableTest.test_session
+[  SKIPPED ] RedisVariableTest.test_session
+[ RUN      ] RedisVariableTest.test_sharing_between_multi_sessions
+2021-07-29 10:22:48.948772: I tensorflow/core/distributed_runtime/rpc/grpc_channel.cc:258] Initialize GrpcChannelCache for job local0 -> {0 -> localhost:40221}
+2021-07-29 10:22:48.953016: I tensorflow/core/distributed_runtime/rpc/grpc_server_lib.cc:365] Started server with target: grpc://localhost:40221
+2021-07-29 10:22:48.966297: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:tx100_test_sharing_between_multi_sessions existing in Redis server
+2021-07-29 10:22:49.004125: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:tx100_test_sharing_between_multi_sessions existing in Redis server
+2021-07-29 10:22:49.086037: I tensorflow/core/distributed_runtime/rpc/grpc_channel.cc:258] Initialize GrpcChannelCache for job local0 -> {0 -> localhost:36535}
+2021-07-29 10:22:49.088592: I tensorflow/core/distributed_runtime/rpc/grpc_server_lib.cc:365] Started server with target: grpc://localhost:36535
+2021-07-29 10:22:49.149447: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:tx100_test_sharing_between_multi_sessions existing in Redis server
+[       OK ] RedisVariableTest.test_sharing_between_multi_sessions
+[ RUN      ] RedisVariableTest.test_signature_mismatch
+2021-07-29 10:22:49.261791: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t210_test_signature_mismatch existing in Redis server
+[       OK ] RedisVariableTest.test_signature_mismatch
+[ RUN      ] RedisVariableTest.test_training_save_restore
+WARNING:tensorflow:From tensorflow_recommenders_addons/dynamic_embedding/python/kernel_tests/redis_table_ops_test.py:610: py_func (from tensorflow.python.ops.script_ops) is deprecated and will be removed in a future version.
+Instructions for updating:
+tf.py_func is deprecated in TF V2. Instead, there are two
+    options available in V2.
+    - tf.py_function takes a python function which manipulates tf eager
+    tensors instead of numpy arrays. It's easy to convert a tf eager tensor to
+    an ndarray (just call tensor.numpy()) but having access to eager tensors
+    means `tf.py_function`s can use accelerators such as GPUs as well as
+    being differentiable using a gradient tape.
+    - tf.numpy_function maintains the semantics of the deprecated tf.py_func
+    (it is not differentiable, and manipulates numpy arrays). It drops the
+    stateful argument making all functions stateful.
+    
+W0729 10:22:49.316359 140124957620032 deprecation.py:323] From tensorflow_recommenders_addons/dynamic_embedding/python/kernel_tests/redis_table_ops_test.py:610: py_func (from tensorflow.python.ops.script_ops) is deprecated and will be removed in a future version.
+Instructions for updating:
+tf.py_func is deprecated in TF V2. Instead, there are two
+    options available in V2.
+    - tf.py_function takes a python function which manipulates tf eager
+    tensors instead of numpy arrays. It's easy to convert a tf eager tensor to
+    an ndarray (just call tensor.numpy()) but having access to eager tensors
+    means `tf.py_function`s can use accelerators such as GPUs as well as
+    being differentiable using a gradient tape.
+    - tf.numpy_function maintains the semantics of the deprecated tf.py_func
+    (it is not differentiable, and manipulates numpy arrays). It drops the
+    stateful argument making all functions stateful.
+    
+2021-07-29 10:22:49.337386: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:params-test-0915-1_test_training_save_restore existing in Redis server
+2021-07-29 10:22:49.516223: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:params-test-0915-1_test_training_save_restore_Adam_v existing in Redis server
+2021-07-29 10:22:49.516936: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:params-test-0915-1_test_training_save_restore existing in Redis server
+2021-07-29 10:22:49.517625: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:params-test-0915-1_test_training_save_restore_Adam_m existing in Redis server
+INFO:tensorflow:Restoring parameters from /tmp/redis_table_ops_testtnq3au1r/tmpnux9bjfl/save_restorev0aie0iy/hash
+I0729 10:22:49.672330 140124957620032 saver.py:1284] Restoring parameters from /tmp/redis_table_ops_testtnq3au1r/tmpnux9bjfl/save_restorev0aie0iy/hash
+2021-07-29 10:22:49.755307: W tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:904] There is no embedding table called test:params-test-0915-1_test_training_save_restore existing in the Redis service. Exporting values to Tensor failed.
+WARNING:tensorflow:Saver is deprecated, please switch to tf.train.Checkpoint or tf.keras.Model.save_weights for training checkpoints. When executing eagerly variables do not necessarily have unique names, and so the variable.name-based lookups Saver performs are error-prone.
+W0729 10:22:49.769872 140124957620032 saver.py:798] Saver is deprecated, please switch to tf.train.Checkpoint or tf.keras.Model.save_weights for training checkpoints. When executing eagerly variables do not necessarily have unique names, and so the variable.name-based lookups Saver performs are error-prone.
+2021-07-29 10:22:49.773450: W tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:904] There is no embedding table called test:params-test-0915-1_test_training_save_restore existing in the Redis service. Exporting values to Tensor failed.
+INFO:tensorflow:Restoring parameters from /tmp/redis_table_ops_testtnq3au1r/tmpj6hoclz8/save_restorexjamwc4b/hash
+I0729 10:22:49.780361 140124957620032 saver.py:1284] Restoring parameters from /tmp/redis_table_ops_testtnq3au1r/tmpj6hoclz8/save_restorexjamwc4b/hash
+2021-07-29 10:22:49.780758: W tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:904] There is no embedding table called test:params-test-0915-1_test_training_save_restore existing in the Redis service. Exporting values to Tensor failed.
+2021-07-29 10:22:49.783126: W tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:771] Empty Tensor keys for import!
+2021-07-29 10:22:49.783365: W tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:904] There is no embedding table called test:params-test-0915-1_test_training_save_restore existing in the Redis service. Exporting values to Tensor failed.
+[       OK ] RedisVariableTest.test_training_save_restore
+[ RUN      ] RedisVariableTest.test_training_save_restore_by_files
+2021-07-29 10:22:49.972470: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:params-test-0916-1_test_training_save_restore_by_files existing in Redis server
+2021-07-29 10:22:49.972786: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_util.hpp:92] folder /tmp/redis_table_ops_testtnq3au1r/tmpduaxswc_/save_restoreq4peiw68/hash/test/ doesn't exist
+2021-07-29 10:22:49.972924: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_util.hpp:94] folder /tmp/redis_table_ops_testtnq3au1r/tmpduaxswc_/save_restoreq4peiw68/hash/test/ was created
+2021-07-29 10:22:49.972977: W tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:793] file /tmp/redis_table_ops_testtnq3au1r/tmpduaxswc_/save_restoreq4peiw68/hash/test/test:params-test-0916-1_test_training_save_restore_by_files0.rdb doesn't exist. Using the table that already exist in the Redis or creating a new one
+2021-07-29 10:22:50.008814: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:params-test-0916-1_test_training_save_restore_by_files_Adam_v existing in Redis server
+2021-07-29 10:22:50.009130: W tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:793] file /tmp/redis_table_ops_testtnq3au1r/tmpduaxswc_/save_restoreq4peiw68/hash/test/test:params-test-0916-1_test_training_save_restore_by_files_Adam_v0.rdb doesn't exist. Using the table that already exist in the Redis or creating a new one
+2021-07-29 10:22:50.009521: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:params-test-0916-1_test_training_save_restore_by_files_Adam_m existing in Redis server
+2021-07-29 10:22:50.009797: W tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:793] file /tmp/redis_table_ops_testtnq3au1r/tmpduaxswc_/save_restoreq4peiw68/hash/test/test:params-test-0916-1_test_training_save_restore_by_files_Adam_m0.rdb doesn't exist. Using the table that already exist in the Redis or creating a new one
+2021-07-29 10:22:50.075400: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:866] Try to dump the table test:params-test-0916-1_test_training_save_restore_by_files from Redis service to /tmp/redis_table_ops_testtnq3au1r/tmpduaxswc_/save_restoreq4peiw68/hash/test/test:params-test-0916-1_test_training_save_restore_by_files[*].rdb
+2021-07-29 10:22:50.075468: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:866] Try to dump the table test:params-test-0916-1_test_training_save_restore_by_files_Adam_m from Redis service to /tmp/redis_table_ops_testtnq3au1r/tmpduaxswc_/save_restoreq4peiw68/hash/test/test:params-test-0916-1_test_training_save_restore_by_files_Adam_m[*].rdb
+2021-07-29 10:22:50.075531: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:866] Try to dump the table test:params-test-0916-1_test_training_save_restore_by_files_Adam_v from Redis service to /tmp/redis_table_ops_testtnq3au1r/tmpduaxswc_/save_restoreq4peiw68/hash/test/test:params-test-0916-1_test_training_save_restore_by_files_Adam_v[*].rdb
+/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/tensor_util.py:521: DeprecationWarning: tostring() is deprecated. Use tobytes() instead.
+  tensor_proto.tensor_content = nparray.tostring()
+INFO:tensorflow:Restoring parameters from /tmp/redis_table_ops_testtnq3au1r/tmpduaxswc_/save_restoreq4peiw68/hash
+I0729 10:22:50.098023 140124957620032 saver.py:1284] Restoring parameters from /tmp/redis_table_ops_testtnq3au1r/tmpduaxswc_/save_restoreq4peiw68/hash
+2021-07-29 10:22:50.113147: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:665] There is already a corresponding table test:params-test-0916-1_test_training_save_restore_by_files_Adam_m existing in Redis service
+2021-07-29 10:22:50.113971: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:665] There is already a corresponding table test:params-test-0916-1_test_training_save_restore_by_files existing in Redis service
+2021-07-29 10:22:50.114722: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:665] There is already a corresponding table test:params-test-0916-1_test_training_save_restore_by_files_Adam_v existing in Redis service
+2021-07-29 10:22:50.114861: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:803] Try to restore the table test:params-test-0916-1_test_training_save_restore_by_files to Redis service from /tmp/redis_table_ops_testtnq3au1r/tmpduaxswc_/save_restoreq4peiw68/hash/test/test:params-test-0916-1_test_training_save_restore_by_files[*].rdb
+2021-07-29 10:22:50.114862: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:803] Try to restore the table test:params-test-0916-1_test_training_save_restore_by_files_Adam_v to Redis service from /tmp/redis_table_ops_testtnq3au1r/tmpduaxswc_/save_restoreq4peiw68/hash/test/test:params-test-0916-1_test_training_save_restore_by_files_Adam_v[*].rdb
+2021-07-29 10:22:50.114867: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:803] Try to restore the table test:params-test-0916-1_test_training_save_restore_by_files_Adam_m to Redis service from /tmp/redis_table_ops_testtnq3au1r/tmpduaxswc_/save_restoreq4peiw68/hash/test/test:params-test-0916-1_test_training_save_restore_by_files_Adam_m[*].rdb
+2021-07-29 10:22:50.158218: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:665] There is already a corresponding table test:params-test-0916-1_test_training_save_restore_by_files existing in Redis service
+2021-07-29 10:22:50.158671: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_util.hpp:92] folder /tmp/redis_table_ops_testtnq3au1r/tmp8kvaa8ts/save_restorewxw92q5q/hash/test/ doesn't exist
+2021-07-29 10:22:50.158829: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_util.hpp:94] folder /tmp/redis_table_ops_testtnq3au1r/tmp8kvaa8ts/save_restorewxw92q5q/hash/test/ was created
+2021-07-29 10:22:50.158915: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:866] Try to dump the table test:params-test-0916-1_test_training_save_restore_by_files from Redis service to /tmp/redis_table_ops_testtnq3au1r/tmp8kvaa8ts/save_restorewxw92q5q/hash/test/test:params-test-0916-1_test_training_save_restore_by_files[*].rdb
+2021-07-29 10:22:50.159591: W tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:840] File /tmp/redis_table_ops_testtnq3au1r/tmp8kvaa8ts/save_restorewxw92q5q/hash/test/test:params-test-0916-1_test_training_save_restore_by_files0.rdb has already existed!
+2021-07-29 10:22:50.159667: W tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:849] Rename the file /tmp/redis_table_ops_testtnq3au1r/tmp8kvaa8ts/save_restorewxw92q5q/hash/test/test:params-test-0916-1_test_training_save_restore_by_files0.rdb into /tmp/redis_table_ops_testtnq3au1r/tmp8kvaa8ts/save_restorewxw92q5q/hash/test/test:params-test-0916-1_test_training_save_restore_by_files0.rdb.2021-07-29-10:22:50 with local time!
+2021-07-29 10:22:50.159826: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:866] Try to dump the table test:params-test-0916-1_test_training_save_restore_by_files from Redis service to /tmp/redis_table_ops_testtnq3au1r/tmp8kvaa8ts/save_restorewxw92q5q/hash/test/test:params-test-0916-1_test_training_save_restore_by_files[*].rdb
+2021-07-29 10:22:50.176525: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:665] There is already a corresponding table test:params-test-0916-1_test_training_save_restore_by_files_Adam_m existing in Redis service
+2021-07-29 10:22:50.176821: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:866] Try to dump the table test:params-test-0916-1_test_training_save_restore_by_files_Adam_m from Redis service to /tmp/redis_table_ops_testtnq3au1r/tmp8kvaa8ts/save_restorewxw92q5q/hash/test/test:params-test-0916-1_test_training_save_restore_by_files_Adam_m[*].rdb
+2021-07-29 10:22:50.177157: W tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:840] File /tmp/redis_table_ops_testtnq3au1r/tmp8kvaa8ts/save_restorewxw92q5q/hash/test/test:params-test-0916-1_test_training_save_restore_by_files_Adam_m0.rdb has already existed!
+2021-07-29 10:22:50.177210: W tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:849] Rename the file /tmp/redis_table_ops_testtnq3au1r/tmp8kvaa8ts/save_restorewxw92q5q/hash/test/test:params-test-0916-1_test_training_save_restore_by_files_Adam_m0.rdb into /tmp/redis_table_ops_testtnq3au1r/tmp8kvaa8ts/save_restorewxw92q5q/hash/test/test:params-test-0916-1_test_training_save_restore_by_files_Adam_m0.rdb.2021-07-29-10:22:50 with local time!
+2021-07-29 10:22:50.202779: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:866] Try to dump the table test:params-test-0916-1_test_training_save_restore_by_files_Adam_m from Redis service to /tmp/redis_table_ops_testtnq3au1r/tmp8kvaa8ts/save_restorewxw92q5q/hash/test/test:params-test-0916-1_test_training_save_restore_by_files_Adam_m[*].rdb
+2021-07-29 10:22:50.214846: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:665] There is already a corresponding table test:params-test-0916-1_test_training_save_restore_by_files_Adam_v existing in Redis service
+2021-07-29 10:22:50.215417: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:866] Try to dump the table test:params-test-0916-1_test_training_save_restore_by_files_Adam_v from Redis service to /tmp/redis_table_ops_testtnq3au1r/tmp8kvaa8ts/save_restorewxw92q5q/hash/test/test:params-test-0916-1_test_training_save_restore_by_files_Adam_v[*].rdb
+2021-07-29 10:22:50.216089: W tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:840] File /tmp/redis_table_ops_testtnq3au1r/tmp8kvaa8ts/save_restorewxw92q5q/hash/test/test:params-test-0916-1_test_training_save_restore_by_files_Adam_v0.rdb has already existed!
+2021-07-29 10:22:50.216178: W tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:849] Rename the file /tmp/redis_table_ops_testtnq3au1r/tmp8kvaa8ts/save_restorewxw92q5q/hash/test/test:params-test-0916-1_test_training_save_restore_by_files_Adam_v0.rdb into /tmp/redis_table_ops_testtnq3au1r/tmp8kvaa8ts/save_restorewxw92q5q/hash/test/test:params-test-0916-1_test_training_save_restore_by_files_Adam_v0.rdb.2021-07-29-10:22:50 with local time!
+2021-07-29 10:22:50.216388: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:866] Try to dump the table test:params-test-0916-1_test_training_save_restore_by_files_Adam_v from Redis service to /tmp/redis_table_ops_testtnq3au1r/tmp8kvaa8ts/save_restorewxw92q5q/hash/test/test:params-test-0916-1_test_training_save_restore_by_files_Adam_v[*].rdb
+WARNING:tensorflow:Saver is deprecated, please switch to tf.train.Checkpoint or tf.keras.Model.save_weights for training checkpoints. When executing eagerly variables do not necessarily have unique names, and so the variable.name-based lookups Saver performs are error-prone.
+W0729 10:22:50.223577 140124957620032 saver.py:798] Saver is deprecated, please switch to tf.train.Checkpoint or tf.keras.Model.save_weights for training checkpoints. When executing eagerly variables do not necessarily have unique names, and so the variable.name-based lookups Saver performs are error-prone.
+2021-07-29 10:22:50.226704: W tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:840] File /tmp/redis_table_ops_testtnq3au1r/tmp8kvaa8ts/save_restorewxw92q5q/hash/test/test:params-test-0916-1_test_training_save_restore_by_files0.rdb has already existed!
+2021-07-29 10:22:50.226755: W tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:849] Rename the file /tmp/redis_table_ops_testtnq3au1r/tmp8kvaa8ts/save_restorewxw92q5q/hash/test/test:params-test-0916-1_test_training_save_restore_by_files0.rdb into /tmp/redis_table_ops_testtnq3au1r/tmp8kvaa8ts/save_restorewxw92q5q/hash/test/test:params-test-0916-1_test_training_save_restore_by_files0.rdb.2021-07-29-10:22:50 with local time!
+2021-07-29 10:22:50.226852: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:866] Try to dump the table test:params-test-0916-1_test_training_save_restore_by_files from Redis service to /tmp/redis_table_ops_testtnq3au1r/tmp8kvaa8ts/save_restorewxw92q5q/hash/test/test:params-test-0916-1_test_training_save_restore_by_files[*].rdb
+2021-07-29 10:22:50.227291: W tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:840] File /tmp/redis_table_ops_testtnq3au1r/tmp8kvaa8ts/save_restorewxw92q5q/hash/test/test:params-test-0916-1_test_training_save_restore_by_files_Adam_m0.rdb has already existed!
+2021-07-29 10:22:50.227342: W tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:849] Rename the file /tmp/redis_table_ops_testtnq3au1r/tmp8kvaa8ts/save_restorewxw92q5q/hash/test/test:params-test-0916-1_test_training_save_restore_by_files_Adam_m0.rdb into /tmp/redis_table_ops_testtnq3au1r/tmp8kvaa8ts/save_restorewxw92q5q/hash/test/test:params-test-0916-1_test_training_save_restore_by_files_Adam_m0.rdb.2021-07-29-10:22:50 with local time!
+2021-07-29 10:22:50.227424: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:866] Try to dump the table test:params-test-0916-1_test_training_save_restore_by_files_Adam_m from Redis service to /tmp/redis_table_ops_testtnq3au1r/tmp8kvaa8ts/save_restorewxw92q5q/hash/test/test:params-test-0916-1_test_training_save_restore_by_files_Adam_m[*].rdb
+2021-07-29 10:22:50.227770: W tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:840] File /tmp/redis_table_ops_testtnq3au1r/tmp8kvaa8ts/save_restorewxw92q5q/hash/test/test:params-test-0916-1_test_training_save_restore_by_files_Adam_v0.rdb has already existed!
+2021-07-29 10:22:50.227803: W tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:849] Rename the file /tmp/redis_table_ops_testtnq3au1r/tmp8kvaa8ts/save_restorewxw92q5q/hash/test/test:params-test-0916-1_test_training_save_restore_by_files_Adam_v0.rdb into /tmp/redis_table_ops_testtnq3au1r/tmp8kvaa8ts/save_restorewxw92q5q/hash/test/test:params-test-0916-1_test_training_save_restore_by_files_Adam_v0.rdb.2021-07-29-10:22:50 with local time!
+2021-07-29 10:22:50.227878: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:866] Try to dump the table test:params-test-0916-1_test_training_save_restore_by_files_Adam_v from Redis service to /tmp/redis_table_ops_testtnq3au1r/tmp8kvaa8ts/save_restorewxw92q5q/hash/test/test:params-test-0916-1_test_training_save_restore_by_files_Adam_v[*].rdb
+INFO:tensorflow:Restoring parameters from /tmp/redis_table_ops_testtnq3au1r/tmp8kvaa8ts/save_restorewxw92q5q/hash
+I0729 10:22:50.231921 140124957620032 saver.py:1284] Restoring parameters from /tmp/redis_table_ops_testtnq3au1r/tmp8kvaa8ts/save_restorewxw92q5q/hash
+2021-07-29 10:22:50.232610: W tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:840] File /tmp/redis_table_ops_testtnq3au1r/tmp8kvaa8ts/save_restorewxw92q5q/hash/test/test:params-test-0916-1_test_training_save_restore_by_files0.rdb has already existed!
+2021-07-29 10:22:50.232676: W tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:849] Rename the file /tmp/redis_table_ops_testtnq3au1r/tmp8kvaa8ts/save_restorewxw92q5q/hash/test/test:params-test-0916-1_test_training_save_restore_by_files0.rdb into /tmp/redis_table_ops_testtnq3au1r/tmp8kvaa8ts/save_restorewxw92q5q/hash/test/test:params-test-0916-1_test_training_save_restore_by_files0.rdb.2021-07-29-10:22:50 with local time!
+2021-07-29 10:22:50.232820: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:866] Try to dump the table test:params-test-0916-1_test_training_save_restore_by_files from Redis service to /tmp/redis_table_ops_testtnq3au1r/tmp8kvaa8ts/save_restorewxw92q5q/hash/test/test:params-test-0916-1_test_training_save_restore_by_files[*].rdb
+2021-07-29 10:22:50.233408: W tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:840] File /tmp/redis_table_ops_testtnq3au1r/tmp8kvaa8ts/save_restorewxw92q5q/hash/test/test:params-test-0916-1_test_training_save_restore_by_files_Adam_m0.rdb has already existed!
+2021-07-29 10:22:50.233474: W tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:849] Rename the file /tmp/redis_table_ops_testtnq3au1r/tmp8kvaa8ts/save_restorewxw92q5q/hash/test/test:params-test-0916-1_test_training_save_restore_by_files_Adam_m0.rdb into /tmp/redis_table_ops_testtnq3au1r/tmp8kvaa8ts/save_restorewxw92q5q/hash/test/test:params-test-0916-1_test_training_save_restore_by_files_Adam_m0.rdb.2021-07-29-10:22:50 with local time!
+2021-07-29 10:22:50.233600: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:866] Try to dump the table test:params-test-0916-1_test_training_save_restore_by_files_Adam_m from Redis service to /tmp/redis_table_ops_testtnq3au1r/tmp8kvaa8ts/save_restorewxw92q5q/hash/test/test:params-test-0916-1_test_training_save_restore_by_files_Adam_m[*].rdb
+2021-07-29 10:22:50.234097: W tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:840] File /tmp/redis_table_ops_testtnq3au1r/tmp8kvaa8ts/save_restorewxw92q5q/hash/test/test:params-test-0916-1_test_training_save_restore_by_files_Adam_v0.rdb has already existed!
+2021-07-29 10:22:50.234150: W tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:849] Rename the file /tmp/redis_table_ops_testtnq3au1r/tmp8kvaa8ts/save_restorewxw92q5q/hash/test/test:params-test-0916-1_test_training_save_restore_by_files_Adam_v0.rdb into /tmp/redis_table_ops_testtnq3au1r/tmp8kvaa8ts/save_restorewxw92q5q/hash/test/test:params-test-0916-1_test_training_save_restore_by_files_Adam_v0.rdb.2021-07-29-10:22:50 with local time!
+2021-07-29 10:22:50.234269: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:866] Try to dump the table test:params-test-0916-1_test_training_save_restore_by_files_Adam_v from Redis service to /tmp/redis_table_ops_testtnq3au1r/tmp8kvaa8ts/save_restorewxw92q5q/hash/test/test:params-test-0916-1_test_training_save_restore_by_files_Adam_v[*].rdb
+2021-07-29 10:22:50.236900: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:803] Try to restore the table test:params-test-0916-1_test_training_save_restore_by_files_Adam_m to Redis service from /tmp/redis_table_ops_testtnq3au1r/tmp8kvaa8ts/save_restorewxw92q5q/hash/test/test:params-test-0916-1_test_training_save_restore_by_files_Adam_m[*].rdb
+2021-07-29 10:22:50.237450: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:803] Try to restore the table test:params-test-0916-1_test_training_save_restore_by_files_Adam_v to Redis service from /tmp/redis_table_ops_testtnq3au1r/tmp8kvaa8ts/save_restorewxw92q5q/hash/test/test:params-test-0916-1_test_training_save_restore_by_files_Adam_v[*].rdb
+2021-07-29 10:22:50.237902: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:803] Try to restore the table test:params-test-0916-1_test_training_save_restore_by_files to Redis service from /tmp/redis_table_ops_testtnq3au1r/tmp8kvaa8ts/save_restorewxw92q5q/hash/test/test:params-test-0916-1_test_training_save_restore_by_files[*].rdb
+[       OK ] RedisVariableTest.test_training_save_restore_by_files
+[ RUN      ] RedisVariableTest.test_variable
+2021-07-29 10:22:50.265360: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:69] RedisSentinel connection pool constructor called!
+2021-07-29 10:22:50.266167: E tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:116] RedisHandler--other Failed to create connection with sentinel
+2021-07-29 10:22:50.266217: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:117] Failed to connect to the Sentinel server. Try to connect directly with the input IP address as if it were a Redis server.
+2021-07-29 10:22:50.266639: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t1-1_test_variable existing in Redis server
+2021-07-29 10:22:50.321687: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t1-2_test_variable existing in Redis server
+2021-07-29 10:22:50.400271: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t1-3_test_variable existing in Redis server
+2021-07-29 10:22:50.468143: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t1-4_test_variable existing in Redis server
+2021-07-29 10:22:50.558533: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:69] RedisSentinel connection pool constructor called!
+2021-07-29 10:22:50.559213: E tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:116] RedisHandler--other Failed to create connection with sentinel
+2021-07-29 10:22:50.559265: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:117] Failed to connect to the Sentinel server. Try to connect directly with the input IP address as if it were a Redis server.
+2021-07-29 10:22:50.559582: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t1-5_test_variable existing in Redis server
+2021-07-29 10:22:50.646537: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t1-6_test_variable existing in Redis server
+2021-07-29 10:22:50.737339: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t1-7_test_variable existing in Redis server
+2021-07-29 10:22:50.831408: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t1-8_test_variable existing in Redis server
+2021-07-29 10:22:50.931955: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:69] RedisSentinel connection pool constructor called!
+2021-07-29 10:22:50.932823: E tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:116] RedisHandler--other Failed to create connection with sentinel
+2021-07-29 10:22:50.932898: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:117] Failed to connect to the Sentinel server. Try to connect directly with the input IP address as if it were a Redis server.
+2021-07-29 10:22:50.933402: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t1-9_test_variable existing in Redis server
+2021-07-29 10:22:51.031244: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t1-10_test_variable existing in Redis server
+2021-07-29 10:22:51.139445: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t1-11_test_variable existing in Redis server
+2021-07-29 10:22:51.253977: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t1-12_test_variable existing in Redis server
+2021-07-29 10:22:51.371021: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:69] RedisSentinel connection pool constructor called!
+2021-07-29 10:22:51.371721: E tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:116] RedisHandler--other Failed to create connection with sentinel
+2021-07-29 10:22:51.371788: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:117] Failed to connect to the Sentinel server. Try to connect directly with the input IP address as if it were a Redis server.
+2021-07-29 10:22:51.372204: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t1-13_test_variable existing in Redis server
+2021-07-29 10:22:51.518029: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t1-14_test_variable existing in Redis server
+2021-07-29 10:22:51.675906: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t1-15_test_variable existing in Redis server
+2021-07-29 10:22:51.834676: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t1-16_test_variable existing in Redis server
+2021-07-29 10:22:51.989853: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t1-17_test_variable existing in Redis server
+2021-07-29 10:22:52.149046: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t1-18_test_variable existing in Redis server
+2021-07-29 10:22:52.315656: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t1-19_test_variable existing in Redis server
+2021-07-29 10:22:52.494054: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t1-20_test_variable existing in Redis server
+2021-07-29 10:22:52.677818: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t1-21_test_variable existing in Redis server
+2021-07-29 10:22:52.900382: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t1-22_test_variable existing in Redis server
+2021-07-29 10:22:53.115616: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t1-23_test_variable existing in Redis server
+2021-07-29 10:22:53.323521: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t1-24_test_variable existing in Redis server
+2021-07-29 10:22:53.534853: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:69] RedisSentinel connection pool constructor called!
+2021-07-29 10:22:53.535672: E tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:116] RedisHandler--other Failed to create connection with sentinel
+2021-07-29 10:22:53.535727: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:117] Failed to connect to the Sentinel server. Try to connect directly with the input IP address as if it were a Redis server.
+2021-07-29 10:22:53.536149: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t1-25_test_variable existing in Redis server
+2021-07-29 10:22:53.757141: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t1-26_test_variable existing in Redis server
+2021-07-29 10:22:54.003283: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t1-27_test_variable existing in Redis server
+2021-07-29 10:22:54.240874: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t1-28_test_variable existing in Redis server
+2021-07-29 10:22:54.481899: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:69] RedisSentinel connection pool constructor called!
+2021-07-29 10:22:54.482675: E tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:116] RedisHandler--other Failed to create connection with sentinel
+2021-07-29 10:22:54.482726: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:117] Failed to connect to the Sentinel server. Try to connect directly with the input IP address as if it were a Redis server.
+2021-07-29 10:22:54.483394: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t1-29_test_variable existing in Redis server
+2021-07-29 10:22:54.753747: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t1-30_test_variable existing in Redis server
+2021-07-29 10:22:55.024250: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t1-31_test_variable existing in Redis server
+2021-07-29 10:22:55.318236: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t1-32_test_variable existing in Redis server
+2021-07-29 10:22:55.606131: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:69] RedisSentinel connection pool constructor called!
+2021-07-29 10:22:55.606880: E tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:116] RedisHandler--other Failed to create connection with sentinel
+2021-07-29 10:22:55.606929: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:117] Failed to connect to the Sentinel server. Try to connect directly with the input IP address as if it were a Redis server.
+2021-07-29 10:22:55.607450: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t1-33_test_variable existing in Redis server
+2021-07-29 10:22:55.906254: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t1-34_test_variable existing in Redis server
+2021-07-29 10:22:56.212595: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t1-35_test_variable existing in Redis server
+2021-07-29 10:22:56.693958: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t1-36_test_variable existing in Redis server
+2021-07-29 10:22:57.024403: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:69] RedisSentinel connection pool constructor called!
+2021-07-29 10:22:57.025191: E tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:116] RedisHandler--other Failed to create connection with sentinel
+2021-07-29 10:22:57.025239: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:117] Failed to connect to the Sentinel server. Try to connect directly with the input IP address as if it were a Redis server.
+2021-07-29 10:22:57.025653: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t1-37_test_variable existing in Redis server
+2021-07-29 10:22:57.374591: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t1-38_test_variable existing in Redis server
+2021-07-29 10:22:57.742267: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t1-39_test_variable existing in Redis server
+2021-07-29 10:22:58.101538: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t1-40_test_variable existing in Redis server
+2021-07-29 10:22:58.476702: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:69] RedisSentinel connection pool constructor called!
+2021-07-29 10:22:58.477324: E tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:116] RedisHandler--other Failed to create connection with sentinel
+2021-07-29 10:22:58.477365: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:117] Failed to connect to the Sentinel server. Try to connect directly with the input IP address as if it were a Redis server.
+2021-07-29 10:22:58.477750: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t1-41_test_variable existing in Redis server
+2021-07-29 10:22:58.887549: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t1-42_test_variable existing in Redis server
+2021-07-29 10:22:59.287012: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t1-43_test_variable existing in Redis server
+2021-07-29 10:22:59.692538: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t1-44_test_variable existing in Redis server
+2021-07-29 10:23:00.157616: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:69] RedisSentinel connection pool constructor called!
+2021-07-29 10:23:00.158406: E tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:116] RedisHandler--other Failed to create connection with sentinel
+2021-07-29 10:23:00.158455: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:117] Failed to connect to the Sentinel server. Try to connect directly with the input IP address as if it were a Redis server.
+2021-07-29 10:23:00.158881: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t1-45_test_variable existing in Redis server
+2021-07-29 10:23:00.596291: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t1-46_test_variable existing in Redis server
+2021-07-29 10:23:01.040052: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t1-47_test_variable existing in Redis server
+2021-07-29 10:23:01.475855: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t1-48_test_variable existing in Redis server
+2021-07-29 10:23:01.924538: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:69] RedisSentinel connection pool constructor called!
+2021-07-29 10:23:01.925078: E tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:116] RedisHandler--other Failed to create connection with sentinel
+2021-07-29 10:23:01.925102: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:117] Failed to connect to the Sentinel server. Try to connect directly with the input IP address as if it were a Redis server.
+2021-07-29 10:23:01.925425: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t1-49_test_variable existing in Redis server
+2021-07-29 10:23:02.393822: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t1-50_test_variable existing in Redis server
+2021-07-29 10:23:02.856119: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t1-51_test_variable existing in Redis server
+2021-07-29 10:23:03.335858: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t1-52_test_variable existing in Redis server
+2021-07-29 10:23:03.820103: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:69] RedisSentinel connection pool constructor called!
+2021-07-29 10:23:03.820905: E tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:116] RedisHandler--other Failed to create connection with sentinel
+2021-07-29 10:23:03.820955: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:117] Failed to connect to the Sentinel server. Try to connect directly with the input IP address as if it were a Redis server.
+2021-07-29 10:23:03.821441: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t1-53_test_variable existing in Redis server
+2021-07-29 10:23:04.317346: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t1-54_test_variable existing in Redis server
+2021-07-29 10:23:04.851410: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t1-55_test_variable existing in Redis server
+2021-07-29 10:23:05.374362: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t1-56_test_variable existing in Redis server
+2021-07-29 10:23:05.900218: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:69] RedisSentinel connection pool constructor called!
+2021-07-29 10:23:05.900765: E tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:116] RedisHandler--other Failed to create connection with sentinel
+2021-07-29 10:23:05.900790: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:117] Failed to connect to the Sentinel server. Try to connect directly with the input IP address as if it were a Redis server.
+2021-07-29 10:23:05.901069: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t1-57_test_variable existing in Redis server
+2021-07-29 10:23:06.435648: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t1-58_test_variable existing in Redis server
+2021-07-29 10:23:07.001978: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t1-59_test_variable existing in Redis server
+2021-07-29 10:23:07.565208: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t1-60_test_variable existing in Redis server
+2021-07-29 10:23:08.128226: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:69] RedisSentinel connection pool constructor called!
+2021-07-29 10:23:08.128980: E tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:116] RedisHandler--other Failed to create connection with sentinel
+2021-07-29 10:23:08.129028: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:117] Failed to connect to the Sentinel server. Try to connect directly with the input IP address as if it were a Redis server.
+2021-07-29 10:23:08.129468: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t1-61_test_variable existing in Redis server
+2021-07-29 10:23:08.713868: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t1-62_test_variable existing in Redis server
+2021-07-29 10:23:09.344005: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t1-63_test_variable existing in Redis server
+2021-07-29 10:23:09.958968: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t1-64_test_variable existing in Redis server
+/home/hejia/.conda/envs/tf1152py36/lib/python3.6/site-packages/tensorflow_core/python/framework/tensor_util.py:521: DeprecationWarning: tostring() is deprecated. Use tobytes() instead.
+  tensor_proto.tensor_content = nparray.tostring()
+[       OK ] RedisVariableTest.test_variable
+[ RUN      ] RedisVariableTest.test_variable_initializer
+2021-07-29 10:23:11.062815: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t11_test_variable_initializer existing in Redis server
+2021-07-29 10:23:11.322875: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t12_test_variable_initializer existing in Redis server
+2021-07-29 10:23:11.464091: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t11_test_variable_initializer existing in Redis server
+2021-07-29 10:23:11.464644: W tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:904] There is no embedding table called test:t11_test_variable_initializer existing in the Redis service. Exporting values to Tensor failed.
+2021-07-29 10:23:11.464900: W tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:904] There is no embedding table called test:t11_test_variable_initializer existing in the Redis service. Exporting values to Tensor failed.
+2021-07-29 10:23:11.514166: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:209] There is not a corresponding table test:t12_test_variable_initializer existing in Redis server
+2021-07-29 10:23:11.514697: W tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:904] There is no embedding table called test:t12_test_variable_initializer existing in the Redis service. Exporting values to Tensor failed.
+2021-07-29 10:23:11.514964: W tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_table_op.cc:904] There is no embedding table called test:t12_test_variable_initializer existing in the Redis service. Exporting values to Tensor failed.
+[       OK ] RedisVariableTest.test_variable_initializer
+----------------------------------------------------------------------
+Ran 27 tests in 28.343s
+
+OK (skipped=2)
+fuck
+
+
+
+2021-07-29 10:23:12.017368: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:62] RedisSentinel connection pool destructor called!
+2021-07-29 10:23:12.017478: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:62] RedisSentinel connection pool destructor called!
+2021-07-29 10:23:12.017542: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:62] RedisSentinel connection pool destructor called!
+2021-07-29 10:23:12.017588: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:62] RedisSentinel connection pool destructor called!
+2021-07-29 10:23:12.017632: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:62] RedisSentinel connection pool destructor called!
+2021-07-29 10:23:12.017676: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:62] RedisSentinel connection pool destructor called!
+2021-07-29 10:23:12.017720: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:62] RedisSentinel connection pool destructor called!
+2021-07-29 10:23:12.017776: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:62] RedisSentinel connection pool destructor called!
+2021-07-29 10:23:12.017816: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:62] RedisSentinel connection pool destructor called!
+2021-07-29 10:23:12.017858: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:62] RedisSentinel connection pool destructor called!
+2021-07-29 10:23:12.017898: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:62] RedisSentinel connection pool destructor called!
+2021-07-29 10:23:12.017952: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:62] RedisSentinel connection pool destructor called!
+2021-07-29 10:23:12.017998: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:62] RedisSentinel connection pool destructor called!
+2021-07-29 10:23:12.018043: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:62] RedisSentinel connection pool destructor called!
+2021-07-29 10:23:12.018550: I tensorflow_recommenders_addons/dynamic_embedding/core/kernels/redis_impl/redis_connection_pool.hpp:62] RedisSentinel connection pool destructor called!

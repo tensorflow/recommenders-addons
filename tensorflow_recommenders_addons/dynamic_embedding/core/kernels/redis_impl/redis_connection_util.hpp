@@ -186,58 +186,71 @@ struct Redis_Connection_Params {
   }
 };
 
-struct SlotContext {
-  std::vector<const char *> *ptrs = new std::vector<const char *>(1);
-  std::vector<std::size_t> *sizes = new std::vector<std::size_t>(1);
+class SlotContext {
+ public:
+  std::vector<const char *> *ptrs;
+  std::vector<std::size_t> *sizes;
 
   void HandleRelease() {
-    std::vector<const char *> ptrs_empty;
-    std::vector<std::size_t> sizes_empty;
-    if (ptrs) {
-      this->ptrs->swap(ptrs_empty);
+    if (this->ptrs) {
       delete this->ptrs;
     }
-    if (sizes) {
-      this->sizes->swap(sizes_empty);
+    if (this->sizes) {
       delete this->sizes;
     }
+  }
+
+  SlotContext() {
+    this->ptrs = new std::vector<const char *>();
+    this->ptrs->reserve(8);
+    this->sizes = new std::vector<std::size_t>();
+    this->sizes->reserve(8);
   }
 
   ~SlotContext() { HandleRelease(); }
 };
 
-struct ThreadContext {
-  std::vector<SlotContext> *slots = new std::vector<SlotContext>(1);
-  std::vector<unsigned> *slot_locs = new std::vector<unsigned>(1);
+class ThreadContext {
+ public:
+  std::atomic<bool> thread_occupied{false};
+  std::vector<SlotContext *> slots;
+  std::vector<unsigned> *slot_locs;
 
   void HandleReserve(const unsigned storage_slice, const unsigned vector_len,
                      const int keys_num) {
-    if (storage_slice > this->slots->size()) this->slots->resize(storage_slice);
+    for (size_t i = this->slots.size(); i != storage_slice; ++i) {
+      slots.emplace_back(new SlotContext());
+    }
     for (unsigned i = 0; i < storage_slice; ++i) {
-      (*this->slots)[i].ptrs->clear();
-      (*this->slots)[i].ptrs->reserve(vector_len);
-      (*this->slots)[i].sizes->clear();
-      (*this->slots)[i].sizes->reserve(vector_len);
+      this->slots[i]->ptrs->clear();
+      this->slots[i]->ptrs->reserve(vector_len);
+      this->slots[i]->sizes->clear();
+      this->slots[i]->sizes->reserve(vector_len);
     }
     this->slot_locs->reserve(keys_num);
   }
 
   void HandlePushBack(const unsigned slot_num, const char *ptrs_in,
                       const std::size_t sizes_in) {
-    (*this->slots)[slot_num].ptrs->push_back(ptrs_in);
-    (*this->slots)[slot_num].sizes->push_back(sizes_in);
+    this->slots[slot_num]->ptrs->emplace_back(ptrs_in);
+    this->slots[slot_num]->sizes->emplace_back(sizes_in);
   }
 
   void HandleRelease() {
-    std::vector<unsigned> slot_locs_empty;
     if (this->slot_locs) {
-      this->slot_locs->swap(slot_locs_empty);
       delete this->slot_locs;
     }
-    std::vector<SlotContext> slots_empty;
-    if (this->slots) {
-      this->slots->swap(slots_empty);
+    for (auto slots_ : this->slots) {
+      if (slots_) {
+        delete slots_;
+      }
     }
+  }
+
+  ThreadContext() {
+    this->slots.emplace_back(new SlotContext());
+    this->slot_locs = new std::vector<unsigned>();
+    this->slot_locs->reserve(8);
   }
 
   ~ThreadContext() { HandleRelease(); }
@@ -276,24 +289,24 @@ class RedisVirtualWrapper {
       const std::vector<unsigned long> &buf_sizes) = 0;
 
   virtual std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>>
-  MgetCommand(const Tensor &keys, ThreadContext &thread_context,
+  MgetCommand(const Tensor &keys, ThreadContext *thread_context,
               const int64 &begin, const int64 &max_i,
               const std::vector<std::string> &keys_prefix_name_slices) = 0;
 
   virtual void MgetToTensor(
-      Tensor *values, const Tensor &default_value, const bool &is_full_default,
-      ThreadContext &thread_context,
+      Tensor *values, const Tensor &default_value, const bool is_full_default,
+      ThreadContext *thread_context,
       std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>>
           &reply,
-      const int64 &begin, const int64 &max_i, const int64 &Velems_per_dim0) = 0;
+      const int64 begin, const int64 max_i, const int64 Velems_per_dim0) = 0;
 
   virtual void MsetCommand(
-      const Tensor &keys, const Tensor &values, ThreadContext &thread_context,
+      const Tensor &keys, const Tensor &values, ThreadContext *thread_context,
       const int64 &begin, const int64 &max_i, const int64 &Velems_per_dim0,
       const std::vector<std::string> &keys_prefix_name_slices) = 0;
 
   virtual void DelCommand(
-      const Tensor &keys, ThreadContext &thread_context, const int64 &begin,
+      const Tensor &keys, ThreadContext *thread_context, const int64 &begin,
       const int64 &max_i,
       const std::vector<std::string> &keys_prefix_name_slices) = 0;
 };
