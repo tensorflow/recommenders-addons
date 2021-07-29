@@ -590,6 +590,49 @@ class cuckoohash_map {
   }
 
   /**
+   * Searches for @p key in the table. If the key is found and exist is true,
+   * then @p fn is called on the existing value, and nothing happens to the
+   * passed-in key and values. The functor can mutate the value, and should
+   * return @c true in order to erase the element, and @c false otherwise.
+   * If the key is not found and exist is false, the pair will be constructed
+   * by forwarding the given key and values. If there is no room left in the
+   * table, it will be automatically expanded. Expansion may throw exceptions.
+   *
+   * Specially when the key is found and exist is false, or the key is not
+   * found and exist is true, nothing will be changed and this accum will be
+   * ignored, for we assume these situations occur while the key was modified
+   * or removed by other processes just now.
+   *
+   * @tparam K type of the key
+   * @tparam F type of the functor. It should implement the method
+   * <tt>bool operator()(mapped_type&)</tt>.
+   * @tparam Args list of types for the value constructor arguments
+   * @param key the key to insert into the table
+   * @param fn the functor to invoke if the element is found. If your @p fn
+   * needs more data that just the value being modified, consider implementing
+   * it as a lambda with captured arguments.
+   * @param exist if the key exists when last find in this process.
+   * @param val a list of constructor arguments with which to create the value
+   * @return true if a new key was not in the table before insert, and return
+   * false if the key was already in the table
+   */
+  template <typename K, typename F, typename... Args>
+  bool accumrase_fn(K &&key, F fn, bool exist, Args &&... val_or_delta) {
+    hash_value hv = hashed_key(key);
+    auto b = snapshot_and_lock_two<normal_mode>(hv);
+    table_position pos = cuckoo_insert_loop<normal_mode>(hv, b, key);
+    if (pos.status == ok && !exist) {
+      add_to_bucket(pos.index, pos.slot, hv.partial, std::forward<K>(key),
+                    std::forward<Args>(val_or_delta)...);
+    } else if (pos.status == failure_key_duplicated && exist) {
+      if (fn(buckets_[pos.index].mapped(pos.slot))) {
+        del_from_bucket(pos.index, pos.slot);
+      }
+    }
+    return pos.status == ok;
+  }
+
+  /**
    * Equivalent to calling @ref uprase_fn with a functor that modifies the
    * given value and always returns false (meaning the element is not removed).
    * The passed-in functor must implement the method <tt>void
@@ -604,6 +647,23 @@ class cuckoohash_map {
           return false;
         },
         std::forward<Args>(val)...);
+  }
+
+  /**
+   * Equivalent to calling @ref accumrase_fn with a functor that modifies the
+   * given value and always returns false (meaning the element is not removed).
+   * The passed-in functor must implement the method <tt>void
+   * operator()(mapped_type&)</tt>.
+   */
+  template <typename K, typename F, typename... Args>
+  bool accumrase(K &&key, F fn, bool exist, Args &&... val_or_delta) {
+    return accumrase_fn(
+        std::forward<K>(key),
+        [&fn](mapped_type &v) {
+          fn(v);
+          return false;
+        },
+        exist, std::forward<Args>(val_or_delta)...);
   }
 
   /**
@@ -677,6 +737,31 @@ class cuckoohash_map {
     return upsert(
         std::forward<K>(key), [&val](mapped_type &m) { m = val; },
         std::forward<V>(val));
+  }
+
+  /**
+   * Inserts the key-value pair into the table. If the key is already in the
+   * table, add an @p delta to the the existing mapped value. Equivalent to
+   * calling @ref upsert with a functor that adds an @p delta to the mapped
+   * value. Specially, the @p exist meaning: `true` means key-value pair already
+   * exist since last reading in this process, @p val_or_delta will be treated
+   * as val and accumlating should be executed.
+   *
+   *  `false` means other processes maybe insert key between read and insert
+   *   in this process, and @p val_or_delta will be treated as delta under this
+   * condition our policy is ignoring this accumulating to avoid overwriting the
+   * just-inserted val.
+   */
+  template <typename K, typename V>
+  bool insert_or_accum(K &&key, V &&val_or_delta, bool exist) {
+    return accumrase(
+        std::forward<K>(key),
+        [&val_or_delta, &exist](mapped_type &m) {
+          if (exist) {
+            m += val_or_delta;
+          }
+        },
+        exist, std::forward<V>(val_or_delta));
   }
 
   /**

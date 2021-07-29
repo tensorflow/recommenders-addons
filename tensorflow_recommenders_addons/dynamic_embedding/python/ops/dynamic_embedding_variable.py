@@ -318,8 +318,8 @@ class Variable(trackable.TrackableResource):
         Args:
           keys: Keys to insert. Can be a tensor of any shape. Must match the table's
             key type.
-          values: Values to be associated with keys. Must be a tensor of the same
-            shape as `keys` and match the table's value type.
+          values: Values to be associated with keys.Must be a tensor of
+            arrays with same shape as `keys` and match the table's value type.
           name: A name for the operation (optional).
 
         Returns:
@@ -341,6 +341,56 @@ class Variable(trackable.TrackableResource):
         ops_.append(self._tables[idx].insert(keys_partitions[idx],
                                              values_partitions[idx],
                                              name=name))
+
+    return control_flow_ops.group(ops_)
+
+  def accum(self, keys, old_values, new_values, exists, name=None):
+    """
+    Insert `keys` with `values` if not exist, or accumulate a delta value
+      `new_values - old_values` to 'keys'.
+    This API will help relieve stale gradient problem in asynchronous training.
+
+    Args:
+      keys: Keys to insert. Can be a tensor of any shape. Must match
+        the table's key type.
+      old_values: old values to be associated with keys. Must be a tensor of
+        arrays with same shape as `keys` and match the table's value type.
+      new_values: new values to be associated with keys. Must be a tensor of
+        arrays with same shape as `keys` and match the table's value type.
+      exists: A bool type tensor indicates if keys existed or not.
+        Must be a tensor of the same shape as `keys`.
+      name: A name for the operation (optional).
+
+    Returns:
+      The created Operation.
+
+    Raises:
+      TypeError: when `keys` or `values` doesn't match the table data types.
+    """
+    exists = ops.convert_to_tensor(exists, dtypes.bool, name="original_exists")
+    exists = array_ops.reshape(exists, shape=[-1, 1])
+    exists_expanded = array_ops.repeat(exists, axis=-1, repeats=self.dim)
+    exists_expanded = array_ops.reshape(exists_expanded,
+                                        shape=array_ops.shape(old_values))
+    values_or_deltas = array_ops.where(exists_expanded,
+                                       new_values - old_values,
+                                       new_values,
+                                       name="values_or_deltas")
+    partition_index = self.partition_fn(keys, self.shard_num)
+    keys_partitions, _ = make_partition(keys, partition_index, self.shard_num)
+    values_or_deltas_partitions, _ = make_partition(values_or_deltas,
+                                                    partition_index,
+                                                    self.shard_num)
+    exists_partitions, _ = make_partition(exists, partition_index,
+                                          self.shard_num)
+
+    ops_ = []
+    for idx in range(len(self.devices)):
+      with ops.device(self.devices[idx]):
+        ops_.append(self._tables[idx].accum(keys_partitions[idx],
+                                            values_or_deltas_partitions[idx],
+                                            exists_partitions[idx],
+                                            name=name))
 
     return control_flow_ops.group(ops_)
 
@@ -419,25 +469,33 @@ class Variable(trackable.TrackableResource):
           format(str(self.name), str(e)))
     return init_op
 
-  def lookup(self, keys, name=None):
-    """Looks up `keys` in a Variable, outputs the corresponding values.
+  def lookup(self, keys, return_exists=False, name=None):
+    """
+    Looks up `keys` in a Variable, outputs the corresponding values.
 
-        The `default_value` is used for keys not present in the table.
+    The `default_value` is used for keys not present in the table.
 
-        Args:
-          keys: Keys to look up. Can be a tensor of any shape. Must match the
-            table's key_dtype.
-          name: A name for the operation (optional).
+    Args:
+      keys: Keys to look up. Can be a tensor of any shape. Must match the
+        table's key_dtype.
+      return_exists: if True, will return a additional Tensor which indicates
+        if keys are existing in the table.
+      name: A name for the operation (optional).
 
-        Returns:
-          A tensor containing the values in the same shape as `keys` using the
-            table's value type.
-        """
+    Returns:
+      A tensor containing the values in the same shape as `keys` using the
+        table's value type.
+      exists:
+        A bool type Tensor of the same shape as `keys` which indicates
+          if keys are existing in the table.
+          Only provided if `return_exists` is True.
+    """
     partition_index = self.partition_fn(keys, self.shard_num)
     keys_partitions, keys_indices = make_partition(keys, partition_index,
                                                    self.shard_num)
 
-    ops_ = []
+    _values = []
+    _exists = []
     for idx in range(len(self.devices)):
       with ops.device(self.devices[idx]):
         dynamic_default_values = self._create_default_values_by_initializer(
@@ -445,13 +503,24 @@ class Variable(trackable.TrackableResource):
         if dynamic_default_values is not None:
           dynamic_default_values = math_ops.cast(dynamic_default_values,
                                                  self.value_dtype)
-        ops_.append(self._tables[idx].lookup(
+
+        ops_ = None
+        ops_ = self._tables[idx].lookup(
             keys_partitions[idx],
             dynamic_default_values=dynamic_default_values,
+            return_exists=return_exists,
             name=name,
-        ))
-    result = _stitch(ops_, keys_indices)
+        )
+        if return_exists:
+          _values.append(ops_[0])
+          _exists.append(ops_[1])
+        else:
+          _values.append(ops_)
 
+    if return_exists:
+      result = (_stitch(_values, keys_indices), _stitch(_exists, keys_indices))
+    else:
+      result = _stitch(_values, keys_indices)
     return result
 
   def export(self, name=None):
@@ -553,7 +622,7 @@ def get_variable(
         saved to and restored from checkpoints.
         If `shared_name` is empty for a checkpointed table,
         it is shared using the table node name.
-      init_size: initial size for the Variable and initial size of each hash 
+      init_size: initial size for the Variable and initial size of each hash
         tables will be int(init_size / N), N is the number of the devices.
       restrict_policy: a restrict policy to specify the rule to restrict the
         size of variable. If in training program, the variable is updated by

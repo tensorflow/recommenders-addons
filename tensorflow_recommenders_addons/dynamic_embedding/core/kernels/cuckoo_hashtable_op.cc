@@ -69,6 +69,46 @@ struct LaunchTensorsFind<CPUDevice, K, V> {
 };
 
 template <typename Device, class K, class V>
+struct LaunchTensorsFindWithExists;
+
+template <class K, class V>
+struct LaunchTensorsFindWithExists<CPUDevice, K, V> {
+  explicit LaunchTensorsFindWithExists(int64 value_dim)
+      : value_dim_(value_dim) {}
+
+  void launch(OpKernelContext* context, cpu::TableWrapperBase<K, V>* table,
+              const Tensor& key, Tensor* value, const Tensor& default_value,
+              Tensor& exists) {
+    const auto key_flat = key.flat<K>();
+    cpu::Tensor2D<V> value_flat = value->flat_inner_dims<V, 2>();
+    cpu::ConstTensor2D<V> default_flat = default_value.flat_inner_dims<V, 2>();
+    auto exists_flat = exists.flat<bool>();
+
+    int64 total = value_flat.size();
+    int64 default_total = default_flat.size();
+    bool is_full_default = (total == default_total);
+
+    auto shard = [this, table, key_flat, &value_flat, &default_flat,
+                  &exists_flat, &is_full_default](int64 begin, int64 end) {
+      for (int64 i = begin; i < end; ++i) {
+        if (i >= key_flat.size()) {
+          break;
+        }
+        table->find(key_flat(i), value_flat, default_flat, exists_flat(i),
+                    value_dim_, is_full_default, i);
+      }
+    };
+    auto& worker_threads = *context->device()->tensorflow_cpu_worker_threads();
+    int64 slices = static_cast<int64>(total / worker_threads.num_threads) + 1;
+    Shard(worker_threads.num_threads, worker_threads.workers, total, slices,
+          shard);
+  }
+
+ private:
+  const int64 value_dim_;
+};
+
+template <typename Device, class K, class V>
 struct LaunchTensorsInsert;
 
 template <class K, class V>
@@ -109,6 +149,41 @@ struct LaunchTensorsInsert<CPUDevice, K, V> {
     }
     int64 slices = static_cast<int64>(total / worker_threads.num_threads) + 1;
     Shard(num_worker_threads, worker_threads.workers, total, slices, shard);
+  }
+
+ private:
+  const int64 value_dim_;
+};
+
+template <typename Device, class K, class V>
+struct LaunchTensorsAccum;
+
+template <class K, class V>
+struct LaunchTensorsAccum<CPUDevice, K, V> {
+  explicit LaunchTensorsAccum(int64 value_dim) : value_dim_(value_dim) {}
+
+  void launch(OpKernelContext* context, cpu::TableWrapperBase<K, V>* table,
+              const Tensor& keys, const Tensor& values_or_deltas,
+              const Tensor& exists) {
+    const auto key_flat = keys.flat<K>();
+    int64 total = key_flat.size();
+    const auto values_or_deltas_flat = values_or_deltas.flat_inner_dims<V, 2>();
+    const auto exist_flat = exists.flat<bool>();
+
+    auto shard = [this, &table, key_flat, &values_or_deltas_flat, &exist_flat](
+                     int64 begin, int64 end) {
+      for (int64 i = begin; i < end; ++i) {
+        if (i >= key_flat.size()) {
+          break;
+        }
+        table->insert_or_accum(key_flat(i), values_or_deltas_flat,
+                               exist_flat(i), value_dim_, i);
+      }
+    };
+    auto& worker_threads = *context->device()->tensorflow_cpu_worker_threads();
+    int64 slices = static_cast<int64>(total / worker_threads.num_threads) + 1;
+    Shard(worker_threads.num_threads, worker_threads.workers, total, slices,
+          shard);
   }
 
  private:
@@ -156,6 +231,16 @@ class CuckooHashTableOfTensors final : public LookupInterface {
     return Status::OK();
   }
 
+  Status FindWithExists(OpKernelContext* ctx, const Tensor& key, Tensor* value,
+                        const Tensor& default_value, Tensor& exists) {
+    int64 value_dim = value_shape_.dim_size(0);
+
+    LaunchTensorsFindWithExists<CPUDevice, K, V> launcher(value_dim);
+    launcher.launch(ctx, table_, key, value, default_value, exists);
+
+    return Status::OK();
+  }
+
   Status DoInsert(bool clear, OpKernelContext* ctx, const Tensor& keys,
                   const Tensor& values) {
     int64 value_dim = value_shape_.dim_size(0);
@@ -166,6 +251,20 @@ class CuckooHashTableOfTensors final : public LookupInterface {
 
     LaunchTensorsInsert<CPUDevice, K, V> launcher(value_dim);
     launcher.launch(ctx, table_, keys, values);
+
+    return Status::OK();
+  }
+
+  Status DoAccum(bool clear, OpKernelContext* ctx, const Tensor& keys,
+                 const Tensor& values_or_deltas, const Tensor& exists) {
+    int64 value_dim = value_shape_.dim_size(0);
+
+    if (clear) {
+      table_->clear();
+    }
+
+    LaunchTensorsAccum<CPUDevice, K, V> launcher(value_dim);
+    launcher.launch(ctx, table_, keys, values_or_deltas, exists);
 
     return Status::OK();
   }
@@ -188,6 +287,11 @@ class CuckooHashTableOfTensors final : public LookupInterface {
   Status Clear(OpKernelContext* ctx) {
     table_->clear();
     return Status::OK();
+  }
+
+  Status Accum(OpKernelContext* ctx, const Tensor& keys,
+               const Tensor& values_or_deltas, const Tensor& exists) {
+    return DoAccum(false, ctx, keys, values_or_deltas, exists);
   }
 
   Status ImportValues(OpKernelContext* ctx, const Tensor& keys,
@@ -285,6 +389,7 @@ class HashTableOpKernel : public OpKernel {
   const DataType expected_input_0_;
 };
 
+// Table find op .
 class HashTableFindOp : public HashTableOpKernel {
  public:
   using HashTableOpKernel::HashTableOpKernel;
@@ -309,6 +414,42 @@ class HashTableFindOp : public HashTableOpKernel {
     OP_REQUIRES_OK(ctx, ctx->allocate_output("values", output_shape, &out));
 
     OP_REQUIRES_OK(ctx, table->Find(ctx, key, out, default_value));
+  }
+};
+
+// Table find op with return exists tensor.
+template <class K, class V>
+class HashTableFindWithExistsOp : public HashTableOpKernel {
+ public:
+  using HashTableOpKernel::HashTableOpKernel;
+
+  void Compute(OpKernelContext* ctx) override {
+    LookupInterface* table;
+    OP_REQUIRES_OK(ctx, GetTable(ctx, &table));
+    core::ScopedUnref unref_me(table);
+
+    lookup::CuckooHashTableOfTensors<K, V>* table_cuckoo =
+        (lookup::CuckooHashTableOfTensors<K, V>*)table;
+
+    DataTypeVector expected_inputs = {expected_input_0_, table->key_dtype(),
+                                      table->value_dtype()};
+    DataTypeVector expected_outputs = {table->value_dtype(), DT_BOOL};
+    OP_REQUIRES_OK(ctx, ctx->MatchSignature(expected_inputs, expected_outputs));
+
+    const Tensor& key = ctx->input(1);
+    const Tensor& default_value = ctx->input(2);
+
+    TensorShape output_shape = key.shape();
+    output_shape.RemoveLastDims(table->key_shape().dims());
+    output_shape.AppendShape(table->value_shape());
+
+    Tensor* values;
+    Tensor* exists;
+    OP_REQUIRES_OK(ctx, ctx->allocate_output("values", output_shape, &values));
+    OP_REQUIRES_OK(ctx, ctx->allocate_output("exists", key.shape(), &exists));
+
+    OP_REQUIRES_OK(ctx, table_cuckoo->FindWithExists(ctx, key, values,
+                                                     default_value, *exists));
   }
 };
 
@@ -395,6 +536,47 @@ class HashTableClearOp : public HashTableOpKernel {
   }
 };
 
+// Table accum op.
+template <class K, class V>
+class HashTableAccumOp : public HashTableOpKernel {
+ public:
+  using HashTableOpKernel::HashTableOpKernel;
+
+  void Compute(OpKernelContext* ctx) override {
+    LookupInterface* table;
+    OP_REQUIRES_OK(ctx, GetTable(ctx, &table));
+    core::ScopedUnref unref_me(table);
+
+    lookup::CuckooHashTableOfTensors<K, V>* table_cuckoo =
+        (lookup::CuckooHashTableOfTensors<K, V>*)table;
+
+    DataTypeVector expected_inputs = {expected_input_0_, table->key_dtype(),
+                                      table->value_dtype(),
+                                      DataTypeToEnum<bool>::v()};
+    OP_REQUIRES_OK(ctx, ctx->MatchSignature(expected_inputs, {}));
+
+    const Tensor& keys = ctx->input(1);
+    const Tensor& values_or_deltas = ctx->input(2);
+    const Tensor& exists = ctx->input(3);
+    OP_REQUIRES(ctx, (values_or_deltas.dtype() != DataTypeToEnum<tstring>::v()),
+                errors::InvalidArgument(
+                    "AccumOP is not supporting tstring value type!"));
+    OP_REQUIRES_OK(
+        ctx, table->CheckKeyAndValueTensorsForInsert(keys, values_or_deltas));
+
+    int64 memory_used_before = 0;
+    if (ctx->track_allocations()) {
+      memory_used_before = table->MemoryUsed();
+    }
+    OP_REQUIRES_OK(ctx,
+                   table_cuckoo->Accum(ctx, keys, values_or_deltas, exists));
+    if (ctx->track_allocations()) {
+      ctx->record_persistent_memory_allocation(table->MemoryUsed() -
+                                               memory_used_before);
+    }
+  }
+};
+
 // Op that returns the size of the given table.
 class HashTableSizeOp : public HashTableOpKernel {
  public:
@@ -474,20 +656,30 @@ REGISTER_KERNEL_BUILDER(
     Name(PREFIX_OP_NAME(CuckooHashTableImport)).Device(DEVICE_CPU),
     HashTableImportOp);
 
-// Register the CuckooMutableHashTableOfTensors op.
-#define REGISTER_KERNEL(key_dtype, value_dtype)                             \
-  REGISTER_KERNEL_BUILDER(                                                  \
-      Name(PREFIX_OP_NAME(CuckooHashTableOfTensors))                        \
-          .Device(DEVICE_CPU)                                               \
-          .TypeConstraint<key_dtype>("key_dtype")                           \
-          .TypeConstraint<value_dtype>("value_dtype"),                      \
-      HashTableOp<lookup::CuckooHashTableOfTensors<key_dtype, value_dtype>, \
-                  key_dtype, value_dtype>);                                 \
-  REGISTER_KERNEL_BUILDER(Name(PREFIX_OP_NAME(CuckooHashTableClear))        \
-                              .Device(DEVICE_CPU)                           \
-                              .TypeConstraint<key_dtype>("key_dtype")       \
-                              .TypeConstraint<value_dtype>("value_dtype"),  \
-                          HashTableClearOp<key_dtype, value_dtype>)
+// Register the custom op.
+#define REGISTER_KERNEL(key_dtype, value_dtype)                               \
+  REGISTER_KERNEL_BUILDER(                                                    \
+      Name(PREFIX_OP_NAME(CuckooHashTableOfTensors))                          \
+          .Device(DEVICE_CPU)                                                 \
+          .TypeConstraint<key_dtype>("key_dtype")                             \
+          .TypeConstraint<value_dtype>("value_dtype"),                        \
+      HashTableOp<lookup::CuckooHashTableOfTensors<key_dtype, value_dtype>,   \
+                  key_dtype, value_dtype>);                                   \
+  REGISTER_KERNEL_BUILDER(Name(PREFIX_OP_NAME(CuckooHashTableClear))          \
+                              .Device(DEVICE_CPU)                             \
+                              .TypeConstraint<key_dtype>("key_dtype")         \
+                              .TypeConstraint<value_dtype>("value_dtype"),    \
+                          HashTableClearOp<key_dtype, value_dtype>);          \
+  REGISTER_KERNEL_BUILDER(Name(PREFIX_OP_NAME(CuckooHashTableAccum))          \
+                              .Device(DEVICE_CPU)                             \
+                              .TypeConstraint<key_dtype>("key_dtype")         \
+                              .TypeConstraint<value_dtype>("value_dtype"),    \
+                          HashTableAccumOp<key_dtype, value_dtype>);          \
+  REGISTER_KERNEL_BUILDER(Name(PREFIX_OP_NAME(CuckooHashTableFindWithExists)) \
+                              .Device(DEVICE_CPU)                             \
+                              .TypeConstraint<key_dtype>("Tin")               \
+                              .TypeConstraint<value_dtype>("Tout"),           \
+                          HashTableFindWithExistsOp<key_dtype, value_dtype>);
 
 REGISTER_KERNEL(int32, double);
 REGISTER_KERNEL(int32, float);

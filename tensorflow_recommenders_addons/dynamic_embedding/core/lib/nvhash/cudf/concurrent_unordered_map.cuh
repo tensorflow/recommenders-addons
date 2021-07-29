@@ -86,14 +86,79 @@ __inline__ __device__ float atomicCAS(float* address, float compare, float val)
   return __int_as_float(atomicCAS((int*)address, __float_as_int(compare), __float_as_int(val)));
 }
 
-__inline__ __device__ int64_t atomicAdd(int64_t* address, int64_t val)
+__inline__ __device__ int64_t atomicAdd(int64_t* address, const int64_t val)
 {
-  return (int64_t) atomicAdd((unsigned long long*)address, (unsigned long long)val);
+  return (int64_t) atomicAdd((unsigned long long*)address, (const unsigned long long)val);
 }
 
-__inline__ __device__ uint64_t atomicAdd(uint64_t* address, uint64_t val)
+__inline__ __device__ uint64_t atomicAdd(uint64_t* address,  const uint64_t val)
 {
-  return (uint64_t) atomicAdd((unsigned long long*)address, (unsigned long long)val);
+  return (uint64_t) atomicAdd((unsigned long long*)address, (const unsigned long long)val);
+}
+
+__inline__ __device__ signed char atomicAdd(signed char* address, const signed char val)
+{
+  int *base_address = (int*)((char*)address - ((size_t)address & 3));
+  int int_val = (int)val << (((size_t)address & 3) * 8);
+
+  return (signed char) atomicAdd((int*)base_address, (const int)int_val);
+}
+
+typedef unsigned int uint32;
+typedef unsigned short uint16;
+
+__inline__ __device__ uint32 add_to_low_half(uint32 val, float x) {
+  Eigen::half low_half;
+  low_half.x = static_cast<uint16>(val & 0xffffu);
+  low_half = static_cast<Eigen::half>(static_cast<float>(low_half) + x);
+  return (val & 0xffff0000u) | low_half.x;
+}
+
+__inline__ __device__ uint32 add_to_high_half(uint32 val, float x) {
+  Eigen::half high_half;
+  high_half.x = static_cast<uint16>(val >> 16);
+  high_half = static_cast<Eigen::half>(static_cast<float>(high_half) + x);
+  return (val & 0xffffu) | (high_half.x << 16);
+}
+
+__device__ __forceinline__ Eigen::half atomicAdd(Eigen::half* address, const Eigen::half val) {
+  float val_as_float(val);
+  intptr_t address_int = reinterpret_cast<intptr_t>(address);
+  if ((address_int & 0x2) == 0) {
+    // The half is in the first part of the uint32 (lower 16 bits).
+    uint32* address_as_uint32 = reinterpret_cast<uint32*>(address);
+    assert(((intptr_t)address_as_uint32 & 0x3) == 0);
+    uint32 old = *address_as_uint32, assumed;
+
+    do {
+      assumed = old;
+      old = atomicCAS(address_as_uint32, assumed,
+                      add_to_low_half(assumed, val_as_float));
+
+      // Note: uses integer comparison to avoid hang in case of NaN
+    } while (assumed != old);
+
+    Eigen::half ret;
+    ret.x = old & 0xffffu;
+    return ret;
+  } else {
+    // The half is in the second part of the uint32 (upper 16 bits).
+    uint32* address_as_uint32 = reinterpret_cast<uint32*>(address_int - 2);
+    assert(((intptr_t)address_as_uint32 & 0x3) == 0);
+    uint32 old = *address_as_uint32, assumed;
+
+    do {
+      assumed = old;
+      old = atomicCAS(address_as_uint32, assumed,
+                      add_to_high_half(assumed, val_as_float));
+
+      // Note: uses integer comparison to avoid hang in case of NaN
+    } while (assumed != old);
+
+    Eigen::half ret;
+    ret.x = old >> 16;
+    return ret;
+  }
 }
 
 template<typename pair_type>
@@ -140,7 +205,7 @@ __device__ pair_type load_pair_vectorized( const pair_type* __restrict__ const p
         return *ptr;
     }
 }
-
+ 
 template<typename pair_type>
 __forceinline__
 __device__ void store_pair_vectorized( pair_type* __restrict__ const ptr, const pair_type val )
@@ -336,6 +401,7 @@ __host__ __device__ bool operator!=(const cycle_iterator_adapter<T>& lhs, const 
 template <typename Key,
           typename Element,
           Key unused_key,
+          size_t DIM,
           typename Hasher = default_hash<Key>,
           typename Equality = equal_to<Key>,
           typename Allocator = managed_allocator<thrust::pair<Key, Element> >,
@@ -447,21 +513,15 @@ public:
     }*/
 
 
-    /*__forceinline__  __device__
-    void accum_existing_value_atomic(mapped_type & existing_value, value_type const & accum_pair)
+    __forceinline__  __device__
+    void accum_existing_value_atomic(mapped_type & existing_value, const mapped_type & accum_pair)
     {
-      // update with CAS
-      //existing_value = insert_pair.second;
-      int num_element = sizeof(existing_value.data) / sizeof(*(existing_value.data));
-      const mapped_type & accumulator = accum_pair.second;
+      const mapped_type & accumulator = accum_pair;
 
-
-      for(int i = 0; i < num_element; i++){
-        atomicAdd(existing_value.data + i, accumulator.data[i]);
+      for(size_t i = 0; i < DIM; i++){
+        atomicAdd(&(existing_value.value[i]), accumulator.value[i]);
       }
-
-      //atomicAdd(&existing_value, double val)
-    }*/
+    }
 
     // TODO Overload atomicAdd for 1 byte and 2 byte types, until then, overload specifically for the types
     // where atomicAdd already has an overload. Otherwise the generic update_existing_value will be used.
@@ -889,7 +949,105 @@ public:
 
         return iterator( m_hashtbl_values,m_hashtbl_values+hashtbl_size, current_hash_bucket);
     }
-    
+                               
+    template<typename hash_value_type = typename Hasher::result_type>
+    __forceinline__
+    __device__ iterator accum(const key_type& key, const mapped_type& vals, const bool &exist, 
+                               bool precomputed_hash = false,
+                               hash_value_type precomputed_hash_value = 0)
+    {
+        const size_type hashtbl_size    = m_hashtbl_size;
+        value_type* hashtbl_values      = m_hashtbl_values;
+
+        hash_value_type hash_value{0};
+
+        // If a precomputed hash value has been passed in, then use it to determine
+        // the write location of the new key
+        if(true == precomputed_hash)
+        {
+          hash_value = precomputed_hash_value;
+        }
+        // Otherwise, compute the hash value from the new key
+        else
+        {
+          hash_value = m_hf(key);
+        }
+
+        size_type current_index         = hash_value % hashtbl_size;
+        value_type *current_hash_bucket = &(hashtbl_values[current_index]);
+        
+        bool insert_success = false;
+        
+        size_type counter = 0;
+
+        while (false == insert_success) {
+            // Walked through the whole table: full
+            if (counter++ >= hashtbl_size) {
+                return end();
+            }
+        
+            // Lock the bucket to exclusively access the bucket, we do not use lock-based approach
+            // lock_bucket(current_index);
+
+            volatile key_type& existing_key = current_hash_bucket->first;
+            mapped_type& existing_value = current_hash_bucket->second;
+
+            // Situation #1: Current bucket is empty key or invalid, we just need to insert. Key is guarantee by user not found in the table.
+
+            /*if( unused_key == existing_key || valid_marker[current_index] == false ){
+
+                existing_key = insert_key; // Insert the key
+
+                existing_value = x.second; // Insert the value
+
+                valid_marker[current_index] = true; // Validate the current bucket
+
+                insert_success = true; // Insert is complete: we have found a place to hold the <k,v>
+            }*/
+
+            const key_type old_key = atomicCAS( (key_type *)&existing_key, unused_key, key);
+
+            if( unused_key == old_key){
+                if(!exist){
+                    existing_value = vals; // Insert the value
+                }
+
+                insert_success = true; // Insert is complete: we have found a place to hold the <k,v>
+            } else if(key == old_key){
+                if(exist) {
+                    accum_existing_value_atomic(existing_value, vals); // Accumlate x to the value
+                }
+                insert_success = true; // Insert is complete: we have found a place to hold the <k,v>
+              
+            } else {
+                const int32_t old_valid = atomicCAS((int32_t *)(valid_marker + current_index), (int32_t)false, (int32_t)true);
+
+                if( false == old_valid){
+                    if(!exist) {
+                        existing_key = key; // Insert the key
+
+                        existing_value = vals; // Insert the value
+                    }
+                    insert_success = true; // Insert is complete: we have found a place to hold the <k,v>
+                }
+                  
+            }
+            
+            // Situation #2: Current bucket is a valid bucket and is not unused key(already occupied): move to next bucket.
+
+            // Finish access the bucket, unlock it. We do not use lock-based approach
+            // unlock_bucket(current_index);
+
+            // Move to access the next bucket.
+            current_index = (current_index+1)%hashtbl_size;
+
+            current_hash_bucket = &(hashtbl_values[current_index]);
+          
+        }
+
+        return iterator( m_hashtbl_values,m_hashtbl_values+hashtbl_size, current_hash_bucket);
+    }
+
     /*__forceinline__
     __host__ __device__ const_iterator find(const key_type& k ) const
     {
@@ -1099,11 +1257,11 @@ public:
 
         return 0;
     }
-
-    /*template<class comparison_type = key_equal,
+    /*
+    template<class comparison_type = key_equal,
              typename hash_value_type = typename Hasher::result_type>
     __forceinline__
-    __device__ const_iterator accum(const value_type& x, 
+    __device__ const_iterator accum_(const value_type& x, 
                                comparison_type keys_equal = key_equal(),
                                bool precomputed_hash = false,
                                hash_value_type precomputed_hash_value = 0)

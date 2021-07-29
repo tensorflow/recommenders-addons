@@ -55,6 +55,8 @@ class TableWrapperBase {
   virtual ~TableWrapperBase() {}
   virtual void upsert(const K* d_keys, const ValueType<V>* d_vals, size_t len,
                       cudaStream_t stream) {}
+  virtual void accum(const K* d_keys, const ValueType<V>* d_vals_or_deltas,
+                     const bool* d_exists, size_t len, cudaStream_t stream) {}
   virtual void dump(K* d_key, ValueType<V>* d_val, const size_t offset,
                     const size_t search_length, size_t* d_dump_counter,
                     cudaStream_t stream) const {}
@@ -71,7 +73,7 @@ template <class K, class V, size_t DIM>
 class TableWrapper final : public TableWrapperBase<K, V> {
  private:
   using Table = nv::HashTable<K, ValueArray<V, DIM>, ValueType<V>,
-                              std::numeric_limits<K>::max()>;
+                              std::numeric_limits<K>::max(), DIM>;
 
  public:
   TableWrapper(size_t max_size) : max_size_(max_size) {
@@ -83,6 +85,11 @@ class TableWrapper final : public TableWrapperBase<K, V> {
   void upsert(const K* d_keys, const ValueType<V>* d_vals, size_t len,
               cudaStream_t stream) override {
     table_->upsert(d_keys, d_vals, len, stream);
+  }
+
+  void accum(const K* d_keys, const ValueType<V>* d_vals_or_deltas,
+             const bool* d_exists, size_t len, cudaStream_t stream) override {
+    table_->accum(d_keys, d_vals_or_deltas, d_exists, len, stream);
   }
 
   void dump(K* d_key, ValueType<V>* d_val, const size_t offset,

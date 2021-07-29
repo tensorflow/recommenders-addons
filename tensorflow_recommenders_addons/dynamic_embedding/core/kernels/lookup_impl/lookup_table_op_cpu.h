@@ -36,7 +36,39 @@ namespace lookup {
 namespace cpu {
 
 template <class V, size_t DIM>
-using ValueArray = std::array<V, DIM>;
+class ValueArray final : public std::array<V, DIM> {
+ public:
+  inline ValueArray<V, DIM>& operator+=(
+      const ValueArray<V, DIM>& rhs) noexcept {
+    for (size_t i = 0; i < DIM; i++) {
+      (*this)[i] += rhs[i];
+    }
+    return *this;
+  }
+};
+
+template <class V, size_t N>
+class DefaultValueArray final : public gtl::InlinedVector<V, N> {
+ public:
+  inline DefaultValueArray<V, N>& operator+=(
+      const DefaultValueArray<V, N>& rhs) noexcept {
+    for (size_t i = 0; i < this->size(); i++) {
+      (*this)[i] = ((*this)[i]) + rhs[i];
+    }
+    return *this;
+  }
+};
+
+template <>
+class DefaultValueArray<tstring, 2> final
+    : public gtl::InlinedVector<tstring, 2> {
+ public:
+  inline DefaultValueArray<tstring, 2>& operator+=(
+      const DefaultValueArray<tstring, 2>& rhs) noexcept {
+    LOG(ERROR) << "Error: the accum is not supported for string value!";
+    return *this;
+  }
+};
 
 template <class V>
 using Tensor2D = typename tensorflow::TTypes<V, 2>::Tensor;
@@ -84,9 +116,15 @@ class TableWrapperBase {
   virtual ~TableWrapperBase() {}
   virtual bool insert_or_assign(K key, ConstTensor2D<V>& value_flat,
                                 int64 value_dim, int64 index) {}
+  virtual bool insert_or_accum(K key, ConstTensor2D<V>& value_or_delta_flat,
+                               bool exist, int64 value_dim, int64 index) {}
   virtual void find(const K& key, Tensor2D<V>& value_flat,
                     ConstTensor2D<V>& default_flat, int64 value_dim,
                     bool is_full_size_default, int64 index) const {}
+  virtual void find(const K& key, Tensor2D<V>& value_flat,
+                    ConstTensor2D<V>& default_flat, bool& exist,
+                    int64 value_dim, bool is_full_size_default,
+                    int64 index) const {}
   virtual size_t size() const {}
   virtual void clear() {}
   virtual bool erase(const K& key) {}
@@ -120,11 +158,37 @@ class TableWrapperOptimized final : public TableWrapperBase<K, V> {
     return table_->insert_or_assign(key, value_vec);
   }
 
+  bool insert_or_accum(K key, ConstTensor2D<V>& value_or_delta_flat, bool exist,
+                       int64 value_dim, int64 index) override {
+    ValueType value_or_delta_vec;
+    for (int64 j = 0; j < value_dim; j++) {
+      value_or_delta_vec[j] = value_or_delta_flat(index, j);
+    }
+    return table_->insert_or_accum(key, value_or_delta_vec, exist);
+  }
+
   void find(const K& key, Tensor2D<V>& value_flat,
             ConstTensor2D<V>& default_flat, int64 value_dim,
             bool is_full_size_default, int64 index) const override {
     ValueType value_vec;
     if (table_->find(key, value_vec)) {
+      for (int64 j = 0; j < value_dim; j++) {
+        value_flat(index, j) = value_vec.at(j);
+      }
+    } else {
+      for (int64 j = 0; j < value_dim; j++) {
+        value_flat(index, j) =
+            is_full_size_default ? default_flat(index, j) : default_flat(0, j);
+      }
+    }
+  }
+
+  void find(const K& key, Tensor2D<V>& value_flat,
+            ConstTensor2D<V>& default_flat, bool& exist, int64 value_dim,
+            bool is_full_size_default, int64 index) const override {
+    ValueType value_vec;
+    exist = table_->find(key, value_vec);
+    if (exist) {
       for (int64 j = 0; j < value_dim; j++) {
         value_flat(index, j) = value_vec.at(j);
       }
@@ -176,7 +240,7 @@ class TableWrapperOptimized final : public TableWrapperBase<K, V> {
 template <class K, class V>
 class TableWrapperDefault final : public TableWrapperBase<K, V> {
  private:
-  using ValueType = gtl::InlinedVector<V, 2>;
+  using ValueType = DefaultValueArray<V, 2>;
   using Table = cuckoohash_map<K, ValueType, HybridHash<K>>;
 
  public:
@@ -200,11 +264,37 @@ class TableWrapperDefault final : public TableWrapperBase<K, V> {
     return table_->insert_or_assign(key, value_vec);
   }
 
+  bool insert_or_accum(K key, ConstTensor2D<V>& value_or_delta_flat, bool exist,
+                       int64 value_dim, int64 index) override {
+    ValueType value_or_delta_vec;
+    for (int64 j = 0; j < value_dim; j++) {
+      value_or_delta_vec.push_back(value_or_delta_flat(index, j));
+    }
+    return table_->insert_or_accum(key, value_or_delta_vec, exist);
+  }
+
   void find(const K& key, typename tensorflow::TTypes<V, 2>::Tensor& value_flat,
             ConstTensor2D<V>& default_flat, int64 value_dim,
             bool is_full_size_default, int64 index) const override {
     ValueType value_vec;
     if (table_->find(key, value_vec)) {
+      for (int64 j = 0; j < value_dim; j++) {
+        value_flat(index, j) = value_vec.at(j);
+      }
+    } else {
+      for (int64 j = 0; j < value_dim; j++) {
+        value_flat(index, j) =
+            is_full_size_default ? default_flat(index, j) : default_flat(0, j);
+      }
+    }
+  }
+
+  void find(const K& key, typename tensorflow::TTypes<V, 2>::Tensor& value_flat,
+            ConstTensor2D<V>& default_flat, bool& exist, int64 value_dim,
+            bool is_full_size_default, int64 index) const override {
+    ValueType value_vec;
+    exist = table_->find(key, value_vec);
+    if (exist) {
       for (int64 j = 0; j < value_dim; j++) {
         value_flat(index, j) = value_vec.at(j);
       }

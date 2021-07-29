@@ -146,6 +146,39 @@ class CuckooHashTableOfTensorsGpu final : public LookupInterface {
     return Status::OK();
   }
 
+  Status FindWithExists(OpKernelContext* ctx, const Tensor& d_keys,
+                        Tensor* value, const Tensor& default_value,
+                        Tensor* exists) {
+    size_t len = d_keys.flat<K>().size();
+    gpu::ValueArrayBase<V>* d_default_value;
+
+    auto value_flat = value->flat_inner_dims<V, 2>();
+    const auto default_flat = default_value.flat<V>();
+    int64 total = value_flat.size();
+    int64 default_total = default_flat.size();
+    bool is_full_default = (total == default_total);
+
+    cudaStream_t _stream;
+
+    if (len > 0) {
+      size_t default_value_num =
+          is_full_default ? default_value.shape().dim_size(0) : 1;
+      CUDA_CHECK(cudaStreamCreate(&_stream));
+      {
+        tf_shared_lock l(mu_);
+        table_->get((const K*)d_keys.tensor_data().data(),
+                    (gpu::ValueArrayBase<V>*)value->tensor_data().data(),
+                    (bool*)exists->tensor_data().data(), len,
+                    (gpu::ValueArrayBase<V>*)default_value.tensor_data().data(),
+                    _stream, is_full_default);
+        CUDA_CHECK(cudaStreamSynchronize(_stream));
+      }
+      CUDA_CHECK(cudaFree(d_default_value));
+      CUDA_CHECK(cudaStreamDestroy(_stream));
+    }
+    return Status::OK();
+  }
+
   void RehashIfNeeded(cudaStream_t stream) {
     K* d_keys;
     gpu::ValueArrayBase<V>* d_values;
@@ -202,6 +235,25 @@ class CuckooHashTableOfTensorsGpu final : public LookupInterface {
       table_->upsert((const K*)keys.tensor_data().data(),
                      (const gpu::ValueArrayBase<V>*)values.tensor_data().data(),
                      len, _stream);
+      CUDA_CHECK(cudaStreamSynchronize(_stream));
+    };
+    CUDA_CHECK(cudaStreamDestroy(_stream));
+
+    return Status::OK();
+  }
+
+  Status Accum(OpKernelContext* ctx, const Tensor& keys,
+               const Tensor& values_or_deltas, const Tensor& exists) {
+    size_t len = keys.flat<K>().size();
+    cudaStream_t _stream;
+    CUDA_CHECK(cudaStreamCreate(&_stream));
+    {
+      mutex_lock l(mu_);
+      RehashIfNeeded(_stream);
+      table_->accum(
+          (const K*)keys.tensor_data().data(),
+          (const gpu::ValueArrayBase<V>*)values_or_deltas.tensor_data().data(),
+          (const bool*)exists.tensor_data().data(), len, _stream);
       CUDA_CHECK(cudaStreamSynchronize(_stream));
     };
     CUDA_CHECK(cudaStreamDestroy(_stream));
@@ -343,17 +395,16 @@ class HashTableFindGpuOp : public OpKernel {
     core::ScopedUnref unref_me(table);
 
     // Input 0 could be a STRING_REF or a RESOURCE
-    DataType expected_input_0 =
-        (ctx->input_dtype(0) == DT_RESOURCE) ? DT_RESOURCE : DT_STRING_REF;
+    DataType expected_input_0 = DT_RESOURCE;
     DataTypeVector expected_inputs = {expected_input_0, table->key_dtype(),
                                       table->value_dtype()};
     DataTypeVector expected_outputs = {table->value_dtype()};
     OP_REQUIRES_OK(ctx, ctx->MatchSignature(expected_inputs, expected_outputs));
 
-    const Tensor& key = ctx->input(1);
-    const Tensor& default_value = ctx->input(2);
+    const Tensor& keys = ctx->input(1);
+    const Tensor& default_values = ctx->input(2);
 
-    TensorShape output_shape = key.shape();
+    TensorShape output_shape = keys.shape();
     output_shape.RemoveLastDims(table->key_shape().dims());
     output_shape.AppendShape(table->value_shape());
     Tensor* out;
@@ -362,13 +413,56 @@ class HashTableFindGpuOp : public OpKernel {
     OP_REQUIRES_OK(ctx,
                    ctx->allocate_output("values", output_shape, &out, attr));
 
-    OP_REQUIRES_OK(ctx, table->Find(ctx, key, out, default_value));
+    OP_REQUIRES_OK(ctx, table->Find(ctx, keys, out, default_values));
   }
 };
 
 REGISTER_KERNEL_BUILDER(
     Name(PREFIX_OP_NAME(CuckooHashTableFind)).Device(DEVICE_GPU),
     HashTableFindGpuOp);
+
+// Table lookup op. Perform the lookup operation on the given table.
+
+template <class K, class V>
+class HashTableFindWithExistsGpuOp : public OpKernel {
+ public:
+  explicit HashTableFindWithExistsGpuOp(OpKernelConstruction* ctx)
+      : OpKernel(ctx) {}
+
+  void Compute(OpKernelContext* ctx) override {
+    lookup::LookupInterface* table;
+    OP_REQUIRES_OK(ctx, GetLookupTable("table_handle", ctx, &table));
+    core::ScopedUnref unref_me(table);
+
+    lookup::CuckooHashTableOfTensorsGpu<K, V>* table_cuckoo =
+        (lookup::CuckooHashTableOfTensorsGpu<K, V>*)table;
+
+    // Input 0 could be a STRING_REF or a RESOURCE
+    DataType expected_input_0 = DT_RESOURCE;
+    DataTypeVector expected_inputs = {expected_input_0, table->key_dtype(),
+                                      table->value_dtype()};
+    DataTypeVector expected_outputs = {table->value_dtype(), DT_BOOL};
+    OP_REQUIRES_OK(ctx, ctx->MatchSignature(expected_inputs, expected_outputs));
+
+    const Tensor& keys = ctx->input(1);
+    const Tensor& default_values = ctx->input(2);
+
+    TensorShape output_shape = keys.shape();
+    output_shape.RemoveLastDims(table->key_shape().dims());
+    output_shape.AppendShape(table->value_shape());
+    Tensor* values;
+    Tensor* exists;
+    AllocatorAttributes attr;
+    attr.set_gpu_compatible(true);
+    OP_REQUIRES_OK(ctx,
+                   ctx->allocate_output("values", output_shape, &values, attr));
+    OP_REQUIRES_OK(ctx,
+                   ctx->allocate_output("exists", keys.shape(), &exists, attr));
+
+    OP_REQUIRES_OK(ctx, table_cuckoo->FindWithExists(ctx, keys, values,
+                                                     default_values, exists));
+  }
+};
 
 // Table insert op.
 class HashTableInsertGpuOp : public OpKernel {
@@ -380,8 +474,7 @@ class HashTableInsertGpuOp : public OpKernel {
     OP_REQUIRES_OK(ctx, GetLookupTable("table_handle", ctx, &table));
     core::ScopedUnref unref_me(table);
 
-    DataType expected_input_0 =
-        (ctx->input_dtype(0) == DT_RESOURCE) ? DT_RESOURCE : DT_STRING_REF;
+    DataType expected_input_0 = DT_RESOURCE;
     DataTypeVector expected_inputs = {expected_input_0, table->key_dtype(),
                                       table->value_dtype()};
     OP_REQUIRES_OK(ctx, ctx->MatchSignature(expected_inputs, {}));
@@ -397,6 +490,35 @@ REGISTER_KERNEL_BUILDER(
     Name(PREFIX_OP_NAME(CuckooHashTableInsert)).Device(DEVICE_GPU),
     HashTableInsertGpuOp);
 
+// Table accum op.
+template <class K, class V>
+class HashTableAccumGpuOp : public OpKernel {
+ public:
+  explicit HashTableAccumGpuOp(OpKernelConstruction* ctx) : OpKernel(ctx) {}
+
+  void Compute(OpKernelContext* ctx) override {
+    lookup::LookupInterface* table;
+    OP_REQUIRES_OK(ctx, GetLookupTable("table_handle", ctx, &table));
+    core::ScopedUnref unref_me(table);
+    lookup::CuckooHashTableOfTensorsGpu<K, V>* table_cuckoo =
+        (lookup::CuckooHashTableOfTensorsGpu<K, V>*)table;
+
+    DataType expected_input_0 = DT_RESOURCE;
+    DataTypeVector expected_inputs = {expected_input_0, table->key_dtype(),
+                                      table->value_dtype(),
+                                      DataTypeToEnum<bool>::v()};
+    OP_REQUIRES_OK(ctx, ctx->MatchSignature(expected_inputs, {}));
+
+    const Tensor& keys = ctx->input(1);
+    const Tensor& values_or_deltas = ctx->input(2);
+    const Tensor& exists = ctx->input(3);
+    OP_REQUIRES_OK(
+        ctx, table->CheckKeyAndValueTensorsForInsert(keys, values_or_deltas));
+    OP_REQUIRES_OK(ctx,
+                   table_cuckoo->Accum(ctx, keys, values_or_deltas, exists));
+  }
+};
+
 // Table remove op.
 class HashTableRemoveGpuOp : public OpKernel {
  public:
@@ -407,8 +529,7 @@ class HashTableRemoveGpuOp : public OpKernel {
     OP_REQUIRES_OK(ctx, GetLookupTable("table_handle", ctx, &table));
     core::ScopedUnref unref_me(table);
 
-    DataType expected_input_0 =
-        (ctx->input_dtype(0) == DT_RESOURCE) ? DT_RESOURCE : DT_STRING_REF;
+    DataType expected_input_0 = DT_RESOURCE;
     DataTypeVector expected_inputs = {expected_input_0, table->key_dtype()};
     OP_REQUIRES_OK(ctx, ctx->MatchSignature(expected_inputs, {}));
 
@@ -495,8 +616,7 @@ class HashTableImportGpuOp : public OpKernel {
     OP_REQUIRES_OK(ctx, GetLookupTable("table_handle", ctx, &table));
     core::ScopedUnref unref_me(table);
 
-    DataType expected_input_0 =
-        (ctx->input_dtype(0) == DT_RESOURCE) ? DT_RESOURCE : DT_STRING_REF;
+    DataType expected_input_0 = DT_RESOURCE;
     DataTypeVector expected_inputs = {expected_input_0, table->key_dtype(),
                                       table->value_dtype()};
     OP_REQUIRES_OK(ctx, ctx->MatchSignature(expected_inputs, {}));
@@ -527,7 +647,18 @@ REGISTER_KERNEL_BUILDER(
                               .Device(DEVICE_GPU)                          \
                               .TypeConstraint<key_dtype>("key_dtype")      \
                               .TypeConstraint<value_dtype>("value_dtype"), \
-                          HashTableClearGpuOp<key_dtype, value_dtype>)
+                          HashTableClearGpuOp<key_dtype, value_dtype>)     \
+  REGISTER_KERNEL_BUILDER(Name(PREFIX_OP_NAME(CuckooHashTableAccum))       \
+                              .Device(DEVICE_GPU)                          \
+                              .TypeConstraint<key_dtype>("key_dtype")      \
+                              .TypeConstraint<value_dtype>("value_dtype"), \
+                          HashTableAccumGpuOp<key_dtype, value_dtype>)     \
+  REGISTER_KERNEL_BUILDER(                                                 \
+      Name(PREFIX_OP_NAME(CuckooHashTableFindWithExists))                  \
+          .Device(DEVICE_GPU)                                              \
+          .TypeConstraint<key_dtype>("Tin")                                \
+          .TypeConstraint<value_dtype>("Tout"),                            \
+      HashTableFindWithExistsGpuOp<key_dtype, value_dtype>)
 
 REGISTER_KERNEL(int64, float);
 REGISTER_KERNEL(int64, Eigen::half);
