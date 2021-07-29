@@ -290,7 +290,7 @@ class RedisVirtualWrapper {
 
   virtual std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>>
   MgetCommand(const Tensor &keys, ThreadContext *thread_context,
-              const int64 &begin, const int64 &max_i,
+              const int64 begin, const int64 max_i,
               const std::vector<std::string> &keys_prefix_name_slices) = 0;
 
   virtual void MgetToTensor(
@@ -302,12 +302,12 @@ class RedisVirtualWrapper {
 
   virtual void MsetCommand(
       const Tensor &keys, const Tensor &values, ThreadContext *thread_context,
-      const int64 &begin, const int64 &max_i, const int64 &Velems_per_dim0,
+      const int64 begin, const int64 max_i, const int64 Velems_per_dim0,
       const std::vector<std::string> &keys_prefix_name_slices) = 0;
 
   virtual void DelCommand(
-      const Tensor &keys, ThreadContext *thread_context, const int64 &begin,
-      const int64 &max_i,
+      const Tensor &keys, ThreadContext *thread_context, const int64 begin,
+      const int64 max_i,
       const std::vector<std::string> &keys_prefix_name_slices) = 0;
 };
 
@@ -354,7 +354,7 @@ inline unsigned KSlotNum<tstring>(const tstring *in,
 template <typename T>
 inline const VContentAndTypeSizeResult &VContentAndTypeSize(
     VContentAndTypeSizeResult &_VContentAndTypeSizeResult,
-    const int64 &Velems_per_dim0, const std::size_t &V_byte_size, const T *in,
+    const int64 Velems_per_dim0, const std::size_t &V_byte_size, const T *in,
     std::vector<char> &buff) {
   _VContentAndTypeSizeResult.VTypeSize = V_byte_size;
   _VContentAndTypeSizeResult.VContentPointer =
@@ -372,7 +372,7 @@ var buff is a std::vector<char> from std::vector<std::vector<char>>
 template <>
 inline const VContentAndTypeSizeResult &VContentAndTypeSize<tstring>(
     VContentAndTypeSizeResult &_VContentAndTypeSizeResult,
-    const int64 &Velems_per_dim0, const std::size_t &V_byte_size,
+    const int64 Velems_per_dim0, const std::size_t &V_byte_size,
     const tstring *in, std::vector<char> &buff) {
   const tstring *ps_end = in + Velems_per_dim0;
   unsigned tot = 0;
@@ -405,7 +405,7 @@ inline const VContentAndTypeSizeResult &VContentAndTypeSize<tstring>(
 
 template <typename T>
 void DefaultMemcpyToTensor(const T *const pv_raw, const T *dft,
-                           const int64 &Velems_per_dim0) {
+                           const int64 Velems_per_dim0) {
   void *pv_raw_ = reinterpret_cast<void *>(const_cast<T *>(pv_raw));
   memcpy(pv_raw_, reinterpret_cast<const void *>(dft),
          Velems_per_dim0 *
@@ -415,7 +415,7 @@ void DefaultMemcpyToTensor(const T *const pv_raw, const T *dft,
 template <>
 void DefaultMemcpyToTensor<tstring>(const tstring *const pv_raw,
                                     const tstring *const dft,
-                                    const int64 &Velems_per_dim0) {
+                                    const int64 Velems_per_dim0) {
   const tstring *const pv_raw_end = pv_raw + Velems_per_dim0;
   tstring *pv_it = const_cast<tstring *>(pv_raw);
   const tstring *dft_it = dft;
@@ -440,7 +440,7 @@ void ReplyMemcpyToKeyTensor<tstring>(const tstring *const pk_raw,
 
 template <typename T>
 void ReplyMemcpyToValTensor(const T *const pv_raw, const char *str,
-                            const int64 &Velems_per_dim0) {
+                            const int64 Velems_per_dim0) {
   void *pv_raw_ = reinterpret_cast<void *>(const_cast<T *>(pv_raw));
   memcpy(pv_raw_, str,
          Velems_per_dim0 *
@@ -450,7 +450,7 @@ void ReplyMemcpyToValTensor(const T *const pv_raw, const char *str,
 template <>
 void ReplyMemcpyToValTensor<tstring>(const tstring *const pv_raw,
                                      const char *str,
-                                     const int64 &Velems_per_dim0) {
+                                     const int64 Velems_per_dim0) {
   const tstring *const pv_raw_end = pv_raw + Velems_per_dim0;
   const char *char_view = str;
   unsigned str_bytesize = 0;

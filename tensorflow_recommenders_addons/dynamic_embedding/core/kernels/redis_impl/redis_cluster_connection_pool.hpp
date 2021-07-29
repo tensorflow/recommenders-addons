@@ -534,8 +534,8 @@ every slot has its own SlotContext for sending data---for locating the reply-
   */
   virtual std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>>
   MgetCommand(
-      const Tensor &keys, ThreadContext *thread_context, const int64 &begin,
-      const int64 &max_i,
+      const Tensor &keys, ThreadContext *thread_context, const int64 begin,
+      const int64 max_i,
       const std::vector<std::string> &keys_prefix_name_slices) override {
     const int &&total = max_i - begin;
     const int &&argc = total + 2;
@@ -654,7 +654,7 @@ every slot has its own SlotContext for sending data---for locating the reply-
 
   virtual void MsetCommand(
       const Tensor &keys, const Tensor &values, ThreadContext *thread_context,
-      const int64 &begin, const int64 &max_i, const int64 &Velems_per_dim0,
+      const int64 begin, const int64 max_i, const int64 Velems_per_dim0,
       const std::vector<std::string> &keys_prefix_name_slices) override {
     const int &&total = max_i - begin;
     const int &&argc = total * 2 + 2;
@@ -721,8 +721,8 @@ every slot has its own SlotContext for sending data---for locating the reply-
   }
 
   virtual void DelCommand(
-      const Tensor &keys, ThreadContext *thread_context, const int64 &begin,
-      const int64 &max_i,
+      const Tensor &keys, ThreadContext *thread_context, const int64 begin,
+      const int64 max_i,
       const std::vector<std::string> &keys_prefix_name_slices) override {
     const int &&total = max_i - begin;
     const int &&argc = total + 2;
