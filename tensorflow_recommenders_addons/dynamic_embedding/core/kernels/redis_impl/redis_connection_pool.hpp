@@ -213,8 +213,7 @@ class RedisWrapper<
       LOG(ERROR) << "storage_slice in redis_connection_params which is "
                  << redis_connection_params.storage_slice
                  << " did not equal to the slices number of this "
-                 << keys_prefix_name
-                 << " in the Redis Cluster servers which is "
+                 << keys_prefix_name << " in the Redis Single servers which is "
                  << reply->elements;
       return -1;
     }
@@ -429,24 +428,23 @@ class RedisWrapper<
 sequence pointer and size of parameters. For example: vector<ThreadContext>
 (for multi-threads, index is thread id, also vector<vector<vector<const char
 *>>>)
-                                  |
-                                /   \
-                               /     \    upper var is outside of the
-MXXX_COMMAND function /       \
------------------------------------------------------  (std::vector<unsigned>
-slot_locs for this thread) /         \  under var is inside of the
-MXXX_COMMAND function
-                            /           \
-            vector<SlotContext>    vector<vector<const char *>>   (Different
-thread, map for storing different hash tag in Redis. Reserve(storage_slice) )
-                  /   \
-                 /     \    better to be reserved before entering this
-function /       \ -----------------------------------------------------
-(std::vector<unsigned> slot_locs for this thread) /         \  be reserved in
-this function
-              /           \
-vector<const char *>     vector<const char *>          ............ (Real
-Redis command sequence because m-cmd can only be used in same hash tag)
+
+std::vector<ThreadContext> (better to be reserved before enter MXXX_COMMAND)
+-------------upper var is outside of the MXXX_COMMAND function---------------
+      |
+      | Thread0 has its own ThreadContext
+      |
+every slot has its own SlotContext for sending data---for locating the reply-
+    |                                               |
+    | std::vector<SlotContext>                      | std::vector<unsigned>
+    |
+    |
+--char* point to the data and size_t indicates the length of data------------
+  |                    |
+  | std::vector        | std::vector
+  |  <const char*>     |  <std::size_t>
+  |                    |
+(Real Redis command sequence because m-cmd can only be used in same hash tag)
 
   PS: vector slot_locs is only allocated in Redis Cluster mode!
   */
