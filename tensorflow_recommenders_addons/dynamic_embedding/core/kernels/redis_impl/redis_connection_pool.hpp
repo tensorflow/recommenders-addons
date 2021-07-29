@@ -113,7 +113,7 @@ class RedisWrapper<
       redis_client->ping();
       return redis_client;
     } catch (const std::exception &err) {
-      LOG(ERROR) << "RedisHandler--other " << err.what();
+      LOG(ERROR) << "RedisHandler--error: " << err.what();
       LOG(INFO)
           << "Failed to connect to the Sentinel server. Try to connect "
              "directly with the input IP address as if it were a Redis server.";
@@ -150,7 +150,7 @@ class RedisWrapper<
       redis_client->ping();
       return redis_client;
     } catch (const std::exception &err) {
-      LOG(ERROR) << "RedisHandler--other " << err.what();
+      LOG(ERROR) << "RedisHandler--error: " << err.what();
       return nullptr;
     } catch (...) {
       LOG(ERROR) << "RedisHandler--other crash";

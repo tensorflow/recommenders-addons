@@ -92,7 +92,7 @@ class RedisWrapper<RedisInstance, K, V,
                         std::chrono::milliseconds(1));
       return redis_client;
     } catch (const std::exception &err) {
-      LOG(ERROR) << "RedisHandler--other " << err.what();
+      LOG(ERROR) << "RedisHandler--error: " << err.what();
       return nullptr;
     } catch (...) {
       LOG(ERROR) << "RedisHandler--other crash";
