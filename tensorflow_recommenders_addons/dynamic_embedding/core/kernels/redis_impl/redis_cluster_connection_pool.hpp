@@ -149,9 +149,9 @@ class RedisWrapper<RedisInstance, K, V,
         ::sw::redis::StringView hkey((*thread_context->slots[i]->ptrs)[1],
                                      (*thread_context->slots[i]->sizes)[1]);
         try {
-          replies.push_back(
-              redis_conn->command(cmd, hkey, thread_context->slots[i]->ptrs,
-                                  thread_context->slots[i]->sizes));
+          replies.push_back(redis_conn->command(
+              cmd, hkey, thread_context->slots[i]->ptrs.get(),
+              thread_context->slots[i]->sizes.get()));
         } catch (const std::exception &err) {
           LOG(ERROR) << "RedisHandler error in pipe_exec for slices "
                      << hkey.data() << " -- " << err.what();
@@ -623,7 +623,7 @@ every slot has its own SlotContext for sending data---for locating the reply-
     const V *const dft_raw_begin =
         reinterpret_cast<const V *>(default_value.tensor_data().data());
 
-    const std::vector<unsigned> *slot_locs = thread_context->slot_locs;
+    const std::vector<unsigned> *slot_locs = thread_context->slot_locs.get();
     const unsigned &storage_slice = redis_connection_params.storage_slice;
     unsigned slots_iters_nums[storage_slice];
     unsigned slot_loc;

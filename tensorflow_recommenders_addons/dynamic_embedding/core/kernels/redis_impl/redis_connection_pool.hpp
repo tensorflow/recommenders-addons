@@ -460,8 +460,8 @@ every slot has its own SlotContext for sending data---for locating the reply-
 
     thread_context->HandleReserve(1U, argc, 0);
 
-    std::vector<const char *> *ptrs_0 = thread_context->slots[0]->ptrs;
-    std::vector<std::size_t> *sizes_0 = thread_context->slots[0]->sizes;
+    std::vector<const char *> *ptrs_0 = thread_context->slots[0]->ptrs.get();
+    std::vector<std::size_t> *sizes_0 = thread_context->slots[0]->sizes.get();
 
     const K *const pk_raw_end =
         reinterpret_cast<const K *>(keys.tensor_data().data()) + max_i;
@@ -574,8 +574,8 @@ every slot has its own SlotContext for sending data---for locating the reply-
 
     thread_context->HandleReserve(1U, argc, 0);
 
-    std::vector<const char *> *ptrs_0 = thread_context->slots[0]->ptrs;
-    std::vector<std::size_t> *sizes_0 = thread_context->slots[0]->sizes;
+    std::vector<const char *> *ptrs_0 = thread_context->slots[0]->ptrs.get();
+    std::vector<std::size_t> *sizes_0 = thread_context->slots[0]->sizes.get();
 
     const K *const pk_raw_end =
         reinterpret_cast<const K *>(keys.tensor_data().data()) + max_i;
@@ -647,8 +647,8 @@ every slot has its own SlotContext for sending data---for locating the reply-
 
     thread_context->HandleReserve(1U, argc, 0);
 
-    std::vector<const char *> *ptrs_0 = thread_context->slots[0]->ptrs;
-    std::vector<std::size_t> *sizes_0 = thread_context->slots[0]->sizes;
+    std::vector<const char *> *ptrs_0 = thread_context->slots[0]->ptrs.get();
+    std::vector<std::size_t> *sizes_0 = thread_context->slots[0]->sizes.get();
 
     const K *const pk_raw_end =
         reinterpret_cast<const K *>(keys.tensor_data().data()) + max_i;
