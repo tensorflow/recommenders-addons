@@ -242,7 +242,7 @@ class ThreadContext {
     if (this->slot_locs.get()) {
       slot_locs.reset();
     }
-    for (size_t i; i < this->slots.size(); ++i) {
+    for (size_t i = 0; i < this->slots.size(); ++i) {
       if (slots[i].get()) {
         slots[i].reset();
       }

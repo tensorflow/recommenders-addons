@@ -50,8 +50,7 @@ custom_op_library(
     ],
     copts = [
         "-pthread",
-        "-O3",
-        "-ffast-math",
+        "-Ofast",
     ],
     deps = [
         "@hiredis",

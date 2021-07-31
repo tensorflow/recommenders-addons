@@ -50,7 +50,7 @@ https://github.com/redis/redis/blob/be6ce8a92a9acbecfaaa6c57a45037fc1018fefe/src
 const static unsigned hardware_concurrency_ =
     std::thread::hardware_concurrency();
 const static long long multi_redis_cmd_max_argc =
-    1024 * 8;  // For better parallelism performance
+    128 * 4;  // For better parallelism performance
 
 using sw::redis::OptionalString;
 using sw::redis::Redis;
@@ -110,12 +110,12 @@ class RedisTableOfTensors final : public LookupInterface {
                   &threads_Find](int64 begin, int64 end) {
       const int64 max_i = std::min(total, end);
       size_t thread_context_id = 0;
+      bool thread_context_i_status = false;
 
       for (; thread_context_id < threads_Find.size(); ++thread_context_id) {
-        if (threads_Find[thread_context_id]->thread_occupied.load(
-                std::memory_order_consume) == false) {
-          threads_Find[thread_context_id]->thread_occupied.store(
-              true, std::memory_order_consume);
+        thread_context_i_status = false;
+        if (threads_Find[thread_context_id]->thread_occupied.compare_exchange_strong(
+          thread_context_i_status, true) == true) {
           break;
         }
       }
@@ -123,7 +123,7 @@ class RedisTableOfTensors final : public LookupInterface {
         std::lock_guard<std::mutex> guard(threads_Find_mutex);
         threads_Find.push_back(new ThreadContext());
         threads_Find.back()->thread_occupied.store(true,
-                                                   std::memory_order_consume);
+                                                   std::memory_order_release);
       }
 
       auto reply =
@@ -155,12 +155,12 @@ class RedisTableOfTensors final : public LookupInterface {
                   std::vector<ThreadContext *> &threads_Find) {
     const bool is_full_default = (total == default_value_flat2_dim0);
     size_t thread_context_id = 0;
+    bool thread_context_i_status = false;
 
     for (; thread_context_id < threads_Find.size(); ++thread_context_id) {
-      if (threads_Find[thread_context_id]->thread_occupied.load(
-              std::memory_order_consume) == false) {
-        threads_Find[thread_context_id]->thread_occupied.store(
-            true, std::memory_order_consume);
+      thread_context_i_status = false;
+      if (threads_Find[thread_context_id]->thread_occupied.compare_exchange_strong(
+        thread_context_i_status, true) == true) {
         break;
       }
     }
@@ -200,12 +200,12 @@ class RedisTableOfTensors final : public LookupInterface {
                   &threads_Insert](int64 begin, int64 end) {
       const int64 max_i = std::min(total, end);
       size_t thread_context_id = 0;
+      bool thread_context_i_status = false;
 
       for (; thread_context_id < threads_Insert.size(); ++thread_context_id) {
-        if (threads_Insert[thread_context_id]->thread_occupied.load(
-                std::memory_order_consume) == false) {
-          threads_Insert[thread_context_id]->thread_occupied.store(
-              true, std::memory_order_consume);
+        thread_context_i_status = false;
+        if (threads_Insert[thread_context_id]->thread_occupied.compare_exchange_strong(
+          thread_context_i_status, true) == true) {
           break;
         }
       }
@@ -213,7 +213,7 @@ class RedisTableOfTensors final : public LookupInterface {
         std::lock_guard<std::mutex> guard(threads_Insert_mutex);
         threads_Insert.push_back(new ThreadContext());
         threads_Insert.back()->thread_occupied.store(true,
-                                                     std::memory_order_consume);
+                                                     std::memory_order_release);
       }
 
       _table_instance->MsetCommand(
@@ -234,12 +234,12 @@ class RedisTableOfTensors final : public LookupInterface {
                     const int64 &total, const int64 &Velems_per_flat2_dim0,
                     std::vector<ThreadContext *> &threads_Insert) {
     size_t thread_context_id = 0;
+    bool thread_context_i_status = false;
 
     for (; thread_context_id < threads_Insert.size(); ++thread_context_id) {
-      if (threads_Insert[thread_context_id]->thread_occupied.load(
-              std::memory_order_consume) == false) {
-        threads_Insert[thread_context_id]->thread_occupied.store(
-            true, std::memory_order_consume);
+      thread_context_i_status = false;
+      if (threads_Insert[thread_context_id]->thread_occupied.compare_exchange_strong(
+        thread_context_i_status, true) == true) {
         break;
       }
     }
@@ -268,12 +268,12 @@ class RedisTableOfTensors final : public LookupInterface {
                   &threads_Delete](int64 begin, int64 end) {
       const int64 max_i = std::min(total, end);
       size_t thread_context_id = 0;
+      bool thread_context_i_status = false;
 
       for (; thread_context_id < threads_Delete.size(); ++thread_context_id) {
-        if (threads_Delete[thread_context_id]->thread_occupied.load(
-                std::memory_order_consume) == false) {
-          threads_Delete[thread_context_id]->thread_occupied.store(
-              true, std::memory_order_consume);
+        thread_context_i_status = false;
+        if (threads_Delete[thread_context_id]->thread_occupied.compare_exchange_strong(
+          thread_context_i_status, true) == true) {
           break;
         }
       }
@@ -281,7 +281,7 @@ class RedisTableOfTensors final : public LookupInterface {
         std::lock_guard<std::mutex> guard(threads_Delete_mutex);
         threads_Delete.push_back(new ThreadContext());
         threads_Delete.back()->thread_occupied.store(true,
-                                                     std::memory_order_consume);
+                                                     std::memory_order_release);
       }
 
       _table_instance->DelCommand(keys, threads_Delete.at(thread_context_id),
@@ -300,12 +300,12 @@ class RedisTableOfTensors final : public LookupInterface {
                     const Tensor &keys, const int64 &total,
                     std::vector<ThreadContext *> &threads_Delete) {
     size_t thread_context_id = 0;
+    bool thread_context_i_status = false;
 
     for (; thread_context_id < threads_Delete.size(); ++thread_context_id) {
-      if (threads_Delete[thread_context_id]->thread_occupied.load(
-              std::memory_order_consume) == false) {
-        threads_Delete[thread_context_id]->thread_occupied.store(
-            true, std::memory_order_consume);
+      thread_context_i_status = false;
+      if (threads_Delete[thread_context_id]->thread_occupied.compare_exchange_strong(
+        thread_context_i_status, true) == true) {
         break;
       }
     }
@@ -680,13 +680,22 @@ class RedisTableOfTensors final : public LookupInterface {
       }
     }
     for (auto threads_Find_i : threads_Find) {
-      threads_Find_i->HandleRelease();
+      if (threads_Find_i->thread_occupied.load(std::memory_order_consume) ==
+          false) {
+        threads_Find_i->HandleRelease();
+      }
     }
     for (auto threads_Insert_i : threads_Insert) {
-      threads_Insert_i->HandleRelease();
+      if (threads_Insert_i->thread_occupied.load(std::memory_order_consume) ==
+          false) {
+        threads_Insert_i->HandleRelease();
+      }
     }
     for (auto threads_Delete_i : threads_Delete) {
-      threads_Delete_i->HandleRelease();
+      if (threads_Delete_i->thread_occupied.load(std::memory_order_consume) ==
+          false) {
+        threads_Delete_i->HandleRelease();
+      }
     }
     _table_instance.reset();
   }
