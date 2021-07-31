@@ -6,7 +6,7 @@ ARG USE_BAZEL_VERSION=3.1.0
 
 RUN pip install --default-timeout=1000 tensorflow-cpu==$TF_VERSION
 
-RUN apt-get update && apt-get install -y sudo rsync
+RUN apt-get update && apt-get install -y sudo rsync cmake
 COPY tools/docker/install/install_bazel.sh ./
 RUN ./install_bazel.sh $USE_BAZEL_VERSION
 

@@ -1,21 +1,22 @@
 workspace(name = "tf_recommenders_addons")
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+load("@bazel_tools//tools/build_defs/repo:git.bzl", "new_git_repository")
 load("//build_deps/tf_dependency:tf_configure.bzl", "tf_configure")
 load("//build_deps/toolchains/gpu:cuda_configure.bzl", "cuda_configure")
 
 http_archive(
     name = "rules_foreign_cc",
-    sha256 = "c2cdcf55ffaf49366725639e45dedd449b8c3fe22b54e31625eb80ce3a240f1e",
-    strip_prefix = "rules_foreign_cc-0.1.0",
-    url = "https://github.com/bazelbuild/rules_foreign_cc/archive/0.1.0.zip",
+    sha256 = "9f96cae32dca0578960468a5a9f66e1ddb8cba8cc210e3e8198f70a20dba45d1",
+    strip_prefix = "rules_foreign_cc-0.0.9",
+    url = "https://github.com/bazelbuild/rules_foreign_cc/archive/refs/tags/0.0.9.zip",
 )
 
 load("@rules_foreign_cc//:workspace_definitions.bzl", "rules_foreign_cc_dependencies")
 
 # This sets up some common toolchains for building targets. For more details, please see
 # https://bazelbuild.github.io/rules_foreign_cc/0.3.0/flatten.html#rules_foreign_cc_dependencies
-rules_foreign_cc_dependencies(register_preinstalled_tools = False)
+rules_foreign_cc_dependencies(register_default_tools = True)
 
 http_archive(
     name = "cub_archive",
@@ -38,12 +39,11 @@ http_archive(
     ],
 )
 
-http_archive(
+new_git_repository(
     name = "hiredis",
+    branch = "master",
     build_file = "//build_deps/toolchains/redis:hiredis.BUILD",
-    sha256 = "71fded144c038ce911d7745e22d901daa226e1b8f023e60f87a499356f77befa",
-    strip_prefix = "hiredis-1.0.0",
-    url = "https://github.com/redis/hiredis/archive/refs/tags/v1.0.0.zip",
+    remote = "https://github.com/redis/hiredis.git",
 )
 
 http_archive(

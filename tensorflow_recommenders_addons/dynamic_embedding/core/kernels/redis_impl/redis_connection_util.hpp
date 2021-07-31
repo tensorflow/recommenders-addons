@@ -188,22 +188,24 @@ struct Redis_Connection_Params {
 
 class SlotContext {
  public:
-  std::vector<const char *> *ptrs;
-  std::vector<std::size_t> *sizes;
+  std::unique_ptr<std::vector<const char *>> ptrs;
+  std::unique_ptr<std::vector<std::size_t>> sizes;
 
   void HandleRelease() {
-    if (this->ptrs) {
-      delete this->ptrs;
+    if (this->ptrs.get()) {
+      this->ptrs.reset();
     }
-    if (this->sizes) {
-      delete this->sizes;
+    if (this->sizes.get()) {
+      this->sizes.reset();
     }
   }
 
   SlotContext() {
-    this->ptrs = new std::vector<const char *>();
+    this->ptrs = std::make_unique<std::vector<const char *>>(
+        std::vector<const char *>());
     this->ptrs->reserve(8);
-    this->sizes = new std::vector<std::size_t>();
+    this->sizes =
+        std::make_unique<std::vector<std::size_t>>(std::vector<std::size_t>());
     this->sizes->reserve(8);
   }
 
@@ -213,13 +215,13 @@ class SlotContext {
 class ThreadContext {
  public:
   std::atomic<bool> thread_occupied{false};
-  std::vector<SlotContext *> slots;
-  std::vector<unsigned> *slot_locs;
+  std::vector<std::unique_ptr<SlotContext>> slots;
+  std::unique_ptr<std::vector<unsigned>> slot_locs;
 
   void HandleReserve(const unsigned storage_slice, const unsigned vector_len,
                      const int keys_num) {
     for (size_t i = this->slots.size(); i != storage_slice; ++i) {
-      slots.emplace_back(new SlotContext());
+      slots.emplace_back(std::unique_ptr<SlotContext>(new SlotContext()));
     }
     for (unsigned i = 0; i < storage_slice; ++i) {
       this->slots[i]->ptrs->clear();
@@ -237,19 +239,20 @@ class ThreadContext {
   }
 
   void HandleRelease() {
-    if (this->slot_locs) {
-      delete this->slot_locs;
+    if (this->slot_locs.get()) {
+      slot_locs.reset();
     }
-    for (auto slots_ : this->slots) {
-      if (slots_) {
-        delete slots_;
+    for (size_t i = 0; i < this->slots.size(); ++i) {
+      if (slots[i].get()) {
+        slots[i].reset();
       }
     }
   }
 
   ThreadContext() {
-    this->slots.emplace_back(new SlotContext());
-    this->slot_locs = new std::vector<unsigned>();
+    this->slots.emplace_back(std::unique_ptr<SlotContext>(new SlotContext()));
+    this->slot_locs =
+        std::make_unique<std::vector<unsigned>>(std::vector<unsigned>());
     this->slot_locs->reserve(8);
   }
 
