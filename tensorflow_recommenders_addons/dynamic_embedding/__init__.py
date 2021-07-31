@@ -16,6 +16,11 @@
 
 __all__ = [
     'CuckooHashTable',
+    'CuckooHashTableConfig',
+    'CuckooHashTableCreator',
+    'RedisTable',
+    'RedisTableConfig',
+    'RedisTableCreator',
     'Variable',
     'TrainableWrapper',
     'DynamicEmbeddingOptimizer',
