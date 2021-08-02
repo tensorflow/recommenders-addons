@@ -116,7 +116,8 @@ class RedisTableOfTensors final : public LookupInterface {
         thread_context_i_status = false;
         if (threads_Find[thread_context_id]
                 ->thread_occupied.compare_exchange_strong(
-                    thread_context_i_status, true) == true) {
+                    thread_context_i_status, true, std::memory_order_seq_cst,
+                    std::memory_order_relaxed) == true) {
           break;
         }
       }
@@ -161,8 +162,9 @@ class RedisTableOfTensors final : public LookupInterface {
     for (; thread_context_id < threads_Find.size(); ++thread_context_id) {
       thread_context_i_status = false;
       if (threads_Find[thread_context_id]
-              ->thread_occupied.compare_exchange_strong(thread_context_i_status,
-                                                        true) == true) {
+              ->thread_occupied.compare_exchange_strong(
+                  thread_context_i_status, true, std::memory_order_seq_cst,
+                  std::memory_order_relaxed) == true) {
         break;
       }
     }
@@ -208,7 +210,8 @@ class RedisTableOfTensors final : public LookupInterface {
         thread_context_i_status = false;
         if (threads_Insert[thread_context_id]
                 ->thread_occupied.compare_exchange_strong(
-                    thread_context_i_status, true) == true) {
+                    thread_context_i_status, true, std::memory_order_seq_cst,
+                    std::memory_order_relaxed) == true) {
           break;
         }
       }
@@ -242,8 +245,9 @@ class RedisTableOfTensors final : public LookupInterface {
     for (; thread_context_id < threads_Insert.size(); ++thread_context_id) {
       thread_context_i_status = false;
       if (threads_Insert[thread_context_id]
-              ->thread_occupied.compare_exchange_strong(thread_context_i_status,
-                                                        true) == true) {
+              ->thread_occupied.compare_exchange_strong(
+                  thread_context_i_status, true, std::memory_order_seq_cst,
+                  std::memory_order_relaxed) == true) {
         break;
       }
     }
@@ -278,7 +282,8 @@ class RedisTableOfTensors final : public LookupInterface {
         thread_context_i_status = false;
         if (threads_Delete[thread_context_id]
                 ->thread_occupied.compare_exchange_strong(
-                    thread_context_i_status, true) == true) {
+                    thread_context_i_status, true, std::memory_order_seq_cst,
+                    std::memory_order_relaxed) == true) {
           break;
         }
       }
@@ -310,8 +315,9 @@ class RedisTableOfTensors final : public LookupInterface {
     for (; thread_context_id < threads_Delete.size(); ++thread_context_id) {
       thread_context_i_status = false;
       if (threads_Delete[thread_context_id]
-              ->thread_occupied.compare_exchange_strong(thread_context_i_status,
-                                                        true) == true) {
+              ->thread_occupied.compare_exchange_strong(
+                  thread_context_i_status, true, std::memory_order_seq_cst,
+                  std::memory_order_relaxed) == true) {
         break;
       }
     }
