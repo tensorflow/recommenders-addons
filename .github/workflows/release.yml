@@ -38,6 +38,7 @@ jobs:
   release-wheel:
     name: Build release wheels
     runs-on: ${{ matrix.os }}
+    # runs-on: self-hosted
     strategy:
       matrix:
         # TODO: add back 'windows-latest' when it can be compiled.
@@ -48,7 +49,7 @@ jobs:
         tf-cuda-version: ['10.0', '11.0']
         tf-cudnn-version: ['7.6', '8.0']
         exclude:
-          # excludes cuda on macOS
+          excludes cuda on macOS
           - os: 'macos-latest'
             tf-need-cuda: '1'
           # excludes TF1.15.2 on py38

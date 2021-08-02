@@ -724,11 +724,13 @@ class RedisTableOfTensors final : public LookupInterface {
     const int64 default_value_dim0 = default_value.dim_size(0);
 
     if (total < (multi_redis_cmd_max_argc - 1)) {
+      std::vector<ThreadContext> threads_Find(1);
       launchFind(ctx, keys_prefix_name_slices, keys, values, default_value,
                  total, default_value_dim0, Velems_per_flat2_dim0,
                  threads_Find);
     } else {
       // redis commmand args > multi_redis_cmd_max_argc
+      std::vector<ThreadContext> threads_Find(hardware_concurrency_);
       launchFind_parallel(ctx, keys_prefix_name_slices, keys, values,
                           default_value, total, default_value_dim0,
                           Velems_per_flat2_dim0, threads_Find);
@@ -747,9 +749,11 @@ class RedisTableOfTensors final : public LookupInterface {
       _table_instance->RemoveHkeysInSlots(keys_prefix_name_slices);
     }
     if (total < (multi_redis_cmd_max_argc - 1)) {
+      std::vector<ThreadContext> threads_Insert(1);
       launchInsert(ctx, keys_prefix_name_slices, keys, values, total,
                    Velems_per_flat2_dim0, threads_Insert);
     } else {
+      std::vector<ThreadContext> threads_Insert(hardware_concurrency_);
       launchInsert_parallel(
           ctx, keys_prefix_name_slices, keys, values, total,
           Velems_per_flat2_dim0,
@@ -767,9 +771,11 @@ class RedisTableOfTensors final : public LookupInterface {
   Status Remove(OpKernelContext *ctx, const Tensor &keys) override {
     int64 total = keys.NumElements();
     if (total < (multi_redis_cmd_max_argc - 1)) {
+      std::vector<ThreadContext> threads_Delete(1);
       launchDelete(ctx, keys_prefix_name_slices, keys, total, threads_Delete);
     } else {
       // redis commmand args > multi_redis_cmd_max_argc
+      std::vector<ThreadContext> threads_Delete(hardware_concurrency_);
       launchDelete_parallel(ctx, keys_prefix_name_slices, keys, total,
                             threads_Delete);
     }
