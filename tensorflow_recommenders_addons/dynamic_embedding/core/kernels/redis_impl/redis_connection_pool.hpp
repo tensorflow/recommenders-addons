@@ -191,7 +191,7 @@ class RedisWrapper<
     Redis service, 0 is returned. Other exceptions return -1.
   */
   virtual int CheckSlicesNum(const std::string &keys_prefix_name) override {
-    std::string redis_command = "KEYS " + keys_prefix_name + "[0123456789]*";
+    std::string redis_command = "KEYS " + keys_prefix_name + "{[0123456789]*}";
     auto cmd = [](::sw::redis::Connection &connection, const char *str) {
       connection.send(str);
     };
@@ -220,7 +220,7 @@ class RedisWrapper<
     return -1;
   }
 
-  virtual size_t TableSizeInSlots(
+  virtual size_t TableSizeInBuckets(
       const std::vector<std::string> &keys_prefix_name_slices) override {
     std::string redis_command = "HLEN " + keys_prefix_name_slices[0];
     auto cmd = [](::sw::redis::Connection &connection, const char *str) {
@@ -230,7 +230,7 @@ class RedisWrapper<
     try {
       reply = redis_conn->command(cmd, redis_command.data());
     } catch (const std::exception &err) {
-      LOG(ERROR) << "RedisHandler error in table_size_in_slots for HLEN "
+      LOG(ERROR) << "RedisHandler error in table_size_in_buckets for HLEN "
                  << keys_prefix_name_slices[0] << " -- " << err.what();
     }
     size_t size = 0;
@@ -241,7 +241,7 @@ class RedisWrapper<
     return size;
   }
 
-  virtual void RemoveHkeysInSlots(
+  virtual void RemoveHkeysInBuckets(
       const std::vector<std::string> &keys_prefix_name_slices) override {
     // std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply;
     std::string redis_command = "DEL " + keys_prefix_name_slices[0];
@@ -381,14 +381,12 @@ class RedisWrapper<
     ret = aio_read(rd);
     if (ret < 0) perror("aio_read");
 
-    ptrs_0.clear();
     ptrs_0.emplace_back(redis_command);
     ptrs_0.emplace_back(keys_prefix_name_slices[0].data());
     ptrs_0.emplace_back(redis_command_param);
     ptrs_0.emplace_back((const char *)rd->aio_buf);
     ptrs_0.emplace_back(replace_command);
 
-    sizes_0.clear();
     sizes_0.emplace_back(redis_command_byte);
     sizes_0.emplace_back(keys_prefix_name_slices[0].size());
     sizes_0.emplace_back(redis_command_byte_param);
@@ -422,6 +420,68 @@ class RedisWrapper<
     }
   }
 
+  virtual void DuplicateInRedis(
+      const std::vector<std::string> &keys_prefix_name_slices_old,
+      const std::vector<std::string> &keys_prefix_name_slices_new) override {
+    std::string redis_dump_command = "DUMP " + keys_prefix_name_slices_old[0];
+
+    auto cmd_dump = [](::sw::redis::Connection &connection, const char *str) {
+      connection.send(str);
+    };
+
+    auto cmd_restore = [](::sw::redis::Connection &connection,
+                          const std::vector<const char *> &ptrs_0,
+                          const std::vector<std::size_t> &sizes_0) {
+      assert(strcmp(ptrs_0.front(), "RESTORE") == 0);
+      assert(sizes_0.front() == 7);
+      connection.send(static_cast<int>(ptrs_0.size()),
+                      const_cast<const char **>(ptrs_0.data()), sizes_0.data());
+    };
+
+    std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply;
+
+    try {
+      reply = redis_conn->command(cmd_dump, redis_dump_command.data());
+    } catch (const std::exception &err) {
+      LOG(ERROR) << "RedisHandler error in dump_to_disk for DUMP "
+                 << keys_prefix_name_slices_old[0] << " -- " << err.what();
+    }
+
+    std::vector<const char *> ptrs_0;
+    std::vector<std::size_t> sizes_0;
+    ptrs_0.reserve(5);
+    sizes_0.reserve(5);
+    const static char *redis_restore_command = "RESTORE";
+    const static std::size_t &&redis_restore_command_byte = 7;
+    const static char *redis_restore_command_param = "0";
+    const static std::size_t &&redis_restore_command_byte_param = 1;
+    const static char *replace_command = "REPLACE";
+    const static std::size_t &&replace_command_byte = 7;
+    if (reply->type == REDIS_REPLY_STRING)  // #define REDIS_REPLY_STRING 1
+    {
+      ptrs_0.emplace_back(redis_restore_command);
+      ptrs_0.emplace_back(keys_prefix_name_slices_new[0].data());
+      ptrs_0.emplace_back(redis_restore_command_param);
+      ptrs_0.emplace_back(reply->str);
+      ptrs_0.emplace_back(replace_command);
+      sizes_0.emplace_back(redis_restore_command_byte);
+      sizes_0.emplace_back(keys_prefix_name_slices_new[0].size());
+      sizes_0.emplace_back(redis_restore_command_byte_param);
+      sizes_0.emplace_back(reply->len);
+      sizes_0.emplace_back(replace_command_byte);
+    } else {
+      LOG(ERROR) << "HKEY " << keys_prefix_name_slices_new[0]
+                 << " does not exist in the Redis server. ";
+    }
+    try {
+      /*std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply = */
+      redis_conn->command(cmd_restore, ptrs_0, sizes_0);
+    } catch (const std::exception &err) {
+      LOG(ERROR) << "RedisHandler error in restore_from_disk for RESTORE "
+                 << keys_prefix_name_slices_new[0] << " -- " << err.what();
+    }
+  }
+
  public:
   /*
   The structure of ptrs and sizes which for storing Redis command char
@@ -434,9 +494,9 @@ std::vector<ThreadContext> (better to be reserved before enter MXXX_COMMAND)
       |
       | Thread0 has its own ThreadContext
       |
-every slot has its own SlotContext for sending data---for locating the reply-
+every bucket has its own BucketContext for sending data---for locating the reply
     |                                               |
-    | std::vector<SlotContext>                      | std::vector<unsigned>
+    | std::vector<BucketContext>                      | std::vector<unsigned>
     |
     |
 --char* point to the data and size_t indicates the length of data------------
@@ -446,7 +506,7 @@ every slot has its own SlotContext for sending data---for locating the reply-
   |                    |
 (Real Redis command sequence because m-cmd can only be used in same hash tag)
 
-  PS: vector slot_locs is only allocated in Redis Cluster mode!
+  PS: vector bucket_locs is only allocated in Redis Cluster mode!
   */
   virtual std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>>
   MgetCommand(
@@ -460,8 +520,8 @@ every slot has its own SlotContext for sending data---for locating the reply-
 
     thread_context->HandleReserve(1U, argc, 0);
 
-    std::vector<const char *> *ptrs_0 = thread_context->slots[0]->ptrs.get();
-    std::vector<std::size_t> *sizes_0 = thread_context->slots[0]->sizes.get();
+    std::vector<const char *> *ptrs_0 = thread_context->buckets[0]->ptrs.get();
+    std::vector<std::size_t> *sizes_0 = thread_context->buckets[0]->sizes.get();
 
     const K *const pk_raw_end =
         reinterpret_cast<const K *>(keys.tensor_data().data()) + max_i;
@@ -574,8 +634,8 @@ every slot has its own SlotContext for sending data---for locating the reply-
 
     thread_context->HandleReserve(1U, argc, 0);
 
-    std::vector<const char *> *ptrs_0 = thread_context->slots[0]->ptrs.get();
-    std::vector<std::size_t> *sizes_0 = thread_context->slots[0]->sizes.get();
+    std::vector<const char *> *ptrs_0 = thread_context->buckets[0]->ptrs.get();
+    std::vector<std::size_t> *sizes_0 = thread_context->buckets[0]->sizes.get();
 
     const K *const pk_raw_end =
         reinterpret_cast<const K *>(keys.tensor_data().data()) + max_i;
@@ -647,8 +707,8 @@ every slot has its own SlotContext for sending data---for locating the reply-
 
     thread_context->HandleReserve(1U, argc, 0);
 
-    std::vector<const char *> *ptrs_0 = thread_context->slots[0]->ptrs.get();
-    std::vector<std::size_t> *sizes_0 = thread_context->slots[0]->sizes.get();
+    std::vector<const char *> *ptrs_0 = thread_context->buckets[0]->ptrs.get();
+    std::vector<std::size_t> *sizes_0 = thread_context->buckets[0]->sizes.get();
 
     const K *const pk_raw_end =
         reinterpret_cast<const K *>(keys.tensor_data().data()) + max_i;

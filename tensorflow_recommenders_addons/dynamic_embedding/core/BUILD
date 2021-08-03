@@ -42,6 +42,8 @@ custom_op_library(
         "kernels/redis_impl/redis_cluster_connection_pool.hpp",
         "kernels/redis_impl/redis_connection_pool.hpp",
         "kernels/redis_impl/redis_connection_util.hpp",
+        "kernels/redis_impl/redis_slots_tab.h",
+        "kernels/redis_impl/redis_table_op_util.hpp",
         "kernels/redis_table_op.cc",
         "kernels/redis_table_op.h",
         "ops/redis_table_ops.cc",

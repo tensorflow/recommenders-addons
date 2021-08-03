@@ -15,20 +15,16 @@ limitations under the License.
 #pragma once
 #include <aio.h>
 #include <stdlib.h>
+#include <sw/redis++/connection.h>
+#include <sw/redis++/connection_pool.h>
+#include <sw/redis++/redis++.h>
+#include <sw/redis++/sentinel.h>
 #include <sys/stat.h>
 #include <unistd.h>
 #include <x86intrin.h>
 
 #include <cmath>
 #include <iostream>
-
-extern "C" {
-#include <hiredis/sds.h>
-}
-#include <sw/redis++/connection.h>
-#include <sw/redis++/connection_pool.h>
-#include <sw/redis++/redis++.h>
-#include <sw/redis++/sentinel.h>
 
 #include "md5.h"
 #include "tensorflow/core/framework/tensor.h"
@@ -153,8 +149,10 @@ struct Redis_Connection_Params {
       1;  // For deciding hash tag, which usually is how many Redis instance
           // may be used in the trainning.
   unsigned storage_slice_log2 = 0;  // For fast calculation.
-  std::string model_tag =
-      "test";  //  model_tag for version and any other information
+  std::string model_tag_old =
+      "test";  // old model_tag for version and any other information
+  std::string model_tag_new =
+      "test";  // new model_tag for version and any other information
   bool using_md5_prefix_name = false;
   std::string model_lib_abs_dir = "/tmp/";
   bool using_model_lib = true;
@@ -178,7 +176,8 @@ struct Redis_Connection_Params {
     storage_slice_log2 =
         round_next_power_two_bitlen(x.storage_slice);  // beter for modding.
     storage_slice = 1 << storage_slice_log2;
-    model_tag = x.model_tag;
+    model_tag_old = x.model_tag_old;
+    model_tag_new = x.model_tag_new;
     using_md5_prefix_name = x.using_md5_prefix_name;
     model_lib_abs_dir = check_dir(x.model_lib_abs_dir);
     using_model_lib = x.using_model_lib;
@@ -186,7 +185,7 @@ struct Redis_Connection_Params {
   }
 };
 
-class SlotContext {
+class BucketContext {
  public:
   std::unique_ptr<std::vector<const char *>> ptrs;
   std::unique_ptr<std::vector<std::size_t>> sizes;
@@ -200,7 +199,7 @@ class SlotContext {
     }
   }
 
-  SlotContext() {
+  BucketContext() {
     this->ptrs = std::make_unique<std::vector<const char *>>(
         std::vector<const char *>());
     this->ptrs->reserve(8);
@@ -209,51 +208,52 @@ class SlotContext {
     this->sizes->reserve(8);
   }
 
-  ~SlotContext() { HandleRelease(); }
+  ~BucketContext() { HandleRelease(); }
 };
 
 class ThreadContext {
  public:
   std::atomic<bool> thread_occupied{false};
-  std::vector<std::unique_ptr<SlotContext>> slots;
-  std::unique_ptr<std::vector<unsigned>> slot_locs;
+  std::vector<std::unique_ptr<BucketContext>> buckets;
+  std::unique_ptr<std::vector<unsigned>> bucket_locs;
 
   void HandleReserve(const unsigned storage_slice, const unsigned vector_len,
                      const int keys_num) {
-    for (size_t i = this->slots.size(); i != storage_slice; ++i) {
-      slots.emplace_back(std::unique_ptr<SlotContext>(new SlotContext()));
+    for (size_t i = this->buckets.size(); i != storage_slice; ++i) {
+      buckets.emplace_back(std::unique_ptr<BucketContext>(new BucketContext()));
     }
     for (unsigned i = 0; i < storage_slice; ++i) {
-      this->slots[i]->ptrs->clear();
-      this->slots[i]->ptrs->reserve(vector_len);
-      this->slots[i]->sizes->clear();
-      this->slots[i]->sizes->reserve(vector_len);
+      this->buckets[i]->ptrs->clear();
+      this->buckets[i]->ptrs->reserve(vector_len);
+      this->buckets[i]->sizes->clear();
+      this->buckets[i]->sizes->reserve(vector_len);
     }
-    this->slot_locs->reserve(keys_num);
+    this->bucket_locs->reserve(keys_num);
   }
 
-  void HandlePushBack(const unsigned slot_num, const char *ptrs_in,
+  void HandlePushBack(const unsigned bucket_num, const char *ptrs_in,
                       const std::size_t sizes_in) {
-    this->slots[slot_num]->ptrs->emplace_back(ptrs_in);
-    this->slots[slot_num]->sizes->emplace_back(sizes_in);
+    this->buckets[bucket_num]->ptrs->emplace_back(ptrs_in);
+    this->buckets[bucket_num]->sizes->emplace_back(sizes_in);
   }
 
   void HandleRelease() {
-    if (this->slot_locs.get()) {
-      slot_locs.reset();
+    if (this->bucket_locs.get()) {
+      bucket_locs.reset();
     }
-    for (size_t i = 0; i < this->slots.size(); ++i) {
-      if (slots[i].get()) {
-        slots[i].reset();
+    for (size_t i = 0; i < this->buckets.size(); ++i) {
+      if (buckets[i].get()) {
+        buckets[i].reset();
       }
     }
   }
 
   ThreadContext() {
-    this->slots.emplace_back(std::unique_ptr<SlotContext>(new SlotContext()));
-    this->slot_locs =
+    this->buckets.emplace_back(
+        std::unique_ptr<BucketContext>(new BucketContext()));
+    this->bucket_locs =
         std::make_unique<std::vector<unsigned>>(std::vector<unsigned>());
-    this->slot_locs->reserve(8);
+    this->bucket_locs->reserve(8);
   }
 
   ~ThreadContext() { HandleRelease(); }
@@ -273,10 +273,10 @@ class RedisVirtualWrapper {
 
   virtual int CheckSlicesNum(const std::string &keys_prefix_name) = 0;
 
-  virtual size_t TableSizeInSlots(
+  virtual size_t TableSizeInBuckets(
       const std::vector<std::string> &keys_prefix_name_slices) = 0;
 
-  virtual void RemoveHkeysInSlots(
+  virtual void RemoveHkeysInBuckets(
       const std::vector<std::string> &keys_prefix_name_slices) = 0;
 
   virtual std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>>
@@ -290,6 +290,10 @@ class RedisVirtualWrapper {
       const std::vector<std::string> &keys_prefix_name_slices,
       std::vector<aiocb> &rds, const std::vector<int> &fds,
       const std::vector<unsigned long> &buf_sizes) = 0;
+
+  virtual void DuplicateInRedis(
+      const std::vector<std::string> &keys_prefix_name_slices_old,
+      const std::vector<std::string> &keys_prefix_name_slices_new) = 0;
 
   virtual std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>>
   MgetCommand(const Tensor &keys, ThreadContext *thread_context,
@@ -343,13 +347,13 @@ inline const char *KContentPointer<tstring>(const tstring *in) {
 }
 
 template <typename T>
-inline unsigned KSlotNum(const T *in, const unsigned storage_slice) {
+inline unsigned KBucketNum(const T *in, const unsigned storage_slice) {
   return static_cast<const int>(*in) & (storage_slice - 1);
 }
 
 template <>
-inline unsigned KSlotNum<tstring>(const tstring *in,
-                                  const unsigned storage_slice) {
+inline unsigned KBucketNum<tstring>(const tstring *in,
+                                    const unsigned storage_slice) {
   const auto tem_char = *(reinterpret_cast<const unsigned char *>(in));
   return (_mm_crc32_u8(0xffffffff, tem_char) & (storage_slice - 1));
 }

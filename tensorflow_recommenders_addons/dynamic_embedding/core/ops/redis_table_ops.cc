@@ -135,6 +135,32 @@ REGISTER_OP(PREFIX_OP_NAME(RedisTableFind))
       return Status::OK();
     });
 
+REGISTER_OP(PREFIX_OP_NAME(RedisTableFindWithExists))
+    .Input("table_handle: resource")
+    .Input("keys: Tin")
+    .Input("default_value: Tout")
+    .Output("values: Tout")
+    .Output("exists: bool")
+    .Attr("Tin: type")
+    .Attr("Tout: type")
+    .SetShapeFn([](InferenceContext *c) {
+      ShapeHandle handle;
+      TF_RETURN_IF_ERROR(c->WithRank(c->input(0), 0, &handle));
+
+      ShapeHandle keys = c->UnknownShapeOfRank(1);
+      ShapeAndType value_shape_and_type;
+      TF_RETURN_IF_ERROR(ValidateTableResourceHandle(
+          c,
+          /*keys=*/c->input(1),
+          /*key_dtype_attr=*/"Tin",
+          /*value_dtype_attr=*/"Tout",
+          /*is_lookup=*/true, &value_shape_and_type));
+      c->set_output(0, value_shape_and_type.shape);
+      c->set_output(1, keys);
+
+      return Status::OK();
+    });
+
 REGISTER_OP(PREFIX_OP_NAME(RedisTableInsert))
     .Input("table_handle: resource")
     .Input("keys: Tin")

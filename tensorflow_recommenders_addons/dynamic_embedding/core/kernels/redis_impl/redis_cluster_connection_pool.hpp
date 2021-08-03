@@ -22,6 +22,7 @@ limitations under the License.
 
 #include <chrono>
 #include <iostream>
+#include <thread>
 
 #include "redis_connection_util.hpp"
 
@@ -145,13 +146,13 @@ class RedisWrapper<RedisInstance, K, V,
       const ThreadContext *thread_context) {
     std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>> replies;
     for (unsigned i = 0; i < storage_slice; ++i) {
-      if (thread_context->slots[i]->ptrs->size() >= size_check) {
-        ::sw::redis::StringView hkey((*thread_context->slots[i]->ptrs)[1],
-                                     (*thread_context->slots[i]->sizes)[1]);
+      if (thread_context->buckets[i]->ptrs->size() >= size_check) {
+        ::sw::redis::StringView hkey((*thread_context->buckets[i]->ptrs)[1],
+                                     (*thread_context->buckets[i]->sizes)[1]);
         try {
           replies.push_back(redis_conn->command(
-              cmd, hkey, thread_context->slots[i]->ptrs.get(),
-              thread_context->slots[i]->sizes.get()));
+              cmd, hkey, thread_context->buckets[i]->ptrs.get(),
+              thread_context->buckets[i]->sizes.get()));
         } catch (const std::exception &err) {
           LOG(ERROR) << "RedisHandler error in pipe_exec for slices "
                      << hkey.data() << " -- " << err.what();
@@ -170,7 +171,7 @@ class RedisWrapper<RedisInstance, K, V,
     Redis service, 0 is returned. Other exceptions return -1.
   */
   virtual int CheckSlicesNum(const std::string &keys_prefix_name) override {
-    std::string redis_command = "KEYS " + keys_prefix_name + "[0123456789]*";
+    std::string redis_command = "KEYS " + keys_prefix_name + "{[0123456789]*}";
 
     // get cluster info
     auto cmd = [](::sw::redis::Connection &connection,
@@ -246,7 +247,7 @@ class RedisWrapper<RedisInstance, K, V,
     return -1;
   }
 
-  virtual size_t TableSizeInSlots(
+  virtual size_t TableSizeInBuckets(
       const std::vector<std::string> &keys_prefix_name_slices) override {
     std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply;
     std::string redis_command("HLEN ");
@@ -264,7 +265,7 @@ class RedisWrapper<RedisInstance, K, V,
         reply = redis_conn->command(cmd, keys_prefix_name_slices[i],
                                     command_string.data());
       } catch (const std::exception &err) {
-        LOG(ERROR) << "RedisHandler error in table_size_in_slots for slices "
+        LOG(ERROR) << "RedisHandler error in table_size_in_buckets for slices "
                    << keys_prefix_name_slices[i] << " -- " << err.what();
       }
       if (reply->type == REDIS_REPLY_INTEGER)  // #define REDIS_REPLY_STRING 1
@@ -276,7 +277,7 @@ class RedisWrapper<RedisInstance, K, V,
     return size;
   }
 
-  virtual void RemoveHkeysInSlots(
+  virtual void RemoveHkeysInBuckets(
       const std::vector<std::string> &keys_prefix_name_slices) override {
     // std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply;
     std::string redis_command("DEL ");
@@ -292,8 +293,9 @@ class RedisWrapper<RedisInstance, K, V,
         /*reply=*/redis_conn->command(cmd, keys_prefix_name_slices[i],
                                       command_string.data());
       } catch (const std::exception &err) {
-        LOG(ERROR) << "RedisHandler error in remove_hkeys_in_slots for slices "
-                   << keys_prefix_name_slices[i] << " -- " << err.what();
+        LOG(ERROR)
+            << "RedisHandler error in remove_hkeys_in_buckets for slices "
+            << keys_prefix_name_slices[i] << " -- " << err.what();
       }
     }
   }
@@ -506,6 +508,84 @@ class RedisWrapper<RedisInstance, K, V,
     }
   }
 
+  void DoDuplicateInRedis(const std::string &keys_prefix_name_slices_old,
+                          const std::string &keys_prefix_name_slices_new) {
+    std::string redis_dump_command = "DUMP " + keys_prefix_name_slices_old;
+
+    auto cmd_dump = [](::sw::redis::Connection &connection,
+                       ::sw::redis::StringView hkey,
+                       const char *str) { connection.send(str); };
+
+    auto cmd_restore = [](::sw::redis::Connection &connection,
+                          const ::sw::redis::StringView hkey,
+                          const std::vector<const char *> &ptrs_i,
+                          const std::vector<std::size_t> &sizes_i) {
+      assert(strcmp(ptrs_i.front(), "RESTORE") == 0);
+      assert(sizes_i.front() == 7);
+      connection.send(static_cast<int>(ptrs_i.size()),
+                      const_cast<const char **>(ptrs_i.data()), sizes_i.data());
+    };
+
+    std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply;
+    std::vector<const char *> ptrs_0;
+    std::vector<std::size_t> sizes_0;
+    ptrs_0.reserve(5);
+    sizes_0.reserve(5);
+
+    const static char *redis_restore_command = "RESTORE";
+    const static std::size_t &&redis_restore_command_byte = 7;
+    const static char *redis_restore_command_param = "0";
+    const static std::size_t &&redis_restore_command_byte_param = 1;
+    const static char *replace_command = "REPLACE";
+    const static std::size_t &&replace_command_byte = 7;
+
+    try {
+      reply = redis_conn->command(cmd_dump, keys_prefix_name_slices_old,
+                                  redis_dump_command.data());
+    } catch (const std::exception &err) {
+      LOG(ERROR) << "RedisHandler error in dump_to_disk for slices "
+                 << keys_prefix_name_slices_old << " -- " << err.what();
+    }
+
+    if (reply->type == REDIS_REPLY_STRING)  // #define REDIS_REPLY_STRING 1
+    {
+      ptrs_0.emplace_back(redis_restore_command);
+      ptrs_0.emplace_back(keys_prefix_name_slices_new.data());
+      ptrs_0.emplace_back(redis_restore_command_param);
+      ptrs_0.emplace_back(reply->str);
+      ptrs_0.emplace_back(replace_command);
+      sizes_0.emplace_back(redis_restore_command_byte);
+      sizes_0.emplace_back(keys_prefix_name_slices_new.size());
+      sizes_0.emplace_back(redis_restore_command_byte_param);
+      sizes_0.emplace_back(reply->len);
+      sizes_0.emplace_back(replace_command_byte);
+    } else {
+      LOG(ERROR) << "HKEY " << keys_prefix_name_slices_new
+                 << " does not exist in the Redis server. ";
+    }
+    try {
+      /*reply = */ redis_conn->command(cmd_restore, keys_prefix_name_slices_new,
+                                       ptrs_0, sizes_0);
+    } catch (const std::exception &err) {
+      LOG(ERROR) << "RedisHandler error in restore_from_disk for slices "
+                 << keys_prefix_name_slices_new << " -- " << err.what();
+    }
+  }
+
+  virtual void DuplicateInRedis(
+      const std::vector<std::string> &keys_prefix_name_slices_old,
+      const std::vector<std::string> &keys_prefix_name_slices_new) override {
+    std::thread threads[redis_connection_params.storage_slice];
+    for (unsigned i = 0; i < redis_connection_params.storage_slice; ++i) {
+      threads[i] = std::thread(&RedisWrapper::DoDuplicateInRedis, this,
+                               keys_prefix_name_slices_old[i],
+                               keys_prefix_name_slices_new[i]);
+    }
+    for (auto &t : threads) {
+      t.join();
+    }
+  }
+
  public:
   /*
   The structure of ptrs and sizes which for storing Redis command char
@@ -518,9 +598,9 @@ std::vector<ThreadContext> (better to be reserved before enter MXXX_COMMAND)
       |
       | Thread0 has its own ThreadContext
       |
-every slot has its own SlotContext for sending data---for locating the reply-
-    |                                               |
-    | std::vector<SlotContext>                      | std::vector<unsigned>
+every bucket has its own BucketContext for sending data---for locating the
+reply- |                                               | |
+std::vector<BucketContext>                      | std::vector<unsigned>
     |
     |
 --char* point to the data and size_t indicates the length of data------------
@@ -530,7 +610,7 @@ every slot has its own SlotContext for sending data---for locating the reply-
   |                    |
 (Real Redis command sequence because m-cmd can only be used in same hash tag)
 
-  PS: vector slot_locs is only allocated in Redis Cluster mode!
+  PS: vector bucket_locs is only allocated in Redis Cluster mode!
   */
   virtual std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>>
   MgetCommand(
@@ -562,18 +642,18 @@ every slot has its own SlotContext for sending data---for locating the reply-
                                      keys_prefix_name_slices[i].size());
     }
 
-    unsigned *pslot_loc = thread_context->slot_locs->data();
-    unsigned key_slot_locs = 0;
+    unsigned *pbucket_loc = thread_context->bucket_locs->data();
+    unsigned key_bucket_locs = 0;
     for (; pk_raw != pk_raw_end; ++pk_raw) {
-      key_slot_locs = KSlotNum<K>(pk_raw, storage_slice);
-      // The slot to which the key belongs is recorded to facilitate future
+      key_bucket_locs = KBucketNum<K>(pk_raw, storage_slice);
+      // The bucket to which the key belongs is recorded to facilitate future
       // memory writes that do not recompute the hash
-      *pslot_loc = key_slot_locs;
-      ++pslot_loc;
+      *pbucket_loc = key_bucket_locs;
+      ++pbucket_loc;
 
       // Direct access to Tensor data in TensorFlow
-      thread_context->HandlePushBack(key_slot_locs, KContentPointer<K>(pk_raw),
-                                     KTypeSize<K>(pk_raw));
+      thread_context->HandlePushBack(
+          key_bucket_locs, KContentPointer<K>(pk_raw), KTypeSize<K>(pk_raw));
     }
 
     auto cmd = [](::sw::redis::Connection &connection,
@@ -623,18 +703,19 @@ every slot has its own SlotContext for sending data---for locating the reply-
     const V *const dft_raw_begin =
         reinterpret_cast<const V *>(default_value.tensor_data().data());
 
-    const std::vector<unsigned> *slot_locs = thread_context->slot_locs.get();
+    const std::vector<unsigned> *bucket_locs =
+        thread_context->bucket_locs.get();
     const unsigned &storage_slice = redis_connection_params.storage_slice;
-    unsigned slots_iters_nums[storage_slice];
-    unsigned slot_loc;
-    memset(slots_iters_nums, 0U, sizeof(slots_iters_nums));
+    unsigned buckets_iters_nums[storage_slice];
+    unsigned bucket_loc;
+    memset(buckets_iters_nums, 0U, sizeof(buckets_iters_nums));
     redisReply *temp_reply;
     for (auto i = 0; i < (max_i - begin);
          ++i, pv_raw += Velems_per_dim0, dft_raw += Velems_per_dim0) {
-      slot_loc = (*slot_locs)[i];
-      if (reply[slot_loc]->type == REDIS_REPLY_ARRAY) {
-        temp_reply = reply[slot_loc]->element[slots_iters_nums[slot_loc]];
-        ++(slots_iters_nums[slot_loc]);
+      bucket_loc = (*bucket_locs)[i];
+      if (reply[bucket_loc]->type == REDIS_REPLY_ARRAY) {
+        temp_reply = reply[bucket_loc]->element[buckets_iters_nums[bucket_loc]];
+        ++(buckets_iters_nums[bucket_loc]);
         if (temp_reply->type ==
             REDIS_REPLY_STRING)  // #define REDIS_REPLY_STRING 1
         {
@@ -689,19 +770,19 @@ every slot has its own SlotContext for sending data---for locating the reply-
     VContentAndTypeSizeResult VCATS_temp;
     // std::vector<char> for storage all string in one KV pair
     std::vector<std::vector<char>> buff_temp(total);
-    unsigned key_slot_locs = 0;
+    unsigned key_bucket_locs = 0;
     for (int i = 0; pk_raw != pk_raw_end;
          ++i, ++pk_raw, pv_raw += Velems_per_dim0) {
       VCATS_temp = VContentAndTypeSize<V>(VCATS_temp, Velems_per_dim0,
                                           V_byte_size, pv_raw, buff_temp[i]);
-      key_slot_locs =
-          KSlotNum<K>(pk_raw, storage_slice);  // TODO: change it to AVX512
+      key_bucket_locs =
+          KBucketNum<K>(pk_raw, storage_slice);  // TODO: change it to AVX512
 
       // Direct access to Tensor data in TensorFlow
-      thread_context->HandlePushBack(key_slot_locs, KContentPointer<K>(pk_raw),
-                                     KTypeSize<K>(pk_raw));
-      thread_context->HandlePushBack(key_slot_locs, VCATS_temp.VContentPointer,
-                                     VCATS_temp.VTypeSize);
+      thread_context->HandlePushBack(
+          key_bucket_locs, KContentPointer<K>(pk_raw), KTypeSize<K>(pk_raw));
+      thread_context->HandlePushBack(
+          key_bucket_locs, VCATS_temp.VContentPointer, VCATS_temp.VTypeSize);
     }
 
     auto cmd = [](::sw::redis::Connection &connection,
@@ -749,18 +830,18 @@ every slot has its own SlotContext for sending data---for locating the reply-
                                      keys_prefix_name_slices[i].size());
     }
 
-    unsigned *pslot_loc = thread_context->slot_locs->data();
-    unsigned key_slot_locs = 0;
+    unsigned *pbucket_loc = thread_context->bucket_locs->data();
+    unsigned key_bucket_locs = 0;
     for (; pk_raw != pk_raw_end; ++pk_raw) {
-      key_slot_locs = KSlotNum<K>(pk_raw, storage_slice);
-      // The slot to which the key belongs is recorded to facilitate future
+      key_bucket_locs = KBucketNum<K>(pk_raw, storage_slice);
+      // The bucket to which the key belongs is recorded to facilitate future
       // memory writes that do not recompute the hash
-      *pslot_loc = key_slot_locs;
-      ++pslot_loc;
+      *pbucket_loc = key_bucket_locs;
+      ++pbucket_loc;
 
       // Direct access to Tensor data in TensorFlow
-      thread_context->HandlePushBack(key_slot_locs, KContentPointer<K>(pk_raw),
-                                     KTypeSize<K>(pk_raw));
+      thread_context->HandlePushBack(
+          key_bucket_locs, KContentPointer<K>(pk_raw), KTypeSize<K>(pk_raw));
     }
 
     auto cmd = [](::sw::redis::Connection &connection,
