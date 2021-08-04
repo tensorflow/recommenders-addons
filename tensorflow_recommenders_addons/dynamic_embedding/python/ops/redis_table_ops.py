@@ -75,8 +75,11 @@ class RedisTable(LookupInterface):
       # Below there is user-defined parameters in this custom op, not Redis setting parameters
       "storage_slice":
           1,  # For deciding hash tag, which usually is how many Redis instance may be used in the trainning.
+      "keys_sending_size":
+          1024,  # Determines how many keys to send at a time for performance tuning
       "using_md5_prefix_name": False,  # 1=true, 0=false
-      "model_tag": "test",  #  model_tag for version and any other information
+      "model_tag_old": "test",  #  model_tag_old for version and any other information from last time.
+      "model_tag_new": "test",  #  model_tag_new for version and any other information for now.
       "using_model_lib": True,
       "model_lib_abs_dir": "/tmp/"
   }

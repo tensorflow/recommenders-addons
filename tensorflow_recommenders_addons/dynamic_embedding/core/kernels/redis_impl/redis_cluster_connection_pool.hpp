@@ -141,27 +141,22 @@ class RedisWrapper<RedisInstance, K, V,
 
  private:
   template <typename Cmd>
-  std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>> PipeExec(
-      Cmd cmd, const unsigned &storage_slice, const unsigned &size_check,
-      const ThreadContext *thread_context) {
-    std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>> replies;
-    for (unsigned i = 0; i < storage_slice; ++i) {
-      if (thread_context->buckets[i]->ptrs->size() >= size_check) {
-        ::sw::redis::StringView hkey((*thread_context->buckets[i]->ptrs)[1],
-                                     (*thread_context->buckets[i]->sizes)[1]);
-        try {
-          replies.push_back(redis_conn->command(
-              cmd, hkey, thread_context->buckets[i]->ptrs.get(),
-              thread_context->buckets[i]->sizes.get()));
-        } catch (const std::exception &err) {
-          LOG(ERROR) << "RedisHandler error in pipe_exec for slices "
-                     << hkey.data() << " -- " << err.what();
-        }
-      } else {
-        replies.push_back(nullptr);
+  void PipeExec(std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> &reply,
+                Cmd cmd, const unsigned &size_check,
+                const std::unique_ptr<BucketContext> &bucket_context) {
+    if (bucket_context->ptrs->size() >= size_check) {
+      ::sw::redis::StringView hkey((*bucket_context->ptrs)[1],
+                                   (*bucket_context->sizes)[1]);
+      try {
+        reply = redis_conn->command(cmd, hkey, bucket_context->ptrs.get(),
+                                    bucket_context->sizes.get());
+      } catch (const std::exception &err) {
+        LOG(ERROR) << "RedisHandler error in pipe_exec for slices "
+                   << hkey.data() << " -- " << err.what();
       }
+    } else {
+      reply = nullptr;
     }
-    return replies;
   }
 
  public:
@@ -577,6 +572,9 @@ class RedisWrapper<RedisInstance, K, V,
       const std::vector<std::string> &keys_prefix_name_slices_new) override {
     std::thread threads[redis_connection_params.storage_slice];
     for (unsigned i = 0; i < redis_connection_params.storage_slice; ++i) {
+      LOG(INFO) << "Now try to duplicate the KV pair from "
+                << keys_prefix_name_slices_old[i] << " to "
+                << keys_prefix_name_slices_old[i];
       threads[i] = std::thread(&RedisWrapper::DoDuplicateInRedis, this,
                                keys_prefix_name_slices_old[i],
                                keys_prefix_name_slices_new[i]);
@@ -598,9 +596,10 @@ std::vector<ThreadContext> (better to be reserved before enter MXXX_COMMAND)
       |
       | Thread0 has its own ThreadContext
       |
-every bucket has its own BucketContext for sending data---for locating the
-reply- |                                               | |
-std::vector<BucketContext>                      | std::vector<unsigned>
+every bucket has its own BucketContext for sending data---for locating reply-
+    |                                                      |
+    | std::vector<BucketContext>                           | std::vector
+    |                                                          <unsigned>
     |
     |
 --char* point to the data and size_t indicates the length of data------------
@@ -669,7 +668,21 @@ std::vector<BucketContext>                      | std::vector<unsigned>
                       sizes_i->data());
     };
 
-    return PipeExec(cmd, storage_slice, 3U, thread_context);
+    std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>> replies(
+        storage_slice);
+    std::thread threads[hardware_concurrency_];
+    for (unsigned i = 0, j = 0; i < storage_slice; ++i) {
+      j = 0;
+      for (; j < hardware_concurrency_ && i < storage_slice; ++j, ++i) {
+        threads[j] = std::thread([this, &replies, &cmd, &thread_context, i] {
+          PipeExec(replies[i], cmd, 3U, thread_context->buckets[i]);
+        });
+      }
+      for (unsigned k = 0; k < j; ++k) {
+        threads[k].join();
+      }
+    }
+    return replies;
   }
 
   inline void CopyDefaultToTensor(const bool is_full_default, const V *pv_raw,
@@ -798,7 +811,20 @@ std::vector<BucketContext>                      | std::vector<unsigned>
                       sizes_i->data());
     };
 
-    PipeExec(cmd, storage_slice, 4U, thread_context);
+    std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>> replies(
+        storage_slice);
+    std::thread threads[hardware_concurrency_];
+    for (unsigned i = 0, j = 0; i < storage_slice; ++i) {
+      j = 0;
+      for (; j < hardware_concurrency_ && i < storage_slice; ++j, ++i) {
+        threads[j] = std::thread([this, &replies, &cmd, &thread_context, i] {
+          PipeExec(replies[i], cmd, 4U, thread_context->buckets[i]);
+        });
+      }
+      for (unsigned k = 0; k < j; ++k) {
+        threads[k].join();
+      }
+    }
   }
 
   virtual void DelCommand(
@@ -857,7 +883,20 @@ std::vector<BucketContext>                      | std::vector<unsigned>
                       sizes_i->data());
     };
 
-    PipeExec(cmd, storage_slice, 3U, thread_context);
+    std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>> replies(
+        storage_slice);
+    std::thread threads[hardware_concurrency_];
+    for (unsigned i = 0, j = 0; i < storage_slice; ++i) {
+      j = 0;
+      for (; j < hardware_concurrency_ && i < storage_slice; ++j, ++i) {
+        threads[j] = std::thread([this, &replies, &cmd, &thread_context, i] {
+          PipeExec(replies[i], cmd, 3U, thread_context->buckets[i]);
+        });
+      }
+      for (unsigned k = 0; k < j; ++k) {
+        threads[k].join();
+      }
+    }
   }
 };
 }  // namespace redis_connection

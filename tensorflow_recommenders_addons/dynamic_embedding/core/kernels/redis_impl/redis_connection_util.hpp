@@ -33,6 +33,10 @@ limitations under the License.
 namespace tensorflow {
 namespace recommenders_addons {
 namespace redis_connection {
+
+const static unsigned hardware_concurrency_ =
+    std::thread::hardware_concurrency();
+
 /*
 if v=0 or 1, return itself. if v<0, v=abs(v).
 */
@@ -148,6 +152,9 @@ struct Redis_Connection_Params {
   unsigned storage_slice =
       1;  // For deciding hash tag, which usually is how many Redis instance
           // may be used in the trainning.
+  unsigned long long keys_sending_size =
+      1024;  // Determines how many keys to send at a time
+             // for performance tuning
   unsigned storage_slice_log2 = 0;  // For fast calculation.
   std::string model_tag_old =
       "test";  // old model_tag for version and any other information

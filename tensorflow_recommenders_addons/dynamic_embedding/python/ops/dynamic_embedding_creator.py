@@ -124,8 +124,10 @@ class RedisTableConfig(object):
         "redis_sentinel_connect_timeout": 1000,
         "redis_sentinel_socket_timeout": 1000,
         "storage_slice": 1,
+        "keys_sending_size": 1024,
         "using_md5_prefix_name": False,
-        "model_tag": "test",
+        "model_tag_old": "test",
+        "model_tag_new": "test",
         "using_model_lib": True,
         "model_lib_abs_dir": "/tmp/"
       }

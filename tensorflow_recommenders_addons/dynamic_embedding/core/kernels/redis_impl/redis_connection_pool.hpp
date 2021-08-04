@@ -440,6 +440,10 @@ class RedisWrapper<
 
     std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply;
 
+    LOG(INFO) << "Now try to duplicate the KV pair from "
+              << keys_prefix_name_slices_old[0] << " to "
+              << keys_prefix_name_slices_old[0];
+
     try {
       reply = redis_conn->command(cmd_dump, redis_dump_command.data());
     } catch (const std::exception &err) {
@@ -494,9 +498,10 @@ std::vector<ThreadContext> (better to be reserved before enter MXXX_COMMAND)
       |
       | Thread0 has its own ThreadContext
       |
-every bucket has its own BucketContext for sending data---for locating the reply
-    |                                               |
-    | std::vector<BucketContext>                      | std::vector<unsigned>
+every bucket has its own BucketContext for sending data---for locating reply-
+    |                                                      |
+    | std::vector<BucketContext>                           | std::vector
+    |                                                          <unsigned>
     |
     |
 --char* point to the data and size_t indicates the length of data------------

@@ -321,6 +321,15 @@ void ParseJsonConfig(const std::string *const redis_config_abs_dir,
     }
   }
 
+  json_hangar_it = json_hangar.find("keys_sending_size");
+  if (json_hangar_it != json_hangar.end()) {
+    if (json_hangar_it->second->type == json_integer) {
+      redis_connection_params->keys_sending_size =
+          json_hangar_it->second->u.integer;
+      ;
+    }
+  }
+
   json_hangar_it = json_hangar.find("using_md5_prefix_name");
   if (json_hangar_it != json_hangar.end()) {
     if (json_hangar_it->second->type == json_boolean) {

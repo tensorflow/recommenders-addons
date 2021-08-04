@@ -45,10 +45,8 @@ times. The source code is shown in the following link:
 https://github.com/redis/redis/blob/be6ce8a92a9acbecfaaa6c57a45037fc1018fefe/src/networking.c#L1851
 */
 // constexpr long long multi_redis_cmd_max_argc = 1024 * 1024;
-const static unsigned hardware_concurrency_ =
-    std::thread::hardware_concurrency();
-const static long long multi_redis_cmd_max_argc =
-    128 * 4;  // For better parallelism performance
+static long long multi_redis_cmd_max_argc =
+    128 * 8;  // For better parallelism performance
 
 using sw::redis::OptionalString;
 using sw::redis::Redis;
@@ -266,12 +264,16 @@ class RedisTableOfTensors final : public LookupInterface {
     // creat redis instance
     switch (redis_connection_params.redis_connection_mode) {
       case ClusterMode: {
+        multi_redis_cmd_max_argc = redis_connection_params.keys_sending_size *
+                                   redis_connection_params.storage_slice;
         _table_instance = RedisWrapper<RedisCluster, K, V>::get_instance();
         _table_instance->set_params(redis_connection_params);
         _table_instance->Conn();
         break;
       }
       case SentinelMode: {
+        multi_redis_cmd_max_argc =
+            redis_connection_params.keys_sending_size * 1;
         _table_instance = RedisWrapper<Redis, K, V>::get_instance();
         _table_instance->set_params(redis_connection_params);
         _table_instance->Conn();
@@ -344,29 +346,29 @@ class RedisTableOfTensors final : public LookupInterface {
   }
 
   ~RedisTableOfTensors() {
-    for (auto in_aiocb_obj : IMPORT_content) {
+    for (auto &in_aiocb_obj : IMPORT_content) {
       if (in_aiocb_obj.aio_buf) {
         free((void *)in_aiocb_obj.aio_buf);
       }
     }
-    for (auto ex_aiocb_obj : EXPORT_content) {
+    for (auto &ex_aiocb_obj : EXPORT_content) {
       if (ex_aiocb_obj.aio_buf) {
         free((void *)ex_aiocb_obj.aio_buf);
       }
     }
-    for (auto threads_Find_i : threads_Find) {
+    for (auto &threads_Find_i : threads_Find) {
       if (threads_Find_i->thread_occupied.load(std::memory_order_consume) ==
           false) {
         threads_Find_i->HandleRelease();
       }
     }
-    for (auto threads_Insert_i : threads_Insert) {
+    for (auto &threads_Insert_i : threads_Insert) {
       if (threads_Insert_i->thread_occupied.load(std::memory_order_consume) ==
           false) {
         threads_Insert_i->HandleRelease();
       }
     }
-    for (auto threads_Delete_i : threads_Delete) {
+    for (auto &threads_Delete_i : threads_Delete) {
       if (threads_Delete_i->thread_occupied.load(std::memory_order_consume) ==
           false) {
         threads_Delete_i->HandleRelease();
@@ -513,7 +515,7 @@ class RedisTableOfTensors final : public LookupInterface {
 
       _table_instance->RestoreFromDisk(keys_prefix_name_slices, IMPORT_content,
                                        IMPORT_fds, IMPORT_fds_sizes);
-      for (auto fd : IMPORT_fds) close(fd);
+      for (auto &fd : IMPORT_fds) close(fd);
     }
 
     return Status::OK();
@@ -576,7 +578,7 @@ class RedisTableOfTensors final : public LookupInterface {
 
       _table_instance->DumpToDisk(keys_prefix_name_slices, EXPORT_content,
                                   EXPORT_fds);
-      // for (auto fd : EXPORT_fds) // for now the writting may be not finished
+      // for (auto &fd : EXPORT_fds) // for now the writting may be not finished
       //   close(fd);
     }
 
