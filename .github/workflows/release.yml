@@ -38,7 +38,6 @@ jobs:
   release-wheel:
     name: Build release wheels
     runs-on: ${{ matrix.os }}
-    # runs-on: self-hosted
     strategy:
       matrix:
         # TODO: add back 'windows-latest' when it can be compiled.
