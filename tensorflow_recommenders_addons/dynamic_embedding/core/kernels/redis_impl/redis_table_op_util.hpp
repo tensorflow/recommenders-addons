@@ -23,10 +23,6 @@ limitations under the License.
 #include <type_traits>
 #include <utility>
 
-extern "C" {
-#include <hiredis/sds.h>
-}
-
 #include "json.h"
 #include "redis_connection_util.hpp"
 #include "redis_slots_tab.h"
@@ -377,6 +373,8 @@ void ParseJsonConfig(const std::string *const redis_config_abs_dir,
   free(file_contents);
 }
 
+extern "C" sds sdsempty(void);
+extern "C" sds sdscatrepr(sds s, const char *p, size_t len);
 std::string BuildKeysPrefixNameWithModelTag(const std::string &model_tag,
                                             const bool using_md5_prefix_name,
                                             const std::string &embedding_name) {
@@ -387,9 +385,8 @@ std::string BuildKeysPrefixNameWithModelTag(const std::string &model_tag,
     keys_prefix_name_md5 = MD5(tmp_keys_prefix_name);
 
     std::string md5_string;
-    // char *md5_view_in_redis = sdscatrepr(
-    //     sdsempty(), reinterpret_cast<char *>(keys_prefix_name_md5.data()),
-    //     16);
+    char *md5_view_in_redis = sdscatrepr(
+        sdsempty(), reinterpret_cast<char *>(keys_prefix_name_md5.data()), 16);
     char tmp[3];
     for (int i = 0; i < 16; ++i) {
       memset(tmp, 0x00, sizeof(tmp));
@@ -400,7 +397,7 @@ std::string BuildKeysPrefixNameWithModelTag(const std::string &model_tag,
               << keys_prefix_name << ". The MD5 of prefix name for keys is "
               << md5_string
               << ". And Its characters view in redis namespace is "
-              // << md5_view_in_redis
+              << md5_view_in_redis
               << ". This MD5 is used to store keys for distinguishing "
                  "between different model and table names";
 
