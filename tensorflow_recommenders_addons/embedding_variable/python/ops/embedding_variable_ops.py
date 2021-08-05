@@ -289,7 +289,7 @@ class EmbeddingVariable(resource_variable_ops.ResourceVariable,
 
         if self._in_graph_mode:
           with ops.name_scope("IsInitialized"):
-            is_initialized_op = (gen_ev_ops.ev_is_initialized_op(
+            self._ev_is_initialized_op = (gen_ev_ops.ev_is_initialized_op(
                 handle, Tkey=self._ktype, Tvalue=vtype))
           if initial_value is not None:
             # pylint: disable=g-backslash-continuation
@@ -312,7 +312,7 @@ class EmbeddingVariable(resource_variable_ops.ResourceVariable,
                                       ops.convert_to_tensor(invalid_key,
                                                             dtype=self._ktype),
                                       shape=initial_value.get_shape())
-          is_initialized_op = None
+          self._ev_is_initialized_op = None
           initializer_op = None
           graph_element = None
           cached_value = None
@@ -340,7 +340,7 @@ class EmbeddingVariable(resource_variable_ops.ResourceVariable,
                            graph_element=graph_element,
                            initial_value=initial_value,
                            initializer_op=initializer_op,
-                           is_initialized_op=is_initialized_op,
+                           is_initialized_op=self._ev_is_initialized_op,
                            cached_value=cached_value,
                            caching_device=caching_device)
 
@@ -492,6 +492,9 @@ class EmbeddingVariable(resource_variable_ops.ResourceVariable,
       raise RuntimeError("from_proto not supported in EAGER mode.")
     return EmbeddingVariable(variable_def=variable_def,
                              import_scope=import_scope)
+
+  def is_initialized(self, name=None):
+    return self._ev_is_initialized_op
 
   def assign_sub(self, delta, use_locking=None, name=None):
     raise NotImplementedError(
