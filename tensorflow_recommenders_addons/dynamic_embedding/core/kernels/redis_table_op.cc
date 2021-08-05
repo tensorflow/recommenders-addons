@@ -324,28 +324,6 @@ class RedisTableOfTensors final : public LookupInterface {
       threads_Insert.emplace_back(new ThreadContext());
       threads_Delete.emplace_back(new ThreadContext());
     }
-
-    /*
-      When there is not a corresponding table existing in Redis service and
-      using_model_lib==True, try to restore from a Redis binary dump files
-      which paths are directory '[model_lib_abs_dir]/[model_tag]/[name].rdb'.
-    */
-
-    if (check_slices_num_return == 0) {
-      if (redis_connection_params.using_model_lib) {
-        ImportValuesFromFiles(ctx);
-      } else {
-        if (redis_connection_params.model_tag_old !=
-                redis_connection_params.model_tag_new &&
-            _table_instance->CheckSlicesNum(keys_prefix_name_old) == 1) {
-          _table_instance->DuplicateInRedis(keys_prefix_name_slices_old,
-                                            keys_prefix_name_slices);
-        }
-      }
-    } else if (check_slices_num_return == 1) {
-      LOG(INFO) << "There is already a corresponding table " << keys_prefix_name
-                << " existing in Redis service";
-    }
   }
 
   ~RedisTableOfTensors() {
@@ -474,12 +452,21 @@ class RedisTableOfTensors final : public LookupInterface {
   Status ImportValues(OpKernelContext *ctx, const Tensor &keys,
                       const Tensor &values) override {
     if (redis_connection_params.using_model_lib) {
+      // When there is not a corresponding table existing in Redis service and
+      // using_model_lib==True, try to restore from a Redis binary dump files
+      // which paths are directory '[model_lib_abs_dir]/[model_tag]/[name].rdb'.
       return ImportValuesFromFiles(ctx);
     } else {
       if (keys.NumElements() > 0) {
         return DoInsert(true, ctx, keys, values);
       } else {
         LOG(WARNING) << "Empty Tensor keys for import!";
+        if (redis_connection_params.model_tag_old !=
+                redis_connection_params.model_tag_new &&
+            _table_instance->CheckSlicesNum(keys_prefix_name_old) == 1) {
+          _table_instance->DuplicateInRedis(keys_prefix_name_slices_old,
+                                            keys_prefix_name_slices);
+        }
         return Status::OK();
       }
     }
@@ -497,6 +484,13 @@ class RedisTableOfTensors final : public LookupInterface {
 
     folder_dir = check_dir(redis_connection_params.model_lib_abs_dir);
     folder_dir = check_dir(folder_dir + redis_connection_params.model_tag_old);
+
+    if (redis_connection_params.model_tag_old !=
+            redis_connection_params.model_tag_new &&
+        _table_instance->CheckSlicesNum(keys_prefix_name_old) == 1) {
+      _table_instance->DuplicateInRedis(keys_prefix_name_slices_old,
+                                        keys_prefix_name_slices);
+    }
 
     for (unsigned i = 0; i < storage_slice; ++i) {
       file_path = folder_dir + keys_prefix_name_slices_old[i] + ".rdb";

@@ -228,6 +228,8 @@ class RedisWrapper<RedisInstance, K, V,
     }
 
     if (slices_in_redis == redis_connection_params.storage_slice) {
+      LOG(INFO) << "There is already a corresponding table " << keys_prefix_name
+                << " existing in Redis cluster servers";
       return 1;
     } else if (slices_in_redis == 0) {
       LOG(INFO) << "There is not a corresponding table " << keys_prefix_name

@@ -204,6 +204,8 @@ class RedisWrapper<
       return -1;
     }
     if (reply->elements == redis_connection_params.storage_slice) {
+      LOG(INFO) << "There is already a corresponding table " << keys_prefix_name
+                << " existing in Redis server";
       return 1;
     } else if (reply->elements == 0) {
       LOG(INFO) << "There is not a corresponding table " << keys_prefix_name
