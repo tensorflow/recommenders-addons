@@ -152,7 +152,8 @@ static int new_value(json_state *state, json_value **top, json_value **root,
         }
 
         value->_reserved.object_mem =
-            (*(char **)&value->u.object.values) + values_size;
+            (*(char *__attribute((__may_alias__)) *)&value->u.object.values) +
+            values_size;
 
         value->u.object.length = 0;
         break;
@@ -401,7 +402,9 @@ json_value *json_parse_ex(json_settings *settings, const json_char *json,
             case json_object:
 
               if (state.first_pass)
-                (*(json_char **)&top->u.object.values) += string_length + 1;
+                (*(json_char *
+                   __attribute((__may_alias__)) *)&top->u.object.values) +=
+                    string_length + 1;
               else {
                 top->u.object.values[top->u.object.length].name =
                     (json_char *)top->_reserved.object_mem;
