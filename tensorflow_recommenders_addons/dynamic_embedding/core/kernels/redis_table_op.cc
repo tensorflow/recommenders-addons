@@ -67,6 +67,7 @@ class RedisTableOfTensors final : public LookupInterface {
   std::string redis_config_abs_dir;
   std::string embedding_name;
   std::string keys_prefix_name;
+  std::string keys_prefix_name_old;
   std::vector<std::string> keys_prefix_name_slices;
   std::vector<std::string> keys_prefix_name_slices_old;
 
@@ -258,7 +259,8 @@ class RedisTableOfTensors final : public LookupInterface {
     }
 
     CreateKeysPrefixNameHandle(&redis_connection_params, embedding_name,
-                               keys_prefix_name, keys_prefix_name_slices,
+                               keys_prefix_name, keys_prefix_name_old,
+                               keys_prefix_name_slices,
                                keys_prefix_name_slices_old);
 
     // creat redis instance
@@ -334,7 +336,8 @@ class RedisTableOfTensors final : public LookupInterface {
         ImportValuesFromFiles(ctx);
       } else {
         if (redis_connection_params.model_tag_old !=
-            redis_connection_params.model_tag_new) {
+                redis_connection_params.model_tag_new &&
+            _table_instance->CheckSlicesNum(keys_prefix_name_old) == 1) {
           _table_instance->DuplicateInRedis(keys_prefix_name_slices_old,
                                             keys_prefix_name_slices);
         }

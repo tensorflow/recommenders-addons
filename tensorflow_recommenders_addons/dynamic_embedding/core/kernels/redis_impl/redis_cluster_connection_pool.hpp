@@ -22,9 +22,9 @@ limitations under the License.
 
 #include <chrono>
 #include <iostream>
-#include <thread>
 
 #include "redis_connection_util.hpp"
+#include "thread_pool.h"
 
 using sw::redis::ConnectionOptions;
 using sw::redis::ConnectionPoolOptions;
@@ -42,6 +42,7 @@ class RedisWrapper<RedisInstance, K, V,
  private:
   ConnectionOptions conn_opts;
   ConnectionPoolOptions pool_opts;
+  ThreadPool *network_worker_pool;
 
  public:
   std::shared_ptr<RedisInstance> redis_conn;  // for the hungry singleton mode
@@ -63,6 +64,7 @@ class RedisWrapper<RedisInstance, K, V,
   RedisWrapper()  // In singleton mode, classes should not be initialized
                   // through constructor
   {
+    network_worker_pool = new ThreadPool(hardware_concurrency_);
     LOG(INFO) << "RedisCluster connection pool constructor called!";
   }
 
@@ -141,22 +143,23 @@ class RedisWrapper<RedisInstance, K, V,
 
  private:
   template <typename Cmd>
-  void PipeExec(std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> &reply,
-                Cmd cmd, const unsigned &size_check,
-                const std::unique_ptr<BucketContext> &bucket_context) {
+  std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> PipeExec(
+      Cmd cmd, const unsigned &size_check,
+      const std::unique_ptr<BucketContext> &bucket_context) {
     if (bucket_context->ptrs->size() >= size_check) {
       ::sw::redis::StringView hkey((*bucket_context->ptrs)[1],
                                    (*bucket_context->sizes)[1]);
       try {
-        reply = redis_conn->command(cmd, hkey, bucket_context->ptrs.get(),
-                                    bucket_context->sizes.get());
+        return redis_conn->command(cmd, hkey, bucket_context->ptrs.get(),
+                                   bucket_context->sizes.get());
       } catch (const std::exception &err) {
         LOG(ERROR) << "RedisHandler error in pipe_exec for slices "
                    << hkey.data() << " -- " << err.what();
       }
     } else {
-      reply = nullptr;
+      return nullptr;
     }
+    return nullptr;
   }
 
  public:
@@ -534,6 +537,10 @@ class RedisWrapper<RedisInstance, K, V,
     const static char *replace_command = "REPLACE";
     const static std::size_t &&replace_command_byte = 7;
 
+    LOG(INFO) << "Now try to duplicate the KV pair from "
+              << keys_prefix_name_slices_old << " to "
+              << keys_prefix_name_slices_new;
+
     try {
       reply = redis_conn->command(cmd_dump, keys_prefix_name_slices_old,
                                   redis_dump_command.data());
@@ -570,17 +577,12 @@ class RedisWrapper<RedisInstance, K, V,
   virtual void DuplicateInRedis(
       const std::vector<std::string> &keys_prefix_name_slices_old,
       const std::vector<std::string> &keys_prefix_name_slices_new) override {
-    std::thread threads[redis_connection_params.storage_slice];
     for (unsigned i = 0; i < redis_connection_params.storage_slice; ++i) {
-      LOG(INFO) << "Now try to duplicate the KV pair from "
-                << keys_prefix_name_slices_old[i] << " to "
-                << keys_prefix_name_slices_old[i];
-      threads[i] = std::thread(&RedisWrapper::DoDuplicateInRedis, this,
-                               keys_prefix_name_slices_old[i],
-                               keys_prefix_name_slices_new[i]);
-    }
-    for (auto &t : threads) {
-      t.join();
+      network_worker_pool->enqueue([this, &keys_prefix_name_slices_old,
+                                    &keys_prefix_name_slices_new, i] {
+        DoDuplicateInRedis(keys_prefix_name_slices_old[i],
+                           keys_prefix_name_slices_new[i]);
+      });
     }
   }
 
@@ -670,18 +672,19 @@ every bucket has its own BucketContext for sending data---for locating reply-
 
     std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>> replies(
         storage_slice);
-    std::thread threads[hardware_concurrency_];
-    for (unsigned i = 0, j = 0; i < storage_slice; ++i) {
-      j = 0;
-      for (; j < hardware_concurrency_ && i < storage_slice; ++j, ++i) {
-        threads[j] = std::thread([this, &replies, &cmd, &thread_context, i] {
-          PipeExec(replies[i], cmd, 3U, thread_context->buckets[i]);
-        });
-      }
-      for (unsigned k = 0; k < j; ++k) {
-        threads[k].join();
-      }
+    std::vector<
+        std::future<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>>>
+        results;
+    for (unsigned i = 0; i < storage_slice; ++i) {
+      results.emplace_back(
+          network_worker_pool->enqueue([this, &cmd, &thread_context, i] {
+            return PipeExec(cmd, 3U, thread_context->buckets[i]);
+          }));
     }
+    for (unsigned i = 0; i < storage_slice; ++i) {
+      replies[i] = std::move(results[i].get());
+    }
+
     return replies;
   }
 
@@ -811,19 +814,17 @@ every bucket has its own BucketContext for sending data---for locating reply-
                       sizes_i->data());
     };
 
-    std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>> replies(
-        storage_slice);
-    std::thread threads[hardware_concurrency_];
-    for (unsigned i = 0, j = 0; i < storage_slice; ++i) {
-      j = 0;
-      for (; j < hardware_concurrency_ && i < storage_slice; ++j, ++i) {
-        threads[j] = std::thread([this, &replies, &cmd, &thread_context, i] {
-          PipeExec(replies[i], cmd, 4U, thread_context->buckets[i]);
-        });
-      }
-      for (unsigned k = 0; k < j; ++k) {
-        threads[k].join();
-      }
+    std::vector<
+        std::future<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>>>
+        results;
+    for (unsigned i = 0; i < storage_slice; ++i) {
+      results.emplace_back(
+          network_worker_pool->enqueue([this, &cmd, &thread_context, i] {
+            return PipeExec(cmd, 4U, thread_context->buckets[i]);
+          }));
+    }
+    for (auto &&result : results) {
+      result.wait();
     }
   }
 
@@ -883,19 +884,17 @@ every bucket has its own BucketContext for sending data---for locating reply-
                       sizes_i->data());
     };
 
-    std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>> replies(
-        storage_slice);
-    std::thread threads[hardware_concurrency_];
-    for (unsigned i = 0, j = 0; i < storage_slice; ++i) {
-      j = 0;
-      for (; j < hardware_concurrency_ && i < storage_slice; ++j, ++i) {
-        threads[j] = std::thread([this, &replies, &cmd, &thread_context, i] {
-          PipeExec(replies[i], cmd, 3U, thread_context->buckets[i]);
-        });
-      }
-      for (unsigned k = 0; k < j; ++k) {
-        threads[k].join();
-      }
+    std::vector<
+        std::future<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>>>
+        results;
+    for (unsigned i = 0; i < storage_slice; ++i) {
+      results.emplace_back(
+          network_worker_pool->enqueue([this, &cmd, &thread_context, i] {
+            return PipeExec(cmd, 3U, thread_context->buckets[i]);
+          }));
+    }
+    for (auto &&result : results) {
+      result.wait();
     }
   }
 };

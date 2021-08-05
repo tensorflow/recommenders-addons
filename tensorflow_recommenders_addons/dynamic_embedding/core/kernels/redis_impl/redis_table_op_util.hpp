@@ -426,6 +426,7 @@ std::vector<std::string> BuildKeysPrefixNameSlices(
 void CreateKeysPrefixNameHandle(
     const Redis_Connection_Params *const redis_connection_params,
     const std::string &embedding_name, std::string &keys_prefix_name_new,
+    std::string &keys_prefix_name_old,
     std::vector<std::string> &keys_prefix_name_slices_new,
     std::vector<std::string> &keys_prefix_name_slices_old) {
   keys_prefix_name_new = BuildKeysPrefixNameWithModelTag(
@@ -433,7 +434,7 @@ void CreateKeysPrefixNameHandle(
       redis_connection_params->using_md5_prefix_name, embedding_name);
   keys_prefix_name_slices_new = BuildKeysPrefixNameSlices(
       redis_connection_params->storage_slice, keys_prefix_name_new);
-  const std::string &keys_prefix_name_old = BuildKeysPrefixNameWithModelTag(
+  keys_prefix_name_old = BuildKeysPrefixNameWithModelTag(
       redis_connection_params->model_tag_old,
       redis_connection_params->using_md5_prefix_name, embedding_name);
   keys_prefix_name_slices_old = BuildKeysPrefixNameSlices(
