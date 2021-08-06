@@ -41,6 +41,8 @@ size_t SelectAvailableThreadContext(
   size_t thread_context_id = 0;
   bool thread_context_i_status = false;
 
+  std::lock_guard<std::mutex> guard(threads_context_mutex);
+
   for (; thread_context_id < threads_context.size(); ++thread_context_id) {
     thread_context_i_status = false;
     if (threads_context[thread_context_id]
@@ -51,7 +53,6 @@ size_t SelectAvailableThreadContext(
     }
   }
   if (thread_context_id == threads_context.size()) {
-    std::lock_guard<std::mutex> guard(threads_context_mutex);
     threads_context.push_back(new ThreadContext());
     threads_context.back()->thread_occupied.store(true,
                                                   std::memory_order_release);

@@ -186,26 +186,27 @@ class RedisWrapper<RedisInstance, K, V,
       return -1;
     }
 
-    std::vector<std::string> ip_set;
-    std::vector<long long> port_set;
+    std::vector<std::pair<std::string, long long>> ip_port_set;
     size_t servers_num = reply->elements;
-    ip_set.reserve(servers_num);
-    port_set.reserve(servers_num);
+    ip_port_set.reserve(servers_num);
     for (size_t i = 0; i < servers_num; ++i) {
-      ip_set.emplace_back(
+      ip_port_set.emplace_back(std::make_pair<std::string, long long>(
           std::string(reply->element[i]->element[2]->element[0]->str,
-                      reply->element[i]->element[2]->element[0]->len));
-      port_set.emplace_back(reply->element[i]->element[2]->element[1]->integer);
+                      reply->element[i]->element[2]->element[0]->len),
+          std::move(reply->element[i]->element[2]->element[1]->integer)));
     }
+    std::sort(ip_port_set.begin(), ip_port_set.end());
+    ip_port_set.erase(std::unique(ip_port_set.begin(), ip_port_set.end()),
+                      ip_port_set.end());
 
     std::unique_ptr<Redis> redis_client;
     std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply_server;
     ConnectionOptions connection_options;
     size_t slices_in_redis = 0;
-    for (size_t i = 0; i < ip_set.size(); ++i) {
-      connection_options.host = ip_set[i];  // Required.
+    for (size_t i = 0; i < ip_port_set.size(); ++i) {
+      connection_options.host = ip_port_set[i].first;  // Required.
       connection_options.port =
-          port_set[i];  // Optional. The default port is 6379.
+          ip_port_set[i].second;  // Optional. The default port is 6379.
       connection_options.password =
           redis_connection_params
               .redis_password;  // Optional. No redis_password by default.
@@ -221,7 +222,7 @@ class RedisWrapper<RedisInstance, K, V,
             redis_client->command(cmd_per_server, redis_command.data());
       } catch (const std::exception &err) {
         LOG(ERROR) << "RedisHandler error CheckSlicesNum(KEYS) in for IP "
-                   << ip_set[i] << " --  " << err.what();
+                   << ip_port_set[i].first << " --  " << err.what();
         return -1;
       }
       slices_in_redis += reply_server->elements;
