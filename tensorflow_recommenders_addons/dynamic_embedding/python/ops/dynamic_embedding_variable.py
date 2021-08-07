@@ -151,6 +151,7 @@ class Variable(trackable.TrackableResource):
       checkpoint=True,
       init_size=0,
       restrict_policy=None,
+      bp_v2=False,
   ):
     """Creates an empty `Variable` object.
 
@@ -196,6 +197,14 @@ class Variable(trackable.TrackableResource):
             size of variable. If in training program, the variable is updated by
             optimizer, then the sparse slot variables in optimizer are also be
             restricted.
+          bp_v2: By default with `bp_v2=False`, the optimizer will update
+            dynamic embedding values by *setting* (key, value) after
+            `optimizer.apply_gradient`. If one key is used by multiple workers
+            at the same time, only one of them will be seen, while the others are
+            overwritten. By setting `bp_v2=True`, the optimizer will update
+            parameters by *adding delta* instead of *setting*, which solves the
+            race condition problem among workers during backpropagation in
+            large-scale distributed asynchronous training.
 
         Returns:
           A `Variable` object.
@@ -203,6 +212,7 @@ class Variable(trackable.TrackableResource):
     self.key_dtype = key_dtype
     self.value_dtype = value_dtype
     self.dim = dim
+    self.bp_v2 = bp_v2
 
     def _get_default_devices():
       gpu_list = [
@@ -592,6 +602,7 @@ def get_variable(
     checkpoint=True,
     init_size=0,
     restrict_policy=None,
+    bp_v2=False,
 ):
   """Gets an `Variable` object with this name if it exists,
          or create a new one.
@@ -628,6 +639,14 @@ def get_variable(
         size of variable. If in training program, the variable is updated by
         optimizer, then the sparse slot variables in optimizer are also be
         restricted.
+      bp_v2: By default with `bp_v2=False`, the optimizer will update
+        dynamic embedding values by *setting* (key, value) after
+        `optimizer.apply_gradient`. If one key is used by multiple workers
+        at the same time, only one of them will be seen, while the others are
+        overwritten. By setting `bp_v2=True`, the optimizer will update
+        parameters by *adding delta* instead of *setting*, which solves the
+        race condition problem among workers during backpropagation in
+        large-scale distributed asynchronous training.
 
     Returns:
       A `Variable` object.
@@ -657,6 +676,7 @@ def get_variable(
         checkpoint=checkpoint,
         init_size=init_size,
         restrict_policy=restrict_policy,
+        bp_v2=bp_v2,
     )
     scope_store._vars[full_name] = var_
   return scope_store._vars[full_name]
