@@ -27,8 +27,8 @@ from tensorflow.python.framework import device as pydev
 from tensorflow.python.framework import ops
 from tensorflow.python.ops import control_flow_ops
 from tensorflow.python.ops import resource_variable_ops as rvo
-from tensorflow.python.ops import variables
 from tensorflow.python.ops import variable_scope
+from tensorflow.python.ops import variables
 from tensorflow.python.training import device_setter
 from tensorflow.python.training import optimizer
 from tensorflow.python.training import slot_creator
@@ -56,7 +56,10 @@ class _DenseDynamicEmbeddingTrainableProcessor(optimizer._OptimizableVariable):
         self._v.params.restrict_policy._track_optimizer_slots(_slots)
 
       with ops.control_dependencies([g]):
-        _before = [self._v.read_value()] + [_s.read_value() for _s in _slots]
+        v0 = self._v.read_value(do_prefetch=not self._v.params.bp_v2)
+        s0 = [_s.read_value() for _s in _slots]
+        _before = [v0] + s0
+
       if isinstance(g, ops.IndexedSlices):
         if self._v.constraint is not None:
           raise RuntimeError(
@@ -66,9 +69,11 @@ class _DenseDynamicEmbeddingTrainableProcessor(optimizer._OptimizableVariable):
           _apply_op = optimizer._resource_apply_sparse_duplicate_indices(
               g.values, self._v, g.indices)
         with ops.control_dependencies([_apply_op]):
-          _after = control_flow_ops.group([self._v.update_op()] +
-                                          [_s.update_op() for _s in _slots])
+          _after = control_flow_ops.group(
+              [self._v.update_op(v0=v0)] +
+              [_s.update_op(v0=s0[si]) for si, _s in enumerate(_slots)])
           return _after
+
       with ops.control_dependencies(_before):
         _apply_op = optimizer._resource_apply_dense(g, self._v)
       if self._v.constraint is not None:
@@ -76,8 +81,9 @@ class _DenseDynamicEmbeddingTrainableProcessor(optimizer._OptimizableVariable):
           return self._v.assign(self._v.constraint(self._v))
       else:
         with ops.control_dependencies([_apply_op]):
-          _after = control_flow_ops.group([self._v.update_op()] +
-                                          [_s.update_op() for _s in _slots])
+          _after = control_flow_ops.group(
+              [self._v.update_op(v0=v0)] +
+              [_s.update_op(v0=s0[si]) for si, _s in enumerate(_slots)])
         return _after
 
 

@@ -102,7 +102,7 @@ default_config = config_pb2.ConfigProto(
 
 class CommonTrainableTestV1Base(object):
 
-  def common_minimize_trainable(self, base_opt, test_opt, name):
+  def common_minimize_trainable(self, base_opt, test_opt, name, bp_v2):
     raise NotImplementedError
 
   def device_check(self, de):
@@ -113,13 +113,19 @@ class CommonTrainableTestV1Base(object):
   def test_adadelta_minimize_trainable(self):
     base_opt = adadelta.AdadeltaOptimizer(1.0)
     test_opt = adadelta.AdadeltaOptimizer(1.0)
-    self.common_minimize_trainable(base_opt, test_opt, name="adadelta")
+    self.common_minimize_trainable(base_opt,
+                                   test_opt,
+                                   name="adadelta",
+                                   bp_v2=False)
 
   @test_util.deprecated_graph_mode_only
   def test_adagrad_minimize_trainable(self):
     base_opt = adagrad.AdagradOptimizer(1.0)
     test_opt = adagrad.AdagradOptimizer(1.0)
-    self.common_minimize_trainable(base_opt, test_opt, name="adagrad")
+    self.common_minimize_trainable(base_opt,
+                                   test_opt,
+                                   name="adagrad",
+                                   bp_v2=False)
 
   @test_util.deprecated_graph_mode_only
   def test_adagradda_minimize_trainable(self):
@@ -127,43 +133,55 @@ class CommonTrainableTestV1Base(object):
 
     base_opt = adagrad_da.AdagradDAOptimizer(1.0, base_gs)
     test_opt = adagrad_da.AdagradDAOptimizer(1.0, base_gs)
-    self.common_minimize_trainable(base_opt, test_opt, name="adagrad_da")
+    self.common_minimize_trainable(base_opt,
+                                   test_opt,
+                                   name="adagrad_da",
+                                   bp_v2=False)
 
   @test_util.deprecated_graph_mode_only
   def test_ftrl_minimize_trainable(self):
     base_opt = ftrl.FtrlOptimizer(1.0)
     test_opt = ftrl.FtrlOptimizer(1.0)
-    self.common_minimize_trainable(base_opt, test_opt, name="ftrl")
+    self.common_minimize_trainable(base_opt, test_opt, name="ftrl", bp_v2=False)
 
   @test_util.deprecated_graph_mode_only
   def test_proximal_adagrad_minimize_trainable(self):
     base_opt = proximal_adagrad.ProximalAdagradOptimizer(1.0)
     test_opt = proximal_adagrad.ProximalAdagradOptimizer(1.0)
-    self.common_minimize_trainable(base_opt, test_opt, name="proximal_adagrad")
+    self.common_minimize_trainable(base_opt,
+                                   test_opt,
+                                   name="proximal_adagrad",
+                                   bp_v2=False)
 
   @test_util.deprecated_graph_mode_only
   def test_proximalsgd_minimize_trainable(self):
     base_opt = pgd.ProximalGradientDescentOptimizer(1.0)
     test_opt = pgd.ProximalGradientDescentOptimizer(1.0)
-    self.common_minimize_trainable(base_opt, test_opt, name="proximal_sgd")
+    self.common_minimize_trainable(base_opt,
+                                   test_opt,
+                                   name="proximal_sgd",
+                                   bp_v2=False)
 
   @test_util.deprecated_graph_mode_only
   def test_momentum_minimize_trainable(self):
     base_opt = momentum.MomentumOptimizer(1.0, momentum=0.9)
     test_opt = momentum.MomentumOptimizer(1.0, momentum=0.9)
-    self.common_minimize_trainable(base_opt, test_opt, name="momentum")
+    self.common_minimize_trainable(base_opt,
+                                   test_opt,
+                                   name="momentum",
+                                   bp_v2=False)
 
   @test_util.deprecated_graph_mode_only
   def test_sgd_minimize_trainable(self):
     base_opt = gradient_descent.GradientDescentOptimizer(1.0)
     test_opt = gradient_descent.GradientDescentOptimizer(1.0)
-    self.common_minimize_trainable(base_opt, test_opt, name="sgd")
+    self.common_minimize_trainable(base_opt, test_opt, name="sgd", bp_v2=False)
 
   @test_util.deprecated_graph_mode_only
   def test_adam_minimize_trainable(self):
     base_opt = adam.AdamOptimizer(1.0)
     test_opt = adam.AdamOptimizer(1.0)
-    self.common_minimize_trainable(base_opt, test_opt, name="adam")
+    self.common_minimize_trainable(base_opt, test_opt, name="adam", bp_v2=False)
 
   @test_util.deprecated_graph_mode_only
   def test_rmsprop_minimize_trainable(self):
@@ -172,7 +190,92 @@ class CommonTrainableTestV1Base(object):
       test_opt = rmsprop.RMSPropOptimizer(1.0, centered=centered_)
       self.common_minimize_trainable(base_opt,
                                      test_opt,
-                                     name="rmsprop" + str(centered_))
+                                     name="rmsprop" + str(centered_),
+                                     bp_v2=False)
+
+  @test_util.deprecated_graph_mode_only
+  def test_adadelta_minimize_trainable_bpv2(self):
+    base_opt = adadelta.AdadeltaOptimizer(1.0)
+    test_opt = adadelta.AdadeltaOptimizer(1.0)
+    self.common_minimize_trainable(base_opt,
+                                   test_opt,
+                                   name="adadelta",
+                                   bp_v2=True)
+
+  @test_util.deprecated_graph_mode_only
+  def test_adagrad_minimize_trainable_bpv2(self):
+    base_opt = adagrad.AdagradOptimizer(1.0)
+    test_opt = adagrad.AdagradOptimizer(1.0)
+    self.common_minimize_trainable(base_opt,
+                                   test_opt,
+                                   name="adagrad",
+                                   bp_v2=True)
+
+  @test_util.deprecated_graph_mode_only
+  def test_adagradda_minimize_trainable_bpv2(self):
+    base_gs = training_util.create_global_step()
+
+    base_opt = adagrad_da.AdagradDAOptimizer(1.0, base_gs)
+    test_opt = adagrad_da.AdagradDAOptimizer(1.0, base_gs)
+    self.common_minimize_trainable(base_opt,
+                                   test_opt,
+                                   name="adagrad_da",
+                                   bp_v2=True)
+
+  @test_util.deprecated_graph_mode_only
+  def test_ftrl_minimize_trainable_bpv2(self):
+    base_opt = ftrl.FtrlOptimizer(1.0)
+    test_opt = ftrl.FtrlOptimizer(1.0)
+    self.common_minimize_trainable(base_opt, test_opt, name="ftrl", bp_v2=True)
+
+  @test_util.deprecated_graph_mode_only
+  def test_proximal_adagrad_minimize_trainable_bpv2(self):
+    base_opt = proximal_adagrad.ProximalAdagradOptimizer(1.0)
+    test_opt = proximal_adagrad.ProximalAdagradOptimizer(1.0)
+    self.common_minimize_trainable(base_opt,
+                                   test_opt,
+                                   name="proximal_adagrad",
+                                   bp_v2=True)
+
+  @test_util.deprecated_graph_mode_only
+  def test_proximalsgd_minimize_trainable_bpv2(self):
+    base_opt = pgd.ProximalGradientDescentOptimizer(1.0)
+    test_opt = pgd.ProximalGradientDescentOptimizer(1.0)
+    self.common_minimize_trainable(base_opt,
+                                   test_opt,
+                                   name="proximal_sgd",
+                                   bp_v2=True)
+
+  @test_util.deprecated_graph_mode_only
+  def test_momentum_minimize_trainable_bpv2(self):
+    base_opt = momentum.MomentumOptimizer(1.0, momentum=0.9)
+    test_opt = momentum.MomentumOptimizer(1.0, momentum=0.9)
+    self.common_minimize_trainable(base_opt,
+                                   test_opt,
+                                   name="momentum",
+                                   bp_v2=True)
+
+  @test_util.deprecated_graph_mode_only
+  def test_sgd_minimize_trainable_bpv2(self):
+    base_opt = gradient_descent.GradientDescentOptimizer(1.0)
+    test_opt = gradient_descent.GradientDescentOptimizer(1.0)
+    self.common_minimize_trainable(base_opt, test_opt, name="sgd", bp_v2=True)
+
+  @test_util.deprecated_graph_mode_only
+  def test_adam_minimize_trainable_bpv2(self):
+    base_opt = adam.AdamOptimizer(1.0)
+    test_opt = adam.AdamOptimizer(1.0)
+    self.common_minimize_trainable(base_opt, test_opt, name="adam", bp_v2=True)
+
+  @test_util.deprecated_graph_mode_only
+  def test_rmsprop_minimize_trainable_bpv2(self):
+    for centered_ in [False, True]:
+      base_opt = rmsprop.RMSPropOptimizer(1.0, centered=centered_)
+      test_opt = rmsprop.RMSPropOptimizer(1.0, centered=centered_)
+      self.common_minimize_trainable(base_opt,
+                                     test_opt,
+                                     name="rmsprop" + str(centered_),
+                                     bp_v2=True)
 
 
 class CommonTrainableTestV2Base(object):
@@ -243,7 +346,7 @@ class CommonTrainableTestV2Base(object):
 
 class EmbeddingLookupTrainableV1Test(test.TestCase, CommonTrainableTestV1Base):
 
-  def common_minimize_trainable(self, base_opt, test_opt, name):
+  def common_minimize_trainable(self, base_opt, test_opt, name, bp_v2):
     de.enable_train_mode()
     base_opt = de.DynamicEmbeddingOptimizer(base_opt)
     test_opt = de.DynamicEmbeddingOptimizer(test_opt)
@@ -298,6 +401,7 @@ class EmbeddingLookupTrainableV1Test(test.TestCase, CommonTrainableTestV1Base):
             devices=_get_devices() * num_shards,
             initializer=1.0,
             dim=dim,
+            bp_v2=bp_v2,
         )
         self.device_check(embeddings)
         init_ids = constant_op.constant(raw_init_ids, dtype=k_dtype)
@@ -436,7 +540,7 @@ class EmbeddingLookupTrainableV2Test(test.TestCase, CommonTrainableTestV2Base):
 class EmbeddingLookupUniqueTrainableV1Test(test.TestCase,
                                            CommonTrainableTestV1Base):
 
-  def common_minimize_trainable(self, base_opt, test_opt, name):
+  def common_minimize_trainable(self, base_opt, test_opt, name, bp_v2):
     de.enable_train_mode()
     base_opt = de.DynamicEmbeddingOptimizer(base_opt)
     test_opt = de.DynamicEmbeddingOptimizer(test_opt)
@@ -632,7 +736,7 @@ class EmbeddingLookupUniqueTrainableV2Test(test.TestCase,
 class EmbeddingLookupSparseTrainableV1Test(test.TestCase,
                                            CommonTrainableTestV1Base):
 
-  def common_minimize_trainable(self, base_opt, test_opt, name):
+  def common_minimize_trainable(self, base_opt, test_opt, name, bp_v2):
     de.enable_train_mode()
     base_opt = de.DynamicEmbeddingOptimizer(base_opt)
     test_opt = de.DynamicEmbeddingOptimizer(test_opt)
@@ -889,7 +993,7 @@ class SafeEmbeddingLookupSparseTrainableV1Test(test.TestCase,
                                                CommonTrainableTestV1Base):
 
   @test_util.deprecated_graph_mode_only
-  def common_minimize_trainable(self, base_opt, test_opt, name):
+  def common_minimize_trainable(self, base_opt, test_opt, name, bp_v2):
     de.enable_train_mode()
     base_opt = de.DynamicEmbeddingOptimizer(base_opt)
     test_opt = de.DynamicEmbeddingOptimizer(test_opt)
@@ -1190,7 +1294,7 @@ class TrainDynamicEmbeddingInMonitoredTrainingSessionTest(test.TestCase):
 
         self.device_check(table)
 
-  def common_minimize_trainable(self, base_opt, test_opt, name):
+  def common_minimize_trainable(self, base_opt, test_opt, name, bp_v2):
     de.enable_train_mode()
     base_opt = de.DynamicEmbeddingOptimizer(base_opt)
     test_opt = de.DynamicEmbeddingOptimizer(test_opt)
@@ -1318,12 +1422,28 @@ class TrainDynamicEmbeddingInMonitoredTrainingSessionTest(test.TestCase):
   def test_adam_minimize_trainable(self):
     base_opt = adam.AdamOptimizer(0.1)
     test_opt = adam.AdamOptimizer(0.1)
-    self.common_minimize_trainable(base_opt, test_opt, name="adam")
+    self.common_minimize_trainable(base_opt, test_opt, name="adam", bp_v2=False)
 
   def test_adagrad_minimize_trainable(self):
     base_opt = adagrad.AdagradOptimizer(0.1)
     test_opt = adagrad.AdagradOptimizer(0.1)
-    self.common_minimize_trainable(base_opt, test_opt, name="adagrad")
+    self.common_minimize_trainable(base_opt,
+                                   test_opt,
+                                   name="adagrad",
+                                   bp_v2=False)
+
+  def test_adam_minimize_trainable_bp_v2(self):
+    base_opt = adam.AdamOptimizer(0.1)
+    test_opt = adam.AdamOptimizer(0.1)
+    self.common_minimize_trainable(base_opt, test_opt, name="adam", bp_v2=True)
+
+  def test_adagrad_minimize_trainable_bp_v2(self):
+    base_opt = adagrad.AdagradOptimizer(0.1)
+    test_opt = adagrad.AdagradOptimizer(0.1)
+    self.common_minimize_trainable(base_opt,
+                                   test_opt,
+                                   name="adagrad",
+                                   bp_v2=True)
 
 
 @test_util.deprecated_graph_mode_only
