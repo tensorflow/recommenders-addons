@@ -353,6 +353,15 @@ void ParseJsonConfig(const std::string *const redis_config_abs_dir,
     }
   }
 
+  json_hangar_it = json_hangar.find("expire_model_tag_in_seconds");
+  if (json_hangar_it != json_hangar.end()) {
+    if (json_hangar_it->second->type == json_integer) {
+      redis_connection_params->expire_model_tag_in_seconds =
+          json_hangar_it->second->u.integer;
+      ;
+    }
+  }
+
   json_hangar_it = json_hangar.find("using_model_lib");
   if (json_hangar_it != json_hangar.end()) {
     if (json_hangar_it->second->type == json_boolean) {

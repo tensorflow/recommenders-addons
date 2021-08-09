@@ -199,7 +199,7 @@ class RedisWrapper<
     try {
       reply = redis_conn->command(cmd, redis_command.data());
     } catch (const std::exception &err) {
-      LOG(ERROR) << "RedisHandler error in check_slices_num for KEYS "
+      LOG(ERROR) << "RedisHandler error in CheckSlicesNum for KEYS "
                  << keys_prefix_name << " -- " << err.what();
       return -1;
     }
@@ -232,7 +232,7 @@ class RedisWrapper<
     try {
       reply = redis_conn->command(cmd, redis_command.data());
     } catch (const std::exception &err) {
-      LOG(ERROR) << "RedisHandler error in table_size_in_buckets for HLEN "
+      LOG(ERROR) << "RedisHandler error in TableSizeInBuckets for HLEN "
                  << keys_prefix_name_slices[0] << " -- " << err.what();
     }
     size_t size = 0;
@@ -250,7 +250,12 @@ class RedisWrapper<
     auto cmd = [](::sw::redis::Connection &connection, const char *str) {
       connection.send(str);
     };
-    /*reply=*/redis_conn->command(cmd, redis_command.data());
+    try {
+      /*reply=*/redis_conn->command(cmd, redis_command.data());
+    } catch (const std::exception &err) {
+      LOG(ERROR) << "RedisHandler error in RemoveHkeysInBuckets for "
+                 << keys_prefix_name_slices[0] << " -- " << err.what();
+    }
   }
 
   virtual std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>>
@@ -265,11 +270,28 @@ class RedisWrapper<
     try {
       reply.push_back(redis_conn->command(cmd, redis_command.data()));
     } catch (const std::exception &err) {
-      LOG(ERROR) << "RedisHandler error in get_keys_in_hkeys for HKEYS "
+      LOG(ERROR) << "RedisHandler error in GetKeysInHkeys for HKEYS "
                  << keys_prefix_name_slices[0] << " -- " << err.what();
     }
 
     return reply;
+  }
+
+  virtual void SetExpireBuckets(
+      const std::vector<std::string> &keys_prefix_name_slices) override {
+    // std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply;
+    std::string redis_command =
+        "EXPIRE " + keys_prefix_name_slices[0] + ' ' +
+        std::to_string(redis_connection_params.expire_model_tag_in_seconds);
+    auto cmd = [](::sw::redis::Connection &connection, const char *str) {
+      connection.send(str);
+    };
+    try {
+      /*reply=*/redis_conn->command(cmd, redis_command.data());
+    } catch (const std::exception &err) {
+      LOG(ERROR) << "RedisHandler error in SetExpireBuckets for "
+                 << keys_prefix_name_slices[0] << " -- " << err.what();
+    }
   }
 
   /*
@@ -293,7 +315,7 @@ class RedisWrapper<
     try {
       reply = redis_conn->command(cmd, redis_command.data());
     } catch (const std::exception &err) {
-      LOG(ERROR) << "RedisHandler error in dump_to_disk for DUMP "
+      LOG(ERROR) << "RedisHandler error in DumpToDisk for DUMP "
                  << keys_prefix_name_slices[0] << " -- " << err.what();
     }
 
@@ -417,7 +439,7 @@ class RedisWrapper<
       /*std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply = */
       redis_conn->command(cmd, ptrs_0, sizes_0);
     } catch (const std::exception &err) {
-      LOG(ERROR) << "RedisHandler error in restore_from_disk for RESTORE "
+      LOG(ERROR) << "RedisHandler error in RestoreFromDisk for RESTORE "
                  << keys_prefix_name_slices[0] << " -- " << err.what();
     }
   }
@@ -449,8 +471,9 @@ class RedisWrapper<
     try {
       reply = redis_conn->command(cmd_dump, redis_dump_command.data());
     } catch (const std::exception &err) {
-      LOG(ERROR) << "RedisHandler error in dump_to_disk for DUMP "
-                 << keys_prefix_name_slices_old[0] << " -- " << err.what();
+      LOG(ERROR)
+          << "RedisHandler error in dump_to_reply of DuplicateInRedis for DUMP "
+          << keys_prefix_name_slices_old[0] << " -- " << err.what();
     }
 
     std::vector<const char *> ptrs_0;
@@ -483,7 +506,8 @@ class RedisWrapper<
       /*std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply = */
       redis_conn->command(cmd_restore, ptrs_0, sizes_0);
     } catch (const std::exception &err) {
-      LOG(ERROR) << "RedisHandler error in restore_from_disk for RESTORE "
+      LOG(ERROR) << "RedisHandler error in restore_from_reply of "
+                    "DuplicateInRedis for RESTORE "
                  << keys_prefix_name_slices_new[0] << " -- " << err.what();
     }
   }

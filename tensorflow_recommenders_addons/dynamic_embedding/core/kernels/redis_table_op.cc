@@ -327,6 +327,8 @@ class RedisTableOfTensors final : public LookupInterface {
   }
 
   ~RedisTableOfTensors() {
+    _table_instance->SetExpireBuckets(keys_prefix_name_slices);
+
     for (auto &in_aiocb_obj : IMPORT_content) {
       if (in_aiocb_obj.aio_buf) {
         free((void *)in_aiocb_obj.aio_buf);

@@ -153,7 +153,7 @@ class RedisWrapper<RedisInstance, K, V,
         return redis_conn->command(cmd, hkey, bucket_context->ptrs.get(),
                                    bucket_context->sizes.get());
       } catch (const std::exception &err) {
-        LOG(ERROR) << "RedisHandler error in pipe_exec for slices "
+        LOG(ERROR) << "RedisHandler error in PipeExec for slices "
                    << hkey.data() << " -- " << err.what();
       }
     } else {
@@ -266,7 +266,7 @@ class RedisWrapper<RedisInstance, K, V,
         reply = redis_conn->command(cmd, keys_prefix_name_slices[i],
                                     command_string.data());
       } catch (const std::exception &err) {
-        LOG(ERROR) << "RedisHandler error in table_size_in_buckets for slices "
+        LOG(ERROR) << "RedisHandler error in TableSizeInBuckets for slices "
                    << keys_prefix_name_slices[i] << " -- " << err.what();
       }
       if (reply->type == REDIS_REPLY_INTEGER)  // #define REDIS_REPLY_STRING 1
@@ -294,9 +294,8 @@ class RedisWrapper<RedisInstance, K, V,
         /*reply=*/redis_conn->command(cmd, keys_prefix_name_slices[i],
                                       command_string.data());
       } catch (const std::exception &err) {
-        LOG(ERROR)
-            << "RedisHandler error in remove_hkeys_in_buckets for slices "
-            << keys_prefix_name_slices[i] << " -- " << err.what();
+        LOG(ERROR) << "RedisHandler error in RemoveHkeysInBuckets for slices "
+                   << keys_prefix_name_slices[i] << " -- " << err.what();
       }
     }
   }
@@ -321,12 +320,35 @@ class RedisWrapper<RedisInstance, K, V,
         replies.push_back(redis_conn->command(cmd, keys_prefix_name_slices[i],
                                               command_string.data()));
       } catch (const std::exception &err) {
-        LOG(ERROR) << "RedisHandler error in get_keys_in_hkeys for slices "
+        LOG(ERROR) << "RedisHandler error in GetKeysInHkeys for slices "
                    << keys_prefix_name_slices[i] << " -- " << err.what();
       }
     }
 
     return replies;
+  }
+
+  virtual void SetExpireBuckets(
+      const std::vector<std::string> &keys_prefix_name_slices) override {
+    // std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply;
+    std::string redis_command("EXPIRE ");
+    std::string command_string;
+    auto cmd = [](::sw::redis::Connection &connection,
+                  ::sw::redis::StringView hkey,
+                  const char *str) { connection.send(str); };
+    for (unsigned i = 0; i < redis_connection_params.storage_slice; ++i) {
+      command_string.clear();
+      command_string =
+          command_string + redis_command + keys_prefix_name_slices[i] + ' ' +
+          std::to_string(redis_connection_params.expire_model_tag_in_seconds);
+      try {
+        /*reply=*/redis_conn->command(cmd, keys_prefix_name_slices[i],
+                                      command_string.data());
+      } catch (const std::exception &err) {
+        LOG(ERROR) << "RedisHandler error in SetExpireBuckets for slices "
+                   << keys_prefix_name_slices[i] << " -- " << err.what();
+      }
+    }
   }
 
   /*
@@ -357,7 +379,7 @@ class RedisWrapper<RedisInstance, K, V,
         reply = redis_conn->command(cmd, keys_prefix_name_slices[i],
                                     redis_command.data());
       } catch (const std::exception &err) {
-        LOG(ERROR) << "RedisHandler error in dump_to_disk for slices "
+        LOG(ERROR) << "RedisHandler error in DumpToDisk for slices "
                    << keys_prefix_name_slices[i] << " -- " << err.what();
       }
 
@@ -485,7 +507,7 @@ class RedisWrapper<RedisInstance, K, V,
                     cmd, keys_prefix_name_slices[i], ptrs_i_i[i], sizes_i_i[i]);
               } catch (const std::exception &err) {
                 LOG(ERROR)
-                    << "RedisHandler error in restore_from_disk for slices "
+                    << "RedisHandler error in RestoreFromDisk for slices "
                     << keys_prefix_name_slices[i] << " -- " << err.what();
               }
               free((void *)rd->aio_buf);
@@ -548,7 +570,8 @@ class RedisWrapper<RedisInstance, K, V,
       reply = redis_conn->command(cmd_dump, keys_prefix_name_slices_old,
                                   redis_dump_command.data());
     } catch (const std::exception &err) {
-      LOG(ERROR) << "RedisHandler error in dump_to_disk for slices "
+      LOG(ERROR) << "RedisHandler error in dump_to_reply of DoDuplicateInRedis "
+                    "for slices "
                  << keys_prefix_name_slices_old << " -- " << err.what();
     }
 
@@ -572,7 +595,8 @@ class RedisWrapper<RedisInstance, K, V,
       /*reply = */ redis_conn->command(cmd_restore, keys_prefix_name_slices_new,
                                        ptrs_0, sizes_0);
     } catch (const std::exception &err) {
-      LOG(ERROR) << "RedisHandler error in restore_from_disk for slices "
+      LOG(ERROR) << "RedisHandler error in restore_from_reply of "
+                    "DoDuplicateInRedis for slices "
                  << keys_prefix_name_slices_new << " -- " << err.what();
     }
   }

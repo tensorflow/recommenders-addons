@@ -32,24 +32,7 @@ class KVCreator(object, metaclass=ABCMeta):
 
     ```python
     redis_config1=tfra.dynamic_embedding.RedisTableConfig(
-      redis_connection_mode=0,
-      redis_master_name="master",
-      redis_host_ip="10.0.75.253",
-      redis_host_port=6379,
-      redis_password="redis",
-      redis_db=0,
-      redis_connect_timeout=1000,
-      redis_socket_timeout=1000,
-      redis_conn_pool_size=20,
-      redis_wait_timeout=100000000,
-      redis_connection_lifetime=100,
-      redis_sentinel_connect_timeout=1000,
-      redis_sentinel_socket_timeout=1000,
-      storage_slice=2, 
-      using_md5_prefix_name=False,
-      model_tag="test",
-      using_model_lib=True,
-      model_lib_abs_dir="/tmp/",
+      redis_config_abs_dir="xx/yy.json"
     )
     redis_creator1=tfra.dynamic_embedding.RedisTableCreator(redis_config1)
     ```
@@ -128,6 +111,7 @@ class RedisTableConfig(object):
         "using_md5_prefix_name": False,
         "model_tag_old": "test",
         "model_tag_new": "test",
+        "expire_model_tag_in_seconds": 604800,
         "using_model_lib": True,
         "model_lib_abs_dir": "/tmp/"
       }

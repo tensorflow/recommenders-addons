@@ -152,6 +152,9 @@ struct Redis_Connection_Params {
   unsigned storage_slice =
       1;  // For deciding hash tag, which usually is how many Redis instance
           // may be used in the trainning.
+  unsigned expire_model_tag_in_seconds =
+      604800;  // To eliminate unwanted model versions in Redis to ensure
+               // sufficient storage space.
   unsigned long long keys_sending_size =
       1024;  // Determines how many keys to send at a time
              // for performance tuning
@@ -183,6 +186,9 @@ struct Redis_Connection_Params {
     storage_slice_log2 =
         round_next_power_two_bitlen(x.storage_slice);  // beter for modding.
     storage_slice = 1 << storage_slice_log2;
+    expire_model_tag_in_seconds = x.expire_model_tag_in_seconds > 0
+                                      ? x.expire_model_tag_in_seconds
+                                      : 2626560;
     model_tag_old = x.model_tag_old;
     model_tag_new = x.model_tag_new;
     using_md5_prefix_name = x.using_md5_prefix_name;
@@ -288,6 +294,9 @@ class RedisVirtualWrapper {
 
   virtual std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>>
   GetKeysInHkeys(const std::vector<std::string> &keys_prefix_name_slices) = 0;
+
+  virtual void SetExpireBuckets(
+      const std::vector<std::string> &keys_prefix_name_slices) = 0;
 
   virtual void DumpToDisk(
       const std::vector<std::string> &keys_prefix_name_slices,

@@ -82,6 +82,8 @@ class RedisTable(LookupInterface):
           "test",  #  model_tag_old for version and any other information from last time.
       "model_tag_new":
           "test",  #  model_tag_new for version and any other information for now.
+      "expire_model_tag_in_seconds":
+          604800,  # To eliminate unwanted model versions in Redis to ensure sufficient storage space.
       "using_model_lib": True,
       "model_lib_abs_dir": "/tmp/"
   }
