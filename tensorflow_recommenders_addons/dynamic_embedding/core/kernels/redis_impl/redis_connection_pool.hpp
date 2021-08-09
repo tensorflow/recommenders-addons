@@ -59,14 +59,14 @@ class RedisWrapper<
       return;
     }
     redis_conn.reset();
-    LOG(INFO) << "RedisSentinel connection pool destructor called!";
+    LOG(INFO) << "RedisSentinel connection pool destructor called successfully.";
   }
 
  private:
   RedisWrapper()  // In singleton mode, classes should not be initialized
                   // through constructor
   {
-    LOG(INFO) << "RedisSentinel connection pool constructor called!";
+    LOG(INFO) << "RedisSentinel connection pool constructor called successfully.";
   }
 
  public:

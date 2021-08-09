@@ -57,7 +57,7 @@ class RedisWrapper<RedisInstance, K, V,
       return;
     }
     redis_conn.reset();
-    LOG(INFO) << "RedisCluster connection pool destructor called!";
+    LOG(INFO) << "RedisCluster connection pool destructor called successfully.";
   }
 
  private:
@@ -65,7 +65,7 @@ class RedisWrapper<RedisInstance, K, V,
                   // through constructor
   {
     network_worker_pool = new ThreadPool(hardware_concurrency_);
-    LOG(INFO) << "RedisCluster connection pool constructor called!";
+    LOG(INFO) << "RedisCluster connection pool constructor called successfully.";
   }
 
  public:
