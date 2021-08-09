@@ -65,7 +65,8 @@ class RedisWrapper<RedisInstance, K, V,
                   // through constructor
   {
     network_worker_pool = new ThreadPool(hardware_concurrency_);
-    LOG(INFO) << "RedisCluster connection pool constructor called successfully.";
+    LOG(INFO)
+        << "RedisCluster connection pool constructor called successfully.";
   }
 
  public:
@@ -73,10 +74,12 @@ class RedisWrapper<RedisInstance, K, V,
     conn_opts.host = redis_connection_params.redis_host_ip[ip_port_count];
     conn_opts.port = redis_connection_params.redis_host_port[ip_port_count];
     // Redis connection options
+    conn_opts.user = redis_connection_params.redis_user;
     conn_opts.password =
         redis_connection_params
             .redis_password;  // Optional. No redis_password by default.
     conn_opts.db = redis_connection_params.redis_db;
+    conn_opts.keep_alive = redis_connection_params.redis_connect_keep_alive;
     conn_opts.connect_timeout = std::chrono::milliseconds(
         redis_connection_params.redis_connect_timeout);
     conn_opts.socket_timeout =
@@ -207,6 +210,7 @@ class RedisWrapper<RedisInstance, K, V,
       connection_options.host = ip_port_set[i].first;  // Required.
       connection_options.port =
           ip_port_set[i].second;  // Optional. The default port is 6379.
+      connection_options.user = redis_connection_params.redis_user;
       connection_options.password =
           redis_connection_params
               .redis_password;  // Optional. No redis_password by default.

@@ -97,8 +97,10 @@ class RedisTableConfig(object):
           "127.0.0.1"
         ],
         "redis_host_port": 6379,
+        "redis_user": "default",
         "redis_password": "",
         "redis_db": 0,
+        "redis_connect_keep_alive": False,
         "redis_connect_timeout": 1000,
         "redis_socket_timeout": 1000,
         "redis_conn_pool_size": 20,

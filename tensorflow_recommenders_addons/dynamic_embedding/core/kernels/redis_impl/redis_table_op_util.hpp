@@ -235,6 +235,15 @@ void ParseJsonConfig(const std::string *const redis_config_abs_dir,
     }
   }
 
+  json_hangar_it = json_hangar.find("redis_user");
+  if (json_hangar_it != json_hangar.end()) {
+    if (json_hangar_it->second->type == json_string) {
+      redis_connection_params->redis_user =
+          std::string(json_hangar_it->second->u.string.ptr,
+                      json_hangar_it->second->u.string.length);
+    }
+  }
+
   json_hangar_it = json_hangar.find("redis_password");
   if (json_hangar_it != json_hangar.end()) {
     if (json_hangar_it->second->type == json_string) {
@@ -248,6 +257,14 @@ void ParseJsonConfig(const std::string *const redis_config_abs_dir,
   if (json_hangar_it != json_hangar.end()) {
     if (json_hangar_it->second->type == json_integer) {
       redis_connection_params->redis_db = json_hangar_it->second->u.integer;
+    }
+  }
+
+  json_hangar_it = json_hangar.find("redis_connect_keep_alive");
+  if (json_hangar_it != json_hangar.end()) {
+    if (json_hangar_it->second->type == json_boolean) {
+      redis_connection_params->redis_connect_keep_alive =
+          json_hangar_it->second->u.boolean;
     }
   }
 

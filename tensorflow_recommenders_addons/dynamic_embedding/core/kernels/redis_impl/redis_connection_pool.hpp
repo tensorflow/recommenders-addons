@@ -59,14 +59,16 @@ class RedisWrapper<
       return;
     }
     redis_conn.reset();
-    LOG(INFO) << "RedisSentinel connection pool destructor called successfully.";
+    LOG(INFO)
+        << "RedisSentinel connection pool destructor called successfully.";
   }
 
  private:
   RedisWrapper()  // In singleton mode, classes should not be initialized
                   // through constructor
   {
-    LOG(INFO) << "RedisSentinel connection pool constructor called successfully.";
+    LOG(INFO)
+        << "RedisSentinel connection pool constructor called successfully.";
   }
 
  public:
@@ -89,10 +91,12 @@ class RedisWrapper<
         redis_connection_params.redis_sentinel_socket_timeout);
 
     // Redis connection options
+    conn_opts.user = redis_connection_params.redis_user;
     conn_opts.password =
         redis_connection_params
             .redis_password;  // Optional. No redis_password by default.
     conn_opts.db = redis_connection_params.redis_db;
+    conn_opts.keep_alive = redis_connection_params.redis_connect_keep_alive;
     conn_opts.connect_timeout = std::chrono::milliseconds(
         redis_connection_params.redis_connect_timeout);
     conn_opts.socket_timeout =
@@ -129,10 +133,12 @@ class RedisWrapper<
     // Redis connection options
     conn_opts.host = redis_connection_params.redis_host_ip[0];
     conn_opts.port = redis_connection_params.redis_host_port[0];
+    conn_opts.user = redis_connection_params.redis_user;
     conn_opts.password =
         redis_connection_params
             .redis_password;  // Optional. No redis_password by default.
     conn_opts.db = redis_connection_params.redis_db;
+    conn_opts.keep_alive = redis_connection_params.redis_connect_keep_alive;
     conn_opts.connect_timeout = std::chrono::milliseconds(
         redis_connection_params.redis_connect_timeout);
     conn_opts.socket_timeout =

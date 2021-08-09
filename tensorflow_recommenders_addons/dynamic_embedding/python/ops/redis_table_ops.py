@@ -61,8 +61,10 @@ class RedisTable(LookupInterface):
       # connection_options
       "redis_host_ip": ["127.0.0.1"],
       "redis_host_port": 6379,
+      "redis_user": "default",
       "redis_password": "",
       "redis_db": 0,
+      "redis_connect_keep_alive": False,  # keep TCP alive
       "redis_connect_timeout": 1000,  # milliseconds
       "redis_socket_timeout": 1000,  # milliseconds
       # connection_pool_options

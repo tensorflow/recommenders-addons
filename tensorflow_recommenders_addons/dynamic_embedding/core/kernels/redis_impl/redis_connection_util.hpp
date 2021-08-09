@@ -134,9 +134,11 @@ struct Redis_Connection_Params {
   // connection_options
   std::vector<std::string> redis_host_ip = {"127.0.0.1"};
   std::vector<int> redis_host_port = {6379};
+  std::string redis_user = "default";
   std::string redis_password = "";
   int redis_db = 0;
   //
+  bool redis_connect_keep_alive = false;
   int redis_connect_timeout = 1000;  // milliseconds
   int redis_socket_timeout = 1000;   // milliseconds
   // connection_pool_options
@@ -172,8 +174,10 @@ struct Redis_Connection_Params {
     redis_master_name = x.redis_master_name;
     redis_host_ip.assign(x.redis_host_ip.begin(), x.redis_host_ip.end());
     redis_host_port.assign(x.redis_host_port.begin(), x.redis_host_port.end());
+    redis_user = x.redis_user;
     redis_password = x.redis_password;
     redis_db = x.redis_db;
+    redis_connect_keep_alive = x.redis_connect_keep_alive;
     redis_connect_timeout = x.redis_connect_timeout;  // milliseconds
     redis_socket_timeout = x.redis_socket_timeout;    // milliseconds
     redis_conn_pool_size = x.redis_conn_pool_size;
