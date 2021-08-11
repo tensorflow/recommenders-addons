@@ -96,7 +96,10 @@ def DynamicEmbeddingOptimizer(self):
             var.params.restrict_policy._track_optimizer_slots(_slots)
 
           with ops.control_dependencies([grad]):
-            _before = [var.read_value()] + [_s.read_value() for _s in _slots]
+            v0 = var.read_value(do_prefetch=not var.params.bp_v2)
+            s0 = [_s.read_value() for _s in _slots]
+            _before = [v0] + s0
+
           if isinstance(grad, ops.IndexedSlices):
             if var.constraint is not None:
               raise RuntimeError(
@@ -107,8 +110,9 @@ def DynamicEmbeddingOptimizer(self):
               _apply_op = self._resource_apply_sparse_duplicate_indices(
                   grad.values, var, grad.indices, **apply_kwargs)
             with ops.control_dependencies([_apply_op]):
-              _after = control_flow_ops.group([var.update_op()] +
-                                              [_s.update_op() for _s in _slots])
+              _after = control_flow_ops.group(
+                  [var.update_op(v0=v0)] +
+                  [_s.update_op(v0=s0[si]) for si, _s in enumerate(_slots)])
               return _after
 
           if "apply_state" in self._dense_apply_args:
@@ -120,8 +124,9 @@ def DynamicEmbeddingOptimizer(self):
               return var.assign(var.constraint(var))
           else:
             with ops.control_dependencies([update_op]):
-              _after = control_flow_ops.group([var.update_op()] +
-                                              [_s.update_op() for _s in _slots])
+              _after = control_flow_ops.group(
+                  [var.update_op(v0=v0)] +
+                  [_s.update_op(v0=s0[si]) for si, _s in enumerate(_slots)])
             return _after
 
     update_ops = []
@@ -301,6 +306,7 @@ def create_slots(primary, init, slot_name, op_name):
           kv_creator=params_var_.kv_creator,
           trainable=False,
           checkpoint=params_var_.checkpoint,
+          bp_v2=params_var_.bp_v2,
       )
 
     scope_store._vars[full_name] = slot_variable_

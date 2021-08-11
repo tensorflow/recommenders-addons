@@ -77,6 +77,7 @@ class TrainableWrapper(resource_variable_ops.ResourceVariable):
         """
     self.params = params
     self.ids = ids
+    self.exists = None
     self.max_norm = max_norm
     self.prefetch_values_op = None
     self.model_mode = kwargs.get("model_mode")
@@ -85,7 +86,11 @@ class TrainableWrapper(resource_variable_ops.ResourceVariable):
 
   def prefetch_values(self):
     if self.prefetch_values_op is None:
-      self.prefetch_values_op = self.transform(self.params.lookup(self.ids))
+      if self.params.bp_v2:
+        r, self.exists = self.params.lookup(self.ids, return_exists=True)
+        self.prefetch_values_op = self.transform(r)
+      else:
+        self.prefetch_values_op = self.transform(self.params.lookup(self.ids))
     return self.prefetch_values_op
 
   def _init_from_args(
@@ -340,8 +345,13 @@ class TrainableWrapper(resource_variable_ops.ResourceVariable):
           cached_value=cached_value,
       )
 
-  def update_op(self):
-    update_param_op = self.params.upsert(self.ids, self.read_value(False))
+  def update_op(self, v0=None):
+    v1 = self.read_value(False)
+    if self.params.bp_v2:
+      assert v0 is not None
+      update_param_op = self.params.accum(self.ids, v0, v1, self.exists)
+    else:
+      update_param_op = self.params.upsert(self.ids, v1)
     if self.params.restrict_policy is not None:
       update_status_op = self.params.restrict_policy.apply_update(self.ids)
       return control_flow_ops.group([update_param_op, update_status_op])
