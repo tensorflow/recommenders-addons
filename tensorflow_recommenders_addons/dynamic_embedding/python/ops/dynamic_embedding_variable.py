@@ -25,9 +25,12 @@ from __future__ import print_function
 from tensorflow_recommenders_addons import dynamic_embedding as de
 
 try:
-  from tensorflow.python import _pywrap_util_port as pywrap
+  from tensorflow.python.util import _pywrap_util_port as pywrap
 except:
-  from tensorflow.python import pywrap_tensorflow as pywrap
+  try:
+    from tensorflow.python import _pywrap_util_port as pywrap
+  except:
+    from tensorflow.python import pywrap_tensorflow as pywrap
 
 from tensorflow.python.client import device_lib
 from tensorflow.python.eager import context

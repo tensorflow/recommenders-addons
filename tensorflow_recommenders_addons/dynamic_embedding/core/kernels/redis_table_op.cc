@@ -44,8 +44,8 @@ In the code, Redis limits the size of arguments that command can set to
 times. The source code is shown in the following link:
 https://github.com/redis/redis/blob/be6ce8a92a9acbecfaaa6c57a45037fc1018fefe/src/networking.c#L1851
 */
-// constexpr long long multi_redis_cmd_max_argc = 1024 * 1024;
-static long long multi_redis_cmd_max_argc =
+// constexpr tensorflow::int64 multi_redis_cmd_max_argc = 1024 * 1024;
+static tensorflow::int64 multi_redis_cmd_max_argc =
     128 * 8;  // For better parallelism performance
 
 using sw::redis::OptionalString;
