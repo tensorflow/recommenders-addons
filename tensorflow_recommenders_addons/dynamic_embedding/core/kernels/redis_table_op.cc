@@ -309,13 +309,6 @@ class RedisTableOfTensors final : public LookupInterface {
           << "And its number of slices is not equal to the number you putted "
              "in the setting. "
           << "Please change the storage_slice in redis_connection_params.";
-      OP_REQUIRES(ctx, false,
-                  errors::InvalidArgument(
-                      "storage_slice must be set properly equaling to the "
-                      "slices number in the Redis, got prefix storage_slice ",
-                      redis_connection_params.storage_slice));
-      throw(
-          std::invalid_argument("Exit without setting correct slice number."));
     }
 
     // allocate the memory of threads helper
