@@ -37,7 +37,8 @@ tfra.dynamic_embedding.get_variable(
     trainable=True,
     checkpoint=True,
     init_size=0,
-    restrict_policy=None
+    restrict_policy=None,
+    bp_v2=False,
 )
 ```
 
@@ -80,6 +81,9 @@ def default_partition_fn(keys, shard_num):
   size of variable. If in training program, the variable is updated by
   optimizer, then the sparse slot variables in optimizer are also be
   restricted.
+* <b>`bp_v2`</b>:update parameters by *updating* instead of *setting*, which solves
+  the race condition problem among workers during backpropagation in large-scale
+  distributed asynchronous training.
 
 
 #### Returns:
