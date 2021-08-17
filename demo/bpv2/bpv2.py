@@ -66,7 +66,6 @@ def input_fn_val():
 def model_fn(features, labels, mode):
   x = features['x']
   x = tf.reshape(x, [-1])
-  uniqx, uniqxidx = tf.unique(x)
   w = tfra.dynamic_embedding.get_variable(
       name='w',
       devices=["/job:ps/replica:0/task:0/CPU:0"],
@@ -74,20 +73,19 @@ def model_fn(features, labels, mode):
       dim=embed_size,
       bp_v2=True,  # this is the only thing you need to do to enable bpv2
       key_dtype=tf.int32)
-  uniqe = tfra.dynamic_embedding.embedding_lookup(params=w, ids=uniqx, name='a')
-  e = tf.gather(uniqe, uniqxidx)
+  e = tfra.dynamic_embedding.embedding_lookup_unique(params=w, ids=x, name='a')
   e = tf.reshape(e, [-1, 256, embed_size])
 
   embmean = tf.reduce_mean(e, axis=1)
-  fc1 = tf.layers.dense(embmean, 16, activation=tf.nn.relu)
-  logits = tf.layers.dense(fc1, 2, activation=None)
+  fc = tf.compat.v1.layers.dense(embmean, 16, activation=tf.nn.relu)
+  logits = tf.compat.v1.layers.dense(fc, 2, activation=None)
   predictions = {
       "classes": tf.argmax(input=logits, axis=1),
       "probabilities": tf.nn.softmax(logits, name="softmax_tensor"),
   }
 
   y = tf.one_hot(tf.cast(labels, tf.int32), 2, 1, 0)
-  loss = tf.losses.softmax_cross_entropy(y, logits)
+  loss = tf.compat.v1.losses.softmax_cross_entropy(y, logits)
 
   if mode == tf.estimator.ModeKeys.TRAIN:
     opt = tf.compat.v1.train.AdamOptimizer(0.01)
@@ -113,7 +111,7 @@ def main(argv):
   config = tf.estimator.RunConfig(save_checkpoints_steps=None,
                                   save_checkpoints_secs=tf.int64.max,
                                   model_dir=None,
-                                  log_step_count_steps=1)
+                                  log_step_count_steps=100)
   classifier = tf.estimator.Estimator(model_fn=model_fn, config=config)
   tf.estimator.train_and_evaluate(
       classifier,
