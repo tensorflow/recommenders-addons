@@ -167,7 +167,13 @@ struct Redis_Connection_Params {
       "test";  // new model_tag for version and any other information
   bool using_md5_prefix_name = false;
   std::string model_lib_abs_dir = "/tmp/";
-  bool using_model_lib = true;
+  // if table_store_mode equals 1, then it will try to save or resoter table
+  // from model_lib_abs_dir which has been mounted in system
+  unsigned table_store_mode = 1;
+  // Saving and restoring table into ensor in TF savedmodel variable file,
+  // table_store_mode = 0; Saving and restoring table into redis rdb file in
+  // model_lib_abs_dir, table_store_mode = 1; Saving and restoring nothing,
+  // keeping data in redis servers, table_store_mode = 2.
 
   Redis_Connection_Params &operator=(const Redis_Connection_Params &x) {
     redis_connection_mode = x.redis_connection_mode;
@@ -197,7 +203,7 @@ struct Redis_Connection_Params {
     model_tag_new = x.model_tag_new;
     using_md5_prefix_name = x.using_md5_prefix_name;
     model_lib_abs_dir = check_dir(x.model_lib_abs_dir);
-    using_model_lib = x.using_model_lib;
+    table_store_mode = x.table_store_mode;
     return *this;
   }
 };

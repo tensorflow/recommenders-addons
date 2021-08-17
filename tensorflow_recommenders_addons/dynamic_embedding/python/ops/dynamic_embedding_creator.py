@@ -114,7 +114,7 @@ class RedisTableConfig(object):
         "model_tag_old": "test",
         "model_tag_new": "test",
         "expire_model_tag_in_seconds": 604800,
-        "using_model_lib": True,
+        "table_store_mode": 1,
         "model_lib_abs_dir": "/tmp/"
       }
       ""

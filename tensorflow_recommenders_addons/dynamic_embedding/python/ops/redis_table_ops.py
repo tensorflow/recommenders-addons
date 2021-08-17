@@ -60,7 +60,7 @@ class RedisTable(LookupInterface):
       "redis_master_name": "master",
       # connection_options
       "redis_host_ip": ["127.0.0.1"],
-      "redis_host_port": 6379,
+      "redis_host_port": [6379],
       "redis_user": "default",
       "redis_password": "",
       "redis_db": 0,
@@ -86,8 +86,13 @@ class RedisTable(LookupInterface):
           "test",  #  model_tag_new for version and any other information for now.
       "expire_model_tag_in_seconds":
           604800,  # To eliminate unwanted model versions in Redis to ensure sufficient storage space.
-      "using_model_lib": True,
+      "table_store_mode": 1,
+      # Saving and restoring table into ensor in TF savedmodel variable file, table_store_mode = 0;
+      # Saving and restoring table into redis rdb file in model_lib_abs_dir, table_store_mode = 1;
+      # Saving and restoring nothing, keeping data in redis servers, table_store_mode = 2.
       "model_lib_abs_dir": "/tmp/"
+      # if table_store_mode equals 1, then it will try to save or resoter table 
+      # from model_lib_abs_dir which has been mounted in system
   }
 
   def __init__(

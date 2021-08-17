@@ -379,11 +379,11 @@ void ParseJsonConfig(const std::string *const redis_config_abs_dir,
     }
   }
 
-  json_hangar_it = json_hangar.find("using_model_lib");
+  json_hangar_it = json_hangar.find("table_store_mode");
   if (json_hangar_it != json_hangar.end()) {
-    if (json_hangar_it->second->type == json_boolean) {
-      redis_connection_params->using_model_lib =
-          json_hangar_it->second->u.boolean;
+    if (json_hangar_it->second->type == json_integer) {
+      redis_connection_params->table_store_mode =
+          json_hangar_it->second->u.integer;
     }
   }
 

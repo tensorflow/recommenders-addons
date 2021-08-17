@@ -446,9 +446,9 @@ class RedisTableOfTensors final : public LookupInterface {
 
   Status ImportValues(OpKernelContext *ctx, const Tensor &keys,
                       const Tensor &values) override {
-    if (redis_connection_params.using_model_lib) {
+    if (redis_connection_params.table_store_mode == 1) {
       // When there is not a corresponding table existing in Redis service and
-      // using_model_lib==True, try to restore from a Redis binary dump files
+      // table_store_mode==1, try to restore from a Redis binary dump files
       // which paths are directory '[model_lib_abs_dir]/[model_tag]/[name].rdb'.
       return ImportValuesFromFiles(ctx);
     } else {
@@ -514,13 +514,15 @@ class RedisTableOfTensors final : public LookupInterface {
   }
 
   Status ExportValues(OpKernelContext *ctx) override {
-    if (redis_connection_params.using_model_lib) {
-      return ExportValuesToFiles(ctx);
-    } else {
+    if (redis_connection_params.table_store_mode == 0) {
       return ExportValuesToTensor(ctx);
+    } else if (redis_connection_params.table_store_mode == 1) {
+      return ExportValuesToFiles(ctx);
+    } else if (redis_connection_params.table_store_mode == 2) {
+      return Status::OK();
     }
     return Status(error::INVALID_ARGUMENT,
-                  "invalid redis_connection_params.using_model_lib.");
+                  "invalid redis_connection_params.table_store_mode.");
   }
 
   Status ExportValuesToFiles(OpKernelContext *ctx) {
