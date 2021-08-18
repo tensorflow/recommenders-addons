@@ -242,10 +242,27 @@ class RedisTableOfTensors final : public LookupInterface {
     OP_REQUIRES_OK(
         ctx, GetNodeAttr(kernel->def(), "embedding_name", &embedding_name));
 
+    std::string redis_config_abs_dir_tem;
     OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "redis_config_abs_dir",
-                                    &redis_config_abs_dir));
+                                    &redis_config_abs_dir_tem));
 
-    ParseJsonConfig(&redis_config_abs_dir, &redis_connection_params);
+    Status config_status =
+        ReadStringFromEnvVar("TFRA_REDIS_CONFIG_PATH", redis_config_abs_dir_tem,
+                             &redis_config_abs_dir);
+    if (!config_status.ok()) {
+      LOG(WARNING) << "Fails to read the TFRA Redis config file path from the "
+                      "environment variable firstly, now the config file path "
+                      "which assigned in the attribute of Table Operator is "
+                      "used. config file path is " +
+                          redis_config_abs_dir;
+    }
+
+    if (get_file_size(redis_config_abs_dir) > 0) {
+      ParseJsonConfig(&redis_config_abs_dir, &redis_connection_params);
+    } else {
+      ctx->CtxFailure(errors::NotFound("Unable to find config file with path: ",
+                                       redis_config_abs_dir));
+    }
 
     const int64 &&default_value_width = value_shape_.dim_size(0);
     const int64 &&default_value_total = value_shape_.num_elements();
