@@ -91,7 +91,7 @@ class RedisTable(LookupInterface):
       # Saving and restoring table into redis rdb file in model_lib_abs_dir, table_store_mode = 1;
       # Saving and restoring nothing, keeping data in redis servers, table_store_mode = 2.
       "model_lib_abs_dir": "/tmp/"
-      # if table_store_mode equals 1, then it will try to save or resoter table 
+      # if table_store_mode equals 1, then it will try to save or resoter table
       # from model_lib_abs_dir which has been mounted in system
   }
 
