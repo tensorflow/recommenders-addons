@@ -52,6 +52,14 @@ Below is an example of a JSON file, along with comments on the corresponding pro
 ```
   
 # How To Use in TensorFlow?
+By default, tfra-redis reads the JSON file pointed to by the path in the TFRA_REDIS_CONFIG_PATH 
+environment variable before reading the json file path configured in the Python operator.  
+So when you deploy inference, you can set the environment variable TFRA_REDIS_CONFIG_PATH to configure 
+some of the redis configuration on the inference side.  
+For example, **TFRA_REDIS_CONFIG_PATH=/tem/redis.config**.
+
+The following Python code describes how you should introduce the Redis backend 
+for training under the TFRA framework:
 
 ```python
 redis_config1=tfra.dynamic_embedding.RedisTableConfig(
