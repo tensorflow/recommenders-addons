@@ -340,12 +340,8 @@ class CuckooHashTable(LookupInterface):
 
   def _gather_saveables_for_checkpoint(self):
     """For object-based checkpointing."""
-    # full_name helps to figure out the name-based Saver's name
-    # for this saveable.
-    if context.executing_eagerly():
-      full_name = self._table_name
-    else:
-      full_name = self._resource_handle.op.name
+    # full_name helps to figure out the name-based Saver's name for this saveable.
+    full_name = self._table_name
     return {
         "table":
             functools.partial(
@@ -367,12 +363,12 @@ class CuckooHashTable(LookupInterface):
       ]
       # pylint: disable=protected-access
       super(CuckooHashTable._Saveable, self).__init__(table, specs, name)
-      self.full_name = full_name
+      self._restore_name = table._name
 
     def restore(self, restored_tensors, restored_shapes, name=None):
       del restored_shapes  # unused
       # pylint: disable=protected-access
-      with ops.name_scope(name, "%s_table_restore" % self.name):
+      with ops.name_scope(name, "%s_table_restore" % self._restore_name):
         with ops.colocate_with(self.op.resource_handle):
           return cuckoo_ops.tfra_cuckoo_hash_table_import(
               self.op.resource_handle,

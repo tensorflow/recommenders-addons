@@ -26,7 +26,9 @@ import os
 
 from tensorflow_recommenders_addons import dynamic_embedding as de
 
+from tensorflow.core.protobuf import cluster_pb2
 from tensorflow.core.protobuf import config_pb2
+from tensorflow.python.eager import context
 from tensorflow.python.framework import constant_op
 from tensorflow.python.framework import dtypes
 from tensorflow.python.framework import ops
@@ -44,6 +46,7 @@ from tensorflow.python.ops import script_ops
 from tensorflow.python.ops import variables
 from tensorflow.python.platform import test
 from tensorflow.python.training import device_setter
+from tensorflow.python.training import server_lib
 from tensorflow.python.util import compat
 
 
@@ -478,8 +481,8 @@ class EmbeddingLookupTest(test.TestCase):
     self.assertAllEqual(p1.name, "test/p1")
     self.assertAllEqual(p2.name, "test/p2")
     self.assertAllEqual(p1, p1_reuse)
-    self.assertEqual(t1.name, "test/q/emb/TrainableWrapper:0")
-    self.assertEqual(t2.name, "test/q/emb/TrainableWrapper_1:0")
+    self.assertEqual(t1.name, "test/q/emb:0")
+    self.assertEqual(t2.name, "test_1/q/emb:0")
     self.assertAllEqual(p1._tables[0].name, "test_p1_mht_1of1")
     self.assertAllEqual(p1_reuse._tables[0].name, "test_p1_mht_1of1")
     self.assertAllEqual(p2._tables[0].name, "test_p2_mht_1of1")
@@ -525,10 +528,8 @@ class EmbeddingLookupTest(test.TestCase):
     self.assertAllEqual(p1.name, "test/p1")
     self.assertAllEqual(p2.name, "test/p2")
     self.assertAllEqual(p1, p1_reuse)
-    self.assertEqual(t1.name,
-                     "test/q/sp_emb/embedding_lookup/TrainableWrapper:0")
-    self.assertEqual(t2.name,
-                     "test/q/sp_emb/embedding_lookup/TrainableWrapper_1:0")
+    self.assertEqual(t1.name, "test/q/sp_emb/sp_emb/embedding_lookup:0")
+    self.assertEqual(t2.name, "test/q/sp_emb/sp_emb/embedding_lookup_1:0")
     self.assertAllEqual(p1._tables[0].name, "test_p1_mht_1of1")
     self.assertAllEqual(p1_reuse._tables[0].name, "test_p1_mht_1of1")
     self.assertAllEqual(p2._tables[0].name, "test_p2_mht_1of1")
@@ -576,11 +577,11 @@ class EmbeddingLookupTest(test.TestCase):
     self.assertAllEqual(p1, p1_reuse)
     self.assertEqual(
         t1.name,
-        "test/q/safe_sp_emb/embedding_lookup_sparse/embedding_lookup/TrainableWrapper:0",
+        "test/q/safe_sp_emb/embedding_lookup_sparse/safe_sp_emb/embedding_lookup_sparse/embedding_lookup:0",
     )
     self.assertEqual(
         t2.name,
-        "test/q/safe_sp_emb/embedding_lookup_sparse/embedding_lookup/TrainableWrapper_1:0",
+        "test/q/safe_sp_emb/embedding_lookup_sparse/safe_sp_emb/embedding_lookup_sparse/embedding_lookup_1:0",
     )
     self.assertAllEqual(p1._tables[0].name, "test_p1_mht_1of1")
     self.assertAllEqual(p1_reuse._tables[0].name, "test_p1_mht_1of1")
@@ -1243,6 +1244,42 @@ class SafeEmbeddingLookupSparseTest(test.TestCase):
 
       result = self.evaluate(output)
       self.assertAllEqual([[-1], [-1], [-1], [-1]], result)
+
+
+@test_util.run_all_in_graph_and_eager_modes
+class TrainableWrapperPlacementTest(test.TestCase):
+
+  def test_colocate_to_ids(self):
+    server0 = server_lib.Server.create_local_server()
+    server1 = server_lib.Server.create_local_server()
+    cluster_def = cluster_pb2.ClusterDef()
+    job = cluster_def.job.add()
+    job.name = 'dist'
+    job.tasks[0] = server0.target[len('grpc://'):]
+    job.tasks[1] = server1.target[len('grpc://'):]
+
+    g = ops.Graph()
+
+    with g.as_default():
+      with ops.device('/job:dist/task:0'):
+        sp_var = de.get_variable('dist414',
+                                 key_dtype=dtypes.int64,
+                                 value_dtype=dtypes.float32,
+                                 dim=2,
+                                 initializer=0.1)
+      with ops.device('/job:dist/task:1'):
+        features = constant_op.constant([1, 2, 3], dtype=dtypes.int64)
+        emb_p, tw_p = de.embedding_lookup(sp_var,
+                                          features,
+                                          name='on_task_1',
+                                          return_trainable=True)
+      with ops.device('/job:dist/task:0'):
+        emb_q, tw_q = de.embedding_lookup(sp_var,
+                                          features,
+                                          name='on_task_0',
+                                          return_trainable=True)
+    self.assertAllEqual(tw_p.device, '/job:dist/task:1')
+    self.assertAllEqual(tw_q.device, '/job:dist/task:1')
 
 
 if __name__ == "__main__":
