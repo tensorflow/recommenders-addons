@@ -402,10 +402,7 @@ class RedisTable(LookupInterface):
   def _gather_saveables_for_checkpoint(self):
     """For object-based checkpointing."""
     # full_name helps to figure out the name-based Saver's name for this saveable.
-    if context.executing_eagerly():
-      full_name = self._table_name
-    else:
-      full_name = self._resource_handle.op.name
+    full_name = self._table_name
     return {
         "table":
             functools.partial(
@@ -427,7 +424,7 @@ class RedisTable(LookupInterface):
       ]
       # pylint: disable=protected-access
       super(RedisTable._Saveable, self).__init__(table, specs, name)
-      self.full_name = full_name
+      self.full_name = table._name
 
     def restore(self, restored_tensors, restored_shapes, name=None):
       del restored_shapes  # unused

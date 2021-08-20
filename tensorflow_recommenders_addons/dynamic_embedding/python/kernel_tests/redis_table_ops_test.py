@@ -126,6 +126,7 @@ def model_fn(sparse_vars, embed_dim, feature_inputs):
     for inp_tensor in feature_inputs:
       embed_w, trainable = de.embedding_lookup(sp,
                                                inp_tensor,
+                                               name="emb",
                                                return_trainable=True)
       embedding_weights.append(embed_w)
       embedding_trainables.append(trainable)
@@ -282,21 +283,6 @@ def _create_dynamic_shape_tensor(
 default_config = config_pb2.ConfigProto(
     allow_soft_placement=False,
     gpu_options=config_pb2.GPUOptions(allow_growth=True))
-
-redis_config_dir = os.path.join(
-    tempfile.mkdtemp(dir=os.environ.get('TEST_TMPDIR')), "save_restore")
-redis_config_path = os.path.join(tempfile.mkdtemp(prefix=redis_config_dir),
-                                 "hash")
-os.makedirs(redis_config_path)
-redis_config_path = os.path.join(redis_config_path, "redis_config.json")
-redis_config_params = {
-    "redis_host_ip": ["127.0.0.1"],
-    "redis_host_port": [6379],
-    "table_store_mode": 0
-}
-with open(redis_config_path, 'w', encoding='utf-8') as f:
-  f.write(json.dumps(redis_config_params, indent=2, ensure_ascii=True))
-redis_config = de.RedisTableConfig(redis_config_abs_dir=redis_config_path)
 
 redis_config_dir = os.path.join(
     tempfile.mkdtemp(dir=os.environ.get('TEST_TMPDIR')), "save_restore")
@@ -536,9 +522,10 @@ class RedisVariableTest(test.TestCase):
       table = de.Variable(
           key_dtype=dtypes.int64,
           value_dtype=dtypes.float32,
-          initializer=-1.0,
-          name="t1",
           dim=1,
+          name="t1",
+          initializer=-1.0,
+          kv_creator=de.RedisTableCreator(config=redis_config),
       )
       table.clear()
 
@@ -564,12 +551,13 @@ class RedisVariableTest(test.TestCase):
       v0 = variables.Variable(-1.0, name="v0")
       v1 = variables.Variable(-1.0, name="v1")
       table = de.Variable(
-          name="t1",
           key_dtype=dtypes.int64,
           value_dtype=dtypes.float32,
-          initializer=-1.0,
           dim=1,
+          name="t1",
+          initializer=-1.0,
           checkpoint=True,
+          kv_creator=de.RedisTableCreator(config=redis_config),
       )
       table.clear()
 
@@ -620,6 +608,7 @@ class RedisVariableTest(test.TestCase):
           name="t1",
           initializer=default_val,
           checkpoint=True,
+          kv_creator=de.RedisTableCreator(config=redis_config),
       )
       table.clear()
 
@@ -638,7 +627,7 @@ class RedisVariableTest(test.TestCase):
       self.assertIsInstance(val, six.string_types)
       self.assertEqual(save_path, val)
 
-      table.clear()
+      self.evaluate(table.clear())
       del table
 
     with self.session(
@@ -653,6 +642,7 @@ class RedisVariableTest(test.TestCase):
           name="t1",
           initializer=default_val,
           checkpoint=True,
+          kv_creator=de.RedisTableCreator(config=redis_config),
       )
       table.clear()
 
@@ -675,7 +665,7 @@ class RedisVariableTest(test.TestCase):
       output = table.lookup(remove_keys)
       self.assertAllEqual([[0], [1], [2], [-1], [-1]], self.evaluate(output))
 
-      table.clear()
+      self.evaluate(table.clear())
       del table
 
   def test_training_save_restore(self):
@@ -707,10 +697,13 @@ class RedisVariableTest(test.TestCase):
           initializer=init_ops.random_normal_initializer(0.0, 0.01),
           dim=dim,
           kv_creator=de.RedisTableCreator(config=redis_config))
-      params.clear()
+      self.evaluate(params.clear())
       params_size = self.evaluate(params.size())
 
-      _, var0 = de.embedding_lookup(params, ids, return_trainable=True)
+      _, var0 = de.embedding_lookup(params,
+                                    ids,
+                                    name="emb",
+                                    return_trainable=True)
 
       def loss():
         return var0 * var0
@@ -813,7 +806,10 @@ class RedisVariableTest(test.TestCase):
           dim=dim,
           kv_creator=de.RedisTableCreator(config=redis_config_modify))
 
-      _, var0 = de.embedding_lookup(params, ids, return_trainable=True)
+      _, var0 = de.embedding_lookup(params,
+                                    ids,
+                                    name="emb",
+                                    return_trainable=True)
 
       def loss():
         return var0 * var0
