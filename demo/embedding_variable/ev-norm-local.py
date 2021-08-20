@@ -10,12 +10,10 @@ tf.disable_v2_behavior()
 #tf.logging.set_verbosity(tf.logging.DEBUG)
 def model_fn(ids, labels):
   #embedding = tf.get_embedding_variable("var_dist", embedding_dim=24, steps_to_live = 4000, #steps_to_live_l2reg=6000, l2reg_theta=0.01, #'''(10 * 1024 * 1024) * 2''',  steps_to_live_l2reg = 1024*1024, l2reg_theta=0.01, l2reg_lambda=0.01, initializer=tf.ones_initializer, partitioner=tf.fixed_size_partitioner(num_shards=4))
-
   embedding = tfra.embedding_variable.get_variable(
       name="var_dist",
       embedding_dim=24,
-      # TODO partitioner not supported yet
-      # partitioner=tf.fixed_size_partitioner(num_shards=1),
+      partitioner=tf.fixed_size_partitioner(num_shards=4),
       initializer=tf.keras.initializers.RandomNormal(0.0, 0.1))
 
   values = tf.nn.embedding_lookup(embedding, ids)

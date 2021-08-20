@@ -132,12 +132,12 @@ def _create_slot_var(primary,
   else:
     use_resource = None
   if isinstance(primary, ev.EmbeddingVariable):
-    slot = ev.EmbeddingVariable(embedding_dim=shape,
-                                initializer=val,
-                                trainable=False,
-                                ktype=primary._ktype,
-                                vtype=primary.dtype,
-                                invalid_key=primary.invalid_key)
+    slot = ev.get_variable(scope,
+                           embedding_dim=shape[1:],
+                           initializer=val,
+                           trainable=False,
+                           key_dtype=primary._ktype,
+                           value_dtype=primary.dtype)
   else:
     slot = variable_scope.get_variable(scope,
                                        initializer=val,

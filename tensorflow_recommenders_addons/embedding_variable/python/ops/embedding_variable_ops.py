@@ -325,9 +325,12 @@ class EmbeddingVariable(resource_variable_ops.ResourceVariable,
         elif ops.GraphKeys.GLOBAL_STEP in collections:
           ops.add_to_collections(ops.GraphKeys.GLOBAL_STEP, self)
       initial_value = initial_value if self._in_graph_mode else None
+      new_dim = shape.as_list()
+      new_dim.insert(0, 0)
+      new_shape = tensor_shape.TensorShape(new_dim)
       super(resource_variable_ops.ResourceVariable,
             self).__init__(trainable=trainable,
-                           shape=shape,
+                           shape=new_shape,
                            dtype=vtype,
                            handle=handle,
                            synchronization=synchronization,
@@ -443,7 +446,7 @@ class EmbeddingVariable(resource_variable_ops.ResourceVariable,
       resource_variable_ops.variable_accessed(self)
       default_value = self._initializer(array_ops.concat(
           [array_ops.shape(indices),
-           self.shape.as_list()], axis=0),
+           self.shape.as_list()[1:]], axis=0),
                                         dtype=self.dtype)
       value = gen_ev_ops.ev_gather(self._handle,
                                    indices,
