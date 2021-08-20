@@ -510,6 +510,8 @@ class RedisVariableTest(test.TestCase):
         table.clear()
 
   def test_save_restore(self):
+    if context.executing_eagerly():
+      self.skipTest('skip eager test when using legacy Saver.')
     save_dir = os.path.join(self.get_temp_dir(), "save_restore")
     save_path = os.path.join(tempfile.mkdtemp(prefix=save_dir), "hash")
 
@@ -544,7 +546,7 @@ class RedisVariableTest(test.TestCase):
       self.assertIsInstance(val, six.string_types)
       self.assertEqual(save_path, val)
 
-      table.clear()
+      self.evaluate(table.clear())
       del table
 
     with self.session(config=default_config, graph=ops.Graph()) as sess:
@@ -584,10 +586,12 @@ class RedisVariableTest(test.TestCase):
       self.assertAllEqual([[-1.0], [0.0], [1.0], [2.0], [-1.0]],
                           self.evaluate(output))
 
-      table.clear()
+      self.evaluate(table.clear())
       del table
 
   def test_save_restore_only_table(self):
+    if context.executing_eagerly():
+      self.skipTest('skip eager test when using legacy Saver.')
     save_dir = os.path.join(self.get_temp_dir(), "save_restore")
     save_path = os.path.join(tempfile.mkdtemp(prefix=save_dir), "hash")
 
@@ -669,6 +673,8 @@ class RedisVariableTest(test.TestCase):
       del table
 
   def test_training_save_restore(self):
+    if context.executing_eagerly():
+      self.skipTest('skip eager test when using legacy Saver.')
     opt = de.DynamicEmbeddingOptimizer(adam.AdamOptimizer(0.3))
     id = 0
     if test_util.is_gpu_available():

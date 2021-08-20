@@ -81,8 +81,8 @@ py_test(
 )
 
 py_test(
-    name = "redis_table_ops_test",
-    srcs = ["redis_table_ops_test.py"],
+    name = "redis_table_variable_test",
+    srcs = ["redis_table_variable_test.py"],
     python_version = "PY3",
     srcs_version = "PY3",
     deps = [
