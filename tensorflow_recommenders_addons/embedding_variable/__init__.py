@@ -1,4 +1,5 @@
 from tensorflow_recommenders_addons.embedding_variable.python.ops.embedding_variable_ops import *
+from tensorflow_recommenders_addons.embedding_variable.python.ops.embedding_variable import *
 from tensorflow_recommenders_addons.embedding_variable.python.optimizers.gradient_descent import *
 from tensorflow_recommenders_addons.embedding_variable.python.optimizers.adagrad import *
 from tensorflow_recommenders_addons.embedding_variable.python.optimizers.adam import *
