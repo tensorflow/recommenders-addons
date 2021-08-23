@@ -536,6 +536,11 @@ class RedisTableOfTensors final : public LookupInterface {
     } else if (redis_connection_params.table_store_mode == 1) {
       return ExportValuesToFiles(ctx);
     } else if (redis_connection_params.table_store_mode == 2) {
+      Tensor *keys;
+      TF_RETURN_IF_ERROR(ctx->allocate_output("keys", TensorShape({0}), &keys));
+      Tensor *values;
+      TF_RETURN_IF_ERROR(ctx->allocate_output(
+          "values", TensorShape({0, runtime_value_dim_}), &values));
       return Status::OK();
     }
     return Status(error::INVALID_ARGUMENT,
