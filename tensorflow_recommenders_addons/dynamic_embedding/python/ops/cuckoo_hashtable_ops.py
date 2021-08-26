@@ -238,7 +238,7 @@ class CuckooHashTable(LookupInterface):
         (self.resource_handle, keys, self._default_value),
     ):
       keys = ops.convert_to_tensor(keys, dtype=self._key_dtype, name="keys")
-      with ops.colocate_with(self.resource_handle):
+      with ops.colocate_with(self.resource_handle, ignore_existing=True):
         if return_exists:
           values, exists = cuckoo_ops.tfra_cuckoo_hash_table_find_with_exists(
               self.resource_handle,
@@ -279,7 +279,7 @@ class CuckooHashTable(LookupInterface):
     ):
       keys = ops.convert_to_tensor(keys, self._key_dtype, name="keys")
       values = ops.convert_to_tensor(values, self._value_dtype, name="values")
-      with ops.colocate_with(self.resource_handle):
+      with ops.colocate_with(self.resource_handle, ignore_existing=True):
         # pylint: disable=protected-access
         op = cuckoo_ops.tfra_cuckoo_hash_table_insert(self.resource_handle,
                                                       keys, values)
@@ -314,7 +314,7 @@ class CuckooHashTable(LookupInterface):
                                                self._value_dtype,
                                                name="values_or_deltas")
       exists = ops.convert_to_tensor(exists, dtypes.bool, name="exists")
-      with ops.colocate_with(self.resource_handle):
+      with ops.colocate_with(self.resource_handle, ignore_existing=True):
         # pylint: disable=protected-access
         op = cuckoo_ops.tfra_cuckoo_hash_table_accum(self.resource_handle, keys,
                                                      values_or_deltas, exists)
