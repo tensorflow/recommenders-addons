@@ -526,33 +526,33 @@ def embedding_lookup(
       def initial_value():
         return array_ops.zeros(initial_shape, dtype=params.value_dtype)
 
-  with ops.colocate_with(None, ignore_existing=True):
-    collections = [ops.GraphKeys.LOCAL_VARIABLES]
-    if params.trainable:
-      collections += [ops.GraphKeys.TRAINABLE_VARIABLES]
+    with ops.colocate_with(None, ignore_existing=True):
+      collections = [ops.GraphKeys.LOCAL_VARIABLES]
+      if params.trainable:
+        collections += [ops.GraphKeys.TRAINABLE_VARIABLES]
 
-    def _create_trainable(trainable_name):
-      return de.TrainableWrapper(params,
-                                 ids,
-                                 max_norm=max_norm,
-                                 initial_value=initial_value,
-                                 dtype=params.value_dtype,
-                                 trainable=params.trainable,
-                                 collections=collections,
-                                 model_mode=ModelMode.CURRENT_SETTING,
-                                 name=trainable_name)
+      def _create_trainable(trainable_name):
+        return de.TrainableWrapper(params,
+                                   ids,
+                                   max_norm=max_norm,
+                                   initial_value=initial_value,
+                                   dtype=params.value_dtype,
+                                   trainable=params.trainable,
+                                   collections=collections,
+                                   model_mode=ModelMode.CURRENT_SETTING,
+                                   name=trainable_name)
 
-    with ops.colocate_with(ids, ignore_existing=True):
-      if context.executing_eagerly():
-        trainable_ = params._trainable_store.get(name, None)
-        if trainable_ is None:
+      with ops.colocate_with(ids, ignore_existing=True):
+        if context.executing_eagerly():
+          trainable_ = params._trainable_store.get(name, None)
+          if trainable_ is None:
+            trainable_ = _create_trainable(name)
+            params._trainable_store[name] = trainable_
+          else:
+            trainable_._reset_ids(ids)
+        else:
           trainable_ = _create_trainable(name)
           params._trainable_store[name] = trainable_
-        else:
-          trainable_._reset_ids(ids)
-      else:
-        trainable_ = _create_trainable(name)
-        params._trainable_store[name] = trainable_
 
     embeddings = array_ops.identity(trainable_)
     embeddings = array_ops.reshape(embeddings, shape=embeddings_shape)
