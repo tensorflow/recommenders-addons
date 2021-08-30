@@ -87,22 +87,21 @@ __global__ void upsert_kernel(Table* table,
 }
 
 
-/*template<typename Table>
-__global__ void  accum_kernel(Table* table,
-                              const typename Table::key_type* const keys,
-                              const typename Table::mapped_type* const vals,
-                              size_t len) {
+template <typename Table>
+__global__ void accum_kernel(
+    Table* table, const typename Table::key_type* const keys,
+    const typename Table::mapped_type* const vals_or_deltas, const bool* exists,
+    size_t len) {
 
-    thrust::pair<typename Table::key_type, typename Table::mapped_type> kv;
+  const size_t i = blockIdx.x * blockDim.x + threadIdx.x;
+  if (i < len) {
+    //thrust::pair<typename Table::key_type, typename Table::mapped_type> kv;
+    //kv.first = keys[i];
+    //kv.second = vals_or_deltas[i];
+    auto it = table->accum(keys[i], vals_or_deltas[i], exists[i]);
+  }
+}
 
-    const size_t i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i < len) {
-        kv.first = keys[i];
-        kv.second = vals[i]; 
-        auto it = table->accum(kv);
-        assert(it != table->end() && "error: can't find key");
-    }
-}*/
 
 template<typename Table>
 __global__ void set_kernel(Table* table,
@@ -307,7 +306,7 @@ __global__ void delete_kernel(Table* table,
     }
 }
 
-template<typename KeyType, typename ValType, typename BaseValType, KeyType empty_key, typename counter_type = unsigned long long int>
+template<typename KeyType, typename ValType, typename BaseValType, KeyType empty_key, size_t DIM, typename counter_type = unsigned long long int>
 class HashTable {
 public:
     HashTable(size_t capacity, counter_type count = 0) {
@@ -373,13 +372,15 @@ public:
         set_kernel<<<grid_size, BLOCK_SIZE_, 0, stream>>>(table_, d_keys, (const ValType*)d_vals, len);
     }
 
-    /*void accum(const KeyType* d_keys, const ValType* d_vals, size_t len, cudaStream_t stream){
+    void accum(const KeyType* d_keys, const BaseValType* d_vals_or_deltas, const bool* d_exists, size_t len,
+               cudaStream_t stream) {
         if (len == 0) {
             return;
         }
         const int grid_size = (len - 1) / BLOCK_SIZE_ + 1;
-        accum_kernel<<<grid_size, BLOCK_SIZE_, 0, stream>>>(table_, d_keys, d_vals, len);
-    }*/
+        accum_kernel<<<grid_size, BLOCK_SIZE_, 0, stream>>>(table_, d_keys,
+                                                            (const ValType*)d_vals_or_deltas, d_exists, len);
+    }
 
     size_t get_size(cudaStream_t stream) const{
         /* size variable on Host and device, total capacity of the hashtable */
@@ -510,7 +511,7 @@ public:
 
 private:
     static const int BLOCK_SIZE_ = 256;
-    using Table = concurrent_unordered_map<KeyType, ValType, empty_key>;
+    using Table = concurrent_unordered_map<KeyType, ValType, empty_key, DIM>;
 
     Table* table_;
 

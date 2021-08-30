@@ -36,13 +36,17 @@ from tensorflow.python.framework import dtypes
 from tensorflow.python.framework import ops
 from tensorflow.python.framework import sparse_tensor
 from tensorflow.python.framework import test_util
+from tensorflow.python.keras import initializers as kinit
 from tensorflow.python.keras import layers
 from tensorflow.python.keras import optimizer_v2
+from tensorflow.python.module import module
 from tensorflow.python.ops import array_ops
+from tensorflow.python.ops import embedding_ops
 from tensorflow.python.ops import init_ops
 from tensorflow.python.ops import math_ops
 from tensorflow.python.ops import nn
 from tensorflow.python.ops import random_ops
+from tensorflow.python.ops import resource_variable_ops
 from tensorflow.python.ops import script_ops
 from tensorflow.python.ops import variable_scope
 from tensorflow.python.ops import variables
@@ -50,6 +54,8 @@ from tensorflow.python.platform import test
 from tensorflow.python.training import adam
 from tensorflow.python.training import saver
 from tensorflow.python.training import server_lib
+from tensorflow.python.training.tracking import data_structures
+from tensorflow.python.training.tracking import util as track_util
 from tensorflow.python.util import compat
 
 
@@ -125,7 +131,8 @@ def model_fn(sparse_vars, embed_dim, feature_inputs):
     for inp_tensor in feature_inputs:
       embed_w, trainable = de.embedding_lookup(sp,
                                                inp_tensor,
-                                               return_trainable=True)
+                                               return_trainable=True,
+                                               name='nt9527')
       embedding_weights.append(embed_w)
       embedding_trainables.append(trainable)
 
@@ -278,42 +285,79 @@ def _create_dynamic_shape_tensor(
   return _func
 
 
+class TestGraph(object):
+
+  def __init__(self,
+               key_dtype,
+               value_dtype,
+               dim,
+               num_shards,
+               var_name,
+               devar_name,
+               run_id,
+               x=None):
+    self.key_dtype = key_dtype
+    self.value_dtype = value_dtype
+    self.dim = dim
+
+    # common define
+    init_ids = [0, 1, 2]
+    self.init_vals = np.random.rand(3, self.dim)
+    raw_ids = [1]
+    if x is None:
+      self.x = constant_op.constant(np.random.rand(self.dim, len(raw_ids)),
+                                    dtype=self.value_dtype)
+    else:
+      self.x = ops.convert_to_tensor(x, dtype=self.value_dtype)
+
+    # variable graph
+    self.var = resource_variable_ops.ResourceVariable(
+        name='t2021-' + var_name + str(run_id),
+        initial_value=self.init_vals,
+        dtype=self.value_dtype)
+    ids = constant_op.constant(raw_ids, dtype=self.key_dtype)
+    self.var_lookup = embedding_ops.embedding_lookup([self.var], ids)
+    self.var_pred = math_ops.matmul(self.var_lookup, self.x)
+    self.var_loss = self.var_pred * self.var_pred
+    self.var_opt_op = adam.AdamOptimizer(0.1).minimize(self.var_loss)
+
+    # deo variable graph
+    self.devar = de.get_variable(name='t2021-' + devar_name + str(run_id),
+                                 key_dtype=self.key_dtype,
+                                 value_dtype=self.value_dtype,
+                                 devices=_get_devices() * num_shards,
+                                 initializer=1.,
+                                 dim=dim)
+    self.devar_init_op = self.devar.upsert(
+        constant_op.constant(init_ids, dtype=self.key_dtype),
+        constant_op.constant(self.init_vals, dtype=self.value_dtype))
+    self.devar_lookup, self.detw = de.embedding_lookup([self.devar],
+                                                       ids,
+                                                       return_trainable=True)
+    self.devar_pred = math_ops.matmul(self.devar_lookup, self.x)
+    self.devar_loss = self.devar_pred * self.devar_pred
+    optmz = de.DynamicEmbeddingOptimizer(adam.AdamOptimizer(0.1))
+    self.devar_opt_op = optmz.minimize(self.devar_loss)
+    self.check_de_keys, self.check_de_values = self.devar.export()
+
+
+def _write_checkpoint(test, session):
+  save = saver.Saver()
+  ckpt_prefix = os.path.join(test.get_temp_dir(), 'model')
+  save.save(session, ckpt_prefix, global_step=0)
+
+
+def _get_meta_file(ckpt_dir):
+  for fname in os.listdir(ckpt_dir):
+    if fname.endswith(".meta"):
+      return os.path.join(ckpt_dir, fname)
+  else:
+    raise ValueError("No meta file found in {}.".format(ckpt_dir))
+
+
 default_config = config_pb2.ConfigProto(
     allow_soft_placement=False,
     gpu_options=config_pb2.GPUOptions(allow_growth=True))
-
-
-@test_util.run_all_in_graph_and_eager_modes
-class GraphKeysTest(test.TestCase):
-
-  def test_GraphKeys(self):
-    v0 = de.Variable(key_dtype=dtypes.int64,
-                     value_dtype=dtypes.float32,
-                     initializer=0.0,
-                     name="v0")
-    v1 = de.Variable(key_dtype=dtypes.int64,
-                     value_dtype=dtypes.float32,
-                     initializer=0.0,
-                     name="v1",
-                     trainable=False)
-    v2 = de.get_variable(
-        "v2",
-        key_dtype=dtypes.int64,
-        value_dtype=dtypes.float32,
-        initializer=init_ops.zeros_initializer,
-        dim=10,
-    )
-    v3 = de.get_variable("v3",
-                         key_dtype=dtypes.int64,
-                         value_dtype=dtypes.float32,
-                         initializer=init_ops.zeros_initializer,
-                         dim=10,
-                         trainable=False)
-    de_vars = ops.get_collection(de.GraphKeys.DYNAMIC_EMBEDDING_VARIABLES)
-    self.assertSetEqual(set([v0, v1, v2, v3]), set(de_vars))
-    de_trainable_vars = ops.get_collection(
-        de.GraphKeys.TRAINABLE_DYNAMIC_EMBEDDING_VARIABLES)
-    self.assertAllEqual(set([v0, v2]), set(de_trainable_vars))
 
 
 @test_util.run_all_in_graph_and_eager_modes
@@ -389,6 +433,95 @@ class VariableTest(test.TestCase):
 
         del table
 
+  def test_variable_find_with_exists_and_accum(self):
+    id = 0
+    if test_util.is_gpu_available():
+      dim_list = [1, 2, 4, 8, 10, 16, 32, 64, 100, 200]
+      kv_list = [[dtypes.int64, dtypes.float32], [dtypes.int64, dtypes.int32],
+                 [dtypes.int64, dtypes.half], [dtypes.int64, dtypes.int8]]
+    else:
+      dim_list = [1, 8, 16, 128]
+      kv_list = [[dtypes.int32, dtypes.double], [dtypes.int32, dtypes.float32],
+                 [dtypes.int32, dtypes.int32], [dtypes.int64, dtypes.double],
+                 [dtypes.int64, dtypes.float32], [dtypes.int64, dtypes.int32],
+                 [dtypes.int64, dtypes.int64], [dtypes.int64, dtypes.int8],
+                 [dtypes.int64, dtypes.half], [dtypes.string, dtypes.double],
+                 [dtypes.string, dtypes.float32], [dtypes.string, dtypes.int32],
+                 [dtypes.string, dtypes.int64], [dtypes.string, dtypes.int8],
+                 [dtypes.string, dtypes.half]]
+
+    def _convert(v, t):
+      return np.array(v).astype(_type_converter(t))
+
+    for (key_dtype, value_dtype), dim in itertools.product(kv_list, dim_list):
+      id += 1
+      with self.session(config=default_config,
+                        use_gpu=test_util.is_gpu_available()) as sess:
+        base_keys = constant_op.constant(
+            np.array([0, 1, 2, 3]).astype(_type_converter(key_dtype)),
+            key_dtype)
+        base_values = constant_op.constant(
+            _convert([[0] * dim, [1] * dim, [2] * dim, [3] * dim], value_dtype),
+            value_dtype)
+
+        simulate_other_process_add_keys = constant_op.constant(
+            np.array([100]).astype(_type_converter(key_dtype)), key_dtype)
+        simulate_other_process_add_vals = constant_op.constant(
+            _convert([
+                [99] * dim,
+            ], value_dtype), value_dtype)
+
+        simulate_other_process_remove_keys = constant_op.constant(
+            np.array([1]).astype(_type_converter(key_dtype)), key_dtype)
+        accum_keys = constant_op.constant(
+            np.array([0, 1, 100, 3]).astype(_type_converter(key_dtype)),
+            key_dtype)
+        old_values = constant_op.constant(
+            _convert([[0] * dim, [1] * dim, [2] * dim, [3] * dim], value_dtype),
+            value_dtype)
+        new_values = constant_op.constant(
+            _convert([[10] * dim, [11] * dim, [100] * dim, [13] * dim],
+                     value_dtype), value_dtype)
+        exported_exists = constant_op.constant([True, True, False, True],
+                                               dtype=dtypes.bool)
+
+        table = de.get_variable('taccum1-' + str(id),
+                                key_dtype=key_dtype,
+                                value_dtype=value_dtype,
+                                initializer=np.array([-1]).astype(
+                                    _type_converter(value_dtype)),
+                                dim=dim)
+
+        self.assertAllEqual(0, self.evaluate(table.size()))
+
+        self.evaluate(table.upsert(base_keys, base_values))
+        _, exists = table.lookup(accum_keys, return_exists=True)
+        self.assertAllEqual(self.evaluate(exported_exists),
+                            self.evaluate(exists))
+        # Simulate multi-process situation that other process operated table,
+        # between lookup and accum in this process.
+        self.evaluate(
+            table.upsert(simulate_other_process_add_keys,
+                         simulate_other_process_add_vals))
+        self.evaluate(table.remove(simulate_other_process_remove_keys))
+        self.assertAllEqual(4, self.evaluate(table.size()))
+        self.evaluate(
+            table.accum(accum_keys, old_values, new_values, exported_exists))
+
+        exported_keys, exported_values = table.export()
+
+        # exported data is in the order of the internal map, i.e. undefined
+        sorted_keys = np.sort(self.evaluate(exported_keys), axis=0)
+        sorted_values = np.sort(self.evaluate(exported_values), axis=0)
+        self.assertAllEqual(
+            np.sort(_convert([0, 2, 3, 100], key_dtype), axis=0),
+            _convert(sorted_keys, key_dtype))
+        self.assertAllEqual(
+            _convert([[2] * dim, [10] * dim, [13] * dim, [99] * dim],
+                     value_dtype), _convert(sorted_values, value_dtype))
+
+        del table
+
   def test_variable_initializer(self):
     id = 0
     for initializer, target_mean, target_stddev in [
@@ -415,6 +548,8 @@ class VariableTest(test.TestCase):
         self.assertAllClose(target_stddev, stddev, rtol, atol)
 
   def test_save_restore(self):
+    if context.executing_eagerly():
+      self.skipTest('skip eager test when using legacy Saver.')
     save_dir = os.path.join(self.get_temp_dir(), "save_restore")
     save_path = os.path.join(tempfile.mkdtemp(prefix=save_dir), "hash")
 
@@ -486,6 +621,8 @@ class VariableTest(test.TestCase):
       del table
 
   def test_save_restore_only_table(self):
+    if context.executing_eagerly():
+      self.skipTest('skip eager test when using legacy Saver.')
     save_dir = os.path.join(self.get_temp_dir(), "save_restore")
     save_path = os.path.join(tempfile.mkdtemp(prefix=save_dir), "hash")
 
@@ -508,7 +645,7 @@ class VariableTest(test.TestCase):
           checkpoint=True,
       )
 
-      save = saver.Saver([table])
+      save = saver.Saver(table.tables)
       self.evaluate(variables.global_variables_initializer())
 
       # Check that the parameter nodes have been initialized.
@@ -558,6 +695,8 @@ class VariableTest(test.TestCase):
       del table
 
   def test_training_save_restore(self):
+    if context.executing_eagerly():
+      self.skipTest('skip eager test when using legacy Saver.')
     opt = de.DynamicEmbeddingOptimizer(adam.AdamOptimizer(0.3))
     id = 0
     if test_util.is_gpu_available():
@@ -586,15 +725,22 @@ class VariableTest(test.TestCase):
           initializer=init_ops.random_normal_initializer(0.0, 0.01),
           dim=dim,
       )
-      _, var0 = de.embedding_lookup(params, ids, return_trainable=True)
+      _, var0 = de.embedding_lookup(params,
+                                    ids,
+                                    return_trainable=True,
+                                    name='ff9800')
 
       def loss():
         return var0 * var0
 
       params_keys, params_vals = params.export()
       mini = opt.minimize(loss, var_list=[var0])
-      opt_slots = [opt.get_slot(var0, _s) for _s in opt.get_slot_names()]
-      _saver = saver.Saver([params] + [_s.params for _s in opt_slots])
+      opt_slots = params.get_slot_variables(opt)
+      saveable_tables = []
+      saveable_tables.extend(params.tables)
+      for _s in opt_slots:
+        saveable_tables.extend(_s.tables)
+      _saver = saver.Saver(saveable_tables)
 
       with self.session(config=default_config,
                         use_gpu=test_util.is_gpu_available()) as sess:
@@ -604,7 +750,7 @@ class VariableTest(test.TestCase):
         size_before_saved = self.evaluate(params.size())
         np_params_keys_before_saved = self.evaluate(params_keys)
         np_params_vals_before_saved = self.evaluate(params_vals)
-        opt_slots_kv_pairs = [_s.params.export() for _s in opt_slots]
+        opt_slots_kv_pairs = [_s.export() for _s in opt_slots]
         np_slots_kv_pairs_before_saved = [
             self.evaluate(_kv) for _kv in opt_slots_kv_pairs
         ]
@@ -621,7 +767,7 @@ class VariableTest(test.TestCase):
         np_params_keys_after_restored = self.evaluate(params_keys_restored)
         np_params_vals_after_restored = self.evaluate(params_vals_restored)
 
-        opt_slots_kv_pairs_restored = [_s.params.export() for _s in opt_slots]
+        opt_slots_kv_pairs_restored = [_s.export() for _s in opt_slots]
         np_slots_kv_pairs_after_restored = [
             self.evaluate(_kv) for _kv in opt_slots_kv_pairs_restored
         ]
@@ -646,6 +792,168 @@ class VariableTest(test.TestCase):
           )
         if test_util.is_gpu_available():
           self.assertTrue("GPU" in params.tables[0].resource_handle.device)
+
+  def test_import_meta_graph_from_checkpoint(self):
+    ops.disable_eager_execution()
+    keys_dtype_list = [dtypes.int64]
+    values_dtype_list = [dtypes.float32]
+
+    run_id = 0
+    for num_shards, k_dtype, d_dtype, init_mode, dim, run_step in itertools.product(
+        [2],
+        keys_dtype_list,
+        values_dtype_list,
+        ['constant'],
+        [1, 10],
+        [10],
+    ):
+      run_id += 1
+      with ops.Graph().as_default() as g:
+        with self.session(graph=g,
+                          config=default_config,
+                          use_gpu=test_util.is_gpu_available()) as sess:
+          test_graph = TestGraph(k_dtype, d_dtype, dim, num_shards, 'var',
+                                 'dvar', run_id)
+          self.evaluate(variables.global_variables_initializer())
+          sess.run([test_graph.devar_init_op])
+          for _ in range(run_step):
+            sess.run([test_graph.var_opt_op, test_graph.devar_opt_op])
+          var_loss_name = test_graph.var_loss.name
+          devar_loss_name = test_graph.devar_loss.name
+          prev_var_loss, prev_devar_loss = sess.run(
+              [var_loss_name, devar_loss_name])
+          check_de_keys_op_name = test_graph.check_de_keys.name
+          prev_keys = sorted(sess.run(check_de_keys_op_name))
+
+          self.assertAllCloseAccordingToType(
+              prev_var_loss,
+              prev_devar_loss,
+              msg='Cond:{},{},{},{},{},{}'.format(num_shards, k_dtype, d_dtype,
+                                                  init_mode, dim, run_step))
+          _write_checkpoint(self, sess)
+      with ops.Graph().as_default() as g:
+        with self.session(graph=g,
+                          config=default_config,
+                          use_gpu=test_util.is_gpu_available()) as sess:
+          ckpt_dir = self.get_temp_dir()
+          save = saver.import_meta_graph(_get_meta_file(ckpt_dir))
+          save.restore(sess, saver.latest_checkpoint(ckpt_dir))
+
+          keys = sorted(sess.run(check_de_keys_op_name))
+          var_loss, devar_loss = sess.run([var_loss_name, devar_loss_name])
+
+      self.assertAllEqual(prev_keys, keys)
+      self.assertAllCloseAccordingToType(var_loss,
+                                         prev_var_loss,
+                                         msg='Cond:{},{},{},{},{},{}'.format(
+                                             num_shards, k_dtype, d_dtype,
+                                             init_mode, dim, run_step))
+      self.assertAllCloseAccordingToType(devar_loss,
+                                         prev_devar_loss,
+                                         msg='Cond:{},{},{},{},{},{}'.format(
+                                             num_shards, k_dtype, d_dtype,
+                                             init_mode, dim, run_step))
+
+  def test_fail_to_write_checkpoint_for_loaded_meta_graph(self):
+    run_id = 0
+    for num_shards, k_dtype, d_dtype, init_mode, dim, run_step in itertools.product(
+        [2],
+        [dtypes.int64],
+        [dtypes.float32],
+        ['constant'],
+        [1, 10],
+        [10],
+    ):
+      run_id += 1
+    with ops.Graph().as_default() as g:
+      with self.session(graph=g,
+                        use_gpu=test_util.is_gpu_available(),
+                        config=default_config) as sess:
+        graph = TestGraph(k_dtype, d_dtype, dim, num_shards, 'var', 'devar',
+                          run_id)
+        self.evaluate(variables.global_variables_initializer())
+        sess.run([graph.devar_init_op])
+        sess.run([graph.var_opt_op, graph.devar_opt_op])
+        _write_checkpoint(self, sess)
+
+    with ops.Graph().as_default() as g:
+      with self.session(graph=g,
+                        use_gpu=test_util.is_gpu_available(),
+                        config=default_config) as sess:
+        ckpt_dir = self.get_temp_dir()
+        save = saver.import_meta_graph(_get_meta_file(ckpt_dir))
+        save.restore(sess, saver.latest_checkpoint(ckpt_dir))
+        with self.assertRaises(TypeError) as te:
+          _write_checkpoint(self, sess)
+          self.assertStartsWith(te.exception, "Can't convert Operation")
+
+  def test_object_oriented_checkpoint(self):
+    if not context.executing_eagerly():
+      self.skipTest('Skip legacy mode for object oriented checkpoint.')
+
+    class TestModel(module.Module):
+
+      def __init__(self):
+        self.devar_name = '_devar'
+        self.devar = de.get_variable(self.devar_name,
+                                     dim=2,
+                                     initializer=kinit.RandomNormal(-1, 1))
+        self.trainables = data_structures.NoDependency([])
+        self.optmz = de.DynamicEmbeddingOptimizer(optimizer_v2.adam.Adam(0.1))
+        self.slot_vars = []
+
+      def __call__(self, x):
+        embed, tw = de.embedding_lookup(self.devar,
+                                        x,
+                                        return_trainable=True,
+                                        name='ojo2021')
+        if not self.trainables:
+          self.trainables.append(tw)
+        loss = math_ops.reduce_sum(embed)
+        return loss
+
+      def train(self, x):
+
+        def _loss_fn():
+          return self(x)
+
+        self.optmz.minimize(_loss_fn, var_list=self.trainables)
+        if not self.slot_vars:
+          self.slot_vars += self.devar.get_slot_variables(self.optmz)
+
+    with self.session(use_gpu=test_util.is_gpu_available(),
+                      config=default_config):
+      model1 = TestModel()
+      features = constant_op.constant([1, 2, 3], dtype=dtypes.int64)
+      for _ in range(5):
+        model1.train(features)
+      loss1 = model1(features)
+      keys1, vals1 = model1.devar.export()
+      slot_keys_and_vals1 = [sv.export() for sv in model1.slot_vars]
+
+      ckpt1 = track_util.Checkpoint(model=model1, optimizer=model1.optmz)
+      ckpt_dir = self.get_temp_dir()
+      model_path = ckpt1.save(ckpt_dir)
+      del model1
+
+      model2 = TestModel()
+      ckpt2 = track_util.Checkpoint(model=model2, optimizer=model2.optmz)
+      model2.train(features)  # Pre-build trace before restore.
+      ckpt2.restore(model_path)
+      loss2 = model2(features)
+      keys2, vals2 = model2.devar.export()
+      slot_keys_and_vals2 = [sv.export() for sv in model2.slot_vars]
+      del model2
+
+      self.assertAllEqual(loss1, loss2)
+      self.assertAllEqual(keys1, keys2)
+      self.assertAllEqual(vals1, vals2)
+
+      for i in range(len(slot_keys_and_vals1)):
+        self.assertAllEqual(slot_keys_and_vals1[i][0],
+                            slot_keys_and_vals2[i][0])
+        self.assertAllEqual(slot_keys_and_vals1[i][1],
+                            slot_keys_and_vals2[i][1])
 
   def test_get_variable(self):
     with self.session(
@@ -1174,11 +1482,8 @@ class VariableTest(test.TestCase):
     self.assertAllEqual(var_sizes, [num_reserved, num_reserved])
 
     slot_params = []
-    for _trainable in trainables:
-      slot_params += [
-          optmz.get_slot(_trainable, name).params
-          for name in optmz.get_slot_names()
-      ]
+    for spv in sparse_vars:
+      slot_params += spv.get_slot_variables(optmz)
     slot_params = list(set(slot_params))
 
     for sp in slot_params:
@@ -1241,11 +1546,8 @@ class VariableTest(test.TestCase):
     self.assertAllEqual(var_sizes, [num_reserved, num_reserved])
 
     slot_params = []
-    for _trainable in trainables:
-      slot_params += [
-          optmz.get_slot(_trainable, name).params
-          for name in optmz.get_slot_names()
-      ]
+    for spv in sparse_vars:
+      slot_params += spv.get_slot_variables(optmz)
     slot_params = list(set(slot_params))
 
     for sp in slot_params:
@@ -1254,6 +1556,44 @@ class VariableTest(test.TestCase):
                         num_reserved)
     self.assertAllEqual(var_guard_by_freq.restrict_policy.status.size(),
                         num_reserved)
+
+  def test_get_slot_variables(self):
+    var = de.get_variable('trl4397',
+                          key_dtype=dtypes.int64,
+                          value_dtype=dtypes.float32,
+                          restrict_policy=de.TimestampRestrictPolicy)
+    ids = constant_op.constant([1, 2, 3], dtype=dtypes.int64)
+
+    def loss_fn(name, tws=[]):
+      embed, tw = de.embedding_lookup(var,
+                                      ids,
+                                      return_trainable=True,
+                                      name=name)
+      tws.clear()
+      tws.append(tw)
+      loss = math_ops.reduce_sum(embed)
+      return loss
+
+    opt1 = de.DynamicEmbeddingOptimizer(adam.AdamOptimizer(0.1))
+    opt2 = de.DynamicEmbeddingOptimizer(optimizer_v2.adam.Adam(0.1))
+
+    tws = []
+    if context.executing_eagerly():
+      opt1.minimize(lambda: loss_fn('g1', tws), var_list=tws)
+      opt2.minimize(lambda: loss_fn('g2', tws), var_list=tws)
+    else:
+      opt1.minimize(loss_fn('g1', tws), var_list=tws)
+      opt2.minimize(lambda: loss_fn('g2', tws), var_list=tws)
+
+    result = [v.name for v in var.get_slot_variables(opt1)]
+    expect = sorted([v.params.name for v in list(opt1._slots['m'].values())] +
+                    [v.params.name for v in list(opt1._slots['v'].values())])
+    self.assertAllEqual(result, expect)
+
+    result = [v.name for v in var.get_slot_variables(opt2)]
+    expect = sorted([v['m'].params.name for v in list(opt2._slots.values())] +
+                    [v['v'].params.name for v in list(opt2._slots.values())])
+    self.assertAllEqual(result, expect)
 
 
 if __name__ == "__main__":

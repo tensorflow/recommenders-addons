@@ -143,7 +143,10 @@ class TimestampRestrictPolicyV1Test(test.TestCase, RestrictPolicyV1TestBase):
                             initializer=-0.1,
                             init_size=256,
                             dim=2)
-      embed_w, trainable = de.embedding_lookup(var, ids, return_trainable=True)
+      embed_w, trainable = de.embedding_lookup(var,
+                                               ids,
+                                               return_trainable=True,
+                                               name='wf7843')
       policy = de.TimestampRestrictPolicy(var)
       update_op = policy.apply_update(ids)
 
@@ -179,7 +182,10 @@ class TimestampRestrictPolicyV1Test(test.TestCase, RestrictPolicyV1TestBase):
                             initializer=-0.1,
                             dim=embedding_dim,
                             restrict_policy=de.TimestampRestrictPolicy)
-      embed_w, trainable = de.embedding_lookup(var, ids, return_trainable=True)
+      embed_w, trainable = de.embedding_lookup(var,
+                                               ids,
+                                               return_trainable=True,
+                                               name='ut8900')
       loss = _simple_loss(embed_w)
       train_op = optimizer.minimize(loss, var_list=[trainable])
 
@@ -233,7 +239,10 @@ class FrequencyRestrictPolicyV1Test(test.TestCase, RestrictPolicyV1TestBase):
                             value_dtype=dtypes.float32,
                             initializer=-0.1,
                             dim=2)
-      embed_w, trainable = de.embedding_lookup(var, ids, return_trainable=True)
+      embed_w, trainable = de.embedding_lookup(var,
+                                               ids,
+                                               return_trainable=True,
+                                               name='pl3201')
       policy = de.FrequencyRestrictPolicy(var)
       update_op = policy.apply_update(ids)
 
@@ -269,7 +278,10 @@ class FrequencyRestrictPolicyV1Test(test.TestCase, RestrictPolicyV1TestBase):
                             initializer=-0.1,
                             dim=embedding_dim,
                             restrict_policy=de.FrequencyRestrictPolicy)
-      embed_w, trainable = de.embedding_lookup(var, ids, return_trainable=True)
+      embed_w, trainable = de.embedding_lookup(var,
+                                               ids,
+                                               return_trainable=True,
+                                               name='bd7482')
       loss = _simple_loss(embed_w)
       train_op = optimizer.minimize(loss, var_list=[trainable])
 
@@ -401,7 +413,8 @@ class TimestampRestrictPolicyV2Test(test.TestCase, RestrictPolicyV2TestBase):
                             dim=2)
       embed_w, trainable = de.embedding_lookup(var,
                                                first_inputs,
-                                               return_trainable=True)
+                                               return_trainable=True,
+                                               name='re0212')
       policy = de.TimestampRestrictPolicy(var)
 
       self.assertAllEqual(policy.status.size(), 0)
@@ -442,7 +455,8 @@ class TimestampRestrictPolicyV2Test(test.TestCase, RestrictPolicyV2TestBase):
       def loss_fn(var, features, trainables):
         embed_w, trainable = de.embedding_lookup(var,
                                                  features,
-                                                 return_trainable=True)
+                                                 return_trainable=True,
+                                                 name='on9667')
         trainables.clear()
         trainables.append(trainable)
         return _simple_loss(embed_w)
@@ -502,7 +516,8 @@ class FrequencyRestrictPolicyV2Test(test.TestCase, RestrictPolicyV2TestBase):
                             dim=2)
       embed_w, trainable = de.embedding_lookup(var,
                                                first_inputs,
-                                               return_trainable=True)
+                                               return_trainable=True,
+                                               name='vc3939')
       policy = de.FrequencyRestrictPolicy(var)
 
       self.assertAllEqual(policy.status.size(), 0)
@@ -543,7 +558,8 @@ class FrequencyRestrictPolicyV2Test(test.TestCase, RestrictPolicyV2TestBase):
       def loss_fn(var, features, trainables):
         embed_w, trainable = de.embedding_lookup(var,
                                                  features,
-                                                 return_trainable=True)
+                                                 return_trainable=True,
+                                                 name='vt2231')
         trainables.clear()
         trainables.append(trainable)
         return _simple_loss(embed_w)

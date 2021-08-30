@@ -23,7 +23,7 @@ the repo.*
 
 TensorFlow Recommenders Addons is a community-led open source project. As such,
 the project depends on public contributions, bug fixes, and documentation. This
-project adheres to TensorFlow's Code of Conduct. 
+project adheres to TensorFlow's Code of Conduct.
 
 ### Pull Requests
 We welcome contributions via pull requests.
@@ -31,6 +31,11 @@ Before sending out a pull request, we recommend that you open an issue and
 discuss your proposed change. Some changes may require a design review.
 All submissions require review by project owners or TensorFlow Recommenders SIG
 leads.
+
+**NOTE**:
+If your PR cannot be mereged, and system indicate you like "Merging is blocked, 
+The base branch requres all commits to be signed'
+You have to configure your git and GPG key to sign your commit. [Sign your commit with GPG key](https://docs.github.com/en/github/authenticating-to-github/managing-commit-signature-verification/about-commit-signature-verification#gpg-commit-signature-verification) .
 
 ### Design Review
 A new project in this repository or a significant change to an existing project

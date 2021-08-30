@@ -22,6 +22,8 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import functools
+
 from tensorflow_recommenders_addons import dynamic_embedding as de
 
 try:
@@ -34,6 +36,7 @@ from tensorflow.python.eager import context
 from tensorflow.python.framework import constant_op
 from tensorflow.python.framework import dtypes
 from tensorflow.python.framework import ops
+from tensorflow.python.keras.optimizer_v2.optimizer_v2 import OptimizerV2
 from tensorflow.python.ops import array_ops
 from tensorflow.python.ops import bitwise_ops
 from tensorflow.python.ops import control_flow_ops
@@ -44,7 +47,10 @@ from tensorflow.python.ops import math_ops
 from tensorflow.python.ops import string_ops
 from tensorflow.python.ops import variable_scope
 from tensorflow.python.platform import tf_logging
-from tensorflow.python.training.tracking import tracking as trackable
+from tensorflow.python.training.optimizer import Optimizer
+from tensorflow.python.training.tracking import base
+from tensorflow.python.training.tracking import data_structures
+from tensorflow.python.training.tracking import python_state
 from tensorflow.python.util.tf_export import tf_export
 
 
@@ -115,23 +121,31 @@ def default_partition_fn(keys, shard_num):
 
 
 class GraphKeys(object):
-  """Extended standard names related to `dynamic_embedding_ops.Variable` to use
-  for graph collections.
-
+  """
+  (Deprecated) extended standard names related to
+  `dynamic_embedding_ops.Variable` to use for graph collections.
   The following standard keys are defined:
-
   * `DYNAMIC_EMBEDDING_VARIABLES`: the default collection of
     all `dynamic_embedding_ops.Variable` objects.
   * `TRAINABLE_DYNAMIC_EMBEDDING_VARIABLES`: the subset of
     `dynamic_embedding_ops.Variable` that is trainable.
   """
+  tf_logging.warn(
+      'dynamic_embedding.GraphKeys has already been deprecated. '
+      'The Variable will not be added to collections because it '
+      'does not actully own any value, but only a holder of tables, '
+      'which may lead to import_meta_graph failed since non-valued '
+      'object has been added to collection. If you need to use '
+      '`tf.compat.v1.train.Saver` and access all Variables from '
+      'collection, you could manually add it to the collection by '
+      'tf.compat.v1.add_to_collections(names, var) instead.')
   # Dynamic embedding variables.
   DYNAMIC_EMBEDDING_VARIABLES = "dynamic_embedding_variables"
   # Trainable dynamic embedding variables.
   TRAINABLE_DYNAMIC_EMBEDDING_VARIABLES = "trainable_dynamic_embedding_variables"
 
 
-class Variable(trackable.TrackableResource):
+class Variable(base.Trackable):
   """
     A Distributed version of HashTable(reference from lookup_ops.MutableHashTable)
     It is designed to dynamically store the Sparse Weights(Parameters) of DLRMs.
@@ -156,6 +170,7 @@ class Variable(trackable.TrackableResource):
       estimate_size=False,
       export_path=None,
       restrict_policy=None,
+      bp_v2=False,
   ):
     """Creates an empty `Variable` object.
 
@@ -188,9 +203,8 @@ class Variable(trackable.TrackableResource):
           initializer: The value to use if a key is missing in the hash table.
             which can be a python number, numpy array or `tf.initializer` instances.
             If initializer is `None` (the default), `0` will be taken.
-          trainable: True, will be treated as a trainable Variable, and add to
-            to the list of variables collected in the graph under the key
-            `GraphKeys.TRAINABLE_VARIABLES`.
+          trainable: Bool. If true, the variable will be treated as a trainable.
+            Default is true.
           checkpoint: if True, the contents of the SparseVariable are
             saved to and restored from checkpoints.
             If `shared_name` is empty for a checkpointed table,
@@ -201,6 +215,14 @@ class Variable(trackable.TrackableResource):
             size of variable. If in training program, the variable is updated by
             optimizer, then the sparse slot variables in optimizer are also be
             restricted.
+          bp_v2: By default with `bp_v2=False`, the optimizer will update
+            dynamic embedding values by *setting* (key, value) after
+            `optimizer.apply_gradient`. If one key is used by multiple workers
+            at the same time, only one of them will be seen, while the others are
+            overwritten. By setting `bp_v2=True`, the optimizer will update
+            parameters by *adding delta* instead of *setting*, which solves the
+            race condition problem among workers during backpropagation in
+            large-scale distributed asynchronous training.
 
         Returns:
           A `Variable` object.
@@ -208,6 +230,7 @@ class Variable(trackable.TrackableResource):
     self.key_dtype = key_dtype
     self.value_dtype = value_dtype
     self.dim = dim
+    self.bp_v2 = bp_v2
 
     def _get_default_devices():
       gpu_list = [
@@ -232,8 +255,12 @@ class Variable(trackable.TrackableResource):
     self.trainable = trainable
     self.checkpoint = checkpoint
 
-    self._tables = []
+    self._tables = data_structures.ListWrapper([])
+    self._track_trackable(self._tables,
+                          'tables_of_{}'.format(self.name),
+                          overwrite=True)
     self.size_ops = []
+    self._trainable_store = {}
 
     self.database_path = database_path
     self.embedding_name = embedding_name
@@ -298,12 +325,6 @@ class Variable(trackable.TrackableResource):
               )
 
             self._tables.append(mht)
-    super(Variable, self).__init__()
-
-    ops.add_to_collection(de.GraphKeys.DYNAMIC_EMBEDDING_VARIABLES, self)
-    if trainable:
-      ops.add_to_collections(de.GraphKeys.TRAINABLE_DYNAMIC_EMBEDDING_VARIABLES,
-                             self)
 
   @property
   def tables(self):
@@ -328,9 +349,6 @@ class Variable(trackable.TrackableResource):
     init = math_ops.cast(init, dtype=self.value_dtype)
     return init
 
-  def _create_resource(self):
-    raise NotImplementedError
-
   def _make_name(self, table_idx):
     return "{}_mht_{}of{}".format(self.name.replace("/", "_"), table_idx + 1,
                                   self.shard_num)
@@ -343,8 +361,8 @@ class Variable(trackable.TrackableResource):
         Args:
           keys: Keys to insert. Can be a tensor of any shape. Must match the table's
             key type.
-          values: Values to be associated with keys. Must be a tensor of the same
-            shape as `keys` and match the table's value type.
+          values: Values to be associated with keys.Must be a tensor of
+            arrays with same shape as `keys` and match the table's value type.
           name: A name for the operation (optional).
 
         Returns:
@@ -366,6 +384,56 @@ class Variable(trackable.TrackableResource):
         ops_.append(self._tables[idx].insert(keys_partitions[idx],
                                              values_partitions[idx],
                                              name=name))
+
+    return control_flow_ops.group(ops_)
+
+  def accum(self, keys, old_values, new_values, exists, name=None):
+    """
+    Insert `keys` with `values` if not exist, or accumulate a delta value
+      `new_values - old_values` to 'keys'.
+    This API will help relieve stale gradient problem in asynchronous training.
+
+    Args:
+      keys: Keys to insert. Can be a tensor of any shape. Must match
+        the table's key type.
+      old_values: old values to be associated with keys. Must be a tensor of
+        arrays with same shape as `keys` and match the table's value type.
+      new_values: new values to be associated with keys. Must be a tensor of
+        arrays with same shape as `keys` and match the table's value type.
+      exists: A bool type tensor indicates if keys existed or not.
+        Must be a tensor of the same shape as `keys`.
+      name: A name for the operation (optional).
+
+    Returns:
+      The created Operation.
+
+    Raises:
+      TypeError: when `keys` or `values` doesn't match the table data types.
+    """
+    exists = ops.convert_to_tensor(exists, dtypes.bool, name="original_exists")
+    exists = array_ops.reshape(exists, shape=[-1, 1])
+    exists_expanded = array_ops.repeat(exists, axis=-1, repeats=self.dim)
+    exists_expanded = array_ops.reshape(exists_expanded,
+                                        shape=array_ops.shape(old_values))
+    values_or_deltas = array_ops.where(exists_expanded,
+                                       new_values - old_values,
+                                       new_values,
+                                       name="values_or_deltas")
+    partition_index = self.partition_fn(keys, self.shard_num)
+    keys_partitions, _ = make_partition(keys, partition_index, self.shard_num)
+    values_or_deltas_partitions, _ = make_partition(values_or_deltas,
+                                                    partition_index,
+                                                    self.shard_num)
+    exists_partitions, _ = make_partition(exists, partition_index,
+                                          self.shard_num)
+
+    ops_ = []
+    for idx in range(len(self.devices)):
+      with ops.device(self.devices[idx]):
+        ops_.append(self._tables[idx].accum(keys_partitions[idx],
+                                            values_or_deltas_partitions[idx],
+                                            exists_partitions[idx],
+                                            name=name))
 
     return control_flow_ops.group(ops_)
 
@@ -444,25 +512,33 @@ class Variable(trackable.TrackableResource):
           format(str(self.name), str(e)))
     return init_op
 
-  def lookup(self, keys, name=None):
-    """Looks up `keys` in a Variable, outputs the corresponding values.
+  def lookup(self, keys, return_exists=False, name=None):
+    """
+    Looks up `keys` in a Variable, outputs the corresponding values.
 
-        The `default_value` is used for keys not present in the table.
+    The `default_value` is used for keys not present in the table.
 
-        Args:
-          keys: Keys to look up. Can be a tensor of any shape. Must match the
-            table's key_dtype.
-          name: A name for the operation (optional).
+    Args:
+      keys: Keys to look up. Can be a tensor of any shape. Must match the
+        table's key_dtype.
+      return_exists: if True, will return a additional Tensor which indicates
+        if keys are existing in the table.
+      name: A name for the operation (optional).
 
-        Returns:
-          A tensor containing the values in the same shape as `keys` using the
-            table's value type.
-        """
+    Returns:
+      A tensor containing the values in the same shape as `keys` using the
+        table's value type.
+      exists:
+        A bool type Tensor of the same shape as `keys` which indicates
+          if keys are existing in the table.
+          Only provided if `return_exists` is True.
+    """
     partition_index = self.partition_fn(keys, self.shard_num)
     keys_partitions, keys_indices = make_partition(keys, partition_index,
                                                    self.shard_num)
 
-    ops_ = []
+    _values = []
+    _exists = []
     for idx in range(len(self.devices)):
       with ops.device(self.devices[idx]):
         dynamic_default_values = self._create_default_values_by_initializer(
@@ -470,13 +546,24 @@ class Variable(trackable.TrackableResource):
         if dynamic_default_values is not None:
           dynamic_default_values = math_ops.cast(dynamic_default_values,
                                                  self.value_dtype)
-        ops_.append(self._tables[idx].lookup(
+
+        ops_ = None
+        ops_ = self._tables[idx].lookup(
             keys_partitions[idx],
             dynamic_default_values=dynamic_default_values,
+            return_exists=return_exists,
             name=name,
-        ))
-    result = _stitch(ops_, keys_indices)
+        )
+        if return_exists:
+          _values.append(ops_[0])
+          _exists.append(ops_[1])
+        else:
+          _values.append(ops_)
 
+    if return_exists:
+      result = (_stitch(_values, keys_indices), _stitch(_exists, keys_indices))
+    else:
+      result = _stitch(_values, keys_indices)
     return result
 
   def export(self, name=None):
@@ -522,16 +609,49 @@ class Variable(trackable.TrackableResource):
     return (self.size_ops[index]
             if index is not None else math_ops.add_n(self.size_ops))
 
+  def get_slot_variables(self, optimizer):
+    """
+    Get slot variables from optimizer. If Variable is trained by optimizer,
+    then it returns the variables in slots of optimizer, else return an empty
+    list.
+
+    Args:
+      optimizer: An optimizer under `tf.keras.optimizers` or `tf.compat.v1.train`.
+
+    Returns:
+      List of slot `Variable`s in optimizer.
+    """
+    if not isinstance(optimizer, (Optimizer, OptimizerV2)):
+      raise TypeError('Expect an optimizer, but get {}'.format(type(optimizer)))
+    slots = []
+    snames = optimizer.get_slot_names()
+    for tw in self._trainable_store.values():
+      for name in snames:
+        try:
+          s = optimizer.get_slot(tw, name)
+          slots.append(s.params)
+        except:
+          continue
+    return slots
+
   def _gather_saveables_for_checkpoint(self):
-    """For object-based checkpointing."""
-    saveables = dict()
-    for table in self._tables:
-      # pylint: disable=protected-access
-      saveable_dict = table._gather_saveables_for_checkpoint()
-      for (_, saveable) in saveable_dict.items():
-        # merge all tables saveable to one dict with their own name.
-        saveables[saveable.keywords["name"]] = saveable
-    return saveables
+    g = ops.get_default_graph()
+    if context.executing_eagerly() or g._functions:
+      return {
+          "py_state_de_var":
+              functools.partial(base.PythonStringStateSaveable,
+                                name=self.name,
+                                state_callback=lambda: self.name,
+                                restore_callback=lambda name: None)
+      }
+    else:
+      saveables = dict()
+      for table in self._tables:
+        saveable_dict = table._gather_saveables_for_checkpoint()
+        for (_, saveable) in saveable_dict.items():
+          # merge all tables saveable to one dict with their own name.
+          saveables[saveable.keywords["name"]] = saveable
+      return saveables
 
 
 @tf_export("dynamic_embedding.get_variable")
@@ -553,6 +673,7 @@ def get_variable(
     estimate_size=False,
     export_path=None,
     restrict_policy=None,
+    bp_v2=False,
 ):
   """Gets an `Variable` object with this name if it exists,
          or create a new one.
@@ -576,19 +697,26 @@ def get_variable(
       initializer: The value to use if a key is missing in the hash table.
         which can a python number, numpy array or `tf.initializer` instances.
         If initializer is `None` (the default), `0` will be used.
-      trainable: True, will be treated as a trainable Variable, and add to
-        to the list of variables collected in the graph under the key
-        `GraphKeys.TRAINABLE_VARIABLES`.
+      trainable: Bool. If true, the variable will be treated as a trainable.
+        Default is true.
       checkpoint: if True, the contents of the SparseVariable are
         saved to and restored from checkpoints.
         If `shared_name` is empty for a checkpointed table,
         it is shared using the table node name.
-      init_size: initial size for the Variable and initial size of each hash 
+      init_size: initial size for the Variable and initial size of each hash
         tables will be int(init_size / N), N is the number of the devices.
       restrict_policy: a restrict policy to specify the rule to restrict the
         size of variable. If in training program, the variable is updated by
         optimizer, then the sparse slot variables in optimizer are also be
         restricted.
+      bp_v2: By default with `bp_v2=False`, the optimizer will update
+        dynamic embedding values by *setting* (key, value) after
+        `optimizer.apply_gradient`. If one key is used by multiple workers
+        at the same time, only one of them will be seen, while the others are
+        overwritten. By setting `bp_v2=True`, the optimizer will update
+        parameters by *adding delta* instead of *setting*, which solves the
+        race condition problem among workers during backpropagation in
+        large-scale distributed asynchronous training.
 
     Returns:
       A `Variable` object.
@@ -623,6 +751,7 @@ def get_variable(
         estimate_size=estimate_size,
         export_path=export_path,
         restrict_policy=restrict_policy,
+        bp_v2=bp_v2,
     )
     scope_store._vars[full_name] = var_
   return scope_store._vars[full_name]

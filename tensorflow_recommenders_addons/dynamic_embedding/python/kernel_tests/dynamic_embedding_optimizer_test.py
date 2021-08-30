@@ -102,7 +102,7 @@ default_config = config_pb2.ConfigProto(
 
 class CommonTrainableTestV1Base(object):
 
-  def common_minimize_trainable(self, base_opt, test_opt, name):
+  def common_minimize_trainable(self, base_opt, test_opt, name, bp_v2):
     raise NotImplementedError
 
   def device_check(self, de):
@@ -113,13 +113,19 @@ class CommonTrainableTestV1Base(object):
   def test_adadelta_minimize_trainable(self):
     base_opt = adadelta.AdadeltaOptimizer(1.0)
     test_opt = adadelta.AdadeltaOptimizer(1.0)
-    self.common_minimize_trainable(base_opt, test_opt, name="adadelta")
+    self.common_minimize_trainable(base_opt,
+                                   test_opt,
+                                   name="adadelta",
+                                   bp_v2=False)
 
   @test_util.deprecated_graph_mode_only
   def test_adagrad_minimize_trainable(self):
     base_opt = adagrad.AdagradOptimizer(1.0)
     test_opt = adagrad.AdagradOptimizer(1.0)
-    self.common_minimize_trainable(base_opt, test_opt, name="adagrad")
+    self.common_minimize_trainable(base_opt,
+                                   test_opt,
+                                   name="adagrad",
+                                   bp_v2=False)
 
   @test_util.deprecated_graph_mode_only
   def test_adagradda_minimize_trainable(self):
@@ -127,43 +133,55 @@ class CommonTrainableTestV1Base(object):
 
     base_opt = adagrad_da.AdagradDAOptimizer(1.0, base_gs)
     test_opt = adagrad_da.AdagradDAOptimizer(1.0, base_gs)
-    self.common_minimize_trainable(base_opt, test_opt, name="adagrad_da")
+    self.common_minimize_trainable(base_opt,
+                                   test_opt,
+                                   name="adagrad_da",
+                                   bp_v2=False)
 
   @test_util.deprecated_graph_mode_only
   def test_ftrl_minimize_trainable(self):
     base_opt = ftrl.FtrlOptimizer(1.0)
     test_opt = ftrl.FtrlOptimizer(1.0)
-    self.common_minimize_trainable(base_opt, test_opt, name="ftrl")
+    self.common_minimize_trainable(base_opt, test_opt, name="ftrl", bp_v2=False)
 
   @test_util.deprecated_graph_mode_only
   def test_proximal_adagrad_minimize_trainable(self):
     base_opt = proximal_adagrad.ProximalAdagradOptimizer(1.0)
     test_opt = proximal_adagrad.ProximalAdagradOptimizer(1.0)
-    self.common_minimize_trainable(base_opt, test_opt, name="proximal_adagrad")
+    self.common_minimize_trainable(base_opt,
+                                   test_opt,
+                                   name="proximal_adagrad",
+                                   bp_v2=False)
 
   @test_util.deprecated_graph_mode_only
   def test_proximalsgd_minimize_trainable(self):
     base_opt = pgd.ProximalGradientDescentOptimizer(1.0)
     test_opt = pgd.ProximalGradientDescentOptimizer(1.0)
-    self.common_minimize_trainable(base_opt, test_opt, name="proximal_sgd")
+    self.common_minimize_trainable(base_opt,
+                                   test_opt,
+                                   name="proximal_sgd",
+                                   bp_v2=False)
 
   @test_util.deprecated_graph_mode_only
   def test_momentum_minimize_trainable(self):
     base_opt = momentum.MomentumOptimizer(1.0, momentum=0.9)
     test_opt = momentum.MomentumOptimizer(1.0, momentum=0.9)
-    self.common_minimize_trainable(base_opt, test_opt, name="momentum")
+    self.common_minimize_trainable(base_opt,
+                                   test_opt,
+                                   name="momentum",
+                                   bp_v2=False)
 
   @test_util.deprecated_graph_mode_only
   def test_sgd_minimize_trainable(self):
     base_opt = gradient_descent.GradientDescentOptimizer(1.0)
     test_opt = gradient_descent.GradientDescentOptimizer(1.0)
-    self.common_minimize_trainable(base_opt, test_opt, name="sgd")
+    self.common_minimize_trainable(base_opt, test_opt, name="sgd", bp_v2=False)
 
   @test_util.deprecated_graph_mode_only
   def test_adam_minimize_trainable(self):
     base_opt = adam.AdamOptimizer(1.0)
     test_opt = adam.AdamOptimizer(1.0)
-    self.common_minimize_trainable(base_opt, test_opt, name="adam")
+    self.common_minimize_trainable(base_opt, test_opt, name="adam", bp_v2=False)
 
   @test_util.deprecated_graph_mode_only
   def test_rmsprop_minimize_trainable(self):
@@ -172,7 +190,92 @@ class CommonTrainableTestV1Base(object):
       test_opt = rmsprop.RMSPropOptimizer(1.0, centered=centered_)
       self.common_minimize_trainable(base_opt,
                                      test_opt,
-                                     name="rmsprop" + str(centered_))
+                                     name="rmsprop" + str(centered_),
+                                     bp_v2=False)
+
+  @test_util.deprecated_graph_mode_only
+  def test_adadelta_minimize_trainable_bpv2(self):
+    base_opt = adadelta.AdadeltaOptimizer(1.0)
+    test_opt = adadelta.AdadeltaOptimizer(1.0)
+    self.common_minimize_trainable(base_opt,
+                                   test_opt,
+                                   name="adadelta",
+                                   bp_v2=True)
+
+  @test_util.deprecated_graph_mode_only
+  def test_adagrad_minimize_trainable_bpv2(self):
+    base_opt = adagrad.AdagradOptimizer(1.0)
+    test_opt = adagrad.AdagradOptimizer(1.0)
+    self.common_minimize_trainable(base_opt,
+                                   test_opt,
+                                   name="adagrad",
+                                   bp_v2=True)
+
+  @test_util.deprecated_graph_mode_only
+  def test_adagradda_minimize_trainable_bpv2(self):
+    base_gs = training_util.create_global_step()
+
+    base_opt = adagrad_da.AdagradDAOptimizer(1.0, base_gs)
+    test_opt = adagrad_da.AdagradDAOptimizer(1.0, base_gs)
+    self.common_minimize_trainable(base_opt,
+                                   test_opt,
+                                   name="adagrad_da",
+                                   bp_v2=True)
+
+  @test_util.deprecated_graph_mode_only
+  def test_ftrl_minimize_trainable_bpv2(self):
+    base_opt = ftrl.FtrlOptimizer(1.0)
+    test_opt = ftrl.FtrlOptimizer(1.0)
+    self.common_minimize_trainable(base_opt, test_opt, name="ftrl", bp_v2=True)
+
+  @test_util.deprecated_graph_mode_only
+  def test_proximal_adagrad_minimize_trainable_bpv2(self):
+    base_opt = proximal_adagrad.ProximalAdagradOptimizer(1.0)
+    test_opt = proximal_adagrad.ProximalAdagradOptimizer(1.0)
+    self.common_minimize_trainable(base_opt,
+                                   test_opt,
+                                   name="proximal_adagrad",
+                                   bp_v2=True)
+
+  @test_util.deprecated_graph_mode_only
+  def test_proximalsgd_minimize_trainable_bpv2(self):
+    base_opt = pgd.ProximalGradientDescentOptimizer(1.0)
+    test_opt = pgd.ProximalGradientDescentOptimizer(1.0)
+    self.common_minimize_trainable(base_opt,
+                                   test_opt,
+                                   name="proximal_sgd",
+                                   bp_v2=True)
+
+  @test_util.deprecated_graph_mode_only
+  def test_momentum_minimize_trainable_bpv2(self):
+    base_opt = momentum.MomentumOptimizer(1.0, momentum=0.9)
+    test_opt = momentum.MomentumOptimizer(1.0, momentum=0.9)
+    self.common_minimize_trainable(base_opt,
+                                   test_opt,
+                                   name="momentum",
+                                   bp_v2=True)
+
+  @test_util.deprecated_graph_mode_only
+  def test_sgd_minimize_trainable_bpv2(self):
+    base_opt = gradient_descent.GradientDescentOptimizer(1.0)
+    test_opt = gradient_descent.GradientDescentOptimizer(1.0)
+    self.common_minimize_trainable(base_opt, test_opt, name="sgd", bp_v2=True)
+
+  @test_util.deprecated_graph_mode_only
+  def test_adam_minimize_trainable_bpv2(self):
+    base_opt = adam.AdamOptimizer(1.0)
+    test_opt = adam.AdamOptimizer(1.0)
+    self.common_minimize_trainable(base_opt, test_opt, name="adam", bp_v2=True)
+
+  @test_util.deprecated_graph_mode_only
+  def test_rmsprop_minimize_trainable_bpv2(self):
+    for centered_ in [False, True]:
+      base_opt = rmsprop.RMSPropOptimizer(1.0, centered=centered_)
+      test_opt = rmsprop.RMSPropOptimizer(1.0, centered=centered_)
+      self.common_minimize_trainable(base_opt,
+                                     test_opt,
+                                     name="rmsprop" + str(centered_),
+                                     bp_v2=True)
 
 
 class CommonTrainableTestV2Base(object):
@@ -243,7 +346,7 @@ class CommonTrainableTestV2Base(object):
 
 class EmbeddingLookupTrainableV1Test(test.TestCase, CommonTrainableTestV1Base):
 
-  def common_minimize_trainable(self, base_opt, test_opt, name):
+  def common_minimize_trainable(self, base_opt, test_opt, name, bp_v2):
     de.enable_train_mode()
     base_opt = de.DynamicEmbeddingOptimizer(base_opt)
     test_opt = de.DynamicEmbeddingOptimizer(test_opt)
@@ -285,8 +388,8 @@ class EmbeddingLookupTrainableV1Test(test.TestCase, CommonTrainableTestV1Base):
         base_var = resource_variable_ops.ResourceVariable(raw_init_vals,
                                                           dtype=d_dtype)
         ids = constant_op.constant(raw_ids, dtype=k_dtype)
-        pred0 = math_ops.matmul(embedding_ops.embedding_lookup([base_var], ids),
-                                x)
+        pred0 = math_ops.matmul(
+            embedding_ops.embedding_lookup([base_var], ids, name='by3050'), x)
         loss0 = pred0 * pred0
         base_opt_op = base_opt.minimize(loss0)
 
@@ -298,6 +401,7 @@ class EmbeddingLookupTrainableV1Test(test.TestCase, CommonTrainableTestV1Base):
             devices=_get_devices() * num_shards,
             initializer=1.0,
             dim=dim,
+            bp_v2=bp_v2,
         )
         self.device_check(embeddings)
         init_ids = constant_op.constant(raw_init_ids, dtype=k_dtype)
@@ -307,7 +411,8 @@ class EmbeddingLookupTrainableV1Test(test.TestCase, CommonTrainableTestV1Base):
 
         test_var, trainable = de.embedding_lookup([embeddings],
                                                   ids,
-                                                  return_trainable=True)
+                                                  return_trainable=True,
+                                                  name='bp1256')
         pred1 = math_ops.matmul(test_var, x)
         loss1 = pred1 * pred1
 
@@ -379,7 +484,7 @@ class EmbeddingLookupTrainableV2Test(test.TestCase, CommonTrainableTestV2Base):
 
         def loss_fn(emb):
           ids = constant_op.constant(raw_ids, dtype=k_dtype)
-          pred = embedding_ops.embedding_lookup([emb], ids)
+          pred = embedding_ops.embedding_lookup([emb], ids, name='ct9143')
           return pred * pred
 
         base_opt_op = base_opt.minimize(lambda: loss_fn(embeddings),
@@ -411,7 +516,10 @@ class EmbeddingLookupTrainableV2Test(test.TestCase, CommonTrainableTestV2Base):
 
         def loss_fn(x, trainables):
           ids = constant_op.constant(raw_ids, dtype=k_dtype)
-          pred, trainable = de.embedding_lookup([x], ids, return_trainable=True)
+          pred, trainable = de.embedding_lookup([x],
+                                                ids,
+                                                return_trainable=True,
+                                                name='xg5785')
           trainables.clear()
           trainables.append(trainable)
           return pred * pred
@@ -436,7 +544,7 @@ class EmbeddingLookupTrainableV2Test(test.TestCase, CommonTrainableTestV2Base):
 class EmbeddingLookupUniqueTrainableV1Test(test.TestCase,
                                            CommonTrainableTestV1Base):
 
-  def common_minimize_trainable(self, base_opt, test_opt, name):
+  def common_minimize_trainable(self, base_opt, test_opt, name, bp_v2):
     de.enable_train_mode()
     base_opt = de.DynamicEmbeddingOptimizer(base_opt)
     test_opt = de.DynamicEmbeddingOptimizer(test_opt)
@@ -478,7 +586,8 @@ class EmbeddingLookupUniqueTrainableV1Test(test.TestCase,
                                                           dtype=d_dtype)
         unique_ids, idx = array_ops.unique(ids)
         unique_embeddings = embedding_ops.embedding_lookup([base_var],
-                                                           unique_ids)
+                                                           unique_ids,
+                                                           name='rt4647')
         embeddings = array_ops.gather(unique_embeddings, idx)
         pred0 = math_ops.matmul(embeddings, x)
         loss0 = pred0 * pred0
@@ -501,7 +610,8 @@ class EmbeddingLookupUniqueTrainableV1Test(test.TestCase,
 
         test_var, trainable = de.embedding_lookup_unique([embeddings],
                                                          ids,
-                                                         return_trainable=True)
+                                                         return_trainable=True,
+                                                         name='bf1117')
         pred1 = math_ops.matmul(test_var, x)
         loss1 = pred1 * pred1
 
@@ -572,7 +682,9 @@ class EmbeddingLookupUniqueTrainableV2Test(test.TestCase,
         def loss_fn(emb):
           ids = constant_op.constant(raw_ids, dtype=k_dtype)
           unique_ids, idx = array_ops.unique(ids)
-          unique_embeddings = embedding_ops.embedding_lookup([emb], unique_ids)
+          unique_embeddings = embedding_ops.embedding_lookup([emb],
+                                                             unique_ids,
+                                                             name='sa6943')
           pred = array_ops.gather(unique_embeddings, idx)
           return pred * pred
 
@@ -607,7 +719,8 @@ class EmbeddingLookupUniqueTrainableV2Test(test.TestCase,
           ids = constant_op.constant(raw_ids, dtype=k_dtype)
           pred, trainable = de.embedding_lookup_unique([x],
                                                        ids,
-                                                       return_trainable=True)
+                                                       return_trainable=True,
+                                                       name='ff8889')
           trainables.clear()
           trainables.append(trainable)
           return pred * pred
@@ -632,7 +745,7 @@ class EmbeddingLookupUniqueTrainableV2Test(test.TestCase,
 class EmbeddingLookupSparseTrainableV1Test(test.TestCase,
                                            CommonTrainableTestV1Base):
 
-  def common_minimize_trainable(self, base_opt, test_opt, name):
+  def common_minimize_trainable(self, base_opt, test_opt, name, bp_v2):
     de.enable_train_mode()
     base_opt = de.DynamicEmbeddingOptimizer(base_opt)
     test_opt = de.DynamicEmbeddingOptimizer(test_opt)
@@ -690,7 +803,8 @@ class EmbeddingLookupSparseTrainableV1Test(test.TestCase,
         base_embedding = embedding_ops.embedding_lookup_sparse(base_var,
                                                                sp_ids,
                                                                None,
-                                                               combiner="sum")
+                                                               combiner="sum",
+                                                               name='wg8689')
         base_embedding = array_ops.reshape(base_embedding, shape=[1, 3 * dim])
         pred0 = math_ops.matmul(base_embedding, x)
         loss0 = pred0 * pred0
@@ -728,6 +842,7 @@ class EmbeddingLookupSparseTrainableV1Test(test.TestCase,
             sp_weights=None,
             combiner="sum",
             return_trainable=True,
+            name='io3441',
         )
 
         pred1 = math_ops.matmul(array_ops.reshape(test_var, shape=[1, 3 * dim]),
@@ -823,7 +938,8 @@ class EmbeddingLookupSparseTrainableV2Test(test.TestCase,
           embedding = embedding_ops.embedding_lookup_sparse(emb,
                                                             sp_ids,
                                                             None,
-                                                            combiner="sum")
+                                                            combiner="sum",
+                                                            name='gc4675')
           pred = math_ops.matmul(embedding, x)
           return pred * pred
 
@@ -862,6 +978,7 @@ class EmbeddingLookupSparseTrainableV2Test(test.TestCase,
               sp_weights=None,
               combiner="sum",
               return_trainable=True,
+              name='bk3382',
           )
 
           pred = math_ops.matmul(test_var, x)
@@ -889,7 +1006,7 @@ class SafeEmbeddingLookupSparseTrainableV1Test(test.TestCase,
                                                CommonTrainableTestV1Base):
 
   @test_util.deprecated_graph_mode_only
-  def common_minimize_trainable(self, base_opt, test_opt, name):
+  def common_minimize_trainable(self, base_opt, test_opt, name, bp_v2):
     de.enable_train_mode()
     base_opt = de.DynamicEmbeddingOptimizer(base_opt)
     test_opt = de.DynamicEmbeddingOptimizer(test_opt)
@@ -947,7 +1064,7 @@ class SafeEmbeddingLookupSparseTrainableV1Test(test.TestCase,
             shape=[len(raw_init_ids), dim],
         )
         base_embedding = embedding_ops.safe_embedding_lookup_sparse(
-            base_var, sp_ids, None, combiner="sum")
+            base_var, sp_ids, None, combiner="sum", name='zp0198')
         base_embedding = array_ops.reshape(base_embedding, shape=[1, 3 * dim])
         pred0 = math_ops.matmul(base_embedding, x)
         loss0 = pred0 * pred0
@@ -977,6 +1094,7 @@ class SafeEmbeddingLookupSparseTrainableV1Test(test.TestCase,
             sparse_weights=None,
             combiner="sum",
             return_trainable=True,
+            name='js2442',
         )
 
         pred1 = math_ops.matmul(array_ops.reshape(test_var, shape=[1, 3 * dim]),
@@ -1069,10 +1187,13 @@ class SafeEmbeddingLookupSparseTrainableV2Test(test.TestCase,
         )
 
         def loss_fn(emb):
-          embedding = embedding_ops.safe_embedding_lookup_sparse(emb,
-                                                                 sp_ids,
-                                                                 None,
-                                                                 combiner="sum")
+          embedding = embedding_ops.safe_embedding_lookup_sparse(
+              emb,
+              sp_ids,
+              None,
+              combiner="sum",
+              name='uw5859',
+          )
           pred0 = math_ops.matmul(embedding, x)
           return pred0 * pred0
 
@@ -1111,6 +1232,7 @@ class SafeEmbeddingLookupSparseTrainableV2Test(test.TestCase,
               sparse_weights=None,
               combiner="sum",
               return_trainable=True,
+              name='mm7462',
           )
 
           pred = math_ops.matmul(test_var, x)
@@ -1190,7 +1312,7 @@ class TrainDynamicEmbeddingInMonitoredTrainingSessionTest(test.TestCase):
 
         self.device_check(table)
 
-  def common_minimize_trainable(self, base_opt, test_opt, name):
+  def common_minimize_trainable(self, base_opt, test_opt, name, bp_v2):
     de.enable_train_mode()
     base_opt = de.DynamicEmbeddingOptimizer(base_opt)
     test_opt = de.DynamicEmbeddingOptimizer(test_opt)
@@ -1262,7 +1384,8 @@ class TrainDynamicEmbeddingInMonitoredTrainingSessionTest(test.TestCase):
         base_embedding = embedding_ops.embedding_lookup_sparse(base_var,
                                                                sp_ids,
                                                                None,
-                                                               combiner="sum")
+                                                               combiner="sum",
+                                                               name='tg2722')
         base_embedding = array_ops.reshape(base_embedding, shape=[1, 3 * dim])
         pred0 = math_ops.matmul(base_embedding, x)
         loss0 = pred0 * pred0
@@ -1276,6 +1399,7 @@ class TrainDynamicEmbeddingInMonitoredTrainingSessionTest(test.TestCase):
             sp_weights=None,
             combiner="sum",
             return_trainable=True,
+            name='rq3232',
         )
 
         pred1 = math_ops.matmul(array_ops.reshape(test_var, shape=[1, 3 * dim]),
@@ -1318,12 +1442,28 @@ class TrainDynamicEmbeddingInMonitoredTrainingSessionTest(test.TestCase):
   def test_adam_minimize_trainable(self):
     base_opt = adam.AdamOptimizer(0.1)
     test_opt = adam.AdamOptimizer(0.1)
-    self.common_minimize_trainable(base_opt, test_opt, name="adam")
+    self.common_minimize_trainable(base_opt, test_opt, name="adam", bp_v2=False)
 
   def test_adagrad_minimize_trainable(self):
     base_opt = adagrad.AdagradOptimizer(0.1)
     test_opt = adagrad.AdagradOptimizer(0.1)
-    self.common_minimize_trainable(base_opt, test_opt, name="adagrad")
+    self.common_minimize_trainable(base_opt,
+                                   test_opt,
+                                   name="adagrad",
+                                   bp_v2=False)
+
+  def test_adam_minimize_trainable_bp_v2(self):
+    base_opt = adam.AdamOptimizer(0.1)
+    test_opt = adam.AdamOptimizer(0.1)
+    self.common_minimize_trainable(base_opt, test_opt, name="adam", bp_v2=True)
+
+  def test_adagrad_minimize_trainable_bp_v2(self):
+    base_opt = adagrad.AdagradOptimizer(0.1)
+    test_opt = adagrad.AdagradOptimizer(0.1)
+    self.common_minimize_trainable(base_opt,
+                                   test_opt,
+                                   name="adagrad",
+                                   bp_v2=True)
 
 
 @test_util.deprecated_graph_mode_only
@@ -1348,7 +1488,8 @@ class ModelModeTest(test.TestCase):
       ids = constant_op.constant([0, 1, 2, 3, 4], dtype=dtypes.int64)
       test_var, trainable = de.embedding_lookup([embeddings],
                                                 ids,
-                                                return_trainable=True)
+                                                return_trainable=True,
+                                                name='mc4009')
       _ = math_ops.add(test_var, 1)
       op_list = ops.get_default_graph().get_operations()
       op_list_assign = [
@@ -1389,7 +1530,8 @@ class ModelModeTest(test.TestCase):
         ids = constant_op.constant([0, 1, 2, 3, 4], dtype=dtypes.int64)
         test_var, trainable = de.embedding_lookup([embeddings],
                                                   ids,
-                                                  return_trainable=True)
+                                                  return_trainable=True,
+                                                  name='xt9595')
         pred = math_ops.add(test_var, 1) * w
         loss = pred * pred
         opt = de.DynamicEmbeddingOptimizer(adagrad.AdagradOptimizer(0.1))

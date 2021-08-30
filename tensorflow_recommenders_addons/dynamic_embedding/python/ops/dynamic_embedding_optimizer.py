@@ -91,11 +91,13 @@ def DynamicEmbeddingOptimizer(self):
         with ops.colocate_with(None, ignore_existing=True):
           _slots = [self.get_slot(var, _s) for _s in self.get_slot_names()]
           # Add the optimizer slots to restricting list.
-          if var.params.restrict_policy is not None:
-            var.params.restrict_policy._track_optimizer_slots(_slots)
+          var._track_optimizer_slots(_slots)
 
           with ops.control_dependencies([grad]):
-            _before = [var.read_value()] + [_s.read_value() for _s in _slots]
+            v0 = var.read_value(do_prefetch=not var.params.bp_v2)
+            s0 = [_s.read_value() for _s in _slots]
+            _before = [v0] + s0
+
           if isinstance(grad, ops.IndexedSlices):
             if var.constraint is not None:
               raise RuntimeError(
@@ -106,8 +108,9 @@ def DynamicEmbeddingOptimizer(self):
               _apply_op = self._resource_apply_sparse_duplicate_indices(
                   grad.values, var, grad.indices, **apply_kwargs)
             with ops.control_dependencies([_apply_op]):
-              _after = control_flow_ops.group([var.update_op()] +
-                                              [_s.update_op() for _s in _slots])
+              _after = control_flow_ops.group(
+                  [var.update_op(v0=v0)] +
+                  [_s.update_op(v0=s0[si]) for si, _s in enumerate(_slots)])
               return _after
 
           if "apply_state" in self._dense_apply_args:
@@ -119,8 +122,9 @@ def DynamicEmbeddingOptimizer(self):
               return var.assign(var.constraint(var))
           else:
             with ops.control_dependencies([update_op]):
-              _after = control_flow_ops.group([var.update_op()] +
-                                              [_s.update_op() for _s in _slots])
+              _after = control_flow_ops.group(
+                  [var.update_op(v0=v0)] +
+                  [_s.update_op(v0=s0[si]) for si, _s in enumerate(_slots)])
             return _after
 
     update_ops = []
@@ -302,15 +306,23 @@ def create_slots(primary, init, slot_name, op_name):
           embedding_name=params_var_.embedding_name,
           trainable=False,
           checkpoint=params_var_.checkpoint,
+          bp_v2=params_var_.bp_v2,
       )
 
     scope_store._vars[full_name] = slot_variable_
 
   slot_trainable = None
+  if context.executing_eagerly():
+    slot_tw_name = slot_name + '-' + str(optimizer_v2._var_key(primary))
+  else:
+    # In graph mode of former version, It only uses slot_name as name to
+    # trainable wrappers of slots. So here set it the name to slot_name
+    # for forward compatibility.
+    slot_tw_name = slot_name
   _, slot_trainable = de.embedding_lookup(
       params=scope_store._vars[full_name],
       ids=params_ids_,
-      name=slot_name,
+      name=slot_tw_name,
       return_trainable=True,
   )
 
