@@ -481,8 +481,8 @@ class EmbeddingLookupTest(test.TestCase):
     self.assertAllEqual(p1.name, "test/p1")
     self.assertAllEqual(p2.name, "test/p2")
     self.assertAllEqual(p1, p1_reuse)
-    self.assertEqual(t1.name, "test/q/emb:0")
-    self.assertEqual(t2.name, "test_1/q/emb:0")
+    self.assertEqual(t1.name, "test/q/emb/emb:0")
+    self.assertEqual(t2.name, "test/q/emb/emb_1:0")
     self.assertAllEqual(p1._tables[0].name, "test_p1_mht_1of1")
     self.assertAllEqual(p1_reuse._tables[0].name, "test_p1_mht_1of1")
     self.assertAllEqual(p2._tables[0].name, "test_p2_mht_1of1")
@@ -528,8 +528,10 @@ class EmbeddingLookupTest(test.TestCase):
     self.assertAllEqual(p1.name, "test/p1")
     self.assertAllEqual(p2.name, "test/p2")
     self.assertAllEqual(p1, p1_reuse)
-    self.assertEqual(t1.name, "test/q/sp_emb/sp_emb/embedding_lookup:0")
-    self.assertEqual(t2.name, "test/q/sp_emb/sp_emb/embedding_lookup_1:0")
+    self.assertEqual(
+        t1.name, "test/q/sp_emb/embedding_lookup/sp_emb/embedding_lookup:0")
+    self.assertEqual(
+        t2.name, "test/q/sp_emb/embedding_lookup/sp_emb/embedding_lookup_1:0")
     self.assertAllEqual(p1._tables[0].name, "test_p1_mht_1of1")
     self.assertAllEqual(p1_reuse._tables[0].name, "test_p1_mht_1of1")
     self.assertAllEqual(p2._tables[0].name, "test_p2_mht_1of1")
@@ -577,11 +579,11 @@ class EmbeddingLookupTest(test.TestCase):
     self.assertAllEqual(p1, p1_reuse)
     self.assertEqual(
         t1.name,
-        "test/q/safe_sp_emb/embedding_lookup_sparse/safe_sp_emb/embedding_lookup_sparse/embedding_lookup:0",
+        "test/q/safe_sp_emb/embedding_lookup_sparse/embedding_lookup/safe_sp_emb/embedding_lookup_sparse/embedding_lookup:0",
     )
     self.assertEqual(
         t2.name,
-        "test/q/safe_sp_emb/embedding_lookup_sparse/safe_sp_emb/embedding_lookup_sparse/embedding_lookup_1:0",
+        "test/q/safe_sp_emb/embedding_lookup_sparse/embedding_lookup/safe_sp_emb/embedding_lookup_sparse/embedding_lookup_1:0",
     )
     self.assertAllEqual(p1._tables[0].name, "test_p1_mht_1of1")
     self.assertAllEqual(p1_reuse._tables[0].name, "test_p1_mht_1of1")
