@@ -27,12 +27,9 @@ import functools
 from tensorflow_recommenders_addons import dynamic_embedding as de
 
 try:
-  from tensorflow.python.util import _pywrap_util_port as pywrap
+  from tensorflow.python import _pywrap_util_port as pywrap
 except:
-  try:
-    from tensorflow.python import _pywrap_util_port as pywrap
-  except:
-    from tensorflow.python import pywrap_tensorflow as pywrap
+  from tensorflow.python import pywrap_tensorflow as pywrap
 
 from tensorflow.python.client import device_lib
 from tensorflow.python.eager import context
@@ -59,15 +56,15 @@ from tensorflow.python.util.tf_export import tf_export
 
 def make_partition(data, partition_index, shard_num):
   """
-  Shard keys to shard_num partitions
+    Shard keys to shard_num partitions
 
-  Args:
-    data: keys or values, usually the IDs of dynamic features.
-    partition_index: partitions index.
-    shard_num: partition number
-  Returns:
-    a pair of tensor: (partition result, partition indices)
-  """
+    Args:
+      data: keys or values, usually the IDs of dynamic features.
+      partition_index: partitions index.
+      shard_num: partition number
+    Returns:
+      a pair of tensor: (partition result, partition indices)
+    """
   if shard_num <= 1:
     return [
         data,
@@ -93,14 +90,14 @@ def _stitch(values, indices):
 
 def default_partition_fn(keys, shard_num):
   """The default partition function.
-    partition keys by "mod" strategy.
+      partition keys by "mod" strategy.
 
-    keys: a tensor presents the keys to be partitioned.
-    shard_num: the num of partitions
-  Returns:
-    a tensor with same shape as keys with type of `tf.int32`,
-      represents the corresponding partition-ids of keys.
-  """
+      keys: a tensor presents the keys to be partitioned.
+      shard_num: the num of partitions
+    Returns:
+      a tensor with same shape as keys with type of `tf.int32`,
+        represents the corresponding partition-ids of keys.
+    """
   keys_op = ops.convert_to_tensor(keys, name="keys")
   gpu_mode = pywrap.IsGoogleCudaEnabled()
 
@@ -150,9 +147,9 @@ class GraphKeys(object):
 
 class Variable(base.Trackable):
   """
-  A Distributed version of HashTable(reference from lookup_ops.MutableHashTable)
-  It is designed to dynamically store the Sparse Weights(Parameters) of DLRMs.
-  """
+    A Distributed version of HashTable(reference from lookup_ops.MutableHashTable)
+    It is designed to dynamically store the Sparse Weights(Parameters) of DLRMs.
+    """
 
   def __init__(
       self,
@@ -167,7 +164,6 @@ class Variable(base.Trackable):
       trainable=True,
       checkpoint=True,
       init_size=0,
-      kv_creator=None,
       restrict_policy=None,
       bp_v2=False,
   ):
@@ -225,7 +221,7 @@ class Variable(base.Trackable):
 
         Returns:
           A `Variable` object.
-    """
+        """
     self.key_dtype = key_dtype
     self.value_dtype = value_dtype
     self.dim = dim
@@ -260,12 +256,8 @@ class Variable(base.Trackable):
                           overwrite=True)
     self.size_ops = []
     self._trainable_store = {}
-    self.kv_creator = kv_creator if kv_creator else de.CuckooHashTableCreator()
-
     self.shard_num = len(self.devices)
-
     self.init_size = int(init_size)
-
     if restrict_policy is not None:
       if not issubclass(restrict_policy, de.RestrictPolicy):
         raise TypeError('restrict_policy must be subclass of RestrictPolicy.')
@@ -298,10 +290,7 @@ class Variable(base.Trackable):
         for idx in range(len(self.devices)):
           with ops.device(self.devices[idx]):
             mht = None
-            if not issubclass(self.kv_creator.__class__, de.KVCreator):
-              raise TypeError("config should be instance of 'config', but got ",
-                              str(type(self.kv_creator)))
-            mht = self.kv_creator.create(
+            mht = de.CuckooHashTable(
                 key_dtype=self.key_dtype,
                 value_dtype=self.value_dtype,
                 default_value=static_default_value,
@@ -356,7 +345,7 @@ class Variable(base.Trackable):
         Raises:
           TypeError: when `keys` or `values` doesn't match the table data
             types.
-    """
+        """
 
     partition_index = self.partition_fn(keys, self.shard_num)
     keys_partitions, _ = make_partition(keys, partition_index, self.shard_num)
@@ -445,19 +434,19 @@ class Variable(base.Trackable):
   def remove(self, keys, name=None):
     """Removes `keys` and its associated values from the variable.
 
-    If a key is not present in the table, it is silently ignored.
+        If a key is not present in the table, it is silently ignored.
 
-    Args:
-      keys: Keys to remove. Can be a tensor of any shape. Must match the table's
-        key type.
-      name: A name for the operation (optional).
+        Args:
+          keys: Keys to remove. Can be a tensor of any shape. Must match the table's
+            key type.
+          name: A name for the operation (optional).
 
-    Returns:
-      The created Operation.
+        Returns:
+          The created Operation.
 
-    Raises:
-      TypeError: when `keys` do not match the table data types.
-    """
+        Raises:
+          TypeError: when `keys` do not match the table data types.
+        """
     partition_index = self.partition_fn(keys, self.shard_num)
     keys_partitions, _ = make_partition(keys, partition_index, self.shard_num)
 
@@ -471,12 +460,12 @@ class Variable(base.Trackable):
   def clear(self, name=None):
     """clear all keys and values in the table.
 
-        Args:
-          name: A name for the operation (optional).
+    Args:
+      name: A name for the operation (optional).
 
-        Returns:
-          The created Operation.
-        """
+    Returns:
+      The created Operation.
+    """
     ops_ = []
     for idx in range(len(self.devices)):
       with ops.device(self.devices[idx]):
@@ -554,13 +543,13 @@ class Variable(base.Trackable):
   def export(self, name=None):
     """Returns tensors of all keys and values in the table.
 
-    Args:
-      name: A name for the operation (optional).
+        Args:
+          name: A name for the operation (optional).
 
-    Returns:
-      A pair of tensors with the first tensor containing all keys and the
-        second tensors containing all values in the table.
-    """
+        Returns:
+          A pair of tensors with the first tensor containing all keys and the
+            second tensors containing all values in the table.
+        """
     full_keys = []
     full_values = []
     for idx in range(len(self.devices)):
@@ -575,15 +564,15 @@ class Variable(base.Trackable):
   def size(self, index=None, name=None):
     """Compute the number of elements in the index-th table of this Variable.
 
-    If index is none, the total size of the Variable wil be return.
+        If index is none, the total size of the Variable wil be return.
 
-    Args:
-      index: The index of table (optional)
-      name: A name for the operation (optional).
+        Args:
+          index: The index of table (optional)
+          name: A name for the operation (optional).
 
-    Returns:
-      A scalar tensor containing the number of elements in this Variable.
-    """
+        Returns:
+          A scalar tensor containing the number of elements in this Variable.
+        """
     if context.executing_eagerly():
       self.size_ops = []
     if not self.size_ops:
@@ -652,7 +641,6 @@ def get_variable(
     trainable=True,
     checkpoint=True,
     init_size=0,
-    kv_creator=None,
     restrict_policy=None,
     bp_v2=False,
 ):
@@ -726,7 +714,6 @@ def get_variable(
         trainable=trainable,
         checkpoint=checkpoint,
         init_size=init_size,
-        kv_creator=kv_creator,
         restrict_policy=restrict_policy,
         bp_v2=bp_v2,
     )
