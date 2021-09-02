@@ -95,6 +95,15 @@ class TrainableWrapper(resource_variable_ops.ResourceVariable):
         self.prefetch_values_op = self.transform(self.params.lookup(self.ids))
     return self.prefetch_values_op
 
+  def __repr__(self):
+    if context.executing_eagerly() and not self._in_graph_mode:
+      return "<tf.Variable '%s' shape=%s dtype=%s, numpy=%s>" % (
+          self.name, self.get_shape(), self.dtype.name,
+          ops.numpy_text(self.read_value(), is_repr=True))
+    else:
+      return "<tf.Variable '%s' shape=%s dtype=%s>" % (
+          self.name, self.get_shape(), self.dtype.name)
+
   def _init_from_args(
       self,
       initial_value=None,

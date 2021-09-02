@@ -1,0 +1,31 @@
+{
+  "redis_connection_mode": 1,
+  "redis_master_name": "master",
+  "redis_host_ip": [
+    "127.0.0.1"
+  ],
+  "redis_host_port": [
+    6379
+  ],
+  "redis_user": "default",
+  "redis_password": "",
+  "redis_db": 0,
+  "redis_connect_keep_alive": false,
+  "redis_connect_timeout": 100,
+  "redis_socket_timeout": 100,
+  "redis_conn_pool_size": 64,
+  "redis_wait_timeout": 100,
+  "redis_connection_lifetime": 10,
+  "redis_sentinel_connect_timeout": 100,
+  "redis_sentinel_socket_timeout": 100,
+  "storage_slice": 1,
+  "keys_sending_size": 1024,
+  "using_md5_prefix_name": false,
+  "model_tag_import": "test",
+  "redis_hash_tags_import": [],
+  "model_tag_runtime": "test",
+  "redis_hash_tags_runtime": [],
+  "expire_model_tag_in_seconds": 604800,
+  "table_store_mode": 0,
+  "model_lib_abs_dir": "/tmp/"
+}
