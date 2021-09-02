@@ -33,35 +33,6 @@ custom_op_library(
 )
 
 custom_op_library(
-    name = "_redis_table_ops.so",
-    srcs = [
-        "kernels/redis_impl/json.cc",
-        "kernels/redis_impl/json.h",
-        "kernels/redis_impl/md5.cc",
-        "kernels/redis_impl/md5.h",
-        "kernels/redis_impl/redis_cluster_connection_pool.hpp",
-        "kernels/redis_impl/redis_connection_pool.hpp",
-        "kernels/redis_impl/redis_connection_util.hpp",
-        "kernels/redis_impl/redis_slots_tab.h",
-        "kernels/redis_impl/redis_table_op_util.hpp",
-        "kernels/redis_impl/thread_pool.h",
-        "kernels/redis_table_op.cc",
-        "kernels/redis_table_op.h",
-        "ops/redis_table_ops.cc",
-        "utils/types.h",
-        "utils/utils.h",
-    ],
-    copts = [
-        "-pthread",
-        "-Ofast",
-    ],
-    deps = [
-        "@hiredis",
-        "@redis-plus-plus//:redis-plus-plus",
-    ],
-)
-
-custom_op_library(
     name = "_math_ops.so",
     srcs = [
         "kernels/segment_reduction_ops.h",

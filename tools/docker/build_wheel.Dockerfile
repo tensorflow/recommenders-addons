@@ -27,9 +27,6 @@ ENV LD_LIBRARY_PATH=/dt7/user/lib64:${LD_LIBRARY_PATH}
 ENV LD_LIBRARY_PATH=/dt7/user/lib:${LD_LIBRARY_PATH}
 ENV MANPATH=/dt7/user/share/man:${LD_LIBRARY_PATH}
 ENV INFOPATH=/dt7/user/share/info
-RUN ln -sf /dt7/usr/bin/cc /usr/bin/gcc
-RUN ln -sf /dt7/usr/bin/gcc /usr/bin/gcc
-RUN ln -sf /dt7/usr/bin/g++ /usr/bin/g++
 
 ARG TF_VERSION
 ARG TF_NAME
@@ -59,9 +56,6 @@ ARG TF_CUDNN_VERSION
 ENV TF_NEED_CUDA=$TF_NEED_CUDA
 ENV TF_CUDA_VERSION=$TF_CUDA_VERSION
 ENV TF_CUDNN_VERSION=$TF_CUDNN_VERSION
-
-COPY tools/docker/install/install_redis.sh /install/
-RUN /install/install_redis.sh "5.0.13"
 
 RUN python configure.py
 
