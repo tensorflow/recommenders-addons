@@ -809,23 +809,35 @@ every bucket has its own BucketContext for sending data---for locating reply-
     unsigned bucket_loc;
     memset(buckets_iters_nums, 0U, sizeof(buckets_iters_nums));
     redisReply *temp_reply;
+    bool print_once[storage_slice];
+    memset(print_once, false, sizeof(print_once));
     for (auto i = 0; i < (max_i - begin);
          ++i, pv_raw += Velems_per_dim0, dft_raw += Velems_per_dim0) {
       bucket_loc = (*bucket_locs)[i];
-      if (reply[bucket_loc]->type == REDIS_REPLY_ARRAY) {
-        temp_reply = reply[bucket_loc]->element[buckets_iters_nums[bucket_loc]];
-        ++(buckets_iters_nums[bucket_loc]);
-        if (temp_reply->type ==
-            REDIS_REPLY_STRING)  // #define REDIS_REPLY_STRING 1
-        {
-          ReplyMemcpyToValTensor<V>(
-              pv_raw, temp_reply->str,
-              Velems_per_dim0);  // Direct access to Tensor data in TensorFlow
-        } else {
-          CopyDefaultToTensor(is_full_default, pv_raw, dft_raw, dft_raw_begin,
-                              Velems_per_dim0);
+      if (reply[bucket_loc] != nullptr) {
+        if (reply[bucket_loc]->type == REDIS_REPLY_ARRAY) {
+          temp_reply =
+              reply[bucket_loc]->element[buckets_iters_nums[bucket_loc]];
+          ++(buckets_iters_nums[bucket_loc]);
+          if (temp_reply->type ==
+              REDIS_REPLY_STRING)  // #define REDIS_REPLY_STRING 1
+          {
+            ReplyMemcpyToValTensor<V>(
+                pv_raw, temp_reply->str,
+                Velems_per_dim0);  // Direct access to Tensor data in TensorFlow
+          } else {
+            CopyDefaultToTensor(is_full_default, pv_raw, dft_raw, dft_raw_begin,
+                                Velems_per_dim0);
+          }
         }
       } else {
+        if (!print_once[bucket_loc]) {
+          LOG(WARNING) << "Redis reply in bucket_loc " << bucket_loc
+                       << " from MgetCommend has some problems with error "
+                       << ", using default values to repalce.";
+          print_once[bucket_loc] = true;
+        }
+        ++(buckets_iters_nums[bucket_loc]);
         CopyDefaultToTensor(is_full_default, pv_raw, dft_raw, dft_raw_begin,
                             Velems_per_dim0);
       }
@@ -980,7 +992,7 @@ every bucket has its own BucketContext for sending data---for locating reply-
       result.wait();
     }
   }
-};
+};  // namespace redis_connection
 }  // namespace redis_connection
 }  // namespace recommenders_addons
 }  // namespace tensorflow

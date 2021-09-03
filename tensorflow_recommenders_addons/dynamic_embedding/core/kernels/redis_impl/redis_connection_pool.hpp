@@ -675,6 +675,7 @@ every bucket has its own BucketContext for sending data---for locating reply-
     try {
       reply.push_back(redis_conn->command(cmd, argc, ptrs_0, sizes_0));
     } catch (const std::exception &err) {
+      reply.push_back(nullptr);
       LOG(ERROR) << "RedisHandler error in MGET_COMMAND for HMGET "
                  << keys_prefix_name_slices[0] << " -- " << err.what();
     }
@@ -714,21 +715,30 @@ every bucket has its own BucketContext for sending data---for locating reply-
         reinterpret_cast<const V *>(default_value.tensor_data().data());
 
     redisReply *temp_reply;
+    bool print_once = false;
     for (auto i = 0; i < max_i - begin;
          ++i, pv_raw += Velems_per_dim0, dft_raw += Velems_per_dim0) {
-      if (reply[0]->type == REDIS_REPLY_ARRAY) {
-        temp_reply = reply[0]->element[i];
-        if (temp_reply->type ==
-            REDIS_REPLY_STRING)  // #define REDIS_REPLY_STRING 1
-        {
-          ReplyMemcpyToValTensor<V>(
-              pv_raw, temp_reply->str,
-              Velems_per_dim0);  // Direct access to Tensor data in TensorFlow
-        } else {
-          CopyDefaultToTensor(is_full_default, pv_raw, dft_raw, dft_raw_begin,
-                              Velems_per_dim0);
+      if (reply[0] != nullptr) {
+        if (reply[0]->type == REDIS_REPLY_ARRAY) {
+          temp_reply = reply[0]->element[i];
+          if (temp_reply->type ==
+              REDIS_REPLY_STRING)  // #define REDIS_REPLY_STRING 1
+          {
+            ReplyMemcpyToValTensor<V>(
+                pv_raw, temp_reply->str,
+                Velems_per_dim0);  // Direct access to Tensor data in TensorFlow
+          } else {
+            CopyDefaultToTensor(is_full_default, pv_raw, dft_raw, dft_raw_begin,
+                                Velems_per_dim0);
+          }
         }
       } else {
+        if (!print_once) {
+          LOG(WARNING)
+              << "Redis reply from MgetCommend has some problems with error "
+              << ", using default values to repalce.";
+          print_once = true;
+        }
         CopyDefaultToTensor(is_full_default, pv_raw, dft_raw, dft_raw_begin,
                             Velems_per_dim0);
       }
@@ -865,7 +875,7 @@ every bucket has its own BucketContext for sending data---for locating reply-
                  << keys_prefix_name_slices[0] << " -- " << err.what();
     }
   }
-};
+};  // namespace redis_connection
 
 }  // namespace redis_connection
 }  // namespace recommenders_addons

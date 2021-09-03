@@ -435,26 +435,41 @@ class RedisTableOfTensors final : public LookupInterface {
           reinterpret_cast<const V *>(values_temp.tensor_data().data());
       std::cerr << keys_reply->elements << " " << values_reply->elements
                 << std::endl;
-      for (size_t i = 0; i < values_reply->elements; ++i) {
-        temp_reply = values_reply->element[i];
-        if (temp_reply->type ==
-            REDIS_REPLY_STRING) {  // #define REDIS_REPLY_STRING 1
-          ReplyMemcpyToValTensor<V>(
-              pv_raw, temp_reply->str,
-              runtime_value_dim_);  // Direct access to Tensor data in
-                                    // TensorFlow
+      try {
+        if (values_reply != nullptr) {
+          for (size_t i = 0; i < values_reply->elements; ++i) {
+            temp_reply = values_reply->element[i];
+            if (temp_reply->type ==
+                REDIS_REPLY_STRING) {  // #define REDIS_REPLY_STRING 1
+              ReplyMemcpyToValTensor<V>(
+                  pv_raw, temp_reply->str,
+                  runtime_value_dim_);  // Direct access to Tensor data in
+                                        // TensorFlow
+            }
+            pv_raw += runtime_value_dim_;
+          }
         }
-        pv_raw += runtime_value_dim_;
+      } catch (const std::exception &err) {
+        LOG(ERROR) << "Some errors happened when try to copy Redis old buckets "
+                      "data reply into tensor for preparing to insert"
+                   << " -- " << err.what();
       }
-      // insert KV pair into new Redis with new storage_slice
-      if (slice_keys_size < (multi_redis_cmd_max_argc - 1)) {
-        launchInsert(ctx, keys_prefix_name_slices, keys_temp, values_temp,
-                     slice_keys_size, runtime_value_dim_, threads_Insert);
-      } else {
-        launchInsert_parallel(
-            ctx, keys_prefix_name_slices, keys_temp, values_temp,
-            slice_keys_size, runtime_value_dim_,
-            threads_Insert);  // redis commmand args > multi_redis_cmd_max_argc
+      try {
+        // insert KV pair into new Redis with new storage_slice
+        if (slice_keys_size < (multi_redis_cmd_max_argc - 1)) {
+          launchInsert(ctx, keys_prefix_name_slices, keys_temp, values_temp,
+                       slice_keys_size, runtime_value_dim_, threads_Insert);
+        } else {
+          launchInsert_parallel(ctx, keys_prefix_name_slices, keys_temp,
+                                values_temp, slice_keys_size,
+                                runtime_value_dim_,
+                                threads_Insert);  // redis commmand args >
+                                                  // multi_redis_cmd_max_argc
+        }
+      } catch (const std::exception &err) {
+        LOG(ERROR)
+            << "Some errors happened when try to insert new buckets into Redis"
+            << " -- " << err.what();
       }
     }
     for (auto keys_prefix_name_slice_in_redis :
@@ -581,7 +596,8 @@ class RedisTableOfTensors final : public LookupInterface {
                      "service.";
         if (redis_connection_params.model_tag_import !=
                 redis_connection_params.model_tag_runtime &&
-            _table_instance->CheckSlicesNum(keys_prefix_name_import) == 1) {
+            _table_instance->CheckSlicesNum(keys_prefix_name_import) == 1 &&
+            _table_instance->CheckSlicesNum(keys_prefix_name) != 1) {
           _table_instance->DuplicateInRedis(keys_prefix_name_slices_import,
                                             keys_prefix_name_slices);
         }
