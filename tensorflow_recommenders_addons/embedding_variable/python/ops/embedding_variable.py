@@ -440,7 +440,7 @@ class _EmbeddingVariableStore(object):
                                                 name=name,
                                                 shape=shape,
                                                 dtype=dtype,
-                                                ktype=dtypes.int64,
+                                                ktype=ktype,
                                                 initializer=initializer,
                                                 regularizer=regularizer,
                                                 reuse=reuse,
@@ -485,7 +485,7 @@ class _EmbeddingVariableStore(object):
                                        name=name,
                                        shape=shape,
                                        dtype=dtype,
-                                       ktype=dtypes.int64,
+                                       ktype=ktype,
                                        initializer=initializer,
                                        regularizer=regularizer,
                                        reuse=reuse,
@@ -968,10 +968,10 @@ def get_variable(
     partitioner=None,
     validate_shape=True,
     constraint=None):
-  if key_dtype == dtypes.int64 or key_dtype == dtypes.int64:
+  if key_dtype == dtypes.int64 or key_dtype == dtypes.int32:
     invalid_key = -1
   else:
-    raise ValueError("Not support key_dtype: %s, only support int64/string" %
+    raise ValueError("Not support key_dtype: %s, only support int64/int32" %
                      key_dtype)
   if initializer is None:
     initializer = init_ops.truncated_normal_initializer()
