@@ -300,11 +300,19 @@ with open(redis_config_path, 'w', encoding='utf-8') as f:
 redis_config = de.RedisTableConfig(redis_config_abs_dir=redis_config_path)
 
 
+def _redis_health_check(redis_host_ip="127.0.0.1", redis_host_port=6379):
+  return os.popen('redis-cli -h ' + redis_host_ip + ' -p ' +
+                  str(redis_host_port) + ' ping').read() == 'PONG\n'
+
+
 @test_util.run_all_in_graph_and_eager_modes
 class RedisVariableTest(test.TestCase):
 
   @test_util.run_in_graph_and_eager_modes()
   def test_basic(self):
+    if _redis_health_check(redis_config_params["redis_host_ip"][0],
+                           redis_config_params["redis_host_port"][0]) == False:
+      self.skipTest('skip redis test when unable to access the redis service.')
     with self.session(use_gpu=False, config=default_config):
       table = de.get_variable(
           "redis-0",
@@ -317,6 +325,9 @@ class RedisVariableTest(test.TestCase):
       self.evaluate(table.size())
 
   def test_variable(self):
+    if _redis_health_check(redis_config_params["redis_host_ip"][0],
+                           redis_config_params["redis_host_port"][0]) == False:
+      self.skipTest('skip redis test when unable to access the redis service.')
     id = 0
     if test_util.is_gpu_available():
       dim_list = [1, 2, 4, 8, 10, 16, 32, 64, 100, 200]
@@ -392,6 +403,8 @@ class RedisVariableTest(test.TestCase):
         del table
 
   # def test_variable_find_with_exists_and_accum(self):
+  #   if _redis_health_check(redis_config_params["redis_host_ip"][0], redis_config_params["redis_host_port"][0]) == False:
+  #     self.skipTest('skip redis test when unable to access the redis service.')
   #   id = 0
   #   if test_util.is_gpu_available():
   #     dim_list = [1, 2, 4, 8, 10, 16, 32, 64, 100, 200]
@@ -483,6 +496,9 @@ class RedisVariableTest(test.TestCase):
   #       del table
 
   def test_variable_initializer(self):
+    if _redis_health_check(redis_config_params["redis_host_ip"][0],
+                           redis_config_params["redis_host_port"][0]) == False:
+      self.skipTest('skip redis test when unable to access the redis service.')
     id = 0
     for initializer, target_mean, target_stddev in [
         (-1.0, -1.0, 0.0),
@@ -510,6 +526,9 @@ class RedisVariableTest(test.TestCase):
         table.clear()
 
   def test_save_restore(self):
+    if _redis_health_check(redis_config_params["redis_host_ip"][0],
+                           redis_config_params["redis_host_port"][0]) == False:
+      self.skipTest('skip redis test when unable to access the redis service.')
     if context.executing_eagerly():
       self.skipTest('skip eager test when using legacy Saver.')
     save_dir = os.path.join(self.get_temp_dir(), "save_restore")
@@ -590,6 +609,9 @@ class RedisVariableTest(test.TestCase):
       del table
 
   def test_save_restore_only_table(self):
+    if _redis_health_check(redis_config_params["redis_host_ip"][0],
+                           redis_config_params["redis_host_port"][0]) == False:
+      self.skipTest('skip redis test when unable to access the redis service.')
     if context.executing_eagerly():
       self.skipTest('skip eager test when using legacy Saver.')
     save_dir = os.path.join(self.get_temp_dir(), "save_restore")
@@ -673,6 +695,9 @@ class RedisVariableTest(test.TestCase):
       del table
 
   def test_training_save_restore(self):
+    if _redis_health_check(redis_config_params["redis_host_ip"][0],
+                           redis_config_params["redis_host_port"][0]) == False:
+      self.skipTest('skip redis test when unable to access the redis service.')
     if context.executing_eagerly():
       self.skipTest('skip eager test when using legacy Saver.')
     opt = de.DynamicEmbeddingOptimizer(adam.AdamOptimizer(0.3))
@@ -772,6 +797,9 @@ class RedisVariableTest(test.TestCase):
           self.assertTrue("GPU" in params.tables[0].resource_handle.device)
 
   def test_training_save_restore_by_files(self):
+    if _redis_health_check(redis_config_params["redis_host_ip"][0],
+                           redis_config_params["redis_host_port"][0]) == False:
+      self.skipTest('skip redis test when unable to access the redis service.')
     opt = de.DynamicEmbeddingOptimizer(adam.AdamOptimizer(0.3))
     id = 0
     for key_dtype, value_dtype, dim, step in itertools.product(
@@ -857,6 +885,9 @@ class RedisVariableTest(test.TestCase):
       params.clear()
 
   def test_get_variable(self):
+    if _redis_health_check(redis_config_params["redis_host_ip"][0],
+                           redis_config_params["redis_host_port"][0]) == False:
+      self.skipTest('skip redis test when unable to access the redis service.')
     with self.session(
         config=default_config,
         graph=ops.Graph(),
@@ -894,6 +925,9 @@ class RedisVariableTest(test.TestCase):
       self.assertNotEqual(table1, table3)
 
   def test_get_variable_reuse_error(self):
+    if _redis_health_check(redis_config_params["redis_host_ip"][0],
+                           redis_config_params["redis_host_port"][0]) == False:
+      self.skipTest('skip redis test when unable to access the redis service.')
     ops.disable_eager_execution()
     with self.session(
         config=default_config,
@@ -916,6 +950,9 @@ class RedisVariableTest(test.TestCase):
 
   @test_util.run_v1_only("Multiple sessions")
   def test_sharing_between_multi_sessions(self):
+    if _redis_health_check(redis_config_params["redis_host_ip"][0],
+                           redis_config_params["redis_host_port"][0]) == False:
+      self.skipTest('skip redis test when unable to access the redis service.')
     ops.disable_eager_execution()
     # Start a server to store the table state
     server = server_lib.Server({"local0": ["localhost:0"]},
@@ -958,6 +995,9 @@ class RedisVariableTest(test.TestCase):
         self.assertAllEqual([[0], [11], [12]], output.eval())
 
   def test_dynamic_embedding_variable(self):
+    if _redis_health_check(redis_config_params["redis_host_ip"][0],
+                           redis_config_params["redis_host_port"][0]) == False:
+      self.skipTest('skip redis test when unable to access the redis service.')
     with self.session(config=default_config,
                       use_gpu=test_util.is_gpu_available()):
       default_val = constant_op.constant([-1, -2], dtypes.int64)
@@ -1001,6 +1041,9 @@ class RedisVariableTest(test.TestCase):
       del table
 
   def test_dynamic_embedding_variable_export_insert(self):
+    if _redis_health_check(redis_config_params["redis_host_ip"][0],
+                           redis_config_params["redis_host_port"][0]) == False:
+      self.skipTest('skip redis test when unable to access the redis service.')
     with self.session(config=default_config,
                       use_gpu=test_util.is_gpu_available()):
       default_val = constant_op.constant([-1, -1], dtypes.int64)
@@ -1049,6 +1092,9 @@ class RedisVariableTest(test.TestCase):
       self.assertAllEqual(expected_output, self.evaluate(output2))
 
   def test_dynamic_embedding_variable_invalid_shape(self):
+    if _redis_health_check(redis_config_params["redis_host_ip"][0],
+                           redis_config_params["redis_host_port"][0]) == False:
+      self.skipTest('skip redis test when unable to access the redis service.')
     with self.session(config=default_config,
                       use_gpu=test_util.is_gpu_available()):
       default_val = constant_op.constant([-1, -1], dtypes.int64)
@@ -1089,6 +1135,9 @@ class RedisVariableTest(test.TestCase):
       self.assertAllEqual(3, self.evaluate(table.size()))
 
   def test_dynamic_embedding_variable_duplicate_insert(self):
+    if _redis_health_check(redis_config_params["redis_host_ip"][0],
+                           redis_config_params["redis_host_port"][0]) == False:
+      self.skipTest('skip redis test when unable to access the redis service.')
     with self.session(use_gpu=test_util.is_gpu_available(),
                       config=default_config):
       default_val = -1
@@ -1117,6 +1166,9 @@ class RedisVariableTest(test.TestCase):
           list(result) in [[[0.0], [1.0], [3.0]], [[0.0], [1.0], [2.0]]])
 
   def test_dynamic_embedding_variable_find_high_rank(self):
+    if _redis_health_check(redis_config_params["redis_host_ip"][0],
+                           redis_config_params["redis_host_port"][0]) == False:
+      self.skipTest('skip redis test when unable to access the redis service.')
     with self.session(use_gpu=test_util.is_gpu_available(),
                       config=default_config):
       default_val = -1
@@ -1142,6 +1194,9 @@ class RedisVariableTest(test.TestCase):
       self.assertAllEqual([[[0], [1]], [[2], [-1]]], result)
 
   def test_dynamic_embedding_variable_insert_low_rank(self):
+    if _redis_health_check(redis_config_params["redis_host_ip"][0],
+                           redis_config_params["redis_host_port"][0]) == False:
+      self.skipTest('skip redis test when unable to access the redis service.')
     with self.session(use_gpu=test_util.is_gpu_available(),
                       config=default_config):
       default_val = -1
@@ -1166,6 +1221,9 @@ class RedisVariableTest(test.TestCase):
       self.assertAllEqual([[0], [1], [3], [-1]], result)
 
   def test_dynamic_embedding_variable_remove_low_rank(self):
+    if _redis_health_check(redis_config_params["redis_host_ip"][0],
+                           redis_config_params["redis_host_port"][0]) == False:
+      self.skipTest('skip redis test when unable to access the redis service.')
     with self.session(use_gpu=test_util.is_gpu_available(),
                       config=default_config):
       default_val = -1
@@ -1194,6 +1252,9 @@ class RedisVariableTest(test.TestCase):
       self.assertAllEqual([[0], [-1], [3], [-1]], result)
 
   def test_dynamic_embedding_variable_insert_high_rank(self):
+    if _redis_health_check(redis_config_params["redis_host_ip"][0],
+                           redis_config_params["redis_host_port"][0]) == False:
+      self.skipTest('skip redis test when unable to access the redis service.')
     with self.session(use_gpu=test_util.is_gpu_available(),
                       config=default_config):
       default_val = constant_op.constant([-1, -1, -1], dtypes.int32)
@@ -1222,6 +1283,9 @@ class RedisVariableTest(test.TestCase):
           [[[0, 1, 2], [2, 3, 4]], [[-1, -1, -1], [-1, -1, -1]]], result)
 
   def test_dynamic_embedding_variable_remove_high_rank(self):
+    if _redis_health_check(redis_config_params["redis_host_ip"][0],
+                           redis_config_params["redis_host_port"][0]) == False:
+      self.skipTest('skip redis test when unable to access the redis service.')
     with self.session(use_gpu=test_util.is_gpu_available(),
                       config=default_config):
       default_val = constant_op.constant([-1, -1, -1], dtypes.int32)
@@ -1254,6 +1318,9 @@ class RedisVariableTest(test.TestCase):
           [[[-1, -1, -1], [2, 3, 4]], [[4, 5, 6], [-1, -1, -1]]], result)
 
   def test_dynamic_embedding_variables(self):
+    if _redis_health_check(redis_config_params["redis_host_ip"][0],
+                           redis_config_params["redis_host_port"][0]) == False:
+      self.skipTest('skip redis test when unable to access the redis service.')
     with self.session(use_gpu=test_util.is_gpu_available(),
                       config=default_config):
       default_val = -1
@@ -1302,6 +1369,9 @@ class RedisVariableTest(test.TestCase):
       self.assertAllEqual([[0], [1], [-1]], out3)
 
   def test_dynamic_embedding_variable_with_tensor_default(self):
+    if _redis_health_check(redis_config_params["redis_host_ip"][0],
+                           redis_config_params["redis_host_port"][0]) == False:
+      self.skipTest('skip redis test when unable to access the redis service.')
     with self.session(use_gpu=test_util.is_gpu_available(),
                       config=default_config):
       default_val = constant_op.constant(-1, dtypes.int32)
@@ -1326,6 +1396,9 @@ class RedisVariableTest(test.TestCase):
       self.assertAllEqual([[0], [1], [-1]], result)
 
   def test_signature_mismatch(self):
+    if _redis_health_check(redis_config_params["redis_host_ip"][0],
+                           redis_config_params["redis_host_port"][0]) == False:
+      self.skipTest('skip redis test when unable to access the redis service.')
     config = config_pb2.ConfigProto()
     config.allow_soft_placement = True
     config.gpu_options.allow_growth = True
@@ -1374,6 +1447,9 @@ class RedisVariableTest(test.TestCase):
         self.evaluate(table.lookup(remove_keys))
 
   def test_dynamic_embedding_variable_int_float(self):
+    if _redis_health_check(redis_config_params["redis_host_ip"][0],
+                           redis_config_params["redis_host_port"][0]) == False:
+      self.skipTest('skip redis test when unable to access the redis service.')
     with self.session(config=default_config,
                       use_gpu=test_util.is_gpu_available()):
       default_val = -1.0
@@ -1400,6 +1476,9 @@ class RedisVariableTest(test.TestCase):
       self.assertAllClose([[-1.2], [9.9], [default_val]], result)
 
   def test_dynamic_embedding_variable_with_random_init(self):
+    if _redis_health_check(redis_config_params["redis_host_ip"][0],
+                           redis_config_params["redis_host_port"][0]) == False:
+      self.skipTest('skip redis test when unable to access the redis service.')
     with self.session(use_gpu=test_util.is_gpu_available(),
                       config=default_config):
       keys = constant_op.constant([0, 1, 2], dtypes.int64)
@@ -1424,6 +1503,9 @@ class RedisVariableTest(test.TestCase):
       self.assertNotEqual([-1.0], result[2])
 
   def test_dynamic_embedding_variable_with_restrict_v1(self):
+    if _redis_health_check(redis_config_params["redis_host_ip"][0],
+                           redis_config_params["redis_host_port"][0]) == False:
+      self.skipTest('skip redis test when unable to access the redis service.')
     if context.executing_eagerly():
       self.skipTest('skip eager test when using legacy optimizers.')
 
@@ -1497,6 +1579,9 @@ class RedisVariableTest(test.TestCase):
     self.assertAllEqual(freq_size, num_reserved)
 
   def test_dynamic_embedding_variable_with_restrict_v2(self):
+    if _redis_health_check(redis_config_params["redis_host_ip"][0],
+                           redis_config_params["redis_host_port"][0]) == False:
+      self.skipTest('skip redis test when unable to access the redis service.')
     if not context.executing_eagerly():
       self.skipTest('Test in eager mode only.')
 
@@ -1572,9 +1657,7 @@ class RedisVariableTest(test.TestCase):
 
 if __name__ == "__main__":
   print("fuck")
-  print(
-      os.popen(
-          "redis-server --port 6379 --bind 0.0.0.0 --daemonize yes").read())
+  print(os.popen("redis-server --port 6379 --daemonize yes").read())
   print(os.popen("redis-cli -p 6379 INFO").read())
   print(
       os.popen('redis-cli -h ' + redis_config_params["redis_host_ip"][0] +

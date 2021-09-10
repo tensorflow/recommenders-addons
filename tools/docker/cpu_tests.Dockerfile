@@ -16,8 +16,8 @@ RUN pip install -r requirements.txt
 COPY tools/install_deps/pytest.txt ./
 RUN pip install -r pytest.txt pytest-cov
 
-COPY tools/docker/install/install_redis.sh /install/
-RUN /install/install_redis.sh "5.0.13"
+# COPY tools/docker/install/install_redis.sh /install/
+# RUN /install/install_redis.sh "5.0.13"
 
 COPY ./ /recommenders-addons
 WORKDIR recommenders-addons

@@ -5,10 +5,10 @@ export TF_NEED_CUDA=0
 python --version
 python -m pip install --default-timeout=1000 delocate wheel setuptools tensorflow==$TF_VERSION
 
-brew install redis
-redis-server --port 6379 --bind 0.0.0.0 --daemonize yes
-sleep 5s
-wait
+# brew install redis
+# redis-server --port 6379 --daemonize yes
+# sleep 5s
+# wait
 
 bash tools/testing/build_and_run_tests.sh
 

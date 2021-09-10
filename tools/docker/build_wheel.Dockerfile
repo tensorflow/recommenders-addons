@@ -60,8 +60,8 @@ ENV TF_NEED_CUDA=$TF_NEED_CUDA
 ENV TF_CUDA_VERSION=$TF_CUDA_VERSION
 ENV TF_CUDNN_VERSION=$TF_CUDNN_VERSION
 
-COPY tools/docker/install/install_redis.sh /install/
-RUN /install/install_redis.sh "5.0.13"
+# COPY tools/docker/install/install_redis.sh /install/
+# RUN /install/install_redis.sh "5.0.13"
 
 RUN python configure.py
 
