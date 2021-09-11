@@ -41,7 +41,7 @@ specific frameworks (e.g. NVIDIA Merlin, …), and integrations with Cloud servi
 
 ## RFCs
 * [RFC: Dynamic Embedding](rfcs/20200424-sparse-domain-isolation.md)
-* [RFC: Embedding Variable](https://docs.google.com/document/d/1odez6-69YH-eFcp8rKndDHTNGxZgdFFRJufsW94_gl4/edit)
+* [RFC: Embedding Variable](https://docs.google.com/document/d/1odez6-69YH-eFcp8rKndDHTNGxZgdFFRJufsW94_gl4)
 
 ## Subpackages
 
