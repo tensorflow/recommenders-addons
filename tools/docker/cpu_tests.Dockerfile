@@ -6,7 +6,7 @@ ARG USE_BAZEL_VERSION=3.1.0
 
 RUN pip install --default-timeout=1000 tensorflow-cpu==$TF_VERSION
 
-RUN apt-get update && apt-get install -y sudo rsync cmake
+RUN apt-get update && apt-get install -y sudo rsync
 COPY tools/docker/install/install_bazel.sh ./
 RUN ./install_bazel.sh $USE_BAZEL_VERSION
 
@@ -16,14 +16,14 @@ RUN pip install -r requirements.txt
 COPY tools/install_deps/pytest.txt ./
 RUN pip install -r pytest.txt pytest-cov
 
-COPY tools/docker/install/install_redis.sh /install/
-RUN /install/install_redis.sh "5.0.13"
-
 COPY ./ /recommenders-addons
 WORKDIR recommenders-addons
 RUN python configure.py
 RUN pip install -e ./
-RUN bash tools/testing/build_and_run_tests.sh
+RUN --mount=type=cache,id=cache_bazel,target=/root/.cache/bazel \
+    bash tools/install_so_files.sh
+RUN pytest -v -s -n auto --durations=25 --doctest-modules ./tensorflow_recommenders_addons \
+    --cov=tensorflow_recommenders_addons ./tensorflow_recommenders_addons/
 
 RUN bazel build --enable_runfiles build_pip_pkg
 RUN bazel-bin/build_pip_pkg artifacts
