@@ -127,8 +127,10 @@ class RedisTableConfig(object):
   def __init__(
       self,
       redis_config_abs_dir="/tmp/redis_config.json",
+      redis_config_abs_dir_env="TFRA_REDIS_CONFIG_PATH",
   ):
     self.redis_config_abs_dir = redis_config_abs_dir
+    self.redis_config_abs_dir_env = redis_config_abs_dir_env
 
 
 class RedisTableCreator(KVCreator):

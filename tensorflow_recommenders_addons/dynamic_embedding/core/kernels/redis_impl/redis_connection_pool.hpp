@@ -47,7 +47,8 @@ class RedisWrapper<
   ConnectionPoolOptions pool_opts;
 
  public:
-  std::shared_ptr<RedisInstance> redis_conn;  // for the hungry singleton mode
+  std::shared_ptr<RedisInstance> redis_conn =
+      nullptr;  // for the hungry singleton mode
 
  public:
   RedisWrapper(RedisInstance &&) = delete;
@@ -90,23 +91,7 @@ class RedisWrapper<
     sentinel_opts.socket_timeout = std::chrono::milliseconds(
         redis_connection_params.redis_sentinel_socket_timeout);
 
-    // Redis connection options
-    conn_opts.user = redis_connection_params.redis_user;
-    conn_opts.password =
-        redis_connection_params
-            .redis_password;  // Optional. No redis_password by default.
-    conn_opts.db = redis_connection_params.redis_db;
-    conn_opts.keep_alive = redis_connection_params.redis_connect_keep_alive;
-    conn_opts.connect_timeout = std::chrono::milliseconds(
-        redis_connection_params.redis_connect_timeout);
-    conn_opts.socket_timeout =
-        std::chrono::milliseconds(redis_connection_params.redis_socket_timeout);
-    // Redis connection pool options
-    pool_opts.size = redis_connection_params.redis_conn_pool_size;
-    pool_opts.wait_timeout =
-        std::chrono::milliseconds(redis_connection_params.redis_wait_timeout);
-    pool_opts.connection_lifetime =
-        std::chrono::minutes(redis_connection_params.redis_connection_lifetime);
+    SetPublicConnParams(conn_opts, pool_opts, redis_connection_params);
 
     auto sentinel = std::make_shared<Sentinel>(sentinel_opts);
 
@@ -115,6 +100,14 @@ class RedisWrapper<
           RedisInstance(sentinel, redis_connection_params.redis_master_name,
                         Role::MASTER, conn_opts, pool_opts));
       redis_client->ping();
+      if (RedisClusterEnabled(redis_client) == true) {
+        LOG(ERROR)
+            << "Now is sentinel mode but try to connect Redis cluster nodes. "
+               "Please check redis_connection_mode in config file.";
+        throw std::invalid_argument(
+            "Can not connect to cluster nodes when in sentinel mode, "
+            "redis_connection_mode should be 0 when connect to cluster nodes.");
+      }
       return redis_client;
     } catch (const std::exception &err) {
       LOG(ERROR) << "RedisHandler--error: " << err.what();
@@ -133,27 +126,21 @@ class RedisWrapper<
     // Redis connection options
     conn_opts.host = redis_connection_params.redis_host_ip[0];
     conn_opts.port = redis_connection_params.redis_host_port[0];
-    conn_opts.user = redis_connection_params.redis_user;
-    conn_opts.password =
-        redis_connection_params
-            .redis_password;  // Optional. No redis_password by default.
-    conn_opts.db = redis_connection_params.redis_db;
-    conn_opts.keep_alive = redis_connection_params.redis_connect_keep_alive;
-    conn_opts.connect_timeout = std::chrono::milliseconds(
-        redis_connection_params.redis_connect_timeout);
-    conn_opts.socket_timeout =
-        std::chrono::milliseconds(redis_connection_params.redis_socket_timeout);
-    // Redis connection pool options
-    pool_opts.size = redis_connection_params.redis_conn_pool_size;
-    pool_opts.wait_timeout =
-        std::chrono::milliseconds(redis_connection_params.redis_wait_timeout);
-    pool_opts.connection_lifetime =
-        std::chrono::minutes(redis_connection_params.redis_connection_lifetime);
+
+    SetPublicConnParams(conn_opts, pool_opts, redis_connection_params);
 
     try {
       static auto redis_client =
           std::make_shared<RedisInstance>(RedisInstance(conn_opts, pool_opts));
       redis_client->ping();
+      if (RedisClusterEnabled(redis_client) == true) {
+        LOG(ERROR)
+            << "Now is single mode but try to connect Redis cluster nodes. "
+               "Please check redis_connection_mode in config file.";
+        throw std::invalid_argument(
+            "Can not connect to cluster nodes when in single mode, "
+            "redis_connection_mode should be 0 when connect to cluster nodes.");
+      }
       return redis_client;
     } catch (const std::exception &err) {
       LOG(ERROR) << "RedisHandler--error: " << err.what();
@@ -165,20 +152,22 @@ class RedisWrapper<
     return nullptr;
   }
 
-  virtual void Conn() override {
+  virtual Status Conn() override {
     if (isRedisConnect == false) {
       for (short i = 0; i < 10; i++) {
         redis_conn = StartConn();
-        if (redis_conn) {
+        if (redis_conn != nullptr) {
           isRedisConnect = true;
-          return;
+          std::cerr << "fuck " << std::endl;
+          return Status::OK();
         }
       }
       if (isRedisConnect == false) {
         LOG(ERROR) << "Can not connect to the Redis Master servers.";
-        throw(std::runtime_error("Exit without any Redis connection."));
+        return Status(error::UNAVAILABLE, "Exit without any Redis connection.");
       }
     }
+    return Status::OK();
   }
 
   static std::shared_ptr<RedisWrapper<RedisInstance, K, V>> get_instance() {
@@ -277,7 +266,7 @@ class RedisWrapper<
     return size;
   }
 
-  virtual void RemoveHkeysInBuckets(
+  virtual Status RemoveHkeysInBuckets(
       const std::string &keys_prefix_name_slice) override {
     // std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply;
     std::string redis_command = "DEL " + keys_prefix_name_slice;
@@ -289,7 +278,9 @@ class RedisWrapper<
     } catch (const std::exception &err) {
       LOG(ERROR) << "RedisHandler error in RemoveHkeysInBuckets for "
                  << keys_prefix_name_slice << " -- " << err.what();
+      return errors::Unknown(err.what());
     }
+    return Status::OK();
   }
 
   virtual std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>
@@ -356,7 +347,8 @@ class RedisWrapper<
     return nullptr;
   }
 
-  virtual void SetExpireBuckets(const std::string &keys_prefix_name) override {
+  virtual Status SetExpireBuckets(
+      const std::string &keys_prefix_name) override {
     // std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply;
     const std::string expire_command("EXPIRE ");
     std::string redis_command;
@@ -375,11 +367,15 @@ class RedisWrapper<
       } catch (const std::exception &err) {
         LOG(ERROR) << "RedisHandler error in SetExpireBuckets for "
                    << bucket_name << " -- " << err.what();
+        return errors::Unknown(err.what());
       }
     }
+
+    return Status::OK();
   }
 
-  virtual void SetPersistBuckets(const std::string &keys_prefix_name) override {
+  virtual Status SetPersistBuckets(
+      const std::string &keys_prefix_name) override {
     // std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply;
     const std::string expire_command("PERSIST ");
     std::string redis_command;
@@ -396,18 +392,21 @@ class RedisWrapper<
       } catch (const std::exception &err) {
         LOG(ERROR) << "RedisHandler error in SetPersistBuckets for "
                    << bucket_name << " -- " << err.what();
+        return errors::Unknown(err.what());
       }
     }
+
+    return Status::OK();
   }
 
   /*
   fds are the return of POSIX open file function declared in <fcntl.h>
   */
-  virtual void DumpToDisk(
+  virtual Status DumpToDisk(
       const std::vector<std::string> &keys_prefix_name_slices,
       std::vector<aiocb> &wrs, const std::vector<int> &fds) override {
     if (fds.size() == 0) {
-      return;
+      return Status::OK();
     }
 
     std::string redis_command = "DUMP " + keys_prefix_name_slices[0];
@@ -423,6 +422,7 @@ class RedisWrapper<
     } catch (const std::exception &err) {
       LOG(ERROR) << "RedisHandler error in DumpToDisk for DUMP "
                  << keys_prefix_name_slices[0] << " -- " << err.what();
+      return errors::Unknown(err.what());
     }
 
     size_t buf_len;
@@ -462,14 +462,16 @@ class RedisWrapper<
       LOG(ERROR) << "HKEY " << keys_prefix_name_slices[0]
                  << " does not exist in the Redis server. ";
     }
+
+    return Status::OK();
   }
 
-  virtual void RestoreFromDisk(
+  virtual Status RestoreFromDisk(
       const std::vector<std::string> &keys_prefix_name_slices,
       std::vector<aiocb> &rds, const std::vector<int> &fds,
       const std::vector<unsigned long> &buf_sizes) override {
     if (fds.size() == 0) {
-      return;
+      return Status::OK();
     }
 
     aiocb *rd = &rds.front();
@@ -528,8 +530,6 @@ class RedisWrapper<
         while (aio_error(rd) == EINPROGRESS)
           ;
         if ((ret = aio_return(rd)) > 0) {
-          // LOG(INFO) << "File handle " << rd->aio_fildes
-          //           << " finished reading last round.";
           break;
         } else {
           LOG(WARNING) << "File handle " << rd->aio_fildes
@@ -547,10 +547,13 @@ class RedisWrapper<
     } catch (const std::exception &err) {
       LOG(ERROR) << "RedisHandler error in RestoreFromDisk for RESTORE "
                  << keys_prefix_name_slices[0] << " -- " << err.what();
+      return errors::Unknown(err.what());
     }
+
+    return Status::OK();
   }
 
-  virtual void DuplicateInRedis(
+  virtual Status DuplicateInRedis(
       const std::vector<std::string> &keys_prefix_name_slices_old,
       const std::vector<std::string> &keys_prefix_name_slices_new) override {
     std::string redis_dump_command = "DUMP " + keys_prefix_name_slices_old[0];
@@ -580,6 +583,7 @@ class RedisWrapper<
       LOG(ERROR)
           << "RedisHandler error in dump_to_reply of DuplicateInRedis for DUMP "
           << keys_prefix_name_slices_old[0] << " -- " << err.what();
+      return errors::Unknown(err.what());
     }
 
     std::vector<const char *> ptrs_0;
@@ -612,7 +616,10 @@ class RedisWrapper<
       LOG(ERROR) << "RedisHandler error in restore_from_reply of "
                     "DuplicateInRedis for RESTORE "
                  << keys_prefix_name_slices_new[0] << " -- " << err.what();
+      return errors::Unknown(err.what());
     }
+
+    return Status::OK();
   }
 
  public:
@@ -718,7 +725,7 @@ every bucket has its own BucketContext for sending data---for locating reply-
     }
   }
 
-  virtual void MgetToTensor(
+  virtual Status MgetToTensor(
       Tensor *values, const Tensor &default_value, const bool is_full_default,
       ThreadContext *thread_context,
       std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>>
@@ -764,9 +771,11 @@ every bucket has its own BucketContext for sending data---for locating reply-
                             Velems_per_dim0);
       }
     }
+
+    return Status::OK();
   }
 
-  virtual void MsetCommand(
+  virtual Status MsetCommand(
       const Tensor &keys, const Tensor &values, ThreadContext *thread_context,
       const int64 begin, const int64 max_i, const int64 Velems_per_dim0,
       const std::vector<std::string> &keys_prefix_name_slices) override {
@@ -837,10 +846,13 @@ every bucket has its own BucketContext for sending data---for locating reply-
     } catch (const std::exception &err) {
       LOG(ERROR) << "RedisHandler error in MSET_COMMAND for HMSET "
                  << keys_prefix_name_slices[0] << " -- " << err.what();
+      return errors::Unknown(err.what());
     }
+
+    return Status::OK();
   }
 
-  virtual void DelCommand(
+  virtual Status DelCommand(
       const Tensor &keys, ThreadContext *thread_context, const int64 begin,
       const int64 max_i,
       const std::vector<std::string> &keys_prefix_name_slices) override {
@@ -894,7 +906,10 @@ every bucket has its own BucketContext for sending data---for locating reply-
     } catch (const std::exception &err) {
       LOG(ERROR) << "RedisHandler error in DEL_COMMAND for HDEL "
                  << keys_prefix_name_slices[0] << " -- " << err.what();
+      return errors::Unknown(err.what());
     }
+
+    return Status::OK();
   }
 };  // namespace redis_connection
 

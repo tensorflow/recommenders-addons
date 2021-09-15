@@ -60,14 +60,14 @@ size_t SelectAvailableThreadContext(
   return thread_context_id;
 }
 
-void launchFindCore(std::shared_ptr<RedisVirtualWrapper> _table_instance,
-                    std::vector<std::string> &keys_prefix_name_slices,
-                    const Tensor &keys, Tensor *values,
-                    const Tensor &default_value, const bool is_full_default,
-                    const int64 &Velems_per_flat2_dim0,
-                    std::vector<ThreadContext *> &threads_Find,
-                    std::mutex &threads_Find_mutex, const int64 begin,
-                    const int64 end) {
+Status launchFindCore(std::shared_ptr<RedisVirtualWrapper> _table_instance,
+                      std::vector<std::string> &keys_prefix_name_slices,
+                      const Tensor &keys, Tensor *values,
+                      const Tensor &default_value, const bool is_full_default,
+                      const int64 &Velems_per_flat2_dim0,
+                      std::vector<ThreadContext *> &threads_Find,
+                      std::mutex &threads_Find_mutex, const int64 begin,
+                      const int64 end) {
   size_t thread_context_id =
       SelectAvailableThreadContext(threads_Find, threads_Find_mutex);
 
@@ -75,15 +75,18 @@ void launchFindCore(std::shared_ptr<RedisVirtualWrapper> _table_instance,
       _table_instance->MgetCommand(keys, threads_Find.at(thread_context_id),
                                    begin, end, keys_prefix_name_slices);
 
-  _table_instance->MgetToTensor(values, default_value, is_full_default,
-                                threads_Find.at(thread_context_id), reply,
-                                begin, end, Velems_per_flat2_dim0);
+  auto statu =
+      _table_instance->MgetToTensor(values, default_value, is_full_default,
+                                    threads_Find.at(thread_context_id), reply,
+                                    begin, end, Velems_per_flat2_dim0);
 
   threads_Find[thread_context_id]->thread_occupied.store(
       false, std::memory_order_release);
+
+  return statu;
 }
 
-void launchFindWithExistsCore(
+Status launchFindWithExistsCore(
     std::shared_ptr<RedisVirtualWrapper> _table_instance,
     std::vector<std::string> &keys_prefix_name_slices, const Tensor &keys,
     Tensor *values, const Tensor &default_value, Tensor &exists,
@@ -99,50 +102,58 @@ void launchFindWithExistsCore(
       _table_instance->MgetCommand(keys, threads_Find.at(thread_context_id),
                                    begin, end, keys_prefix_name_slices);
 
-  _table_instance->MgetToTensor(values, default_value, is_full_default,
-                                threads_Find.at(thread_context_id), reply,
-                                begin, end, Velems_per_flat2_dim0);
+  auto statu =
+      _table_instance->MgetToTensor(values, default_value, is_full_default,
+                                    threads_Find.at(thread_context_id), reply,
+                                    begin, end, Velems_per_flat2_dim0);
 
   threads_Find[thread_context_id]->thread_occupied.store(
       false, std::memory_order_release);
+
+  return statu;
 }
 
-void launchInsertCore(std::shared_ptr<RedisVirtualWrapper> _table_instance,
-                      std::vector<std::string> &keys_prefix_name_slices,
-                      const Tensor &keys, const Tensor &values,
-                      const int64 &Velems_per_flat2_dim0,
-                      std::vector<ThreadContext *> &threads_Insert,
-                      std::mutex &threads_Insert_mutex, const int64 begin,
-                      const int64 end) {
+Status launchInsertCore(std::shared_ptr<RedisVirtualWrapper> _table_instance,
+                        std::vector<std::string> &keys_prefix_name_slices,
+                        const Tensor &keys, const Tensor &values,
+                        const int64 &Velems_per_flat2_dim0,
+                        std::vector<ThreadContext *> &threads_Insert,
+                        std::mutex &threads_Insert_mutex, const int64 begin,
+                        const int64 end) {
   size_t thread_context_id =
       SelectAvailableThreadContext(threads_Insert, threads_Insert_mutex);
 
-  _table_instance->MsetCommand(keys, values,
-                               threads_Insert.at(thread_context_id), begin, end,
-                               Velems_per_flat2_dim0, keys_prefix_name_slices);
+  auto statu = _table_instance->MsetCommand(
+      keys, values, threads_Insert.at(thread_context_id), begin, end,
+      Velems_per_flat2_dim0, keys_prefix_name_slices);
 
   threads_Insert[thread_context_id]->thread_occupied.store(
       false, std::memory_order_release);
+
+  return statu;
 }
 
-void launchDeleteCore(std::shared_ptr<RedisVirtualWrapper> _table_instance,
-                      std::vector<std::string> &keys_prefix_name_slices,
-                      const Tensor &keys,
-                      std::vector<ThreadContext *> &threads_Delete,
-                      std::mutex &threads_Delete_mutex, const int64 begin,
-                      const int64 end) {
+Status launchDeleteCore(std::shared_ptr<RedisVirtualWrapper> _table_instance,
+                        std::vector<std::string> &keys_prefix_name_slices,
+                        const Tensor &keys,
+                        std::vector<ThreadContext *> &threads_Delete,
+                        std::mutex &threads_Delete_mutex, const int64 begin,
+                        const int64 end) {
   size_t thread_context_id =
       SelectAvailableThreadContext(threads_Delete, threads_Delete_mutex);
 
-  _table_instance->DelCommand(keys, threads_Delete.at(thread_context_id), begin,
-                              end, keys_prefix_name_slices);
+  auto statu =
+      _table_instance->DelCommand(keys, threads_Delete.at(thread_context_id),
+                                  begin, end, keys_prefix_name_slices);
 
   threads_Delete[thread_context_id]->thread_occupied.store(
       false, std::memory_order_release);
+
+  return statu;
 }
 
-void ParseJsonConfig(const std::string *const redis_config_abs_dir,
-                     Redis_Connection_Params *redis_connection_params) {
+Status ParseJsonConfig(const std::string *const redis_config_abs_dir,
+                       Redis_Connection_Params *redis_connection_params) {
   const char *filename = redis_config_abs_dir->c_str();
   FILE *fp;
   struct stat filestatus;
@@ -178,7 +189,7 @@ void ParseJsonConfig(const std::string *const redis_config_abs_dir,
   if (config_value->type != json_object) {
     free(file_contents);
     LOG(ERROR) << "Unable to parse the json data";
-    throw(redis_config_abs_dir);
+    return Status(error::NOT_FOUND, redis_config_abs_dir->c_str());
   }
 
   std::unordered_map<std::string, json_value *> json_hangar;
@@ -190,139 +201,120 @@ void ParseJsonConfig(const std::string *const redis_config_abs_dir,
     json_hangar[value_depth0_entry.name] = value_depth0_entry.value;
   }
 
-  json_hangar_it = json_hangar.find("redis_connection_mode");
-  if (json_hangar_it != json_hangar.end()) {
-    if (json_hangar_it->second->type == json_integer) {
-      redis_connection_params->redis_connection_mode =
-          json_hangar_it->second->u.integer;
-    }
+#define ReadOneJsonToParams(json_key_name, json_val_type)                \
+  {                                                                      \
+    json_hangar_it = json_hangar.find(#json_key_name);                   \
+    if (json_hangar_it != json_hangar.end()) {                           \
+      if (json_hangar_it->second->type == json_##json_val_type) {        \
+        redis_connection_params->json_key_name =                         \
+            json_hangar_it->second->u.json_val_type;                     \
+      } else {                                                           \
+        LOG(ERROR) << #json_key_name " should be json " #json_val_type;  \
+        return Status(error::INVALID_ARGUMENT,                           \
+                      #json_key_name " should be json " #json_val_type); \
+      }                                                                  \
+    }                                                                    \
   }
 
-  json_hangar_it = json_hangar.find("redis_master_name");
-  if (json_hangar_it != json_hangar.end()) {
-    if (json_hangar_it->second->type == json_string) {
-      redis_connection_params->redis_master_name =
-          std::string(json_hangar_it->second->u.string.ptr,
-                      json_hangar_it->second->u.string.length);
-    }
+#define ReadStringOneJsonToParams(json_key_name)                  \
+  {                                                               \
+    json_hangar_it = json_hangar.find(#json_key_name);            \
+    if (json_hangar_it != json_hangar.end()) {                    \
+      if (json_hangar_it->second->type == json_string) {          \
+        redis_connection_params->json_key_name =                  \
+            std::string(json_hangar_it->second->u.string.ptr,     \
+                        json_hangar_it->second->u.string.length); \
+      } else {                                                    \
+        LOG(ERROR) << #json_key_name " should be json string";    \
+        return Status(error::INVALID_ARGUMENT,                    \
+                      #json_key_name " should be json string");   \
+      }                                                           \
+    }                                                             \
   }
 
-  json_hangar_it = json_hangar.find("redis_host_ip");
-  if (json_hangar_it != json_hangar.end()) {
-    if (json_hangar_it->second->type == json_array) {
-      redis_connection_params->redis_host_ip.clear();
-      for (unsigned i = 0; i < json_hangar_it->second->u.array.length; ++i) {
-        value_depth1 = json_hangar_it->second->u.array.values[i];
-        if (value_depth1->type == json_string) {
-          redis_connection_params->redis_host_ip.push_back(std::string(
-              value_depth1->u.string.ptr, value_depth1->u.string.length));
-        }
-      }
-    }
+#define ReadArrayJsonToParams(json_key_name, json_val_type)                \
+  {                                                                        \
+    json_hangar_it = json_hangar.find(#json_key_name);                     \
+    if (json_hangar_it != json_hangar.end()) {                             \
+      if (json_hangar_it->second->type == json_array) {                    \
+        redis_connection_params->json_key_name.clear();                    \
+        for (unsigned i = 0; i < json_hangar_it->second->u.array.length;   \
+             ++i) {                                                        \
+          value_depth1 = json_hangar_it->second->u.array.values[i];        \
+          if (value_depth1->type == json_##json_val_type) {                \
+            redis_connection_params->redis_host_port.push_back(            \
+                value_depth1->u.json_val_type);                            \
+          } else {                                                         \
+            LOG(ERROR) << #json_key_name " should be json " #json_val_type \
+                                         " array";                         \
+            return Status(error::INVALID_ARGUMENT, #json_key_name          \
+                          " should be json " #json_val_type " array");     \
+          }                                                                \
+        }                                                                  \
+      } else {                                                             \
+        LOG(ERROR) << #json_key_name " should be json " #json_val_type     \
+                                     " array";                             \
+        return Status(error::INVALID_ARGUMENT, #json_key_name              \
+                      " should be json " #json_val_type " array");         \
+      }                                                                    \
+    }                                                                      \
   }
 
-  json_hangar_it = json_hangar.find("redis_host_port");
-  if (json_hangar_it != json_hangar.end()) {
-    if (json_hangar_it->second->type == json_array) {
-      redis_connection_params->redis_host_port.clear();
-      for (unsigned i = 0; i < json_hangar_it->second->u.array.length; ++i) {
-        value_depth1 = json_hangar_it->second->u.array.values[i];
-        if (value_depth1->type == json_integer) {
-          redis_connection_params->redis_host_port.push_back(
-              value_depth1->u.integer);
-        }
-      }
-    }
+#define ReadStringArrayJsonToParams(json_key_name)                           \
+  {                                                                          \
+    json_hangar_it = json_hangar.find(#json_key_name);                       \
+    if (json_hangar_it != json_hangar.end()) {                               \
+      if (json_hangar_it->second->type == json_array) {                      \
+        redis_connection_params->json_key_name.clear();                      \
+        for (unsigned i = 0; i < json_hangar_it->second->u.array.length;     \
+             ++i) {                                                          \
+          value_depth1 = json_hangar_it->second->u.array.values[i];          \
+          if (value_depth1->type == json_string) {                           \
+            redis_connection_params->json_key_name.push_back(std::string(    \
+                value_depth1->u.string.ptr, value_depth1->u.string.length)); \
+          } else {                                                           \
+            LOG(ERROR) << #json_key_name " should be json string array";     \
+            return Status(error::INVALID_ARGUMENT,                           \
+                          #json_key_name " should be json string array");    \
+          }                                                                  \
+        }                                                                    \
+      } else {                                                               \
+        LOG(ERROR) << #json_key_name " should be json string array";         \
+        return Status(error::INVALID_ARGUMENT,                               \
+                      #json_key_name " should be json string array");        \
+      }                                                                      \
+    }                                                                        \
   }
 
-  json_hangar_it = json_hangar.find("redis_user");
-  if (json_hangar_it != json_hangar.end()) {
-    if (json_hangar_it->second->type == json_string) {
-      redis_connection_params->redis_user =
-          std::string(json_hangar_it->second->u.string.ptr,
-                      json_hangar_it->second->u.string.length);
-    }
-  }
+  ReadOneJsonToParams(redis_connection_mode, integer);
 
-  json_hangar_it = json_hangar.find("redis_password");
-  if (json_hangar_it != json_hangar.end()) {
-    if (json_hangar_it->second->type == json_string) {
-      redis_connection_params->redis_password =
-          std::string(json_hangar_it->second->u.string.ptr,
-                      json_hangar_it->second->u.string.length);
-    }
-  }
+  ReadStringOneJsonToParams(redis_master_name);
 
-  json_hangar_it = json_hangar.find("redis_db");
-  if (json_hangar_it != json_hangar.end()) {
-    if (json_hangar_it->second->type == json_integer) {
-      redis_connection_params->redis_db = json_hangar_it->second->u.integer;
-    }
-  }
+  ReadStringArrayJsonToParams(redis_host_ip);
 
-  json_hangar_it = json_hangar.find("redis_connect_keep_alive");
-  if (json_hangar_it != json_hangar.end()) {
-    if (json_hangar_it->second->type == json_boolean) {
-      redis_connection_params->redis_connect_keep_alive =
-          json_hangar_it->second->u.boolean;
-    }
-  }
+  ReadArrayJsonToParams(redis_host_port, integer);
 
-  json_hangar_it = json_hangar.find("redis_connect_timeout");
-  if (json_hangar_it != json_hangar.end()) {
-    if (json_hangar_it->second->type == json_integer) {
-      redis_connection_params->redis_connect_timeout =
-          json_hangar_it->second->u.integer;
-    }
-  }
+  ReadStringOneJsonToParams(redis_user);
 
-  json_hangar_it = json_hangar.find("redis_socket_timeout");
-  if (json_hangar_it != json_hangar.end()) {
-    if (json_hangar_it->second->type == json_integer) {
-      redis_connection_params->redis_socket_timeout =
-          json_hangar_it->second->u.integer;
-    }
-  }
+  ReadStringOneJsonToParams(redis_password);
 
-  json_hangar_it = json_hangar.find("redis_conn_pool_size");
-  if (json_hangar_it != json_hangar.end()) {
-    if (json_hangar_it->second->type == json_integer) {
-      redis_connection_params->redis_conn_pool_size =
-          json_hangar_it->second->u.integer;
-    }
-  }
+  ReadOneJsonToParams(redis_db, integer);
 
-  json_hangar_it = json_hangar.find("redis_wait_timeout");
-  if (json_hangar_it != json_hangar.end()) {
-    if (json_hangar_it->second->type == json_integer) {
-      redis_connection_params->redis_wait_timeout =
-          json_hangar_it->second->u.integer;
-    }
-  }
+  ReadOneJsonToParams(redis_connect_keep_alive, boolean);
 
-  json_hangar_it = json_hangar.find("redis_connection_lifetime");
-  if (json_hangar_it != json_hangar.end()) {
-    if (json_hangar_it->second->type == json_integer) {
-      redis_connection_params->redis_connection_lifetime =
-          json_hangar_it->second->u.integer;
-    }
-  }
+  ReadOneJsonToParams(redis_connect_timeout, integer);
 
-  json_hangar_it = json_hangar.find("redis_sentinel_connect_timeout");
-  if (json_hangar_it != json_hangar.end()) {
-    if (json_hangar_it->second->type == json_integer) {
-      redis_connection_params->redis_sentinel_connect_timeout =
-          json_hangar_it->second->u.integer;
-    }
-  }
+  ReadOneJsonToParams(redis_socket_timeout, integer);
 
-  json_hangar_it = json_hangar.find("redis_sentinel_socket_timeout");
-  if (json_hangar_it != json_hangar.end()) {
-    if (json_hangar_it->second->type == json_integer) {
-      redis_connection_params->redis_sentinel_socket_timeout =
-          json_hangar_it->second->u.integer;
-    }
-  }
+  ReadOneJsonToParams(redis_conn_pool_size, integer);
+
+  ReadOneJsonToParams(redis_wait_timeout, integer);
+
+  ReadOneJsonToParams(redis_connection_lifetime, integer);
+
+  ReadOneJsonToParams(redis_sentinel_connect_timeout, integer);
+
+  ReadOneJsonToParams(redis_sentinel_socket_timeout, integer);
 
   json_hangar_it = json_hangar.find("storage_slice");
   if (json_hangar_it != json_hangar.end()) {
@@ -331,102 +323,40 @@ void ParseJsonConfig(const std::string *const redis_config_abs_dir,
           round_next_power_two_bitlen(json_hangar_it->second->u.integer);
       redis_connection_params->storage_slice =
           1 << redis_connection_params->storage_slice_log2;
-      ;
+    } else {
+      LOG(ERROR) << "storage_slice should be json_integer";
+      return Status(error::INVALID_ARGUMENT,
+                    "storage_slice should be json_integer");
     }
   }
 
-  json_hangar_it = json_hangar.find("keys_sending_size");
-  if (json_hangar_it != json_hangar.end()) {
-    if (json_hangar_it->second->type == json_integer) {
-      redis_connection_params->keys_sending_size =
-          json_hangar_it->second->u.integer;
-      ;
-    }
-  }
+  ReadOneJsonToParams(keys_sending_size, integer);
 
-  json_hangar_it = json_hangar.find("using_md5_prefix_name");
-  if (json_hangar_it != json_hangar.end()) {
-    if (json_hangar_it->second->type == json_boolean) {
-      redis_connection_params->using_md5_prefix_name =
-          json_hangar_it->second->u.boolean;
-    }
-  }
+  ReadOneJsonToParams(using_md5_prefix_name, boolean);
 
-  json_hangar_it = json_hangar.find("model_tag_import");
-  if (json_hangar_it != json_hangar.end()) {
-    if (json_hangar_it->second->type == json_string) {
-      redis_connection_params->model_tag_import =
-          std::string(json_hangar_it->second->u.string.ptr,
-                      json_hangar_it->second->u.string.length);
-    }
-  }
+  ReadStringOneJsonToParams(model_tag_import);
 
-  json_hangar_it = json_hangar.find("redis_hash_tags_import");
-  if (json_hangar_it != json_hangar.end()) {
-    if (json_hangar_it->second->type == json_array) {
-      redis_connection_params->redis_hash_tags_import.clear();
-      for (unsigned i = 0; i < json_hangar_it->second->u.array.length; ++i) {
-        value_depth1 = json_hangar_it->second->u.array.values[i];
-        if (value_depth1->type == json_string) {
-          redis_connection_params->redis_hash_tags_import.push_back(std::string(
-              value_depth1->u.string.ptr, value_depth1->u.string.length));
-        }
-      }
-    }
-  }
+  ReadStringArrayJsonToParams(redis_hash_tags_import);
 
-  json_hangar_it = json_hangar.find("model_tag_runtime");
-  if (json_hangar_it != json_hangar.end()) {
-    if (json_hangar_it->second->type == json_string) {
-      redis_connection_params->model_tag_runtime =
-          std::string(json_hangar_it->second->u.string.ptr,
-                      json_hangar_it->second->u.string.length);
-    }
-  }
+  ReadStringOneJsonToParams(model_tag_runtime);
 
-  json_hangar_it = json_hangar.find("redis_hash_tags_runtime");
-  if (json_hangar_it != json_hangar.end()) {
-    if (json_hangar_it->second->type == json_array) {
-      redis_connection_params->redis_hash_tags_runtime.clear();
-      for (unsigned i = 0; i < json_hangar_it->second->u.array.length; ++i) {
-        value_depth1 = json_hangar_it->second->u.array.values[i];
-        if (value_depth1->type == json_string) {
-          redis_connection_params->redis_hash_tags_runtime.push_back(
-              std::string(value_depth1->u.string.ptr,
-                          value_depth1->u.string.length));
-        }
-      }
-    }
-  }
+  ReadStringArrayJsonToParams(redis_hash_tags_runtime);
 
-  json_hangar_it = json_hangar.find("expire_model_tag_in_seconds");
-  if (json_hangar_it != json_hangar.end()) {
-    if (json_hangar_it->second->type == json_integer) {
-      redis_connection_params->expire_model_tag_in_seconds =
-          json_hangar_it->second->u.integer;
-      ;
-    }
-  }
+  ReadOneJsonToParams(expire_model_tag_in_seconds, integer);
 
-  json_hangar_it = json_hangar.find("table_store_mode");
-  if (json_hangar_it != json_hangar.end()) {
-    if (json_hangar_it->second->type == json_integer) {
-      redis_connection_params->table_store_mode =
-          json_hangar_it->second->u.integer;
-    }
-  }
+  ReadOneJsonToParams(table_store_mode, integer);
 
-  json_hangar_it = json_hangar.find("model_lib_abs_dir");
-  if (json_hangar_it != json_hangar.end()) {
-    if (json_hangar_it->second->type == json_string) {
-      redis_connection_params->model_lib_abs_dir =
-          std::string(json_hangar_it->second->u.string.ptr,
-                      json_hangar_it->second->u.string.length);
-    }
-  }
+  ReadStringOneJsonToParams(model_lib_abs_dir);
+
+#undef ReadOneJsonToParams
+#undef ReadStringOneJsonToParams
+#undef ReadArrayJsonToParams
+#undef ReadStringArrayJsonToParams
 
   json_value_free(config_value);
   free(file_contents);
+
+  return Status::OK();
 }
 
 extern "C" sds sdsempty(void);

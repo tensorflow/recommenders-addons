@@ -150,6 +150,21 @@ class RedisTable(LookupInterface):
     with open(self._config.redis_config_abs_dir, 'w', encoding='utf-8') as f1:
       f1.write(json.dumps(self._redis_params, indent=2, ensure_ascii=True))
 
+    if self._config.redis_config_abs_dir_env in os.environ and os.getenv(
+        self._config.redis_config_abs_dir_env):
+      with open(os.getenv(self._config.redis_config_abs_dir_env),
+                'r',
+                encoding='utf-8') as f0:
+        params_load = json.load(f0)
+        self._redis_params = self.default_redis_params.copy()
+        for k in self._redis_params.keys():
+          if k in params_load:
+            self._redis_params[k] = params_load[k]
+      with open(os.getenv(self._config.redis_config_abs_dir_env),
+                'w',
+                encoding='utf-8') as f1:
+        f1.write(json.dumps(self._redis_params, indent=2, ensure_ascii=True))
+
     self._shared_name = None
     if context.executing_eagerly():
       # TODO(allenl): This will leak memory due to kernel caching by the
@@ -185,7 +200,8 @@ class RedisTable(LookupInterface):
         value_dtype=self._value_dtype,
         value_shape=self._default_value.get_shape(),
         embedding_name=self._embedding_name,
-        redis_config_abs_dir=self._config.redis_config_abs_dir)
+        redis_config_abs_dir=self._config.redis_config_abs_dir,
+        redis_config_abs_dir_env=self._config.redis_config_abs_dir_env)
 
     if context.executing_eagerly():
       self._table_name = None

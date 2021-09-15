@@ -20,7 +20,7 @@ You can solve this problem by hashing the keys with more out-of-order results, s
 CRC32 / CRC16. But even with the addition of Intel's instruction set, it still affects performance too much.
 
 # How To Create a Config File?
-Below is an example of a JSON file, along with comments on the corresponding project. 
+Below is an example of a JSON file, along with comments on the corresponding project. Please use UTF-8 encoding.
 **Attention! Json files cannot contain comments when actually used!**
 ```json
 {
