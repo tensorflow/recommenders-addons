@@ -195,6 +195,10 @@ void ParseJsonConfig(const std::string *const redis_config_abs_dir,
     if (json_hangar_it->second->type == json_integer) {
       redis_connection_params->redis_connection_mode =
           json_hangar_it->second->u.integer;
+    } else {
+      LOG(ERROR) << "redis_connection_mode should be json_integer";
+      throw std::invalid_argument(
+          "redis_connection_mode should be json_integer");
     }
   }
 
@@ -204,6 +208,9 @@ void ParseJsonConfig(const std::string *const redis_config_abs_dir,
       redis_connection_params->redis_master_name =
           std::string(json_hangar_it->second->u.string.ptr,
                       json_hangar_it->second->u.string.length);
+    } else {
+      LOG(ERROR) << "redis_master_name should be json_string";
+      throw std::invalid_argument("redis_master_name should be json_string");
     }
   }
 
@@ -216,8 +223,16 @@ void ParseJsonConfig(const std::string *const redis_config_abs_dir,
         if (value_depth1->type == json_string) {
           redis_connection_params->redis_host_ip.push_back(std::string(
               value_depth1->u.string.ptr, value_depth1->u.string.length));
+        } else {
+          LOG(ERROR) << "redis_host_ip should be json_string array";
+          throw std::invalid_argument(
+              "redis_hash_tags_runtime should be json_string array");
         }
       }
+    } else {
+      LOG(ERROR) << "redis_hash_tags_runtime should be json_string array";
+      throw std::invalid_argument(
+          "redis_hash_tags_runtime should be json_string array");
     }
   }
 
@@ -230,8 +245,16 @@ void ParseJsonConfig(const std::string *const redis_config_abs_dir,
         if (value_depth1->type == json_integer) {
           redis_connection_params->redis_host_port.push_back(
               value_depth1->u.integer);
+        } else {
+          LOG(ERROR) << "redis_host_port should be json_integer array";
+          throw std::invalid_argument(
+              "redis_host_port should be json_integer array");
         }
       }
+    } else {
+      LOG(ERROR) << "redis_hash_tags_runtime should be json_string array";
+      throw std::invalid_argument(
+          "redis_hash_tags_runtime should be json_string array");
     }
   }
 
@@ -241,6 +264,9 @@ void ParseJsonConfig(const std::string *const redis_config_abs_dir,
       redis_connection_params->redis_user =
           std::string(json_hangar_it->second->u.string.ptr,
                       json_hangar_it->second->u.string.length);
+    } else {
+      LOG(ERROR) << "redis_user should be json_string";
+      throw std::invalid_argument("redis_user should be json_string");
     }
   }
 
@@ -250,6 +276,9 @@ void ParseJsonConfig(const std::string *const redis_config_abs_dir,
       redis_connection_params->redis_password =
           std::string(json_hangar_it->second->u.string.ptr,
                       json_hangar_it->second->u.string.length);
+    } else {
+      LOG(ERROR) << "redis_password should be json_string";
+      throw std::invalid_argument("redis_password should be json_string");
     }
   }
 
@@ -257,6 +286,9 @@ void ParseJsonConfig(const std::string *const redis_config_abs_dir,
   if (json_hangar_it != json_hangar.end()) {
     if (json_hangar_it->second->type == json_integer) {
       redis_connection_params->redis_db = json_hangar_it->second->u.integer;
+    } else {
+      LOG(ERROR) << "redis_db should be json_integer";
+      throw std::invalid_argument("redis_db should be json_integer");
     }
   }
 
@@ -265,6 +297,10 @@ void ParseJsonConfig(const std::string *const redis_config_abs_dir,
     if (json_hangar_it->second->type == json_boolean) {
       redis_connection_params->redis_connect_keep_alive =
           json_hangar_it->second->u.boolean;
+    } else {
+      LOG(ERROR) << "redis_connect_keep_alive should be json_integer";
+      throw std::invalid_argument(
+          "redis_connect_keep_alive should be json_integer");
     }
   }
 
@@ -273,6 +309,10 @@ void ParseJsonConfig(const std::string *const redis_config_abs_dir,
     if (json_hangar_it->second->type == json_integer) {
       redis_connection_params->redis_connect_timeout =
           json_hangar_it->second->u.integer;
+    } else {
+      LOG(ERROR) << "redis_connect_timeout should be json_integer";
+      throw std::invalid_argument(
+          "redis_connect_timeout should be json_integer");
     }
   }
 
@@ -281,6 +321,10 @@ void ParseJsonConfig(const std::string *const redis_config_abs_dir,
     if (json_hangar_it->second->type == json_integer) {
       redis_connection_params->redis_socket_timeout =
           json_hangar_it->second->u.integer;
+    } else {
+      LOG(ERROR) << "redis_socket_timeout should be json_integer";
+      throw std::invalid_argument(
+          "redis_socket_timeout should be json_integer");
     }
   }
 
@@ -289,6 +333,10 @@ void ParseJsonConfig(const std::string *const redis_config_abs_dir,
     if (json_hangar_it->second->type == json_integer) {
       redis_connection_params->redis_conn_pool_size =
           json_hangar_it->second->u.integer;
+    } else {
+      LOG(ERROR) << "redis_conn_pool_size should be json_integer";
+      throw std::invalid_argument(
+          "redis_conn_pool_size should be json_integer");
     }
   }
 
@@ -297,6 +345,9 @@ void ParseJsonConfig(const std::string *const redis_config_abs_dir,
     if (json_hangar_it->second->type == json_integer) {
       redis_connection_params->redis_wait_timeout =
           json_hangar_it->second->u.integer;
+    } else {
+      LOG(ERROR) << "redis_wait_timeout should be json_integer";
+      throw std::invalid_argument("redis_wait_timeout should be json_integer");
     }
   }
 
@@ -305,6 +356,10 @@ void ParseJsonConfig(const std::string *const redis_config_abs_dir,
     if (json_hangar_it->second->type == json_integer) {
       redis_connection_params->redis_connection_lifetime =
           json_hangar_it->second->u.integer;
+    } else {
+      LOG(ERROR) << "redis_connection_lifetime should be json_integer";
+      throw std::invalid_argument(
+          "redis_connection_lifetime should be json_integer");
     }
   }
 
@@ -313,6 +368,10 @@ void ParseJsonConfig(const std::string *const redis_config_abs_dir,
     if (json_hangar_it->second->type == json_integer) {
       redis_connection_params->redis_sentinel_connect_timeout =
           json_hangar_it->second->u.integer;
+    } else {
+      LOG(ERROR) << "redis_sentinel_connect_timeout should be json_integer";
+      throw std::invalid_argument(
+          "redis_sentinel_connect_timeout should be json_integer");
     }
   }
 
@@ -321,6 +380,10 @@ void ParseJsonConfig(const std::string *const redis_config_abs_dir,
     if (json_hangar_it->second->type == json_integer) {
       redis_connection_params->redis_sentinel_socket_timeout =
           json_hangar_it->second->u.integer;
+    } else {
+      LOG(ERROR) << "redis_sentinel_socket_timeout should be json_integer";
+      throw std::invalid_argument(
+          "redis_sentinel_socket_timeout should be json_integer");
     }
   }
 
@@ -331,7 +394,9 @@ void ParseJsonConfig(const std::string *const redis_config_abs_dir,
           round_next_power_two_bitlen(json_hangar_it->second->u.integer);
       redis_connection_params->storage_slice =
           1 << redis_connection_params->storage_slice_log2;
-      ;
+    } else {
+      LOG(ERROR) << "storage_slice should be json_integer";
+      throw std::invalid_argument("storage_slice should be json_integer");
     }
   }
 
@@ -340,7 +405,9 @@ void ParseJsonConfig(const std::string *const redis_config_abs_dir,
     if (json_hangar_it->second->type == json_integer) {
       redis_connection_params->keys_sending_size =
           json_hangar_it->second->u.integer;
-      ;
+    } else {
+      LOG(ERROR) << "keys_sending_size should be json_integer";
+      throw std::invalid_argument("keys_sending_size should be json_integer");
     }
   }
 
@@ -349,6 +416,10 @@ void ParseJsonConfig(const std::string *const redis_config_abs_dir,
     if (json_hangar_it->second->type == json_boolean) {
       redis_connection_params->using_md5_prefix_name =
           json_hangar_it->second->u.boolean;
+    } else {
+      LOG(ERROR) << "using_md5_prefix_name should be json_boolean";
+      throw std::invalid_argument(
+          "using_md5_prefix_name should be json_boolean");
     }
   }
 
@@ -358,6 +429,9 @@ void ParseJsonConfig(const std::string *const redis_config_abs_dir,
       redis_connection_params->model_tag_import =
           std::string(json_hangar_it->second->u.string.ptr,
                       json_hangar_it->second->u.string.length);
+    } else {
+      LOG(ERROR) << "model_tag_import should be json_string";
+      throw std::invalid_argument("model_tag_import should be json_string");
     }
   }
 
@@ -370,8 +444,16 @@ void ParseJsonConfig(const std::string *const redis_config_abs_dir,
         if (value_depth1->type == json_string) {
           redis_connection_params->redis_hash_tags_import.push_back(std::string(
               value_depth1->u.string.ptr, value_depth1->u.string.length));
+        } else {
+          LOG(ERROR) << "redis_hash_tags_import should be json_string array";
+          throw std::invalid_argument(
+              "redis_hash_tags_runtime should be json_string array");
         }
       }
+    } else {
+      LOG(ERROR) << "redis_hash_tags_runtime should be json_string array";
+      throw std::invalid_argument(
+          "redis_hash_tags_runtime should be json_string array");
     }
   }
 
@@ -381,6 +463,9 @@ void ParseJsonConfig(const std::string *const redis_config_abs_dir,
       redis_connection_params->model_tag_runtime =
           std::string(json_hangar_it->second->u.string.ptr,
                       json_hangar_it->second->u.string.length);
+    } else {
+      LOG(ERROR) << "model_tag_runtime should be json_string";
+      throw std::invalid_argument("model_tag_runtime should be json_string");
     }
   }
 
@@ -394,8 +479,16 @@ void ParseJsonConfig(const std::string *const redis_config_abs_dir,
           redis_connection_params->redis_hash_tags_runtime.push_back(
               std::string(value_depth1->u.string.ptr,
                           value_depth1->u.string.length));
+        } else {
+          LOG(ERROR) << "redis_hash_tags_runtime should be json_string array";
+          throw std::invalid_argument(
+              "redis_hash_tags_runtime should be json_string array");
         }
       }
+    } else {
+      LOG(ERROR) << "redis_hash_tags_runtime should be json_string array";
+      throw std::invalid_argument(
+          "redis_hash_tags_runtime should be json_string array");
     }
   }
 
@@ -404,7 +497,10 @@ void ParseJsonConfig(const std::string *const redis_config_abs_dir,
     if (json_hangar_it->second->type == json_integer) {
       redis_connection_params->expire_model_tag_in_seconds =
           json_hangar_it->second->u.integer;
-      ;
+    } else {
+      LOG(ERROR) << "expire_model_tag_in_seconds should be json_integer";
+      throw std::invalid_argument(
+          "expire_model_tag_in_seconds should be json_integer");
     }
   }
 
@@ -413,6 +509,9 @@ void ParseJsonConfig(const std::string *const redis_config_abs_dir,
     if (json_hangar_it->second->type == json_integer) {
       redis_connection_params->table_store_mode =
           json_hangar_it->second->u.integer;
+    } else {
+      LOG(ERROR) << "table_store_mode should be json_integer";
+      throw std::invalid_argument("table_store_mode should be json_integer");
     }
   }
 
@@ -422,6 +521,9 @@ void ParseJsonConfig(const std::string *const redis_config_abs_dir,
       redis_connection_params->model_lib_abs_dir =
           std::string(json_hangar_it->second->u.string.ptr,
                       json_hangar_it->second->u.string.length);
+    } else {
+      LOG(ERROR) << "model_lib_abs_dir should be json_string";
+      throw std::invalid_argument("model_lib_abs_dir should be json_string");
     }
   }
 

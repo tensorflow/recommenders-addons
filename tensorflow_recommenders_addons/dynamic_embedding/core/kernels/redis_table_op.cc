@@ -436,8 +436,7 @@ class RedisTableOfTensors final : public LookupInterface {
                                         keys_prefix_name_slices_in_redis[i]));
       const V *pv_raw =
           reinterpret_cast<const V *>(values_temp.tensor_data().data());
-      std::cerr << keys_reply->elements << " " << values_reply->elements
-                << std::endl;
+
       try {
         if (values_reply != nullptr) {
           for (size_t i = 0; i < values_reply->elements; ++i) {

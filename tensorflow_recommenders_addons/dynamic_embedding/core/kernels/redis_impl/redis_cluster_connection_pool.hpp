@@ -96,6 +96,19 @@ class RedisWrapper<RedisInstance, K, V,
           std::make_shared<RedisInstance>(RedisInstance(conn_opts, pool_opts));
       redis_client->set("key test for connecting", "val test for connecting",
                         std::chrono::milliseconds(1));
+      auto info_cluster = redis_client->command("info", "cluster");
+      auto tmp_char = strtok(info_cluster->str, "\n");
+      tmp_char = strtok(NULL, "\n");
+      tmp_char = strtok(tmp_char, ":");
+      auto cluster_bool = strtok(NULL, ":");
+      if (strcmp(cluster_bool, "1\r") != 0) {
+        LOG(ERROR)
+            << "Now is cluster mode but try to connect Redis single node. "
+               "Please check redis_connection_mode in config file.";
+        throw std::invalid_argument(
+            "Can not connect to single node when in cluster mode, "
+            "redis_connection_mode should be 1 when connect to single node.");
+      }
       return redis_client;
     } catch (const std::exception &err) {
       LOG(ERROR) << "RedisHandler--error: " << err.what();

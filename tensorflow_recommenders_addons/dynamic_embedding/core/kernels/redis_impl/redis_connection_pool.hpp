@@ -115,6 +115,19 @@ class RedisWrapper<
           RedisInstance(sentinel, redis_connection_params.redis_master_name,
                         Role::MASTER, conn_opts, pool_opts));
       redis_client->ping();
+      auto info_cluster = redis_client->command("info", "cluster");
+      auto tmp_char = strtok(info_cluster->str, "\n");
+      tmp_char = strtok(NULL, "\n");
+      tmp_char = strtok(tmp_char, ":");
+      auto cluster_bool = strtok(NULL, ":");
+      if (strcmp(cluster_bool, "0\r") != 0) {
+        LOG(ERROR)
+            << "Now is single mode but try to connect Redis cluster nodes. "
+               "Please check redis_connection_mode in config file.";
+        throw std::invalid_argument(
+            "Can not connect to cluster nodes when in single mode, "
+            "redis_connection_mode should be 0 when connect to cluster nodes.");
+      }
       return redis_client;
     } catch (const std::exception &err) {
       LOG(ERROR) << "RedisHandler--error: " << err.what();
@@ -154,6 +167,19 @@ class RedisWrapper<
       static auto redis_client =
           std::make_shared<RedisInstance>(RedisInstance(conn_opts, pool_opts));
       redis_client->ping();
+      auto info_cluster = redis_client->command("info", "cluster");
+      auto tmp_char = strtok(info_cluster->str, "\n");
+      tmp_char = strtok(NULL, "\n");
+      tmp_char = strtok(tmp_char, ":");
+      auto cluster_bool = strtok(NULL, ":");
+      if (strcmp(cluster_bool, "0\r") != 0) {
+        LOG(ERROR)
+            << "Now is single mode but try to connect Redis cluster nodes. "
+               "Please check redis_connection_mode in config file.";
+        throw std::invalid_argument(
+            "Can not connect to cluster nodes when in single mode, "
+            "redis_connection_mode should be 0 when connect to cluster nodes.");
+      }
       return redis_client;
     } catch (const std::exception &err) {
       LOG(ERROR) << "RedisHandler--error: " << err.what();
