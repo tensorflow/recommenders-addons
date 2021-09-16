@@ -15,6 +15,7 @@ WRITE_ACCESS_LIST = [
     "rhdong",
     "yuefengz",
     "tanzhenyu",
+    "qqsun8819",
 ]
 
 
