@@ -56,7 +56,7 @@ inline unsigned round_next_power_two_bitlen(int v) {
 }
 
 inline unsigned long get_file_size(const std::string path) {
-  unsigned long filesize = -1;
+  unsigned long filesize = 0;
   struct stat statbuff;
   if (stat(path.data(), &statbuff) < 0) {
     LOG(WARNING) << "The file " << path << " does not exist";

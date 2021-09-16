@@ -164,23 +164,29 @@ Status ParseJsonConfig(const std::string *const redis_config_abs_dir,
 
   if (stat(filename, &filestatus) != 0) {
     LOG(ERROR) << "File " << filename << " not found";
+    return errors::NotFound("File ", filename, " not found");
   }
   file_size = filestatus.st_size;
   file_contents = (char *)malloc(filestatus.st_size);
   if (file_contents == NULL) {
     LOG(ERROR) << "Memory error: unable to allocate "
                << std::to_string(file_size) << " bytes";
+    return errors::ResourceExhausted("Memory error: unable to allocate ",
+                                     std::to_string(file_size), " bytes");
   }
   fp = fopen(filename, "rt");
   if (fp == NULL) {
     fclose(fp);
     free(file_contents);
     LOG(ERROR) << "Unable to open " << redis_config_abs_dir;
+    return errors::PermissionDenied("Unable to open ", redis_config_abs_dir);
   }
   if (fread(file_contents, file_size, 1, fp) != 1) {
     fclose(fp);
     free(file_contents);
     LOG(ERROR) << "Unable t read content of " << redis_config_abs_dir;
+    return errors::Unavailable("Unable t read content of ",
+                               redis_config_abs_dir);
   }
   fclose(fp);
 
@@ -189,7 +195,8 @@ Status ParseJsonConfig(const std::string *const redis_config_abs_dir,
   if (config_value->type != json_object) {
     free(file_contents);
     LOG(ERROR) << "Unable to parse the json data";
-    return Status(error::NOT_FOUND, redis_config_abs_dir->c_str());
+    return errors::Unknown("Unable to parse the json data from ",
+                           redis_config_abs_dir);
   }
 
   std::unordered_map<std::string, json_value *> json_hangar;

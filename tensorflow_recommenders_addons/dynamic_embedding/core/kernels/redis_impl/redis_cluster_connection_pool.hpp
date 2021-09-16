@@ -384,7 +384,11 @@ class RedisWrapper<RedisInstance, K, V,
                       sizes_i->data());
     };
 
-    return PipeExec(cmd, 3U, bucket_context_temp);
+    try {
+      return PipeExec(cmd, 3U, bucket_context_temp);
+    } catch (const std::exception &err) {
+      return nullptr;
+    }
   }
 
   virtual Status SetExpireBuckets(
@@ -801,6 +805,9 @@ every bucket has its own BucketContext for sending data---for locating reply-
     std::vector<
         std::future<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>>>
         results;
+    for (unsigned i = 0; i < storage_slice; ++i) {
+      replies[i] = std::move(nullptr);
+    }
     try {
       for (unsigned i = 0; i < storage_slice; ++i) {
         results.emplace_back(

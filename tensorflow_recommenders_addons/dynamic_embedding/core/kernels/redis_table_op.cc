@@ -256,16 +256,53 @@ class RedisTableOfTensors final : public LookupInterface {
     OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "redis_config_abs_dir",
                                     &redis_config_abs_dir_tem));
 
-    Status config_status =
-        ReadStringFromEnvVar("TFRA_REDIS_CONFIG_PATH", redis_config_abs_dir_tem,
-                             &redis_config_abs_dir);
-    if (!config_status.ok() && get_file_size(redis_config_abs_dir) > 0) {
+    std::string redis_config_abs_dir_env;
+    OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "redis_config_abs_dir_env",
+                                    &redis_config_abs_dir_env));
+    Status spec_config_status = ReadStringFromEnvVar(
+        redis_config_abs_dir_env, "NotFound", &redis_config_abs_dir);
+    if (redis_config_abs_dir != "NotFound") {
+      if (get_file_size(redis_config_abs_dir) > 0) {
+        LOG(INFO)
+            << "Read TFRA Redis config file path from the environment variable "
+            << redis_config_abs_dir_env << " successfully. Config file path is "
+            << redis_config_abs_dir;
+      } else {
+        ctx->CtxFailure(
+            errors::NotFound("Can not find the file " + redis_config_abs_dir +
+                             ". Please check carefully again if the file exist "
+                             "or unset the evironment viriable " +
+                             redis_config_abs_dir_env));
+      }
+    } else {
       LOG(WARNING) << "Fails to read the TFRA Redis config file path from the "
-                      "environment variable firstly, now the config file path "
-                      "which assigned in the attribute of Table Operator is "
-                      "used. config file path is " +
-                          redis_config_abs_dir;
+                      "environment variable "
+                   << redis_config_abs_dir_env
+                   << " which read from OP attribute redis_config_abs_dir_env "
+                      "firstly, now try to read config file path from global "
+                      "environment variable TFRA_REDIS_CONFIG_PATH.";
+      Status global_config_status = ReadStringFromEnvVar(
+          "TFRA_REDIS_CONFIG_PATH", "NotFound", &redis_config_abs_dir);
+      if (redis_config_abs_dir != "NotFound" &&
+          get_file_size(redis_config_abs_dir) <= 0) {
+        ctx->CtxFailure(errors::NotFound(
+            "Can not find the file " + redis_config_abs_dir +
+            ". Please check carefully again if the file exist or unset the "
+            "evironment viriable TFRA_REDIS_CONFIG_PATH"));
+      } else if (redis_config_abs_dir == "NotFound") {
+        LOG(WARNING)
+            << "Fails to read the TFRA Redis config file path from the "
+               "global environment variable TFRA_REDIS_CONFIG_PATH firstly, "
+               "config file path is "
+            << redis_config_abs_dir
+            << ". now the config file path which assigned OP attribute "
+               "redis_config_abs_dir "
+            << redis_config_abs_dir_tem << " is used.";
+        redis_config_abs_dir = redis_config_abs_dir_tem;
+      }
     }
+
+    LOG(INFO) << "TFRA Redis config file path is " << redis_config_abs_dir;
 
     if (get_file_size(redis_config_abs_dir) > 0) {
       OP_REQUIRES_OK(ctx, ParseJsonConfig(&redis_config_abs_dir,
