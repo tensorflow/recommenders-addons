@@ -29,6 +29,7 @@ from tensorflow.python.ops import control_flow_ops
 from tensorflow.python.ops import resource_variable_ops as rvo
 from tensorflow.python.ops import variable_scope
 from tensorflow.python.ops import variables
+from tensorflow.python.platform import tf_logging
 from tensorflow.python.training import device_setter
 from tensorflow.python.training import optimizer
 from tensorflow.python.training import slot_creator
@@ -176,7 +177,12 @@ def _create_slot_var(primary,
 
   # Copy XLA sharding attributes from primary.
   if copy_xla_sharding:
-    slot = xla_sharding.copy_sharding(primary, slot, use_sharding_op=False)
+    try:
+      from tensorflow.compiler.xla.experimental.xla_sharding import xla_sharding
+      slot = xla_sharding.copy_sharding(primary, slot, use_sharding_op=False)
+    except ImportError:
+      tf_logging.warn("xla_sharding not found, maybe in tf version < 2.5")
+      pass
   return slot
 
 
