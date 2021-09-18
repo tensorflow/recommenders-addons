@@ -307,6 +307,8 @@ Status ParseJsonConfig(const std::string *const redis_config_abs_dir,
 
   ReadOneJsonToParams(redis_db, integer);
 
+  ReadOneJsonToParams(redis_read_access_slave, boolean);
+
   ReadOneJsonToParams(redis_connect_keep_alive, boolean);
 
   ReadOneJsonToParams(redis_connect_timeout, integer);

@@ -100,6 +100,7 @@ class RedisTableConfig(object):
         "redis_user": "default",
         "redis_password": "",
         "redis_db": 0,
+        "redis_read_access_slave": False,
         "redis_connect_keep_alive": False,
         "redis_connect_timeout": 1000,
         "redis_socket_timeout": 1000,

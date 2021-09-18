@@ -66,6 +66,8 @@ class RedisTable(LookupInterface):
       "redis_user": "default",
       "redis_password": "",
       "redis_db": 0,
+      "redis_read_access_slave":
+          False,  # set True in infer or train mode if you like
       "redis_connect_keep_alive": False,  # keep TCP alive
       "redis_connect_timeout": 1000,  # milliseconds
       "redis_socket_timeout": 1000,  # milliseconds

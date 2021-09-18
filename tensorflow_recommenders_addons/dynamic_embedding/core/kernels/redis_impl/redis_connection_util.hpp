@@ -138,6 +138,7 @@ struct Redis_Connection_Params {
   std::string redis_password = "";
   int redis_db = 0;
   //
+  bool redis_read_access_slave = false;
   bool redis_connect_keep_alive = false;
   int redis_connect_timeout = 1000;  // milliseconds
   int redis_socket_timeout = 1000;   // milliseconds
@@ -189,6 +190,7 @@ struct Redis_Connection_Params {
     redis_user = x.redis_user;
     redis_password = x.redis_password;
     redis_db = x.redis_db;
+    redis_read_access_slave = x.redis_read_access_slave;
     redis_connect_keep_alive = x.redis_connect_keep_alive;
     redis_connect_timeout = x.redis_connect_timeout;  // milliseconds
     redis_socket_timeout = x.redis_socket_timeout;    // milliseconds
