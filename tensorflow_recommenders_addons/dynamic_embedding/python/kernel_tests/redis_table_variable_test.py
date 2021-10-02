@@ -296,6 +296,7 @@ redis_config_path = os.path.join(redis_config_path, "redis_config.json")
 redis_config_params = {
     "redis_host_ip": ["127.0.0.1"],
     "redis_host_port": [6379],
+    "storage_slice": 4,
     "table_store_mode": 0
 }
 with open(redis_config_path, 'w', encoding='utf-8') as f:
@@ -821,6 +822,7 @@ class RedisVariableTest(test.TestCase):
       redis_config_params_modify = {
           "redis_host_ip": ["127.0.0.1"],
           "redis_host_port": [6379],
+          "storage_slice": 4,
           "table_store_mode": 1,
           "model_lib_abs_dir": save_path
       }
@@ -1688,7 +1690,7 @@ class RedisVariableTest(test.TestCase):
         "redis_connection_lifetime": 100,
         "redis_sentinel_connect_timeout": 1000,
         "redis_sentinel_socket_timeout": 1000,
-        "storage_slice": 1,
+        "storage_slice": 4,
         "keys_sending_size": 1024,
         "using_md5_prefix_name": False,
         "model_tag_import": "test",
@@ -1740,6 +1742,7 @@ class RedisVariableTest(test.TestCase):
         "redis_master_name": "master",
         "redis_host_ip": ["999.999.999.999"],
         "redis_host_port": [6379],
+        "storage_slice": 4,
     }
 
     id = 0

@@ -155,13 +155,13 @@ struct Redis_Connection_Params {
   unsigned storage_slice =
       1;  // For deciding bucket number, which usually is how many Redis
           // instance may be used in the trainning.
+  unsigned storage_slice_log2 = 0;  // For fast calculation.
   unsigned expire_model_tag_in_seconds =
       604800;  // To eliminate unwanted model versions in Redis to ensure
                // sufficient storage space.
   unsigned long long keys_sending_size =
       1024;  // Determines how many keys to send at a time
              // for performance tuning
-  unsigned storage_slice_log2 = 0;  // For fast calculation.
   std::string model_tag_import =
       "test";  // old model_tag for version and any other information
   std::vector<std::string> redis_hash_tags_import =
@@ -203,7 +203,7 @@ struct Redis_Connection_Params {
         x.redis_sentinel_socket_timeout;  // milliseconds
     storage_slice_log2 =
         round_next_power_two_bitlen(x.storage_slice);  // beter for modding.
-    storage_slice = 1 << storage_slice_log2;
+    storage_slice = x.storage_slice;
     expire_model_tag_in_seconds = x.expire_model_tag_in_seconds > 0
                                       ? x.expire_model_tag_in_seconds
                                       : 2626560;
@@ -367,14 +367,15 @@ class RedisVirtualWrapper {
 
   virtual int CheckSlicesNum(const std::string &keys_prefix_name) = 0;
 
-  virtual size_t TableSizeInBuckets(
-      const std::vector<std::string> &keys_prefix_name_slices) = 0;
+  virtual size_t TableSizeInBucket(
+      const std::string &keys_prefix_name_slice) = 0;
 
   virtual Status RemoveHkeysInBuckets(
       const std::string &keys_prefix_name_slice) = 0;
 
   virtual std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>
-  GetKeysInBucket(const std::string &keys_prefix_name_slice) = 0;
+  HscanGetKeysValsInBucket(const std::string &keys_prefix_name_slice,
+                           long long *cursor, const long long count) = 0;
 
   virtual std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> MgetInBucket(
       const Tensor &keys, const int64 begin, const int64 max_i,
@@ -450,14 +451,14 @@ inline const char *KContentPointer<tstring>(const tstring *in) {
 
 template <typename T>
 inline unsigned KBucketNum(const T *in, const unsigned storage_slice) {
-  return static_cast<const int>(*in) & (storage_slice - 1);
+  return (static_cast<const int>(*in) % storage_slice);
 }
 
 template <>
 inline unsigned KBucketNum<tstring>(const tstring *in,
                                     const unsigned storage_slice) {
   const auto tem_char = *(reinterpret_cast<const unsigned char *>(in));
-  return (_mm_crc32_u8(0xffffffff, tem_char) & (storage_slice - 1));
+  return (_mm_crc32_u8(0xffffffff, tem_char) % storage_slice);
 }
 
 template <typename T>
@@ -538,7 +539,7 @@ void ReplyMemcpyToKeyTensor(const T *const pk_raw, const char *str,
                             const size_t &byte_size) {
   void *pk_raw_ = reinterpret_cast<void *>(const_cast<T *>(pk_raw));
   memcpy(pk_raw_, str,
-         byte_size);  // Direct access to Tensor data in TensorFlow
+         sizeof(T));  // Direct access to Tensor data in TensorFlow
 }
 
 template <>

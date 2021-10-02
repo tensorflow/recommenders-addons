@@ -331,7 +331,7 @@ Status ParseJsonConfig(const std::string *const redis_config_abs_dir,
       redis_connection_params->storage_slice_log2 =
           round_next_power_two_bitlen(json_hangar_it->second->u.integer);
       redis_connection_params->storage_slice =
-          1 << redis_connection_params->storage_slice_log2;
+          json_hangar_it->second->u.integer;
     } else {
       LOG(ERROR) << "storage_slice should be json_integer";
       return Status(error::INVALID_ARGUMENT,
