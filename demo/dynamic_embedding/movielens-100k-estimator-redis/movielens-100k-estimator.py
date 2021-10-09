@@ -18,12 +18,15 @@ FLAGS = flags.FLAGS
 
 ## Setting TFRA-redis Configuration File
 
-# By default, TFRA-redis will read config file abs path from environment
-# variable TFRA_REDIS_CONFIG_PATH. If env TFRA_REDIS_CONFIG_PATH doesn't
-# exist, TFRA-redis will read config parameters from path which was set
-# in redis_config_abs_dir from tfra.dynamic_embedding.RedisTableConfig.
+# By default, TFRA-Redis reads the JSON file pointed to by the path
+# in the OP attribute redis_config_abs_dir_envwhich is  an environment variable.
+# If the environment variable described in redis_config_ABS_dir_env does not exist
+# or the path to which the value of the environment variable points does not have a corresponding JSON file,
+# the next step is to look for the path of the JSON file pointed to in the TFRA_REDIS_CONFIG_PATH environment variable.
+# The last step will read the json file path configured in the Python operator attribute redis_config_abs_dir.
 py_path = os.path.split(os.path.realpath(__file__))[0]
 config_path = os.path.join(py_path, '/redis_config.json')
+os.environ['movielens_100k_estimator_TFRA_REDIS_CONFIG_PATH'] = config_path
 os.environ['TFRA_REDIS_CONFIG_PATH'] = config_path
 
 # Another way to create TFRA-redis configuration file by using temporary file.
@@ -40,11 +43,13 @@ os.environ['TFRA_REDIS_CONFIG_PATH'] = config_path
   with open(redis_config_path, 'w', encoding='utf-8') as f:
     f.write(json.dumps(redis_config_params, indent=2, ensure_ascii=True))
   redis_config = de.RedisTableConfig(
+    redis_config_abs_dir_env="movielens_100k_estimator_TFRA_REDIS_CONFIG_PATH",
     redis_config_abs_dir=redis_config_path
   )
 '''
 
 redis_config = tfra.dynamic_embedding.RedisTableConfig(
+    redis_config_abs_dir_env="movielens_100k_estimator_TFRA_REDIS_CONFIG_PATH",
     redis_config_abs_dir=config_path)
 
 kv_creator = tfra.dynamic_embedding.RedisTableCreator(redis_config)

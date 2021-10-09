@@ -432,9 +432,8 @@ def find_cuda_define(repository_ctx, header_dir, header_file, define):
         version = version[:version_end].strip()
     return version
 
-def compute_capabilities(repository_ctx):
+def compute_capabilities(repository_ctx, _tf_cuda_version):
     """Returns a list of strings representing cuda compute capabilities."""
-    _tf_cuda_version = get_env_var(repository_ctx, _TF_CUDA_VERSION, "11.0")
     _default_cuda_compute_cap = \
         _DEFAULT_CUDA_COMPUTE_CAPABILITIES[_tf_cuda_version]
     if _TF_CUDA_COMPUTE_CAPABILITIES not in repository_ctx.os.environ:
@@ -688,7 +687,7 @@ def _get_cuda_config(repository_ctx):
         curand_version = curand_version,
         cufft_version = cufft_version,
         cudnn_version = cudnn_version,
-        compute_capabilities = compute_capabilities(repository_ctx),
+        compute_capabilities = compute_capabilities(repository_ctx, cuda_version),
         cpu_value = cpu_value,
         config = config,
     )
