@@ -265,7 +265,6 @@ REGISTER_OP(PREFIX_OP_NAME(RedisTableOfTensors))
     .Attr("value_shape: shape = {}")
     .Attr("embedding_name: string = ''")
     .Attr("redis_config_abs_dir: string = ''")
-    .Attr("redis_config_abs_dir_env: string = ''")
     .SetIsStateful()
     .SetShapeFn([](InferenceContext *c) {
       PartialTensorShape value_p;
