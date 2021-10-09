@@ -56,10 +56,10 @@ inline unsigned round_next_power_two_bitlen(int v) {
 }
 
 inline unsigned long get_file_size(const std::string path) {
-  unsigned long filesize = -1;
+  unsigned long filesize = 0;
   struct stat statbuff;
   if (stat(path.data(), &statbuff) < 0) {
-    throw(std::invalid_argument("The file " + path + " does not exist"));
+    LOG(WARNING) << "The file " << path << " does not exist";
     return filesize;
   } else {
     filesize = statbuff.st_size;
@@ -138,6 +138,7 @@ struct Redis_Connection_Params {
   std::string redis_password = "";
   int redis_db = 0;
   //
+  bool redis_read_access_slave = false;
   bool redis_connect_keep_alive = false;
   int redis_connect_timeout = 1000;  // milliseconds
   int redis_socket_timeout = 1000;   // milliseconds
@@ -154,13 +155,13 @@ struct Redis_Connection_Params {
   unsigned storage_slice =
       1;  // For deciding bucket number, which usually is how many Redis
           // instance may be used in the trainning.
+  unsigned storage_slice_log2 = 0;  // For fast calculation.
   unsigned expire_model_tag_in_seconds =
       604800;  // To eliminate unwanted model versions in Redis to ensure
                // sufficient storage space.
   unsigned long long keys_sending_size =
       1024;  // Determines how many keys to send at a time
              // for performance tuning
-  unsigned storage_slice_log2 = 0;  // For fast calculation.
   std::string model_tag_import =
       "test";  // old model_tag for version and any other information
   std::vector<std::string> redis_hash_tags_import =
@@ -189,6 +190,7 @@ struct Redis_Connection_Params {
     redis_user = x.redis_user;
     redis_password = x.redis_password;
     redis_db = x.redis_db;
+    redis_read_access_slave = x.redis_read_access_slave;
     redis_connect_keep_alive = x.redis_connect_keep_alive;
     redis_connect_timeout = x.redis_connect_timeout;  // milliseconds
     redis_socket_timeout = x.redis_socket_timeout;    // milliseconds
@@ -201,7 +203,7 @@ struct Redis_Connection_Params {
         x.redis_sentinel_socket_timeout;  // milliseconds
     storage_slice_log2 =
         round_next_power_two_bitlen(x.storage_slice);  // beter for modding.
-    storage_slice = 1 << storage_slice_log2;
+    storage_slice = x.storage_slice;
     expire_model_tag_in_seconds = x.expire_model_tag_in_seconds > 0
                                       ? x.expire_model_tag_in_seconds
                                       : 2626560;
@@ -306,48 +308,93 @@ class ThreadContext {
 
 class RedisVirtualWrapper {
  protected:
-  bool isRedisConnect = false;
   Redis_Connection_Params redis_connection_params;
 
- public:
-  void set_params(struct Redis_Connection_Params &conn_params_input) {
-    this->redis_connection_params = conn_params_input;
+ protected:
+  template <typename RedisClient>
+  inline bool RedisClusterEnabled(RedisClient redis_client) {
+    auto info_cluster = redis_client->command("info", "cluster");
+    auto tmp_char = strtok(info_cluster->str, "\n");
+    tmp_char = strtok(NULL, "\n");
+    tmp_char = strtok(tmp_char, ":");
+    auto cluster_bool = strtok(NULL, ":");
+    if (strcmp(cluster_bool, "1\r") == 0) {
+      return true;
+    } else {
+      return false;
+    }
   }
 
-  virtual void Conn() = 0;
+  template <typename ConnOpts, typename PoolOpts, typename ConnParams>
+  inline void SetPublicConnParams(ConnOpts &conn_opts, PoolOpts &pool_opts,
+                                  ConnParams &redis_connection_params) {
+    // Redis connection options
+    conn_opts.user = redis_connection_params.redis_user;
+    conn_opts.password =
+        redis_connection_params
+            .redis_password;  // Optional. No redis_password by default.
+    conn_opts.db = redis_connection_params.redis_db;
+    conn_opts.keep_alive = redis_connection_params.redis_connect_keep_alive;
+    conn_opts.connect_timeout = std::chrono::milliseconds(
+        redis_connection_params.redis_connect_timeout);
+    conn_opts.socket_timeout =
+        std::chrono::milliseconds(redis_connection_params.redis_socket_timeout);
+    // Redis connection pool options
+    pool_opts.size = redis_connection_params.redis_conn_pool_size;
+    pool_opts.wait_timeout =
+        std::chrono::milliseconds(redis_connection_params.redis_wait_timeout);
+    pool_opts.connection_lifetime =
+        std::chrono::minutes(redis_connection_params.redis_connection_lifetime);
+  }
+
+ public:
+  bool isRedisConnect = false;
+
+ public:
+  Status set_params(struct Redis_Connection_Params &conn_params_input) {
+    try {
+      this->redis_connection_params = conn_params_input;
+    } catch (const std::exception &err) {
+      return errors::Unknown(err.what());
+    }
+    return Status::OK();
+  }
+
+  virtual Status Conn() = 0;
 
   virtual std::vector<std::string> GetKeyBucketsAndOptimizerParamsWithName(
       const std::string &keys_prefix_name, const bool only_get_buckets) = 0;
 
   virtual int CheckSlicesNum(const std::string &keys_prefix_name) = 0;
 
-  virtual size_t TableSizeInBuckets(
-      const std::vector<std::string> &keys_prefix_name_slices) = 0;
+  virtual size_t TableSizeInBucket(
+      const std::string &keys_prefix_name_slice) = 0;
 
-  virtual void RemoveHkeysInBuckets(
+  virtual Status RemoveHkeysInBuckets(
       const std::string &keys_prefix_name_slice) = 0;
 
   virtual std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>
-  GetKeysInBucket(const std::string &keys_prefix_name_slice) = 0;
+  HscanGetKeysValsInBucket(const std::string &keys_prefix_name_slice,
+                           long long *cursor, const long long count) = 0;
 
   virtual std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> MgetInBucket(
       const Tensor &keys, const int64 begin, const int64 max_i,
       const std::string &keys_prefix_name_slice) = 0;
 
-  virtual void SetExpireBuckets(const std::string &keys_prefix_name) = 0;
+  virtual Status SetExpireBuckets(const std::string &keys_prefix_name) = 0;
 
-  virtual void SetPersistBuckets(const std::string &keys_prefix_name) = 0;
+  virtual Status SetPersistBuckets(const std::string &keys_prefix_name) = 0;
 
-  virtual void DumpToDisk(
+  virtual Status DumpToDisk(
       const std::vector<std::string> &keys_prefix_name_slices,
       std::vector<aiocb> &wrs, const std::vector<int> &fds) = 0;
 
-  virtual void RestoreFromDisk(
+  virtual Status RestoreFromDisk(
       const std::vector<std::string> &keys_prefix_name_slices,
       std::vector<aiocb> &rds, const std::vector<int> &fds,
       const std::vector<unsigned long> &buf_sizes) = 0;
 
-  virtual void DuplicateInRedis(
+  virtual Status DuplicateInRedis(
       const std::vector<std::string> &keys_prefix_name_slices_old,
       const std::vector<std::string> &keys_prefix_name_slices_new) = 0;
 
@@ -356,19 +403,19 @@ class RedisVirtualWrapper {
               const int64 begin, const int64 max_i,
               const std::vector<std::string> &keys_prefix_name_slices) = 0;
 
-  virtual void MgetToTensor(
+  virtual Status MgetToTensor(
       Tensor *values, const Tensor &default_value, const bool is_full_default,
       ThreadContext *thread_context,
       std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>>
           &reply,
       const int64 begin, const int64 max_i, const int64 Velems_per_dim0) = 0;
 
-  virtual void MsetCommand(
+  virtual Status MsetCommand(
       const Tensor &keys, const Tensor &values, ThreadContext *thread_context,
       const int64 begin, const int64 max_i, const int64 Velems_per_dim0,
       const std::vector<std::string> &keys_prefix_name_slices) = 0;
 
-  virtual void DelCommand(
+  virtual Status DelCommand(
       const Tensor &keys, ThreadContext *thread_context, const int64 begin,
       const int64 max_i,
       const std::vector<std::string> &keys_prefix_name_slices) = 0;
@@ -404,14 +451,14 @@ inline const char *KContentPointer<tstring>(const tstring *in) {
 
 template <typename T>
 inline unsigned KBucketNum(const T *in, const unsigned storage_slice) {
-  return static_cast<const int>(*in) & (storage_slice - 1);
+  return (static_cast<const int>(*in) % storage_slice);
 }
 
 template <>
 inline unsigned KBucketNum<tstring>(const tstring *in,
                                     const unsigned storage_slice) {
   const auto tem_char = *(reinterpret_cast<const unsigned char *>(in));
-  return (_mm_crc32_u8(0xffffffff, tem_char) & (storage_slice - 1));
+  return (_mm_crc32_u8(0xffffffff, tem_char) % storage_slice);
 }
 
 template <typename T>
@@ -492,7 +539,7 @@ void ReplyMemcpyToKeyTensor(const T *const pk_raw, const char *str,
                             const size_t &byte_size) {
   void *pk_raw_ = reinterpret_cast<void *>(const_cast<T *>(pk_raw));
   memcpy(pk_raw_, str,
-         byte_size);  // Direct access to Tensor data in TensorFlow
+         sizeof(T));  // Direct access to Tensor data in TensorFlow
 }
 
 template <>

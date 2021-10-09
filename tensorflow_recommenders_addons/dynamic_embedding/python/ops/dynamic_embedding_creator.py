@@ -100,6 +100,7 @@ class RedisTableConfig(object):
         "redis_user": "default",
         "redis_password": "",
         "redis_db": 0,
+        "redis_read_access_slave": False,
         "redis_connect_keep_alive": False,
         "redis_connect_timeout": 1000,
         "redis_socket_timeout": 1000,
@@ -126,9 +127,11 @@ class RedisTableConfig(object):
 
   def __init__(
       self,
-      redis_config_abs_dir="/tmp/redis_config.json",
+      redis_config_abs_dir=None,
+      redis_config_abs_dir_env=None,
   ):
     self.redis_config_abs_dir = redis_config_abs_dir
+    self.redis_config_abs_dir_env = redis_config_abs_dir_env
 
 
 class RedisTableCreator(KVCreator):
