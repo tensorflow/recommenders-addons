@@ -18,16 +18,13 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-import copy
 import glob
 import itertools
 import json
 import math
 import numpy as np
 import os
-import platform
 import six
-import sys
 import tempfile
 
 from tensorflow_recommenders_addons import dynamic_embedding as de
@@ -296,7 +293,6 @@ redis_config_path = os.path.join(redis_config_path, "redis_config.json")
 redis_config_params = {
     "redis_host_ip": ["127.0.0.1"],
     "redis_host_port": [6379],
-    "storage_slice": 4,
     "table_store_mode": 0
 }
 with open(redis_config_path, 'w', encoding='utf-8') as f:
@@ -305,9 +301,8 @@ redis_config = de.RedisTableConfig(redis_config_abs_dir=redis_config_path)
 
 
 def _redis_health_check(redis_host_ip="127.0.0.1", redis_host_port=6379):
-  ping_return = os.popen('redis-cli -h ' + redis_host_ip + ' -p ' +
-                         str(redis_host_port) + ' ping').read()
-  return ping_return == 'PONG\n'
+  return os.popen('redis-cli -h ' + redis_host_ip + ' -p ' +
+                  str(redis_host_port) + ' ping').read() == 'PONG\n'
 
 
 @test_util.run_all_in_graph_and_eager_modes
@@ -822,7 +817,6 @@ class RedisVariableTest(test.TestCase):
       redis_config_params_modify = {
           "redis_host_ip": ["127.0.0.1"],
           "redis_host_port": [6379],
-          "storage_slice": 4,
           "table_store_mode": 1,
           "model_lib_abs_dir": save_path
       }
@@ -1660,165 +1654,9 @@ class RedisVariableTest(test.TestCase):
     self.assertAllEqual(var_guard_by_freq.restrict_policy.status.size(),
                         num_reserved)
 
-  def test_json_config_file_with_wrong_type(self):
-    if _redis_health_check(redis_config_params["redis_host_ip"][0],
-                           redis_config_params["redis_host_port"][0]) == False:
-      self.skipTest('skip redis test when unable to access the redis service.')
-    if not context.executing_eagerly():
-      self.skipTest('Test in eager mode only.')
-
-    save_dir = os.path.join(self.get_temp_dir(), "save_restore")
-    save_path = os.path.join(tempfile.mkdtemp(prefix=save_dir), "hash")
-
-    os.makedirs(save_path)
-    redis_config_path = os.path.join(save_path,
-                                     "redis_config_modify_wrong_type.json")
-    redis_config_params_raw_config = {
-        "redis_connection_mode": 1,
-        "redis_master_name": "master",
-        "redis_host_ip": ["127.0.0.1"],
-        "redis_host_port": [6379],
-        "redis_user": "default",
-        "redis_password": "",
-        "redis_db": 0,
-        "redis_read_access_slave": False,
-        "redis_connect_keep_alive": False,
-        "redis_connect_timeout": 1000,
-        "redis_socket_timeout": 1000,
-        "redis_conn_pool_size": 20,
-        "redis_wait_timeout": 100000000,
-        "redis_connection_lifetime": 100,
-        "redis_sentinel_connect_timeout": 1000,
-        "redis_sentinel_socket_timeout": 1000,
-        "storage_slice": 4,
-        "keys_sending_size": 1024,
-        "using_md5_prefix_name": False,
-        "model_tag_import": "test",
-        "redis_hash_tags_import": [],
-        "model_tag_runtime": "test",
-        "redis_hash_tags_runtime": [],
-        "expire_model_tag_in_seconds": 604800,
-        "table_store_mode": 1,
-        "model_lib_abs_dir": save_path
-    }
-
-    id = 0
-    for key in list(redis_config_params_raw_config.keys()):
-      id += 1
-      redis_config_params_modify = copy.deepcopy(redis_config_params_raw_config)
-      if type(redis_config_params_raw_config[key]) != type(''):
-        redis_config_params_modify[key] = str(
-            redis_config_params_raw_config[key])
-      elif type(redis_config_params_raw_config[key]) != type(0):
-        redis_config_params_modify[key] = 0
-      with open(redis_config_path, 'w', encoding='utf-8') as f:
-        f.write(
-            json.dumps(redis_config_params_modify, indent=2, ensure_ascii=True))
-        redis_config_modify_wrong_type = de.RedisTableConfig(
-            redis_config_abs_dir=redis_config_path)
-
-      with self.session(config=default_config,
-                        use_gpu=test_util.is_gpu_available()) as sess:
-        with self.assertRaisesOpError(key):
-          table = de.get_variable('tConfig-' + str(id) + '_test_variable',
-                                  kv_creator=de.RedisTableCreator(
-                                      config=redis_config_modify_wrong_type))
-
-  def test_unable_connect_to_redis(self):
-    if _redis_health_check(redis_config_params["redis_host_ip"][0],
-                           redis_config_params["redis_host_port"][0]) == False:
-      self.skipTest('skip redis test when unable to access the redis service.')
-    if not context.executing_eagerly():
-      self.skipTest('Test in eager mode only.')
-
-    save_dir = os.path.join(self.get_temp_dir(), "save_restore")
-    save_path = os.path.join(tempfile.mkdtemp(prefix=save_dir), "hash")
-
-    os.makedirs(save_path)
-    redis_config_path = os.path.join(save_path,
-                                     "redis_config_modify_wrong_ip.json")
-    redis_config_params_raw_wrong_ip = {
-        "redis_connection_mode": 0,
-        "redis_master_name": "master",
-        "redis_host_ip": ["999.999.999.999"],
-        "redis_host_port": [6379],
-        "storage_slice": 4,
-    }
-
-    id = 0
-    with open(redis_config_path, 'w', encoding='utf-8') as f:
-      f.write(
-          json.dumps(redis_config_params_raw_wrong_ip,
-                     indent=2,
-                     ensure_ascii=True))
-      redis_config_modify_wrong_ip = de.RedisTableConfig(
-          redis_config_abs_dir=redis_config_path)
-
-    with self.session(config=default_config,
-                      use_gpu=test_util.is_gpu_available()) as sess:
-      with self.assertRaisesOpError("Exit without any Redis connection"):
-        table = de.get_variable('tWrongIP-' + str(id) + '_test_variable',
-                                kv_creator=de.RedisTableCreator(
-                                    config=redis_config_modify_wrong_ip))
-        self.evaluate(table.size())
-
-
-def is_macos():
-  return platform.system() == "Darwin"
-
-
-def is_windows():
-  return platform.system() == "Windows"
-
-
-def is_linux():
-  return platform.system() == "Linux"
-
-
-def is_raspi_arm():
-  return os.uname()[4] == "armv7l"
-
 
 if __name__ == "__main__":
-  if is_windows() == False:
-    if os.popen("which redis-server").read() == '':
-      print("redis-server is not exist, now try to install redis-server.")
-      if is_macos():
-        print(os.popen("brew install -y redis > /dev/null 2> /dev/null").read())
-      elif is_linux():
-        if os.popen("which apt").read() != '':
-          print(
-              os.popen("apt install -y redis > /dev/null 2> /dev/null").read())
-        elif os.popen("which yum").read() != '':
-          print(
-              os.popen("yum install -y redis > /dev/null 2> /dev/null").read())
-        else:
-          print(
-              "Unknow Linux release version, please install Redis by yourself.")
-          sys.exit()
-      elif is_raspi_arm():
-        if os.popen("which apt").read() != '':
-          print(
-              os.popen("apt install -y redis > /dev/null 2> /dev/null").read())
-        elif os.popen("which yum").read() != '':
-          print(
-              os.popen("yum install -y redis > /dev/null 2> /dev/null").read())
-        else:
-          print(
-              "Unknow ARM system release version, please install Redis by yourself."
-          )
-          sys.exit()
-      else:
-        print("Unknow platform system, please install Redis by yourself.")
-        sys.exit()
-  elif is_windows():
-    if os.popen("where redis-server").read() == '':
-      if os.popen("where winget").read() != '':
-        print(os.popen("winget install redis").read())
-      else:
-        print("Unsupported Windows version, please install Redis by yourself.")
-        sys.exit()
-
+  print("fuck")
   print(os.popen("redis-server --port 6379 --daemonize yes").read())
   print(os.popen("redis-cli -p 6379 INFO").read())
   print(
