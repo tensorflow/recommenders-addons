@@ -26,7 +26,7 @@ if [[ ! -x "$(which "${PIP}")" ]]; then
 fi
 
 PACKAGES=(
-  "auditwheel"
+  "auditwheel==4.0.0"
   "wheel"
   "setuptools"
   "virtualenv"

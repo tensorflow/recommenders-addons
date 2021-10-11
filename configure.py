@@ -29,7 +29,7 @@ _VALID_BAZEL_VERSION = {
     "1.15.2": "0.26.1",
     "2.4.0": "3.1.0",
     "2.4.1": "3.1.0",
-    "2.5.0": "3.7.2"
+    "2.5.1": "3.7.2"
 }
 
 
@@ -106,6 +106,7 @@ def get_tf_version_integer():
   For example:
     1.15.2 get 1152
     2.4.1 get 2041
+    2.5.1 get 2051
 
   The 4-digits-string will be passed to C macro to discriminate different
   Tensorflow versions. 
@@ -120,7 +121,7 @@ def get_tf_version_integer():
         '\nPlease install a TensorFlow on your compiling machine, '
         'The compiler needs to know the version of Tensorflow '
         'and get TF c++ headers according to the installed TensorFlow. '
-        '\nNote: Only TensorFlow 2.4.1, 1.15.2 are supported.')
+        '\nNote: Only TensorFlow 2.5.1, 2.4.1, 1.15.2 are supported.')
   try:
     major, minor, patch = version.split('.')
     assert len(

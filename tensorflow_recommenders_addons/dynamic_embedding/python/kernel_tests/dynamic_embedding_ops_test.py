@@ -234,7 +234,7 @@ def _create_dynamic_shape_tensor(
 
 
 default_config = config_pb2.ConfigProto(
-    allow_soft_placement=False,
+    allow_soft_placement=True,
     gpu_options=config_pb2.GPUOptions(allow_growth=True))
 
 
@@ -296,7 +296,8 @@ class EmbeddingLookupTest(test.TestCase):
       norms = math_ops.sqrt(
           math_ops.reduce_sum(embedding_no_norm * embedding_no_norm, axis=1))
       normalized = embedding_no_norm / array_ops.stack([norms, norms], axis=1)
-      self.assertAllEqual(embedding.eval(), 2 * self.evaluate(normalized))
+      self.assertAllCloseAccordingToType(embedding.eval(),
+                                         2 * self.evaluate(normalized))
 
   def test_sharded_custom_partitioner_int32_ids(self):
 

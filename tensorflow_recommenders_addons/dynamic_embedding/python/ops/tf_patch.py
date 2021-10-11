@@ -21,6 +21,11 @@ from __future__ import print_function
 from tensorflow_recommenders_addons import dynamic_embedding as de
 from tensorflow_recommenders_addons import embedding_variable as ev
 
+try:
+  from tensorflow.compiler.xla.experimental.xla_sharding import xla_sharding
+except:
+  pass
+
 from tensorflow.core.framework import node_def_pb2
 from tensorflow.python.eager import context
 from tensorflow.python.framework import device as pydev

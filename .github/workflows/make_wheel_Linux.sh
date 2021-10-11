@@ -11,12 +11,20 @@ else
   export TF_NAME='tensorflow'
 fi
 
-if [ `echo "$TF_CUDA_VERSION == 11"|bc` -eq 1 ] ; then
-  export BUILD_IMAGE="tfra/nosla-cuda11.0-cudnn8-ubuntu18.04-manylinux2010-multipython"
-elif [ `echo "$TF_CUDA_VERSION == 10"|bc` -eq 1 ] ; then
+if [ $TF_VERSION == "2.5.1" ] ; then
+  export BUILD_IMAGE="tfra/nosla-cuda11.2-cudnn8.1-ubuntu18.04-manylinux2010-multipython"
+  export TF_CUDA_VERSION="11.2"
+  export TF_CUDNN_VERSION="8.1"
+elif [ $TF_VERSION == "2.4.1" ] ; then
+  export BUILD_IMAGE='tfra/nosla-cuda11.0-cudnn8-ubuntu18.04-manylinux2010-multipython'
+  export TF_CUDA_VERSION="11.0"
+  export TF_CUDNN_VERSION="8.0"
+elif [ $TF_VERSION == "1.15.2" ] ; then
   export BUILD_IMAGE='tfra/nosla-cuda10.0-cudnn7-ubuntu16.04-manylinux2010-multipython'
+  export TF_CUDA_VERSION="10.0"
+  export TF_CUDNN_VERSION="7.6"
 else
-  echo "No suitable Build Image found!"
+  echo "TF_VERSION is invalid: $TF_VERSION!"
   exit 1
 fi
 

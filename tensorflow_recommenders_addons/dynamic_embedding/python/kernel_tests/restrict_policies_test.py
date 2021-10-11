@@ -331,57 +331,41 @@ class RestrictPolicyV2TestBase(object):
   # track test
   @test_util.run_in_graph_and_eager_modes
   def test_apply_update_verify_v2(self):
-    if test_util.is_gpu_available():
-      self.skipTest('Skip GPU test for no GPU kernel')
     self.commonly_apply_update_verify_v2()
 
   # apply restrict test
   @test_util.run_in_graph_and_eager_modes
   def test_adadelta_apply_restriction_v2(self):
-    if test_util.is_gpu_available():
-      self.skipTest('Skip GPU test for no GPU kernel')
     opt = optimizer_v2.adadelta.Adadelta(1.0)
     self.commonly_apply_restriction_verify_v2(opt)
 
   @test_util.run_in_graph_and_eager_modes
   def test_adagrad_apply_restriction_v2(self):
-    if test_util.is_gpu_available():
-      self.skipTest('Skip GPU test for no GPU kernel')
     opt = optimizer_v2.adagrad.Adagrad(1.0)
     self.commonly_apply_restriction_verify_v2(opt)
 
   @test_util.run_in_graph_and_eager_modes
   def test_adam_apply_restriction_v2(self):
-    if test_util.is_gpu_available():
-      self.skipTest('Skip GPU test for no GPU kernel')
     opt = optimizer_v2.adam.Adam(1.0)
     self.commonly_apply_restriction_verify_v2(opt)
 
   @test_util.run_in_graph_and_eager_modes
   def test_adamax_apply_restriction_v2(self):
-    if test_util.is_gpu_available():
-      self.skipTest('Skip GPU test for no GPU kernel')
     opt = optimizer_v2.adamax.Adamax(1.0)
     self.commonly_apply_restriction_verify_v2(opt)
 
   @test_util.run_in_graph_and_eager_modes
   def test_ftrl_apply_restriction_v2(self):
-    if test_util.is_gpu_available():
-      self.skipTest('Skip GPU test for no GPU kernel')
     opt = optimizer_v2.ftrl.Ftrl(1.0)
     self.commonly_apply_restriction_verify_v2(opt)
 
   @test_util.run_in_graph_and_eager_modes
   def test_sgd_apply_restriction_v2(self):
-    if test_util.is_gpu_available():
-      self.skipTest('Skip GPU test for no GPU kernel')
     opt = optimizer_v2.gradient_descent.SGD(1.0)
     self.commonly_apply_restriction_verify_v2(opt)
 
   @test_util.run_in_graph_and_eager_modes
   def test_nadam_apply_restriction_v2(self):
-    if test_util.is_gpu_available():
-      self.skipTest('Skip GPU test for no GPU kernel')
     opt = optimizer_v2.nadam.Nadam(1.0)
     self.commonly_apply_restriction_verify_v2(opt)
 
