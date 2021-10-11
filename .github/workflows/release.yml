@@ -17,7 +17,7 @@ on:
 env:
   MIN_PY_VERSION: '3.6'
   MAX_PY_VERSION: '3.8'
-  USE_BAZEL_VERSION: "3.1.0"
+  USE_BAZEL_VERSION: "3.7.2"
 
 jobs:
   test-with-bazel:
@@ -42,11 +42,11 @@ jobs:
       matrix:
         # TODO: add back 'windows-latest' when it can be compiled.
         os: ['macos-latest', 'ubuntu-18.04']
-        py-version: ['3.6', '3.7', '3.8']
-        tf-version: ['1.15.2', '2.4.1']
+        py-version: ['3.6', '3.7', '3.8', '3.9']
+        tf-version: ['1.15.2', '2.5.1']
         tf-need-cuda: ['1', '0']
-        tf-cuda-version: ['10.0', '11.0']
-        tf-cudnn-version: ['7.6', '8.0']
+        tf-cuda-version: ['10.0', '11.2']
+        tf-cudnn-version: ['7.6', '8.1']
         exclude:
           # excludes cuda on macOS
           - os: 'macos-latest'
@@ -54,19 +54,21 @@ jobs:
           # excludes TF1.15.2 on py38
           - py-version: '3.8'
             tf-version: '1.15.2'
-          # excludes TF1.15.2 with cuda 11.0
+          - py-version: '3.9'
+            tf-version: '1.15.2'
+          # excludes TF1.15.2 with cuda 11.2
           - os: 'ubuntu-18.04'
             tf-version: '1.15.2'
-            tf-cuda-version: '11.0'
+            tf-cuda-version: '11.2'
           # excludes TF2.4.1 with cuda 10.0
-          - tf-version: '2.4.1'
+          - tf-version: '2.5.1'
             tf-cuda-version: '10.0'
           # excludes cudnn 8 with cuda 10.0
-          - tf-cuda-version: '11.0'
+          - tf-cuda-version: '11.2'
             tf-cudnn-version: '7.6'
           # excludes cudnn 7 with cuda 11.0
           - tf-cuda-version: '10.0'
-            tf-cudnn-version: '8.0'
+            tf-cudnn-version: '8.1'
           # excludes some unnecessary step on no cuda
           - tf-need-cuda: '0'
             tf-cuda-version: '10.0'
@@ -121,8 +123,8 @@ jobs:
       matrix:
         # TODO: add back 'Windows' when it can be compiled.
         os: ['macOS', 'Linux']
-        py-version: ['3.6', '3.7', '3.8']
-        tf-version: ['2.4.1']
+        py-version: ['3.6', '3.7', '3.8', '3.9']
+        tf-version: ['2.5.1']
         tf-need-cuda: ['1', '0']
         exclude:
           # excludes cuda on macOS

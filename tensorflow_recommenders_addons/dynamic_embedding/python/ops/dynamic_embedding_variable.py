@@ -34,6 +34,12 @@ except:
   except:
     from tensorflow.python import pywrap_tensorflow as pywrap
 
+try:
+  from tensorflow.python.keras.initializers import initializers_v2 as kinit2
+except ImportError:
+  kinit2 = None
+  pass  # for compatible with TF < 2.5.x
+
 from tensorflow.python.client import device_lib
 from tensorflow.python.eager import context
 from tensorflow.python.framework import constant_op
@@ -321,12 +327,19 @@ class Variable(base.Trackable):
 
   def _convert_anything_to_init(self, raw_init, dim):
     init = raw_init
+    valid_list = [init_ops.Initializer, init_ops_v2.Initializer]
+    if kinit2 is not None:
+      valid_list.append(kinit2.Initializer)
+    valid_list = tuple(valid_list)
     while callable(init):
-      if isinstance(init, (init_ops.Initializer, init_ops_v2.Initializer)):
+      if isinstance(init, valid_list):
         self.initializer = init
         init = init(shape=[1])
       else:
-        init = init()
+        try:
+          init = init()
+        except:
+          init = init(shape=[1])
     try:
       init = array_ops.reshape(init, [dim])
     except:

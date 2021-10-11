@@ -356,7 +356,7 @@ def _get_meta_file(ckpt_dir):
 
 
 default_config = config_pb2.ConfigProto(
-    allow_soft_placement=False,
+    allow_soft_placement=True,
     gpu_options=config_pb2.GPUOptions(allow_growth=True))
 
 
@@ -929,6 +929,8 @@ class VariableTest(test.TestCase):
         model1.train(features)
       loss1 = model1(features)
       keys1, vals1 = model1.devar.export()
+      keys1, vals1 = zip(
+          *sorted(zip(keys1, vals1), key=lambda x: x[0], reverse=False))
       slot_keys_and_vals1 = [sv.export() for sv in model1.slot_vars]
 
       ckpt1 = track_util.Checkpoint(model=model1, optimizer=model1.optmz)
@@ -942,6 +944,8 @@ class VariableTest(test.TestCase):
       ckpt2.restore(model_path)
       loss2 = model2(features)
       keys2, vals2 = model2.devar.export()
+      keys2, vals2 = zip(
+          *sorted(zip(keys2, vals2), key=lambda x: x[0], reverse=False))
       slot_keys_and_vals2 = [sv.export() for sv in model2.slot_vars]
       del model2
 
@@ -950,10 +954,18 @@ class VariableTest(test.TestCase):
       self.assertAllEqual(vals1, vals2)
 
       for i in range(len(slot_keys_and_vals1)):
-        self.assertAllEqual(slot_keys_and_vals1[i][0],
-                            slot_keys_and_vals2[i][0])
-        self.assertAllEqual(slot_keys_and_vals1[i][1],
-                            slot_keys_and_vals2[i][1])
+        ont_slot_kvs1 = list(
+            zip(*sorted(zip(slot_keys_and_vals1[i][0], slot_keys_and_vals1[i]
+                            [1]),
+                        key=lambda x: x[0],
+                        reverse=False)))
+        ont_slot_kvs2 = list(
+            zip(*sorted(zip(slot_keys_and_vals2[i][0], slot_keys_and_vals2[i]
+                            [1]),
+                        key=lambda x: x[0],
+                        reverse=False)))
+        self.assertAllEqual(ont_slot_kvs1[0], ont_slot_kvs2[0])
+        self.assertAllEqual(ont_slot_kvs1[1], ont_slot_kvs2[1])
 
   def test_get_variable(self):
     with self.session(

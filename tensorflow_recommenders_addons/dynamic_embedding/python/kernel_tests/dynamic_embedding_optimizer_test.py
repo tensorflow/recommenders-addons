@@ -96,7 +96,7 @@ def _test_dir(temp_dir, test_name):
 
 
 default_config = config_pb2.ConfigProto(
-    allow_soft_placement=False,
+    allow_soft_placement=True,
     gpu_options=config_pb2.GPUOptions(allow_growth=True))
 
 
@@ -479,60 +479,62 @@ class EmbeddingLookupTrainableV2Test(test.TestCase, CommonTrainableTestV2Base):
 
       # base graph
       def base_fn():
-        embeddings = resource_variable_ops.ResourceVariable(raw_init_vals,
-                                                            dtype=d_dtype)
+        with ops.Graph().as_default(), self.cached_session():
+          embeddings = resource_variable_ops.ResourceVariable(raw_init_vals,
+                                                              dtype=d_dtype)
 
-        def loss_fn(emb):
-          ids = constant_op.constant(raw_ids, dtype=k_dtype)
-          pred = embedding_ops.embedding_lookup([emb], ids, name='ct9143')
-          return pred * pred
+          def loss_fn(emb):
+            ids = constant_op.constant(raw_ids, dtype=k_dtype)
+            pred = embedding_ops.embedding_lookup([emb], ids, name='ct9143')
+            return pred * pred
 
-        base_opt_op = base_opt.minimize(lambda: loss_fn(embeddings),
-                                        [embeddings])
-        self.evaluate(variables.global_variables_initializer())
-        for _ in range(run_step):
-          self.evaluate(base_opt_op)
-        return embeddings
+          base_opt_op = base_opt.minimize(lambda: loss_fn(embeddings),
+                                          [embeddings])
+          self.evaluate(variables.global_variables_initializer())
+          for _ in range(run_step):
+            self.evaluate(base_opt_op)
+          return self.evaluate(embeddings)
 
-      base_opt_val = self.evaluate(base_fn())
+      base_opt_val = base_fn()
 
       def test_fn():
-        embeddings = de.get_variable(
-            "t2020-v2-" + name + str(id),
-            key_dtype=k_dtype,
-            value_dtype=d_dtype,
-            devices=_get_devices() * num_shards,
-            initializer=1.0,
-            dim=dim,
-        )
-        self.device_check(embeddings)
-        trainables = []
-        init_ids = constant_op.constant(raw_init_ids, dtype=k_dtype)
-        init_vals = constant_op.constant(raw_init_vals, dtype=d_dtype)
-        self.evaluate(embeddings.upsert(init_ids, init_vals))
+        with ops.Graph().as_default(), self.cached_session():
+          embeddings = de.get_variable(
+              "t2020-v2-" + name + str(id),
+              key_dtype=k_dtype,
+              value_dtype=d_dtype,
+              devices=_get_devices() * num_shards,
+              initializer=1.0,
+              dim=dim,
+          )
+          self.device_check(embeddings)
+          trainables = []
+          init_ids = constant_op.constant(raw_init_ids, dtype=k_dtype)
+          init_vals = constant_op.constant(raw_init_vals, dtype=d_dtype)
+          self.evaluate(embeddings.upsert(init_ids, init_vals))
 
-        def var_fn():
-          return trainables
+          def var_fn():
+            return trainables
 
-        def loss_fn(x, trainables):
-          ids = constant_op.constant(raw_ids, dtype=k_dtype)
-          pred, trainable = de.embedding_lookup([x],
-                                                ids,
-                                                return_trainable=True,
-                                                name='xg5785')
-          trainables.clear()
-          trainables.append(trainable)
-          return pred * pred
+          def loss_fn(x, trainables):
+            ids = constant_op.constant(raw_ids, dtype=k_dtype)
+            pred, trainable = de.embedding_lookup([x],
+                                                  ids,
+                                                  return_trainable=True,
+                                                  name='xg5785')
+            trainables.clear()
+            trainables.append(trainable)
+            return pred * pred
 
-        test_opt_op = test_opt.minimize(lambda: loss_fn(embeddings, trainables),
-                                        var_fn)
-        self.evaluate(variables.global_variables_initializer())
-        for _ in range(run_step):
-          self.evaluate(test_opt_op)
-        return embeddings.lookup(init_ids)
+          test_opt_op = test_opt.minimize(
+              lambda: loss_fn(embeddings, trainables), var_fn)
+          self.evaluate(variables.global_variables_initializer())
+          for _ in range(run_step):
+            self.evaluate(test_opt_op)
+          return self.evaluate(embeddings.lookup(init_ids))
 
       with ops.device(_get_devices()[0]):
-        test_opt_val = self.evaluate(test_fn())
+        test_opt_val = test_fn()
       self.assertAllCloseAccordingToType(
           base_opt_val,
           test_opt_val,
