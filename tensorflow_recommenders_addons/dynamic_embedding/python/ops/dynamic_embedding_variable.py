@@ -38,7 +38,7 @@ try:
   from tensorflow.python.keras.initializers import initializers_v2 as kinit2
 except ImportError:
   kinit2 = None
-  pass  # for compatible with TF < 2.5.x
+  pass  # for compatible with TF < 2.3.x
 
 from tensorflow.python.client import device_lib
 from tensorflow.python.eager import context
