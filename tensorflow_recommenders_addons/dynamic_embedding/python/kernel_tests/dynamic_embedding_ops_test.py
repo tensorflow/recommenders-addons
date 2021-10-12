@@ -26,6 +26,12 @@ import os
 
 from tensorflow_recommenders_addons import dynamic_embedding as de
 
+try:
+  from tensorflow.python.keras.initializers import initializers_v2 as kinit2
+except ImportError:
+  kinit2 = None
+  pass  # for compatible with TF < 2.3.x
+
 from tensorflow.core.protobuf import cluster_pb2
 from tensorflow.core.protobuf import config_pb2
 from tensorflow.python.eager import context
@@ -609,11 +615,16 @@ class EmbeddingLookupTest(test.TestCase):
     id = 0
     embed_dim = 8
     elements_num = 262144
-    for initializer, target_mean, target_stddev in [
+    test_util.random_seed.set_seed(2021)
+    init_list = [
         (init_ops.random_normal_initializer(0.0, 0.001), 0.0, 0.001),
         (init_ops.truncated_normal_initializer(0.0, 0.001), 0.0, 0.00088),
         (keras_init_ops.RandomNormalV2(mean=0.0, stddev=0.001), 0.0, 0.001),
-    ]:
+        (keras_init_ops.GlorotNormal(), 0.0, 0.004784),
+    ]
+    if kinit2 is not None and hasattr(kinit2, "GlorotNormal"):
+      init_list.append((kinit2.GlorotNormal(), 0.0, 0.004784))
+    for initializer, target_mean, target_stddev in init_list:
       with self.session(config=default_config,
                         use_gpu=test_util.is_gpu_available()):
         id += 1

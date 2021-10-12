@@ -22,16 +22,21 @@ from tensorflow_recommenders_addons import dynamic_embedding as de
 from tensorflow_recommenders_addons import embedding_variable as ev
 
 try:
-  from tensorflow.compiler.xla.experimental.xla_sharding import xla_sharding
-except:
-  pass
+  from tensorflow.python.keras.initializers import initializers_v2 as kinit2
+except ImportError:
+  kinit2 = None
+  pass  # for compatible with TF < 2.3.x
 
 from tensorflow.core.framework import node_def_pb2
 from tensorflow.python.eager import context
 from tensorflow.python.framework import device as pydev
+from tensorflow.python.framework import dtypes
 from tensorflow.python.framework import ops
+from tensorflow.python.keras import initializers as kinit1
 from tensorflow.python.ops import control_flow_ops
+from tensorflow.python.ops import random_ops
 from tensorflow.python.ops import resource_variable_ops as rvo
+from tensorflow.python.ops import math_ops
 from tensorflow.python.ops import variable_scope
 from tensorflow.python.ops import variables
 from tensorflow.python.platform import tf_logging
@@ -233,7 +238,99 @@ def device_function(self, op):
   return worker_device.to_string()
 
 
+def _compute_fans_for_keras_init_v1_v2(shape):
+  """ Making keras VarianceScaling initializers v1 & v2 support dynamic shape.
+  """
+  if len(shape) < 1:  # Just to avoid errors for constants.
+    fan_in = fan_out = 1
+  elif len(shape) == 1:
+    fan_in = fan_out = shape[0]
+  elif len(shape) == 2:
+    fan_in = shape[0]
+    fan_out = shape[1]
+  else:
+    # Assuming convolution kernels (2D, 3D, or more).
+    # kernel shape: (..., input_depth, depth)
+    receptive_field_size = 1
+    for dim in shape[:-2]:
+      receptive_field_size *= dim
+    fan_in = shape[-2] * receptive_field_size
+    fan_out = shape[-1] * receptive_field_size
+  return fan_in, fan_out
+
+
+def __call__for_keras_init_v1(self, shape, dtype=None, partition_info=None):
+  """ Making keras VarianceScaling initializers v1 support dynamic shape.
+  """
+  if dtype is None:
+    dtype = self.dtype
+  scale = self.scale
+  scale_shape = shape
+  if partition_info is not None:
+    scale_shape = partition_info.full_shape
+  fan_in, fan_out = _compute_fans_for_keras_init_v1_v2(scale_shape)
+  fan_in = math_ops.cast(fan_in, dtype=dtype)
+  fan_out = math_ops.cast(fan_out, dtype=dtype)
+  if self.mode == "fan_in":
+    scale /= math_ops.maximum(1., fan_in)
+  elif self.mode == "fan_out":
+    scale /= math_ops.maximum(1., fan_out)
+  else:
+    scale /= math_ops.maximum(1., (fan_in + fan_out) / 2.)
+  if self.distribution == "normal" or self.distribution == "truncated_normal":
+    # constant taken from scipy.stats.truncnorm.std(a=-2, b=2, loc=0., scale=1.)
+    stddev = math_ops.sqrt(scale) / .87962566103423978
+    return random_ops.truncated_normal(shape,
+                                       0.0,
+                                       stddev,
+                                       dtype,
+                                       seed=self.seed)
+  elif self.distribution == "untruncated_normal":
+    stddev = math_ops.sqrt(scale)
+    return random_ops.random_normal(shape, 0.0, stddev, dtype, seed=self.seed)
+  else:
+    limit = math_ops.sqrt(3.0 * scale)
+    return random_ops.random_uniform(shape,
+                                     -limit,
+                                     limit,
+                                     dtype,
+                                     seed=self.seed)
+
+
+def __call__for_keras_init_v2(self, shape, dtype=None, **kwargs):
+  """ Making keras VarianceScaling initializers v2 support dynamic shape.
+  """
+  kinit2._validate_kwargs(self.__class__.__name__, kwargs)
+  dtype = kinit2._assert_float_dtype(kinit2._get_dtype(dtype))
+  scale = self.scale
+  fan_in, fan_out = _compute_fans_for_keras_init_v1_v2(shape)
+  fan_in = math_ops.cast(fan_in, dtype=dtype)
+  fan_out = math_ops.cast(fan_out, dtype=dtype)
+  if kinit2._PARTITION_SHAPE in kwargs:
+    shape = kwargs[kinit2._PARTITION_SHAPE]
+  if self.mode == 'fan_in':
+    scale /= math_ops.maximum(1., fan_in)
+  elif self.mode == 'fan_out':
+    scale /= math_ops.maximum(1., fan_out)
+  else:
+    scale /= math_ops.maximum(1., (fan_in + fan_out) / 2.)
+  if self.distribution == 'truncated_normal':
+    # constant from scipy.stats.truncnorm.std(a=-2, b=2, loc=0., scale=1.)
+    stddev = math_ops.sqrt(scale) / .87962566103423978
+    return self._random_generator.truncated_normal(shape, 0.0, stddev, dtype)
+  elif self.distribution == 'untruncated_normal':
+    stddev = math_ops.sqrt(scale)
+    return self._random_generator.random_normal(shape, 0.0, stddev, dtype)
+  else:
+    limit = math_ops.sqrt(3.0 * scale)
+  return self._random_generator.random_uniform(shape, -limit, limit, dtype)
+
+
 def patch_on_tf():
   optimizer._get_processor = _get_processor
   slot_creator._create_slot_var = _create_slot_var
   device_setter._ReplicaDeviceChooser.device_function = device_function
+  if kinit1 is not None:
+    kinit1.VarianceScaling.__call__ = __call__for_keras_init_v1
+  if kinit2 is not None:
+    kinit2.VarianceScaling.__call__ = __call__for_keras_init_v2
