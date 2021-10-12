@@ -167,7 +167,7 @@ Status ParseJsonConfig(const std::string *const redis_config_abs_dir,
     return errors::NotFound("File ", filename, " not found");
   }
   file_size = filestatus.st_size;
-  file_contents = (char *)malloc(filestatus.st_size);
+  file_contents = (char *)malloc(file_size);
   if (file_contents == NULL) {
     LOG(ERROR) << "Memory error: unable to allocate "
                << std::to_string(file_size) << " bytes";

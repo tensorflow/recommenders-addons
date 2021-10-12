@@ -390,7 +390,7 @@ class RedisWrapper<RedisInstance, K, V,
       LOG(ERROR) << "RedisHandler error in HscanGetKeysValsInBucket for slices "
                  << keys_prefix_name_slice << " -- " << err.what();
     }
-    if (reply->element[0]->type == REDIS_REPLY_INTEGER) {
+    if (reply->element[0]->type == REDIS_REPLY_STRING) {
       // #define REDIS_REPLY_STRING 1
       *cursor = std::atoll(reply->element[0]->str);
     } else {
@@ -539,8 +539,6 @@ class RedisWrapper<RedisInstance, K, V,
           while (aio_error(wr) == EINPROGRESS)
             ;
           if ((ret = aio_return(wr)) > 0) {
-            // LOG(INFO) << "File handle " << wr->aio_fildes
-            //           << " finished writing last round.";
             break;
           } else {
             LOG(WARNING) << "File handle " << wr->aio_fildes
@@ -641,9 +639,12 @@ class RedisWrapper<RedisInstance, K, V,
       sizes_i_i[i].emplace_back(replace_command_byte);
     }
 
-    long long count_down = static_cast<long long>(storage_slice);
-    std::vector<size_t> reread_countdown(storage_slice);
-    std::string empty_str;
+    int count_down = static_cast<int>(storage_slice);
+    int reread_countdown[storage_slice];
+    for (unsigned i = 0; i < storage_slice; ++i) {
+      reread_countdown[i] = 4;
+    }
+    bool no_errors = true;
 
     while (count_down > 0) {
       for (size_t i = 0; i < storage_slice; ++i) {
@@ -653,8 +654,6 @@ class RedisWrapper<RedisInstance, K, V,
           if (rd->aio_nbytes > 0) {
             if (aio_error(rd) != EINPROGRESS) {
               if ((ret = aio_return(rd)) > 0) {
-                // LOG(INFO) << "File handle " << rd->aio_fildes
-                //           << " finished reading last round.";
                 try {
                   /*reply = */ redis_conn_write->command(
                       cmd, keys_prefix_name_slices[i], ptrs_i_i[i],
@@ -663,11 +662,18 @@ class RedisWrapper<RedisInstance, K, V,
                   LOG(ERROR)
                       << "RedisHandler error in RestoreFromDisk for slices "
                       << keys_prefix_name_slices[i] << " -- " << err.what();
+                  if (rd->aio_buf) {
+                    free((void *)rd->aio_buf);
+                    rd->aio_buf = nullptr;
+                    rd->aio_nbytes = 0;
+                  }
                   return errors::Unknown(err.what());
                 }
-                free((void *)rd->aio_buf);
-                rd->aio_buf = nullptr;
-                rd->aio_nbytes = 0;
+                if (rd->aio_buf) {
+                  free((void *)rd->aio_buf);
+                  rd->aio_buf = nullptr;
+                  rd->aio_nbytes = 0;
+                }
                 --count_down;
               } else {
                 LOG(WARNING) << "File handle " << rd->aio_fildes
@@ -683,7 +689,13 @@ class RedisWrapper<RedisInstance, K, V,
             LOG(WARNING) << "File handle " << rd->aio_fildes << " for slice "
                          << keys_prefix_name_slices[i]
                          << " has nbytes 0. Ignore.";
-            reread_countdown[i] = 1;
+            reread_countdown[i] = 0;
+            --count_down;
+            if (rd->aio_buf) {
+              free((void *)rd->aio_buf);
+              rd->aio_buf = nullptr;
+              rd->aio_nbytes = 0;
+            }
           }
         } else if (reread_countdown[i] == 1) {
           LOG(ERROR) << "File handle " << rd->aio_fildes << " for slice "
@@ -691,11 +703,19 @@ class RedisWrapper<RedisInstance, K, V,
                      << " has some troubles! Given up.";
           --reread_countdown[i];
           --count_down;
+          if (rd->aio_buf) {
+            free((void *)rd->aio_buf);
+            rd->aio_buf = nullptr;
+            rd->aio_nbytes = 0;
+          }
+          no_errors = false;
         }
       }
     }
 
-    return Status::OK();
+    return no_errors
+               ? Status::OK()
+               : errors::Unknown("Unknown errors happen in file handles.");
   }
 
   void DoDuplicateInRedis(const std::string &keys_prefix_name_slice_old,
