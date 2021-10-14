@@ -41,39 +41,19 @@ jobs:
     strategy:
       matrix:
         # TODO: add back 'windows-latest' when it can be compiled.
-        os: ['macos-latest', 'ubuntu-18.04']
-        py-version: ['3.6', '3.7', '3.8', '3.9']
-        tf-version: ['1.15.2', '2.5.1']
-        tf-need-cuda: ['1', '0']
-        tf-cuda-version: ['10.0', '11.2']
-        tf-cudnn-version: ['7.6', '8.1']
-        exclude:
-          # excludes cuda on macOS
+        os: ['ubuntu-18.04']
+        py-version: ['3.7']
+        tf-version: ['1.15.2', '2.4.1', '2.5.1']
+        tf-need-cuda: ['0', '1']
+        include:
           - os: 'macos-latest'
-            tf-need-cuda: '1'
-          # excludes TF1.15.2 on py38
-          - py-version: '3.8'
+            py-version: '3.7'
             tf-version: '1.15.2'
-          - py-version: '3.9'
-            tf-version: '1.15.2'
-          # excludes TF1.15.2 with cuda 11.2
-          - os: 'ubuntu-18.04'
-            tf-version: '1.15.2'
-            tf-cuda-version: '11.2'
-          # excludes TF2.4.1 with cuda 10.0
-          - tf-version: '2.5.1'
-            tf-cuda-version: '10.0'
-          # excludes cudnn 8 with cuda 10.0
-          - tf-cuda-version: '11.2'
-            tf-cudnn-version: '7.6'
-          # excludes cudnn 7 with cuda 11.0
-          - tf-cuda-version: '10.0'
-            tf-cudnn-version: '8.1'
-          # excludes some unnecessary step on no cuda
-          - tf-need-cuda: '0'
-            tf-cuda-version: '10.0'
-          - tf-need-cuda: '0'
-            tf-cudnn-version: '7.6'
+            tf-need-cuda: '0'
+          - os: 'macos-latest'
+            py-version: '3.7'
+            tf-version: '2.5.1'
+            tf-need-cuda: '0'
       fail-fast: false
     steps:
       - uses: actions/github-script@0.3.0
