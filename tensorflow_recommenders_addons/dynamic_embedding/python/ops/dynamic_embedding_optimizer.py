@@ -38,13 +38,14 @@ from tensorflow.python.training import optimizer
 from tensorflow.python.training import slot_creator
 
 
-def DynamicEmbeddingOptimizer(self):
+def DynamicEmbeddingOptimizer(self, bp_v2=None):
   """ An optimizer wrapper to make any TensorFlow optimizer capable of training
   Dynamic Embeddding Variables.
 
   Args:
     self: a TensorFlow optimizer.
-
+    bp_v2: By default is None, If None use params_var_.bp_v2 setting
+        (see `tfra.dynamic_embedding_variable.get_variable`)
   Example usage:
 
     ```python
@@ -55,6 +56,7 @@ def DynamicEmbeddingOptimizer(self):
   Returns:
     The optimizer itself but has ability to train Dynamic Embedding Variables.
   """
+  self._bp_v2 = bp_v2
 
   def _distributed_apply(distribution, grads_and_vars, name, apply_state):
     """`apply_gradients` using a `DistributionStrategy`."""
@@ -174,7 +176,7 @@ def DynamicEmbeddingOptimizer(self):
       with strategy.extended.colocate_vars_with(var):
         if isinstance(var, de.TrainableWrapper):
           weight = de.create_slots(var, initial_value, slot_name,
-                                   var._shared_name)
+                                   var._shared_name, self._bp_v2)
         else:
           weight = variables.Variable(
               name="%s/%s" % (
@@ -209,7 +211,8 @@ def DynamicEmbeddingOptimizer(self):
     named_slots = self._slot_dict(slot_name)
     if optimizer._var_key(var) not in named_slots:
       if isinstance(var, de.TrainableWrapper):
-        new_slot_variable = de.create_slots(var, val, slot_name, op_name)
+        new_slot_variable = de.create_slots(var, val, slot_name, op_name,
+                                            self._bp_v2)
       else:
         new_slot_variable = slot_creator.create_slot(var, val, op_name)
       self._restore_slot_variable(slot_name=slot_name,
@@ -238,7 +241,7 @@ def DynamicEmbeddingOptimizer(self):
     if optimizer._var_key(var) not in named_slots:
       if isinstance(var, de.TrainableWrapper):
         new_slot_variable = de.create_slots(var, initializer, slot_name,
-                                            op_name)
+                                            op_name, self._bp_v2)
       else:
         new_slot_variable = slot_creator.create_slot_with_initializer(
             var, initializer, shape, dtype, op_name)
@@ -263,7 +266,8 @@ def DynamicEmbeddingOptimizer(self):
     named_slots = self._slot_dict(slot_name)
     if optimizer._var_key(var) not in named_slots:
       if isinstance(var, de.TrainableWrapper):
-        new_slot_variable = de.create_slots(var, 0.0, slot_name, op_name)
+        new_slot_variable = de.create_slots(var, 0.0, slot_name, op_name,
+                                            self._bp_v2)
       else:
         new_slot_variable = slot_creator.create_zeros_slot(var, op_name)
       self._restore_slot_variable(slot_name=slot_name,
@@ -285,7 +289,7 @@ def DynamicEmbeddingOptimizer(self):
   return self
 
 
-def create_slots(primary, init, slot_name, op_name):
+def create_slots(primary, init, slot_name, op_name, bp_v2):
   """Helper function for creating a slot variable for statefull optimizers."""
   params_var_, params_ids_ = primary.params, primary.ids
 
@@ -301,12 +305,10 @@ def create_slots(primary, init, slot_name, op_name):
           devices=params_var_.devices,
           partitioner=params_var_.partition_fn,
           initializer=init,
-          init_size=params_var_.init_size,
-          database_path=params_var_.database_path,
-          embedding_name=params_var_.embedding_name,
+          kv_creator=params_var_.kv_creator,
           trainable=False,
           checkpoint=params_var_.checkpoint,
-          bp_v2=params_var_.bp_v2,
+          bp_v2=bp_v2 if bp_v2 is not None else params_var_.bp_v2,
       )
 
     scope_store._vars[full_name] = slot_variable_

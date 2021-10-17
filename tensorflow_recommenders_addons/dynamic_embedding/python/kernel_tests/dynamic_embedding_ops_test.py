@@ -26,6 +26,12 @@ import os
 
 from tensorflow_recommenders_addons import dynamic_embedding as de
 
+try:
+  from tensorflow.python.keras.initializers import initializers_v2 as kinit2
+except ImportError:
+  kinit2 = None
+  pass  # for compatible with TF < 2.3.x
+
 from tensorflow.core.protobuf import cluster_pb2
 from tensorflow.core.protobuf import config_pb2
 from tensorflow.python.eager import context
@@ -234,7 +240,7 @@ def _create_dynamic_shape_tensor(
 
 
 default_config = config_pb2.ConfigProto(
-    allow_soft_placement=False,
+    allow_soft_placement=True,
     gpu_options=config_pb2.GPUOptions(allow_growth=True))
 
 
@@ -296,7 +302,8 @@ class EmbeddingLookupTest(test.TestCase):
       norms = math_ops.sqrt(
           math_ops.reduce_sum(embedding_no_norm * embedding_no_norm, axis=1))
       normalized = embedding_no_norm / array_ops.stack([norms, norms], axis=1)
-      self.assertAllEqual(embedding.eval(), 2 * self.evaluate(normalized))
+      self.assertAllCloseAccordingToType(embedding.eval(),
+                                         2 * self.evaluate(normalized))
 
   def test_sharded_custom_partitioner_int32_ids(self):
 
@@ -481,8 +488,8 @@ class EmbeddingLookupTest(test.TestCase):
     self.assertAllEqual(p1.name, "test/p1")
     self.assertAllEqual(p2.name, "test/p2")
     self.assertAllEqual(p1, p1_reuse)
-    self.assertEqual(t1.name, "test/q/emb:0")
-    self.assertEqual(t2.name, "test_1/q/emb:0")
+    self.assertEqual(t1.name, "test/q/emb/emb:0")
+    self.assertEqual(t2.name, "test/q/emb/emb_1:0")
     self.assertAllEqual(p1._tables[0].name, "test_p1_mht_1of1")
     self.assertAllEqual(p1_reuse._tables[0].name, "test_p1_mht_1of1")
     self.assertAllEqual(p2._tables[0].name, "test_p2_mht_1of1")
@@ -528,8 +535,10 @@ class EmbeddingLookupTest(test.TestCase):
     self.assertAllEqual(p1.name, "test/p1")
     self.assertAllEqual(p2.name, "test/p2")
     self.assertAllEqual(p1, p1_reuse)
-    self.assertEqual(t1.name, "test/q/sp_emb/sp_emb/embedding_lookup:0")
-    self.assertEqual(t2.name, "test/q/sp_emb/sp_emb/embedding_lookup_1:0")
+    self.assertEqual(
+        t1.name, "test/q/sp_emb/embedding_lookup/sp_emb/embedding_lookup:0")
+    self.assertEqual(
+        t2.name, "test/q/sp_emb/embedding_lookup/sp_emb/embedding_lookup_1:0")
     self.assertAllEqual(p1._tables[0].name, "test_p1_mht_1of1")
     self.assertAllEqual(p1_reuse._tables[0].name, "test_p1_mht_1of1")
     self.assertAllEqual(p2._tables[0].name, "test_p2_mht_1of1")
@@ -577,11 +586,11 @@ class EmbeddingLookupTest(test.TestCase):
     self.assertAllEqual(p1, p1_reuse)
     self.assertEqual(
         t1.name,
-        "test/q/safe_sp_emb/embedding_lookup_sparse/safe_sp_emb/embedding_lookup_sparse/embedding_lookup:0",
+        "test/q/safe_sp_emb/embedding_lookup_sparse/embedding_lookup/safe_sp_emb/embedding_lookup_sparse/embedding_lookup:0",
     )
     self.assertEqual(
         t2.name,
-        "test/q/safe_sp_emb/embedding_lookup_sparse/safe_sp_emb/embedding_lookup_sparse/embedding_lookup_1:0",
+        "test/q/safe_sp_emb/embedding_lookup_sparse/embedding_lookup/safe_sp_emb/embedding_lookup_sparse/embedding_lookup_1:0",
     )
     self.assertAllEqual(p1._tables[0].name, "test_p1_mht_1of1")
     self.assertAllEqual(p1_reuse._tables[0].name, "test_p1_mht_1of1")
@@ -606,11 +615,16 @@ class EmbeddingLookupTest(test.TestCase):
     id = 0
     embed_dim = 8
     elements_num = 262144
-    for initializer, target_mean, target_stddev in [
+    test_util.random_seed.set_seed(2021)
+    init_list = [
         (init_ops.random_normal_initializer(0.0, 0.001), 0.0, 0.001),
         (init_ops.truncated_normal_initializer(0.0, 0.001), 0.0, 0.00088),
         (keras_init_ops.RandomNormalV2(mean=0.0, stddev=0.001), 0.0, 0.001),
-    ]:
+        (keras_init_ops.GlorotNormal(), 0.0, 0.004784),
+    ]
+    if kinit2 is not None and hasattr(kinit2, "GlorotNormal"):
+      init_list.append((kinit2.GlorotNormal(), 0.0, 0.004784))
+    for initializer, target_mean, target_stddev in init_list:
       with self.session(config=default_config,
                         use_gpu=test_util.is_gpu_available()):
         id += 1

@@ -25,7 +25,12 @@ import tensorflow as tf
 _TFRA_BAZELRC = ".bazelrc"
 
 # Maping TensorFlow version to valid Bazel version.
-_VALID_BAZEL_VERSION = {"1.15.2": "0.26.1", "2.4.1": "3.1.0"}
+_VALID_BAZEL_VERSION = {
+    "1.15.2": "0.26.1",
+    "2.4.0": "3.1.0",
+    "2.4.1": "3.1.0",
+    "2.5.1": "3.7.2"
+}
 
 
 # Writes variables to bazelrc file
@@ -101,6 +106,7 @@ def get_tf_version_integer():
   For example:
     1.15.2 get 1152
     2.4.1 get 2041
+    2.5.1 get 2051
 
   The 4-digits-string will be passed to C macro to discriminate different
   Tensorflow versions. 
@@ -115,7 +121,7 @@ def get_tf_version_integer():
         '\nPlease install a TensorFlow on your compiling machine, '
         'The compiler needs to know the version of Tensorflow '
         'and get TF c++ headers according to the installed TensorFlow. '
-        '\nNote: Only TensorFlow 2.4.1, 1.15.2 are supported.')
+        '\nNote: Only TensorFlow 2.5.1, 2.4.1, 1.15.2 are supported.')
   try:
     major, minor, patch = version.split('.')
     assert len(
@@ -154,7 +160,7 @@ def extract_tf_header():
   tf_header_dir = get_tf_header_dir()
   tf_version_integer = get_tf_version_integer()
   if tf_version_integer < 2000:
-    _output_dir = tf_header_dir[:-(len("1.15.2/tensorflow"))]
+    _output_dir = tf_header_dir[:-(len(tf.__version__ + "/tensorflow"))]
     _tar_path = tf_header_dir.replace("/tensorflow", ".tar.gz")
     _cmd = "tar -zxvf {} --directory {} >/dev/null 2>&1".format(
         _tar_path, _output_dir)

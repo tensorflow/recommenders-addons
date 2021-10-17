@@ -6,9 +6,10 @@
 [![Documentation](https://img.shields.io/badge/api-reference-blue.svg)](docs/api_docs/)
 
 
-TensorFlow Recommenders Addons are a collection of projects related to
-large-scale recommendation systems built upon TensorFlow. They are contributed
-and maintained by the community. Those contributions will be complementary to
+TensorFlow Recommenders Addons(TFRA) are a collection of projects related to large-scale recommendation systems 
+built upon TensorFlow by introducing the **Dynamic Embedding Technology** to TensorFlow 
+that make TensorFlow more suitable for trainning models of **Search, Recommendations and Advertising**. 
+These projects are contributed and maintained by the community. Those contributions will be complementary to
 TensorFlow Core and TensorFlow Recommenders etc.
 
 ## Scope
@@ -27,7 +28,7 @@ to TensorFlow Recommenders, or any helpful libraries related to recommendation s
 TensorFlow. The contribution areas can be broad and don't limit to the topic listed below:
 
 * Training with scale: How to train from super large sparse features? How to
-deal with dynamic embedding?
+deal with dynamic embedding and key-value parameters?
 * Serving with efficiency: Given recommendation models are usually pretty
 large, how to serve super large models easily, and how to serve efficiently?
 * Modeling with SoTA techniques: online learning, multi-target learning, deal
@@ -41,7 +42,7 @@ specific frameworks (e.g. NVIDIA Merlin, …), and integrations with Cloud servi
 
 ## RFCs
 * [RFC: Dynamic Embedding](rfcs/20200424-sparse-domain-isolation.md)
-* [RFC: Embedding Variable](https://docs.google.com/document/d/1odez6-69YH-eFcp8rKndDHTNGxZgdFFRJufsW94_gl4/edit)
+* [RFC: Embedding Variable](https://docs.google.com/document/d/1odez6-69YH-eFcp8rKndDHTNGxZgdFFRJufsW94_gl4)
 
 ## Subpackages
 
@@ -104,6 +105,7 @@ is compiled differently. A typical example of this would be `conda`-installed Te
 
 | TFRA | TensorFlow | Compiler  | CUDA | CUDNN | Compute Capability |
 |:----------------------- |:---- |:---------| :------------ | :---- | :------------ |
+| 0.3.0 | 2.5.1  | GCC 7.3.1 | 11.2 | 8.1 | 6.0, 6.1, 7.0, 7.5, 8.0, 8.6 |
 | 0.2.0 | 2.4.1  | GCC 7.3.1 | 11.0 | 8.0 | 6.0, 6.1, 7.0, 7.5, 8.0 |
 | 0.2.0 | 1.15.2  | GCC 7.3.1 | 10.0 | 7.6 | 6.0, 6.1, 7.0, 7.5 |
 | 0.1.0 | 2.4.1  | GCC 7.3.1 | - | - | - |
@@ -112,14 +114,12 @@ Check [nvidia-support-matrix](https://docs.nvidia.com/deeplearning/cudnn/support
 
 **NOTICE**
 - The release packages have strict version binding relationship with TensorFlow. 
-- Due to the significant changes in the Tensorflow API, we can only ensure compatibility with TF1.15.2 on CPU & GPU, 
+- Due to the significant changes in the Tensorflow API, we can only ensure version 0.2.0 compatibility with TF1.15.2 on CPU & GPU, 
   but **there are no official releases**, you can only get it through compiling by the following:
 ```shell
 PY_VERSION="3.6" \
 TF_VERSION="1.15.2" \
 TF_NEED_CUDA=1 \
-TF_CUDA_VERSION=10.0 \
-TF_CUDNN_VERSION=7.6 \
 sh .github/workflows/make_wheel_Linux.sh
 
 # .whl file will be created in ./wheelhouse/
@@ -131,12 +131,12 @@ At the same time, we find some OPs used by TRFA have better performance, so we h
 
 #### Installing from Source
 ##### CPU Only
-You can also install from source. This requires the [Bazel](https://bazel.build/) build system (version == 3.1.0).
+You can also install from source. This requires the [Bazel](https://bazel.build/) build system (version == 3.7.2).
 Please install a TensorFlow on your compiling machine, The compiler needs to know the version of Tensorflow and 
 its headers according to the installed TensorFlow. 
 
 ```
-export TF_VERSION=["2.4.1", "1.15.2"]
+export TF_VERSION=["2.5.1", "2.4.1", "1.15.2"]
 pip install tensorflow[-gpu]==$TF_VERSION
 
 git clone https://github.com/tensorflow/recommenders-addons.git
@@ -154,10 +154,10 @@ pip install artifacts/tensorflow_recommenders_addons-*.whl
 ##### GPU Support
 Only `TF_NEED_CUDA=1` is required and other environment variables are optional:
 ```shell
-PY_VERSION="3.6" \
+PY_VERSION="3.7" \
 TF_NEED_CUDA=1 \
-TF_CUDA_VERSION=11.0 \
-TF_CUDNN_VERSION=8.0 \
+TF_CUDA_VERSION=11.2 \
+TF_CUDNN_VERSION=8.1 \
 CUDA_TOOLKIT_PATH="/usr/local/cuda" \
 CUDNN_INSTALL_PATH="/usr/lib/x86_64-linux-gnu" \
 python configure.py
@@ -208,6 +208,7 @@ sess_config.gpu_options.allow_growth = True
 #### Compatibility Matrix
 | TFRA | TensorFlow | Serving | Compiler  | CUDA | CUDNN | Compute Capability |
 |:----- |:---- |:---- |:---------| :------------ | :---- | :------------ |
+| 0.3.0 | 2.5.1  | 2.5.2  | GCC 7.3.1 | 11.2| 8.1 | 6.0, 6.1, 7.0, 7.5, 8.0, 8.6 |
 | 0.2.0 | 2.4.1  | 2.4.0  | GCC 7.3.1 | 11.0 | 8.0 | 6.0, 6.1, 7.0, 7.5, 8.0 |
 | 0.2.0 | 1.15.2  | 1.15.0  | GCC 7.3.1 | 10.0 | 7.6 | 6.0, 6.1, 7.0, 7.5 |
 | 0.1.0 | 2.4.1  | 2.4.0  | GCC 7.3.1 | - | - | - |

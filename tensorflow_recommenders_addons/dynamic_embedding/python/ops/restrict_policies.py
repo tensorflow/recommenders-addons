@@ -141,21 +141,15 @@ class TimestampRestrictPolicy(RestrictPolicy):
       else:
         full_name = tstp_name
 
-      self.tstp_var = de.get_variable(
-          full_name,
-          key_dtype=self.var.key_dtype,
-          value_dtype=dtypes.int32,
-          dim=1,
-          devices=self.var.devices,
-          partitioner=self.var.partition_fn,
-          trainable=False,
-          init_size=self.var.init_size,
-          database_path=self.var.database_path,
-          embedding_name=self.var.embedding_name,
-          read_only=self.var.read_only,
-          estimate_size=self.var.estimate_size,
-          export_path=self.var.export_path,
-      )
+      self.tstp_var = de.get_variable(full_name,
+                                      key_dtype=self.var.key_dtype,
+                                      value_dtype=dtypes.int32,
+                                      dim=1,
+                                      devices=self.var.devices,
+                                      partitioner=self.var.partition_fn,
+                                      trainable=False,
+                                      init_size=self.var.init_size,
+                                      kv_creator=self.var.kv_creator)
 
   def apply_update(self, ids):
     """
@@ -266,21 +260,15 @@ class FrequencyRestrictPolicy(RestrictPolicy):
       else:
         full_name = freq_name
 
-      self.freq_var = de.get_variable(
-          full_name,
-          key_dtype=self.var.key_dtype,
-          value_dtype=dtypes.int32,
-          dim=1,
-          devices=self.var.devices,
-          partitioner=self.var.partition_fn,
-          trainable=False,
-          init_size=self.var.init_size,
-          database_path=self.var.database_path,
-          embedding_name=self.var.embedding_name,
-          read_only=self.var.read_only,
-          estimate_size=self.var.estimate_size,
-          export_path=self.var.export_path,
-      )
+      self.freq_var = de.get_variable(full_name,
+                                      key_dtype=self.var.key_dtype,
+                                      value_dtype=dtypes.int32,
+                                      dim=1,
+                                      devices=self.var.devices,
+                                      partitioner=self.var.partition_fn,
+                                      trainable=False,
+                                      init_size=self.var.init_size,
+                                      kv_creator=self.var.kv_creator)
 
   def apply_update(self, ids):
     """
