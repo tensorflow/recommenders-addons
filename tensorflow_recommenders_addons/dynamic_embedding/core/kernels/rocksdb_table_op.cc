@@ -23,6 +23,7 @@ limitations under the License.
 #include "../utils/utils.h"
 #include "rocksdb/db.h"
 #include "rocksdb_table_op.h"
+#include "tensorflow/core/util/env_var.h"
 
 namespace tensorflow {
 namespace recommenders_addons {
@@ -33,7 +34,8 @@ static const size_t BATCH_SIZE_MAX = 128;
 
 static const uint32_t FILE_MAGIC =
     (  // TODO: Little endian / big endian conversion?
-        (static_cast<uint32_t>('R') << 0) | (static_cast<uint32_t>('O') << 8) |
+        (static_cast<uint32_t>('R') << 0) |
+        (static_cast<uint32_t>('O') << 8) |
         (static_cast<uint32_t>('C') << 16) |
         (static_cast<uint32_t>('K') << 24));
 static const uint32_t FILE_VERSION = 1;
@@ -56,58 +58,58 @@ typedef uint32_t STRING_SIZE_TYPE;
 namespace _if {
 
 template <class T>
-inline void putKey(ROCKSDB_NAMESPACE::Slice &dst, const T *src) {
+inline void put_key(ROCKSDB_NAMESPACE::Slice &dst, const T *src) {
   dst.data_ = reinterpret_cast<const char *>(src);
   dst.size_ = sizeof(T);
 }
 
 template <>
-inline void putKey<tstring>(ROCKSDB_NAMESPACE::Slice &dst, const tstring *src) {
+inline void put_key<tstring>(ROCKSDB_NAMESPACE::Slice &dst, const tstring *src) {
   dst.data_ = src->data();
   dst.size_ = src->size();
 }
 
 template <class T>
-inline void getValue(T *dst, const std::string &src, const size_t &n) {
-  const size_t dstSize = n * sizeof(T);
+inline void get_value(T *dst, const std::string &src, const size_t &n) {
+  const size_t dst_size = n * sizeof(T);
 
-  if (src.size() < dstSize) {
+  if (src.size() < dst_size) {
     std::stringstream msg(std::stringstream::out);
     msg << "Expected " << n * sizeof(T) << " bytes, but only " << src.size()
         << " bytes were returned by the database.";
     throw std::runtime_error(msg.str());
-  } else if (src.size() > dstSize) {
-    LOG(WARNING) << "Expected " << dstSize << " bytes. The database returned "
+  } else if (src.size() > dst_size) {
+    LOG(WARNING) << "Expected " << dst_size << " bytes. The database returned "
                  << src.size() << ", which is more. Truncating!";
   }
 
-  std::memcpy(dst, src.data(), dstSize);
+  std::memcpy(dst, src.data(), dst_size);
 }
 
 template <>
-inline void getValue<tstring>(tstring *dst, const std::string &src_,
-                              const size_t &n) {
+inline void get_value<tstring>(tstring *dst, const std::string &src_,
+                               const size_t &n) {
   const char *src = src_.data();
-  const char *const srcEnd = &src[src_.size()];
-  const tstring *const dstEnd = &dst[n];
+  const char *const src_end = &src[src_.size()];
+  const tstring *const dst_end = &dst[n];
 
-  for (; dst != dstEnd; ++dst) {
-    const char *const srcSize = src;
+  for (; dst != dst_end; ++dst) {
+    const char *const src_size = src;
     src += sizeof(STRING_SIZE_TYPE);
-    if (src > srcEnd) {
+    if (src > src_end) {
       throw std::out_of_range("String value is malformed!");
     }
-    const auto &size = *reinterpret_cast<const STRING_SIZE_TYPE *>(srcSize);
+    const auto &size = *reinterpret_cast<const STRING_SIZE_TYPE *>(src_size);
 
-    const char *const srcData = src;
+    const char *const src_data = src;
     src += size;
-    if (src > srcEnd) {
+    if (src > src_end) {
       throw std::out_of_range("String value is malformed!");
     }
-    dst->assign(srcData, size);
+    dst->assign(src_data, size);
   }
 
-  if (src != srcEnd) {
+  if (src != src_end) {
     throw std::runtime_error(
         "Database returned more values than the destination tensor could "
         "absorb.");
@@ -115,21 +117,21 @@ inline void getValue<tstring>(tstring *dst, const std::string &src_,
 }
 
 template <class T>
-inline void putValue(ROCKSDB_NAMESPACE::PinnableSlice &dst, const T *src,
-                     const size_t &n) {
+inline void put_value(ROCKSDB_NAMESPACE::PinnableSlice &dst, const T *src,
+                      const size_t &n) {
   dst.data_ = reinterpret_cast<const char *>(src);
   dst.size_ = sizeof(T) * n;
 }
 
 template <>
-inline void putValue<tstring>(ROCKSDB_NAMESPACE::PinnableSlice &dst_,
-                              const tstring *src, const size_t &n) {
+inline void put_value<tstring>(ROCKSDB_NAMESPACE::PinnableSlice &dst_,
+                               const tstring *src, const size_t &n) {
   std::string &dst = *dst_.GetSelf();
   dst.clear();
 
   // Concatenate the strings.
-  const tstring *const srcEnd = &src[n];
-  for (; src != srcEnd; ++src) {
+  const tstring *const src_end = &src[n];
+  for (; src != src_end; ++src) {
     if (src->size() > std::numeric_limits<STRING_SIZE_TYPE>::max()) {
       throw std::runtime_error("String value is too large.");
     }
@@ -167,7 +169,7 @@ inline void write(std::ostream &dst, const T &src) {
 }
 
 template <class T>
-inline void readKey(std::istream &src, std::string *dst) {
+inline void read_key(std::istream &src, std::string *dst) {
   dst->resize(sizeof(T));
   if (!src.read(&dst->front(), sizeof(T))) {
     throw std::overflow_error("Unexpected end of file!");
@@ -175,7 +177,7 @@ inline void readKey(std::istream &src, std::string *dst) {
 }
 
 template <>
-inline void readKey<tstring>(std::istream &src, std::string *dst) {
+inline void read_key<tstring>(std::istream &src, std::string *dst) {
   const auto size = read<KEY_SIZE_TYPE>(src);
   dst->resize(size);
   if (!src.read(&dst->front(), size)) {
@@ -184,12 +186,12 @@ inline void readKey<tstring>(std::istream &src, std::string *dst) {
 }
 
 template <class T>
-inline void writeKey(std::ostream &dst, const ROCKSDB_NAMESPACE::Slice &src) {
+inline void write_key(std::ostream &dst, const ROCKSDB_NAMESPACE::Slice &src) {
   write(dst, *reinterpret_cast<const T *>(src.data()));
 }
 
 template <>
-inline void writeKey<tstring>(std::ostream &dst,
+inline void write_key<tstring>(std::ostream &dst,
                               const ROCKSDB_NAMESPACE::Slice &src) {
   if (src.size() > std::numeric_limits<KEY_SIZE_TYPE>::max()) {
     throw std::overflow_error("String key is too long for RDB_KEY_SIZE_TYPE.");
@@ -201,7 +203,7 @@ inline void writeKey<tstring>(std::ostream &dst,
   }
 }
 
-inline void readValue(std::istream &src, std::string *dst) {
+inline void read_value(std::istream &src, std::string *dst) {
   const auto size = read<VALUE_SIZE_TYPE>(src);
   dst->resize(size);
   if (!src.read(&dst->front(), size)) {
@@ -209,7 +211,7 @@ inline void readValue(std::istream &src, std::string *dst) {
   }
 }
 
-inline void writeValue(std::ostream &dst, const ROCKSDB_NAMESPACE::Slice &src) {
+inline void write_value(std::ostream &dst, const ROCKSDB_NAMESPACE::Slice &src) {
   const auto size = static_cast<VALUE_SIZE_TYPE>(src.size());
   write(dst, size);
   if (!dst.write(src.data(), size)) {
@@ -222,7 +224,7 @@ inline void writeValue(std::ostream &dst, const ROCKSDB_NAMESPACE::Slice &src) {
 namespace _it {
 
 template <class T>
-inline void readKey(std::vector<T> &dst, const ROCKSDB_NAMESPACE::Slice &src) {
+inline void read_key(std::vector<T> &dst, const ROCKSDB_NAMESPACE::Slice &src) {
   if (src.size() != sizeof(T)) {
     std::stringstream msg(std::stringstream::out);
     msg << "Key size is out of bounds [ " << src.size() << " != " << sizeof(T)
@@ -233,8 +235,8 @@ inline void readKey(std::vector<T> &dst, const ROCKSDB_NAMESPACE::Slice &src) {
 }
 
 template <>
-inline void readKey<tstring>(std::vector<tstring> &dst,
-                             const ROCKSDB_NAMESPACE::Slice &src) {
+inline void read_key<tstring>(std::vector<tstring> &dst,
+                              const ROCKSDB_NAMESPACE::Slice &src) {
   if (src.size() > std::numeric_limits<KEY_SIZE_TYPE>::max()) {
     std::stringstream msg(std::stringstream::out);
     msg << "Key size is out of bounds "
@@ -246,9 +248,9 @@ inline void readKey<tstring>(std::vector<tstring> &dst,
 }
 
 template <class T>
-inline size_t readValue(std::vector<T> &dst,
-                        const ROCKSDB_NAMESPACE::Slice &src_,
-                        const size_t &nLimit) {
+inline size_t read_value(std::vector<T> &dst,
+                         const ROCKSDB_NAMESPACE::Slice &src_,
+                         const size_t &n_limit) {
   const size_t n = src_.size() / sizeof(T);
 
   if (n * sizeof(T) != src_.size()) {
@@ -256,45 +258,45 @@ inline size_t readValue(std::vector<T> &dst,
     msg << "Vector value is out of bounds "
         << "[ " << n * sizeof(T) << " != " << src_.size() << " ].";
     throw std::out_of_range(msg.str());
-  } else if (n < nLimit) {
+  } else if (n < n_limit) {
     throw std::underflow_error("Database entry violates nLimit.");
   }
 
   const T *const src = reinterpret_cast<const T *>(src_.data());
-  dst.insert(dst.end(), src, &src[nLimit]);
+  dst.insert(dst.end(), src, &src[n_limit]);
   return n;
 }
 
 template <>
-inline size_t readValue<tstring>(std::vector<tstring> &dst,
-                                 const ROCKSDB_NAMESPACE::Slice &src_,
-                                 const size_t &nLimit) {
+inline size_t read_value<tstring>(std::vector<tstring> &dst,
+                                  const ROCKSDB_NAMESPACE::Slice &src_,
+                                  const size_t &n_limit) {
   size_t n = 0;
 
   const char *src = src_.data();
-  const char *const srcEnd = &src[src_.size()];
+  const char *const src_end = &src[src_.size()];
 
-  for (; src < srcEnd; ++n) {
-    const char *const srcSize = src;
+  for (; src < src_end; ++n) {
+    const char *const src_size = src;
     src += sizeof(STRING_SIZE_TYPE);
-    if (src > srcEnd) {
+    if (src > src_end) {
       throw std::out_of_range("String value is malformed!");
     }
-    const auto &size = *reinterpret_cast<const STRING_SIZE_TYPE *>(srcSize);
+    const auto &size = *reinterpret_cast<const STRING_SIZE_TYPE *>(src_size);
 
-    const char *const srcData = src;
+    const char *const src_data = src;
     src += size;
-    if (src > srcEnd) {
+    if (src > src_end) {
       throw std::out_of_range("String value is malformed!");
     }
-    if (n < nLimit) {
-      dst.emplace_back(srcData, size);
+    if (n < n_limit) {
+      dst.emplace_back(src_data, size);
     }
   }
 
-  if (src != srcEnd) {
+  if (src != src_end) {
     throw std::out_of_range("String value is malformed!");
-  } else if (n < nLimit) {
+  } else if (n < n_limit) {
     throw std::underflow_error("Database entry violates nLimit.");
   }
   return n;
@@ -304,70 +306,70 @@ inline size_t readValue<tstring>(std::vector<tstring> &dst,
 
 class DBWrapper final {
  public:
-  DBWrapper(const std::string &path, const bool &readOnly)
-      : path_(path), readOnly_(readOnly), database_(nullptr) {
+  DBWrapper(const std::string &path, const bool &read_only)
+      : path_(path), read_only_(read_only), database_(nullptr) {
     ROCKSDB_NAMESPACE::Options options;
-    options.create_if_missing = !readOnly;
+    options.create_if_missing = !read_only;
     options.manual_wal_flush = false;
 
     // Create or connect to the RocksDB database.
-    std::vector<std::string> colFamilies;
+    std::vector<std::string> column_names;
 #if __cplusplus >= 201703L
     if (!std::filesystem::exists(path)) {
       colFamilies.push_back(ROCKSDB_NAMESPACE::kDefaultColumnFamilyName);
     } else if (std::filesystem::is_directory(path)) {
       ROCKSDB_OK(ROCKSDB_NAMESPACE::DB::ListColumnFamilies(options, path,
-                                                           &colFamilies));
+                                                           &column_names));
     } else {
       throw std::runtime_error("Provided database path is invalid.");
     }
 #else
-    struct stat dbPathStat {};
-    if (stat(path.c_str(), &dbPathStat) == 0) {
-      if (S_ISDIR(dbPathStat.st_mode)) {
+    struct stat db_path_stat {};
+    if (stat(path.c_str(), &db_path_stat) == 0) {
+      if (S_ISDIR(db_path_stat.st_mode)) {
         ROCKSDB_OK(ROCKSDB_NAMESPACE::DB::ListColumnFamilies(options, path,
-                                                             &colFamilies));
+                                                             &column_names));
       } else {
         throw std::runtime_error("Provided database path is invalid.");
       }
     } else {
-      colFamilies.push_back(ROCKSDB_NAMESPACE::kDefaultColumnFamilyName);
+      column_names.push_back(ROCKSDB_NAMESPACE::kDefaultColumnFamilyName);
     }
 #endif
 
-    ROCKSDB_NAMESPACE::ColumnFamilyOptions colFamilyOptions;
-    std::vector<ROCKSDB_NAMESPACE::ColumnFamilyDescriptor> colDescriptors;
-    for (const auto &cf : colFamilies) {
-      colDescriptors.emplace_back(cf, colFamilyOptions);
+    ROCKSDB_NAMESPACE::ColumnFamilyOptions column_options;
+    std::vector<ROCKSDB_NAMESPACE::ColumnFamilyDescriptor> column_descriptors;
+    for (const auto &column_name : column_names) {
+      column_descriptors.emplace_back(column_name, column_options);
     }
 
     ROCKSDB_NAMESPACE::DB *db;
-    std::vector<ROCKSDB_NAMESPACE::ColumnFamilyHandle *> chs;
-    if (readOnly) {
+    std::vector<ROCKSDB_NAMESPACE::ColumnFamilyHandle *> column_handles;
+    if (read_only) {
       ROCKSDB_OK(ROCKSDB_NAMESPACE::DB::OpenForReadOnly(
-          options, path, colDescriptors, &chs, &db));
+        options, path, column_descriptors, &column_handles, &db));
     } else {
-      ROCKSDB_OK(ROCKSDB_NAMESPACE::DB::Open(options, path, colDescriptors,
-                                             &chs, &db));
+      ROCKSDB_OK(ROCKSDB_NAMESPACE::DB::Open(options, path, column_descriptors,
+                                             &column_handles, &db));
     }
     database_.reset(db);
 
     // Maintain map of the available column handles for quick access.
-    for (const auto &colHandle : chs) {
-      colHandles[colHandle->GetName()] = colHandle;
+    for (const auto &column_handle : column_handles) {
+      column_handles_[column_handle->GetName()] = column_handle;
     }
 
     LOG(INFO) << "Connected to database \'" << path_ << "\'.";
   }
 
   ~DBWrapper() {
-    for (const auto &ch : colHandles) {
-      if (!readOnly_) {
+    for (const auto &column_handle : column_handles_) {
+      if (!read_only_) {
         database_->FlushWAL(true);
       }
-      database_->DestroyColumnFamilyHandle(ch.second);
+      database_->DestroyColumnFamilyHandle(column_handle.second);
     }
-    colHandles.clear();
+    column_handles_.clear();
     database_.reset();
     LOG(INFO) << "Disconnected from database \'" << path_ << "\'.";
   }
@@ -376,68 +378,68 @@ class DBWrapper final {
 
   inline const std::string &path() const { return path_; }
 
-  inline bool readOnly() const { return readOnly_; }
+  inline bool read_only() const { return read_only_; }
 
-  void deleteColumn(const std::string &colName) {
-    mutex_lock guard(lock);
+  void DeleteColumn(const std::string &column_name) {
+    mutex_lock guard(lock_);
 
     // Try to locate column handle, and return if it anyway doe not exist.
-    const auto &item = colHandles.find(colName);
-    if (item == colHandles.end()) {
+    const auto &item = column_handles_.find(column_name);
+    if (item == column_handles_.end()) {
       return;
     }
 
     // If a modification would be required make sure we are not in readonly
     // mode.
-    if (readOnly_) {
+    if (read_only_) {
       throw std::runtime_error("Cannot delete a column in readonly mode.");
     }
 
     // Perform actual removal.
-    ROCKSDB_NAMESPACE::ColumnFamilyHandle *colHandle = item->second;
-    ROCKSDB_OK(database_->DropColumnFamily(colHandle));
-    ROCKSDB_OK(database_->DestroyColumnFamilyHandle(colHandle));
-    colHandles.erase(colName);
+    ROCKSDB_NAMESPACE::ColumnFamilyHandle *column_handle = item->second;
+    ROCKSDB_OK(database_->DropColumnFamily(column_handle));
+    ROCKSDB_OK(database_->DestroyColumnFamilyHandle(column_handle));
+    column_handles_.erase(column_name);
   }
 
   template <class T>
-  T withColumn(
-      const std::string &colName,
+  T WithColumn(
+      const std::string &column_name,
       std::function<T(ROCKSDB_NAMESPACE::ColumnFamilyHandle *const)> fn) {
-    mutex_lock guard(lock);
+    mutex_lock guard(lock_);
 
-    ROCKSDB_NAMESPACE::ColumnFamilyHandle *colHandle = nullptr;
+    ROCKSDB_NAMESPACE::ColumnFamilyHandle *column_handle;
 
     // Try to locate column handle.
-    const auto &item = colHandles.find(colName);
-    if (item != colHandles.end()) {
-      colHandle = item->second;
+    const auto &item = column_handles_.find(column_name);
+    if (item != column_handles_.end()) {
+      column_handle = item->second;
     }
     // Do not create an actual column handle in readonly mode.
-    else if (readOnly_) {
-      colHandle = nullptr;
+    else if (read_only_) {
+      column_handle = nullptr;
     }
     // Create a new column handle.
     else {
       ROCKSDB_NAMESPACE::ColumnFamilyOptions colFamilyOptions;
       ROCKSDB_OK(
-          database_->CreateColumnFamily(colFamilyOptions, colName, &colHandle));
-      colHandles[colName] = colHandle;
+          database_->CreateColumnFamily(colFamilyOptions, column_name, &column_handle));
+      column_handles_[column_name] = column_handle;
     }
 
-    return fn(colHandle);
+    return fn(column_handle);
   }
 
   inline ROCKSDB_NAMESPACE::DB *operator->() { return database_.get(); }
 
  private:
   const std::string path_;
-  const bool readOnly_;
+  const bool read_only_;
   std::unique_ptr<ROCKSDB_NAMESPACE::DB> database_;
 
-  mutex lock;
+  mutex lock_;
   std::unordered_map<std::string, ROCKSDB_NAMESPACE::ColumnFamilyHandle *>
-      colHandles;
+      column_handles_;
 };
 
 class DBWrapperRegistry final {
@@ -468,7 +470,7 @@ class DBWrapperRegistry final {
     }
 
     // Suicide, if the desired access level is below the available access level.
-    if (readOnly < db->readOnly()) {
+    if (readOnly < db->read_only()) {
       throw std::runtime_error(
           "Cannot simultaneously open database in read + write mode.");
     }
@@ -478,7 +480,7 @@ class DBWrapperRegistry final {
 
  private:
   static void deleter(DBWrapper *wrapper) {
-    static std::default_delete<DBWrapper> defaultDeleter;
+    static std::default_delete<DBWrapper> default_deleter;
 
     DBWrapperRegistry &registry = instance();
     const std::string path = wrapper->path();
@@ -487,7 +489,7 @@ class DBWrapperRegistry final {
     mutex_lock guard(registry.lock);
 
     // Destroy the wrapper.
-    defaultDeleter(wrapper);
+    default_deleter(wrapper);
     // LOG(INFO) << "Database wrapper " << path << " has been deleted.";
 
     // Locate the corresponding weak_ptr and evict it.
@@ -512,81 +514,81 @@ class RocksDBTableOfTensors final : public PersistentStorageLookupInterface {
  public:
   /* --- BASE INTERFACE ----------------------------------------------------- */
   RocksDBTableOfTensors(OpKernelContext *ctx, OpKernel *kernel)
-      : readOnly(false), estimateSize(false), dirtyCount(0) {
-    OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "value_shape", &valueShape));
+      : read_only_(false), estimate_size_(false), dirty_count_(0) {
+    OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "value_shape", &value_shape_));
     OP_REQUIRES(
-        ctx, TensorShapeUtils::IsVector(valueShape),
+        ctx, TensorShapeUtils::IsVector(value_shape_),
         errors::InvalidArgument("Default value must be a vector, got shape ",
-                                valueShape.DebugString()));
-
+                                value_shape_.DebugString()));
     OP_REQUIRES_OK(ctx,
-                   GetNodeAttr(kernel->def(), "database_path", &databasePath));
-    OP_REQUIRES_OK(
-        ctx, GetNodeAttr(kernel->def(), "embedding_name", &embeddingName));
-    OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "read_only", &readOnly));
+                   GetNodeAttr(kernel->def(), "database_path", &database_path_));
     OP_REQUIRES_OK(ctx,
-                   GetNodeAttr(kernel->def(), "estimate_size", &estimateSize));
-    flushInterval = 1;
-    OP_REQUIRES_OK(
-        ctx, GetNodeAttr(kernel->def(), "export_path", &defaultExportPath));
+                   GetNodeAttr(kernel->def(), "embedding_name", &embedding_name_));
+    OP_REQUIRES_OK(ctx,
+                   GetNodeAttr(kernel->def(), "read_only", &read_only_));
+    OP_REQUIRES_OK(ctx,
+                   GetNodeAttr(kernel->def(), "estimate_size", &estimate_size_));
+    flush_interval_ = 1;
+    OP_REQUIRES_OK(ctx,
+                   GetNodeAttr(kernel->def(), "export_path", &default_export_path_));
 
-    db = DBWrapperRegistry::instance().connect(databasePath, readOnly);
-    LOG(INFO) << "Acquired reference to database wrapper " << db->path()
-              << " [ #refs = " << db.use_count() << " ].";
+    db_ = DBWrapperRegistry::instance().connect(database_path_, read_only_);
+    LOG(INFO) << "Acquired reference to database wrapper " << db_->path()
+              << " [ #refs = " << db_.use_count() << " ].";
   }
 
   ~RocksDBTableOfTensors() override {
-    LOG(INFO) << "Dropping reference to database wrapper " << db->path()
-              << " [ #refs = " << db.use_count() << " ].";
+    LOG(INFO) << "Dropping reference to database wrapper " << db_->path()
+              << " [ #refs = " << db_.use_count() << " ].";
   }
 
   DataType key_dtype() const override { return DataTypeToEnum<K>::v(); }
-  TensorShape key_shape() const override { return TensorShape(); }
+  TensorShape key_shape() const override { return TensorShape{}; }
 
   DataType value_dtype() const override { return DataTypeToEnum<V>::v(); }
-  TensorShape value_shape() const override { return valueShape; }
+  TensorShape value_shape() const override { return value_shape_; }
 
   size_t size() const override {
     auto fn =
         [this](
-            ROCKSDB_NAMESPACE::ColumnFamilyHandle *const colHandle) -> size_t {
+            ROCKSDB_NAMESPACE::ColumnFamilyHandle *const column_handle) -> size_t {
       // Empty database.
-      if (!colHandle) {
+      if (!column_handle) {
         return 0;
       }
 
       // If allowed, try to just estimate of the number of keys.
-      if (estimateSize) {
-        uint64_t numKeys;
-        if ((*db)->GetIntProperty(
-                colHandle, ROCKSDB_NAMESPACE::DB::Properties::kEstimateNumKeys,
-                &numKeys)) {
-          return numKeys;
+      if (estimate_size_) {
+        uint64_t num_keys;
+        if ((*db_)->GetIntProperty(
+          column_handle, ROCKSDB_NAMESPACE::DB::Properties::kEstimateNumKeys,
+          &num_keys)) {
+          return num_keys;
         }
       }
 
       // Alternative method, walk the entire database column and count the keys.
       std::unique_ptr<ROCKSDB_NAMESPACE::Iterator> iter(
-          (*db)->NewIterator(readOptions, colHandle));
+          (*db_)->NewIterator(read_options_, column_handle));
       iter->SeekToFirst();
 
-      size_t numKeys = 0;
+      size_t num_keys = 0;
       for (; iter->Valid(); iter->Next()) {
-        ++numKeys;
+        ++num_keys;
       }
-      return numKeys;
+      return num_keys;
     };
 
-    return db->withColumn<size_t>(embeddingName, fn);
+    return db_->WithColumn<size_t>(embedding_name_, fn);
   }
 
  public:
   /* --- LOOKUP ------------------------------------------------------------- */
   Status Clear(OpKernelContext *ctx) override {
-    if (readOnly) {
+    if (read_only_) {
       return errors::PermissionDenied("Cannot clear in read_only mode.");
     }
-    db->deleteColumn(embeddingName);
+    db_->DeleteColumn(embedding_name_);
     return Status::OK();
   }
 
@@ -606,15 +608,15 @@ class RocksDBTableOfTensors final : public PersistentStorageLookupInterface {
       return errors::InvalidArgument("The tensor sizes are incompatible.");
     }
 
-    const size_t numKeys = keys.NumElements();
-    const size_t numValues = values->NumElements();
-    const size_t valuesPerKey = numValues / std::max(numKeys, 1UL);
-    const size_t defaultSize = default_value.NumElements();
-    if (defaultSize % valuesPerKey != 0) {
+    const size_t num_keys = keys.NumElements();
+    const size_t num_values = values->NumElements();
+    const size_t values_per_key = num_values / std::max(num_keys, 1UL);
+    const size_t default_size = default_value.NumElements();
+    if (default_size % values_per_key != 0) {
       std::stringstream msg(std::stringstream::out);
       msg << "The shapes of the 'values' and 'default_value' tensors are "
              "incompatible"
-          << " (" << defaultSize << " % " << valuesPerKey << " != 0).";
+          << " (" << default_size << " % " << values_per_key << " != 0).";
       return errors::InvalidArgument(msg.str());
     }
 
@@ -623,28 +625,27 @@ class RocksDBTableOfTensors final : public PersistentStorageLookupInterface {
     const V *const d = static_cast<V *>(default_value.data());
 
     auto fn =
-        [this, numKeys, valuesPerKey, &keys, values, &default_value,
-         defaultSize, &k, v,
-         d](ROCKSDB_NAMESPACE::ColumnFamilyHandle *const colHandle) -> Status {
-      if (!colHandle) {
-        const K *const kEnd = &k[numKeys];
-        for (size_t offset = 0; k != kEnd; ++k, offset += valuesPerKey) {
-          std::copy_n(&d[offset % defaultSize], valuesPerKey, &v[offset]);
+        [this, num_keys, values_per_key, default_size, &k, v, d](
+          ROCKSDB_NAMESPACE::ColumnFamilyHandle *const column_handle) -> Status {
+      if (!column_handle) {
+        const K *const kEnd = &k[num_keys];
+        for (size_t offset = 0; k != kEnd; ++k, offset += values_per_key) {
+          std::copy_n(&d[offset % default_size], values_per_key, &v[offset]);
         }
-      } else if (numKeys < BATCH_SIZE_MIN) {
-        ROCKSDB_NAMESPACE::Slice kSlice;
+      } else if (num_keys < BATCH_SIZE_MIN) {
+        ROCKSDB_NAMESPACE::Slice k_slice;
 
-        const K *const kEnd = &k[numKeys];
-        for (size_t offset = 0; k != kEnd; ++k, offset += valuesPerKey) {
-          _if::putKey(kSlice, k);
-          std::string vSlice;
+        const K *const k_end = &k[num_keys];
+        for (size_t offset = 0; k != k_end; ++k, offset += values_per_key) {
+          _if::put_key(k_slice, k);
+          std::string v_slice;
 
           const auto &status =
-              (*db)->Get(readOptions, colHandle, kSlice, &vSlice);
+              (*db_)->Get(read_options_, column_handle, k_slice, &v_slice);
           if (status.ok()) {
-            _if::getValue(&v[offset], vSlice, valuesPerKey);
+            _if::get_value(&v[offset], v_slice, values_per_key);
           } else if (status.IsNotFound()) {
-            std::copy_n(&d[offset % defaultSize], valuesPerKey, &v[offset]);
+            std::copy_n(&d[offset % default_size], values_per_key, &v[offset]);
           } else {
             throw std::runtime_error(status.getState());
           }
@@ -652,40 +653,40 @@ class RocksDBTableOfTensors final : public PersistentStorageLookupInterface {
       } else {
         // There is no point in filling this vector every time as long as it is
         // big enough.
-        if (!colHandleCache.empty() && colHandleCache.front() != colHandle) {
-          std::fill(colHandleCache.begin(), colHandleCache.end(), colHandle);
+        if (!column_handle_cache_.empty() && column_handle_cache_.front() != column_handle) {
+          std::fill(column_handle_cache_.begin(), column_handle_cache_.end(), column_handle);
         }
-        if (colHandleCache.size() < numKeys) {
-          colHandleCache.insert(colHandleCache.end(),
-                                numKeys - colHandleCache.size(), colHandle);
+        if (column_handle_cache_.size() < num_keys) {
+          column_handle_cache_.insert(column_handle_cache_.end(),
+                                      num_keys - column_handle_cache_.size(), column_handle);
         }
 
         // Query all keys using a single Multi-Get.
-        std::vector<ROCKSDB_NAMESPACE::Slice> kSlices(numKeys);
-        for (size_t i = 0; i < numKeys; ++i) {
-          _if::putKey(kSlices[i], &k[i]);
+        std::vector<ROCKSDB_NAMESPACE::Slice> k_slices{num_keys};
+        for (size_t i = 0; i < num_keys; ++i) {
+          _if::put_key(k_slices[i], &k[i]);
         }
-        std::vector<std::string> vSlices;
+        std::vector<std::string> v_slices;
 
         const auto &s =
-            (*db)->MultiGet(readOptions, colHandleCache, kSlices, &vSlices);
-        if (s.size() != numKeys) {
+            (*db_)->MultiGet(read_options_, column_handle_cache_, k_slices, &v_slices);
+        if (s.size() != num_keys) {
           std::stringstream msg(std::stringstream::out);
-          msg << "Requested " << numKeys << " keys, but only got " << s.size()
+          msg << "Requested " << num_keys << " keys, but only got " << s.size()
               << " responses.";
           throw std::runtime_error(msg.str());
         }
 
         // Process results.
-        for (size_t i = 0, offset = 0; i < numKeys;
-             ++i, offset += valuesPerKey) {
+        for (size_t i = 0, offset = 0; i < num_keys;
+             ++i, offset += values_per_key) {
           const auto &status = s[i];
-          const auto &vSlice = vSlices[i];
+          const auto &vSlice = v_slices[i];
 
           if (status.ok()) {
-            _if::getValue(&v[offset], vSlice, valuesPerKey);
+            _if::get_value(&v[offset], vSlice, values_per_key);
           } else if (status.IsNotFound()) {
-            std::copy_n(&d[offset % defaultSize], valuesPerKey, &v[offset]);
+            std::copy_n(&d[offset % default_size], values_per_key, &v[offset]);
           } else {
             throw std::runtime_error(status.getState());
           }
@@ -695,7 +696,7 @@ class RocksDBTableOfTensors final : public PersistentStorageLookupInterface {
       return Status::OK();
     };
 
-    return db->withColumn<Status>(embeddingName, fn);
+    return db_->WithColumn<Status>(embedding_name_, fn);
   }
 
   Status Insert(OpKernelContext *ctx, const Tensor &keys,
@@ -713,55 +714,55 @@ class RocksDBTableOfTensors final : public PersistentStorageLookupInterface {
       return errors::InvalidArgument("The tensor sizes are incompatible!");
     }
 
-    const size_t numKeys = keys.NumElements();
-    const size_t numValues = values.NumElements();
-    const size_t valuesPerKey = numValues / std::max(numKeys, 1UL);
-    if (valuesPerKey != static_cast<size_t>(valueShape.num_elements())) {
+    const size_t num_keys = keys.NumElements();
+    const size_t num_values = values.NumElements();
+    const size_t values_per_key = num_values / std::max(num_keys, 1UL);
+    if (values_per_key != static_cast<size_t>(value_shape_.num_elements())) {
       LOG(WARNING)
-          << "The number of values provided does not match the signature ("
-          << valuesPerKey << " != " << valueShape.num_elements() << ").";
+        << "The number of values provided does not match the signature ("
+        << values_per_key << " != " << value_shape_.num_elements() << ").";
     }
 
     const K *k = static_cast<K *>(keys.data());
     const V *v = static_cast<V *>(values.data());
 
     auto fn =
-        [this, numKeys, valuesPerKey, &k,
-         &v](ROCKSDB_NAMESPACE::ColumnFamilyHandle *const colHandle) -> Status {
-      if (readOnly || !colHandle) {
+        [this, num_keys, values_per_key, &k,
+         &v](ROCKSDB_NAMESPACE::ColumnFamilyHandle *const column_handle) -> Status {
+      if (read_only_ || !column_handle) {
         return errors::PermissionDenied("Cannot insert in read_only mode.");
       }
 
-      const K *const kEnd = &k[numKeys];
-      ROCKSDB_NAMESPACE::Slice kSlice;
-      ROCKSDB_NAMESPACE::PinnableSlice vSlice;
+      const K *const k_end = &k[num_keys];
+      ROCKSDB_NAMESPACE::Slice k_slice;
+      ROCKSDB_NAMESPACE::PinnableSlice v_slice;
 
-      if (numKeys < BATCH_SIZE_MIN) {
-        for (; k != kEnd; ++k, v += valuesPerKey) {
-          _if::putKey(kSlice, k);
-          _if::putValue(vSlice, v, valuesPerKey);
-          ROCKSDB_OK((*db)->Put(writeOptions, colHandle, kSlice, vSlice));
+      if (num_keys < BATCH_SIZE_MIN) {
+        for (; k != k_end; ++k, v += values_per_key) {
+          _if::put_key(k_slice, k);
+          _if::put_value(v_slice, v, values_per_key);
+          ROCKSDB_OK((*db_)->Put(write_options_, column_handle, k_slice, v_slice));
         }
       } else {
         ROCKSDB_NAMESPACE::WriteBatch batch;
-        for (; k != kEnd; ++k, v += valuesPerKey) {
-          _if::putKey(kSlice, k);
-          _if::putValue(vSlice, v, valuesPerKey);
-          ROCKSDB_OK(batch.Put(colHandle, kSlice, vSlice));
+        for (; k != k_end; ++k, v += values_per_key) {
+          _if::put_key(k_slice, k);
+          _if::put_value(v_slice, v, values_per_key);
+          ROCKSDB_OK(batch.Put(column_handle, k_slice, v_slice));
         }
-        ROCKSDB_OK((*db)->Write(writeOptions, &batch));
+        ROCKSDB_OK((*db_)->Write(write_options_, &batch));
       }
 
       // Handle interval flushing.
-      dirtyCount += 1;
-      if (dirtyCount % flushInterval == 0) {
-        ROCKSDB_OK((*db)->FlushWAL(true));
+      dirty_count_ += 1;
+      if (dirty_count_ % flush_interval_ == 0) {
+        ROCKSDB_OK((*db_)->FlushWAL(true));
       }
 
       return Status::OK();
     };
 
-    return db->withColumn<Status>(embeddingName, fn);
+    return db_->WithColumn<Status>(embedding_name_, fn);
   }
 
   Status Remove(OpKernelContext *ctx, const Tensor &keys) override {
@@ -769,67 +770,67 @@ class RocksDBTableOfTensors final : public PersistentStorageLookupInterface {
       return errors::InvalidArgument("Tensor dtypes are incompatible!");
     }
 
-    const size_t numKeys = keys.dim_size(0);
+    const size_t num_keys = keys.dim_size(0);
     const K *k = static_cast<K *>(keys.data());
 
     auto fn =
-        [this, &numKeys,
-         &k](ROCKSDB_NAMESPACE::ColumnFamilyHandle *const colHandle) -> Status {
-      if (readOnly || !colHandle) {
+        [this, &num_keys,
+         &k](ROCKSDB_NAMESPACE::ColumnFamilyHandle *const column_handle) -> Status {
+      if (read_only_ || !column_handle) {
         return errors::PermissionDenied("Cannot remove in read_only mode.");
       }
 
-      const K *const kEnd = &k[numKeys];
-      ROCKSDB_NAMESPACE::Slice kSlice;
+      const K *const k_end = &k[num_keys];
+      ROCKSDB_NAMESPACE::Slice k_slice;
 
-      if (numKeys < BATCH_SIZE_MIN) {
-        for (; k != kEnd; ++k) {
-          _if::putKey(kSlice, k);
-          ROCKSDB_OK((*db)->Delete(writeOptions, colHandle, kSlice));
+      if (num_keys < BATCH_SIZE_MIN) {
+        for (; k != k_end; ++k) {
+          _if::put_key(k_slice, k);
+          ROCKSDB_OK((*db_)->Delete(write_options_, column_handle, k_slice));
         }
       } else {
         ROCKSDB_NAMESPACE::WriteBatch batch;
-        for (; k != kEnd; ++k) {
-          _if::putKey(kSlice, k);
-          ROCKSDB_OK(batch.Delete(colHandle, kSlice));
+        for (; k != k_end; ++k) {
+          _if::put_key(k_slice, k);
+          ROCKSDB_OK(batch.Delete(column_handle, k_slice));
         }
-        ROCKSDB_OK((*db)->Write(writeOptions, &batch));
+        ROCKSDB_OK((*db_)->Write(write_options_, &batch));
       }
 
       // Handle interval flushing.
-      dirtyCount += 1;
-      if (dirtyCount % flushInterval == 0) {
-        ROCKSDB_OK((*db)->FlushWAL(true));
+      dirty_count_ += 1;
+      if (dirty_count_ % flush_interval_ == 0) {
+        ROCKSDB_OK((*db_)->FlushWAL(true));
       }
 
       return Status::OK();
     };
 
-    return db->withColumn<Status>(embeddingName, fn);
+    return db_->WithColumn<Status>(embedding_name_, fn);
   }
 
   /* --- IMPORT / EXPORT ---------------------------------------------------- */
   Status ExportValues(OpKernelContext *ctx) override {
-    if (defaultExportPath.empty()) {
+    if (default_export_path_.empty()) {
       return ExportValuesToTensor(ctx);
     } else {
-      return ExportValuesToFile(ctx, defaultExportPath);
+      return ExportValuesToFile(ctx, default_export_path_);
     }
   }
   Status ImportValues(OpKernelContext *ctx, const Tensor &keys,
                       const Tensor &values) override {
-    if (defaultExportPath.empty()) {
+    if (default_export_path_.empty()) {
       return ImportValuesFromTensor(ctx, keys, values);
     } else {
-      return ImportValuesFromFile(ctx, defaultExportPath);
+      return ImportValuesFromFile(ctx, default_export_path_);
     }
   }
 
   Status ExportValuesToFile(OpKernelContext *ctx, const std::string &path) {
     auto fn =
         [this, path](
-            ROCKSDB_NAMESPACE::ColumnFamilyHandle *const colHandle) -> Status {
-      std::ofstream file(path + "/" + embeddingName + ".rock",
+            ROCKSDB_NAMESPACE::ColumnFamilyHandle *const column_handle) -> Status {
+      std::ofstream file(path + "/" + embedding_name_ + ".rock",
                          std::ofstream::binary);
       if (!file) {
         return errors::Unknown("Could not open dump file.");
@@ -842,52 +843,52 @@ class RocksDBTableOfTensors final : public PersistentStorageLookupInterface {
       _io::write(file, value_dtype());
 
       // Iterate through entries one-by-one and append them to the file.
-      if (colHandle) {
+      if (column_handle) {
         std::unique_ptr<ROCKSDB_NAMESPACE::Iterator> iter(
-            (*db)->NewIterator(readOptions, colHandle));
+            (*db_)->NewIterator(read_options_, column_handle));
         iter->SeekToFirst();
 
         for (; iter->Valid(); iter->Next()) {
-          _io::writeKey<K>(file, iter->key());
-          _io::writeValue(file, iter->value());
+          _io::write_key<K>(file, iter->key());
+          _io::write_value(file, iter->value());
         }
       }
 
       return Status::OK();
     };
 
-    const auto &status = db->withColumn<Status>(embeddingName, fn);
+    const auto &status = db_->WithColumn<Status>(embedding_name_, fn);
     if (!status.ok()) {
       return status;
     }
 
     // Creat dummy tensors.
-    Tensor *kTensor;
+    Tensor *k_tensor;
     TF_RETURN_IF_ERROR(
-        ctx->allocate_output("keys", TensorShape({0}), &kTensor));
+        ctx->allocate_output("keys", TensorShape({0}), &k_tensor));
 
-    Tensor *vTensor;
+    Tensor *v_tensor;
     TF_RETURN_IF_ERROR(ctx->allocate_output(
-        "values", TensorShape({0, valueShape.num_elements()}), &vTensor));
+      "values", TensorShape({0, value_shape_.num_elements()}), &v_tensor));
 
     return status;
   }
 
   Status ImportValuesFromFile(OpKernelContext *ctx, const std::string &path) {
     // Make sure the column family is clean.
-    const auto &clearStatus = Clear(ctx);
-    if (!clearStatus.ok()) {
-      return clearStatus;
+    const auto &clear_status = Clear(ctx);
+    if (!clear_status.ok()) {
+      return clear_status;
     }
 
     auto fn =
         [this, path](
-            ROCKSDB_NAMESPACE::ColumnFamilyHandle *const colHandle) -> Status {
-      if (readOnly || !colHandle) {
+            ROCKSDB_NAMESPACE::ColumnFamilyHandle *const column_handle) -> Status {
+      if (read_only_ || !column_handle) {
         return errors::PermissionDenied("Cannot import in read_only mode.");
       }
 
-      std::ifstream file(path + "/" + embeddingName + ".rock",
+      std::ifstream file(path + "/" + embedding_name_ + ".rock",
                          std::ifstream::binary);
       if (!file) {
         return errors::NotFound("Accessing file system failed.");
@@ -903,10 +904,10 @@ class RocksDBTableOfTensors final : public PersistentStorageLookupInterface {
         return errors::Unimplemented("File version ", version,
                                      " is not supported");
       }
-      const auto kDType = _io::read<DataType>(file);
-      const auto vDType = _io::read<DataType>(file);
-      if (kDType != key_dtype() || vDType != value_dtype()) {
-        return errors::Internal("DataType of file [k=", kDType, ", v=", vDType,
+      const auto k_dtype = _io::read<DataType>(file);
+      const auto v_dtype = _io::read<DataType>(file);
+      if (k_dtype != key_dtype() || v_dtype != value_dtype()) {
+        return errors::Internal("DataType of file [k=", k_dtype, ", v=", v_dtype,
                                 "] ",
                                 "do not match module DataType [k=", key_dtype(),
                                 ", v=", value_dtype(), "].");
@@ -915,67 +916,67 @@ class RocksDBTableOfTensors final : public PersistentStorageLookupInterface {
       // Read payload and subsequently populate column family.
       ROCKSDB_NAMESPACE::WriteBatch batch;
 
-      ROCKSDB_NAMESPACE::PinnableSlice kSlice;
-      ROCKSDB_NAMESPACE::PinnableSlice vSlice;
+      ROCKSDB_NAMESPACE::PinnableSlice k_slice;
+      ROCKSDB_NAMESPACE::PinnableSlice v_slice;
 
       while (file.peek() != EOF) {
-        _io::readKey<K>(file, kSlice.GetSelf());
-        kSlice.PinSelf();
-        _io::readValue(file, vSlice.GetSelf());
-        vSlice.PinSelf();
+        _io::read_key<K>(file, k_slice.GetSelf());
+        k_slice.PinSelf();
+        _io::read_value(file, v_slice.GetSelf());
+        v_slice.PinSelf();
 
-        ROCKSDB_OK(batch.Put(colHandle, kSlice, vSlice));
+        ROCKSDB_OK(batch.Put(column_handle, k_slice, v_slice));
 
         // If batch reached target size, write to database.
         if (batch.Count() >= BATCH_SIZE_MAX) {
-          ROCKSDB_OK((*db)->Write(writeOptions, &batch));
+          ROCKSDB_OK((*db_)->Write(write_options_, &batch));
           batch.Clear();
         }
       }
 
       // Write remaining entries, if any.
       if (batch.Count()) {
-        ROCKSDB_OK((*db)->Write(writeOptions, &batch));
+        ROCKSDB_OK((*db_)->Write(write_options_, &batch));
       }
 
       // Handle interval flushing.
-      dirtyCount += 1;
-      if (dirtyCount % flushInterval == 0) {
-        ROCKSDB_OK((*db)->FlushWAL(true));
+      dirty_count_ += 1;
+      if (dirty_count_ % flush_interval_ == 0) {
+        ROCKSDB_OK((*db_)->FlushWAL(true));
       }
 
       return Status::OK();
     };
 
-    return db->withColumn<Status>(embeddingName, fn);
+    return db_->WithColumn<Status>(embedding_name_, fn);
   }
 
   Status ExportValuesToTensor(OpKernelContext *ctx) {
     // Fetch data from database.
-    std::vector<K> kBuffer;
-    std::vector<V> vBuffer;
-    const size_t valueSize = valueShape.num_elements();
-    size_t valueCount = std::numeric_limits<size_t>::max();
+    std::vector<K> k_buffer;
+    std::vector<V> v_buffer;
+    const size_t value_size = value_shape_.num_elements();
+    size_t value_count = std::numeric_limits<size_t>::max();
 
     auto fn =
-        [this, &kBuffer, &vBuffer, valueSize, &valueCount](
-            ROCKSDB_NAMESPACE::ColumnFamilyHandle *const colHandle) -> Status {
-      if (colHandle) {
+        [this, &k_buffer, &v_buffer, value_size, &value_count](
+            ROCKSDB_NAMESPACE::ColumnFamilyHandle *const column_handle) -> Status {
+      if (column_handle) {
         std::unique_ptr<ROCKSDB_NAMESPACE::Iterator> iter(
-            (*db)->NewIterator(readOptions, colHandle));
+            (*db_)->NewIterator(read_options_, column_handle));
         iter->SeekToFirst();
 
         for (; iter->Valid(); iter->Next()) {
-          const auto &kSlice = iter->key();
-          _it::readKey(kBuffer, kSlice);
+          const auto &k_slice = iter->key();
+          _it::read_key(k_buffer, k_slice);
 
-          const auto vSlice = iter->value();
-          const size_t vCount = _it::readValue(vBuffer, vSlice, valueSize);
+          const auto v_slice = iter->value();
+          const size_t v_count = _it::read_value(v_buffer, v_slice, value_size);
 
           // Make sure we have a square tensor.
-          if (valueCount == std::numeric_limits<size_t>::max()) {
-            valueCount = vCount;
-          } else if (vCount != valueCount) {
+          if (value_count == std::numeric_limits<size_t>::max()) {
+            value_count = v_count;
+          } else if (v_count != value_count) {
             return errors::Internal("The returned tensor sizes differ.");
           }
         }
@@ -984,40 +985,40 @@ class RocksDBTableOfTensors final : public PersistentStorageLookupInterface {
       return Status::OK();
     };
 
-    const auto &status = db->withColumn<Status>(embeddingName, fn);
+    const auto &status = db_->WithColumn<Status>(embedding_name_, fn);
     if (!status.ok()) {
       return status;
     }
 
-    if (valueCount != valueSize) {
+    if (value_count != value_size) {
       LOG(WARNING) << "Retrieved values differ from signature size ("
-                   << valueCount << " != " << valueSize << ").";
+                   << value_count << " != " << value_size << ").";
     }
-    const auto numKeys = static_cast<int64>(kBuffer.size());
+    const auto numKeys = static_cast<int64>(k_buffer.size());
 
     // Populate keys tensor.
-    Tensor *kTensor;
+    Tensor *k_tensor;
     TF_RETURN_IF_ERROR(
-        ctx->allocate_output("keys", TensorShape({numKeys}), &kTensor));
-    K *const k = reinterpret_cast<K *>(kTensor->data());
-    std::copy(kBuffer.begin(), kBuffer.end(), k);
+        ctx->allocate_output("keys", TensorShape({numKeys}), &k_tensor));
+    K *const k = reinterpret_cast<K *>(k_tensor->data());
+    std::copy(k_buffer.begin(), k_buffer.end(), k);
 
     // Populate values tensor.
-    Tensor *vTensor;
+    Tensor *v_tensor;
     TF_RETURN_IF_ERROR(ctx->allocate_output(
-        "values", TensorShape({numKeys, static_cast<int64>(valueSize)}),
-        &vTensor));
-    V *const v = reinterpret_cast<V *>(vTensor->data());
-    std::copy(vBuffer.begin(), vBuffer.end(), v);
+        "values", TensorShape({numKeys, static_cast<int64>(value_size)}),
+        &v_tensor));
+    V *const v = reinterpret_cast<V *>(v_tensor->data());
+    std::copy(v_buffer.begin(), v_buffer.end(), v);
 
     return status;
   }
   Status ImportValuesFromTensor(OpKernelContext *ctx, const Tensor &keys,
                                 const Tensor &values) {
     // Make sure the column family is clean.
-    const auto &clearStatus = Clear(ctx);
-    if (!clearStatus.ok()) {
-      return clearStatus;
+    const auto &clear_status = Clear(ctx);
+    if (!clear_status.ok()) {
+      return clear_status;
     }
 
     // Just call normal insertion function.
@@ -1025,20 +1026,20 @@ class RocksDBTableOfTensors final : public PersistentStorageLookupInterface {
   }
 
  protected:
-  TensorShape valueShape;
-  std::string databasePath;
-  std::string embeddingName;
-  bool readOnly;
-  bool estimateSize;
-  size_t flushInterval;
-  std::string defaultExportPath;
+  TensorShape value_shape_;
+  std::string database_path_;
+  std::string embedding_name_;
+  bool read_only_;
+  bool estimate_size_;
+  size_t flush_interval_;
+  std::string default_export_path_;
 
-  std::shared_ptr<DBWrapper> db;
-  ROCKSDB_NAMESPACE::ReadOptions readOptions;
-  ROCKSDB_NAMESPACE::WriteOptions writeOptions;
-  size_t dirtyCount;
+  std::shared_ptr<DBWrapper> db_;
+  ROCKSDB_NAMESPACE::ReadOptions read_options_;
+  ROCKSDB_NAMESPACE::WriteOptions write_options_;
+  size_t dirty_count_;
 
-  std::vector<ROCKSDB_NAMESPACE::ColumnFamilyHandle *> colHandleCache;
+  std::vector<ROCKSDB_NAMESPACE::ColumnFamilyHandle *> column_handle_cache_;
 };
 
 #undef ROCKSDB_OK
@@ -1130,13 +1131,13 @@ class RocksDBTableClear : public RocksDBTableOpKernel {
     OP_REQUIRES_OK(ctx, GetTable(ctx, &table));
     core::ScopedUnref unref_me(table);
 
-    auto *rocksTable = dynamic_cast<PersistentStorageLookupInterface *>(table);
+    auto *rocks_table = dynamic_cast<PersistentStorageLookupInterface *>(table);
 
     int64 memory_used_before = 0;
     if (ctx->track_allocations()) {
       memory_used_before = table->MemoryUsed();
     }
-    OP_REQUIRES_OK(ctx, rocksTable->Clear(ctx));
+    OP_REQUIRES_OK(ctx, rocks_table->Clear(ctx));
     if (ctx->track_allocations()) {
       ctx->record_persistent_memory_allocation(table->MemoryUsed() -
                                                memory_used_before);

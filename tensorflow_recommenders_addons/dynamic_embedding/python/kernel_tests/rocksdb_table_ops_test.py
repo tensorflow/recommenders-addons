@@ -19,6 +19,8 @@ from __future__ import division
 from __future__ import print_function
 
 import glob
+import json
+
 import itertools
 import math
 import shutil
@@ -292,12 +294,21 @@ default_config = config_pb2.ConfigProto(
     allow_soft_placement=False,
     gpu_options=config_pb2.GPUOptions(allow_growth=True))
 
-DATABASE_PATH = os.path.join(tempfile.gettempdir(), 'test_rocksdb_4711')
+ROCKSDB_CONFIG_PATH = os.path.join(tempfile.gettempdir(),
+                                   'test_rocksdb_config.json')
+ROCKSDB_CONFIG_PARAMS = {
+    'database_path': os.path.join(tempfile.gettempdir(), 'test_rocksdb_4711'),
+    'embedding_name': None,
+    'read_only': False,
+    'estimate_size': False,
+    'export_path': None,
+}
+
 DELETE_DATABASE_AT_STARTUP = False
 
 SKIP_PASSING = False
 SKIP_PASSING_WITH_QUESTIONS = False
-SKIP_FAILING = True
+SKIP_FAILING = False
 SKIP_FAILING_WITH_QUESTIONS = True
 
 
@@ -318,7 +329,7 @@ class RocksDBVariableTest(test.TestCase):
           dtypes.int32,
           initializer=0,
           dim=8,
-          database_path=DATABASE_PATH,
+          database_path=ROCKSDB_CONFIG_PARAMS['database_path'],
           embedding_name='t0_test_basic',
       )
       self.evaluate(table.clear())
@@ -375,7 +386,7 @@ class RocksDBVariableTest(test.TestCase):
             value_dtype=value_dtype,
             initializer=np.array([-1]).astype(_type_converter(value_dtype)),
             dim=dim,
-            database_path=DATABASE_PATH,
+            database_path=ROCKSDB_CONFIG_PARAMS['database_path'],
             embedding_name='t1_test_variable',
         )
         self.evaluate(table.clear())
@@ -429,7 +440,7 @@ class RocksDBVariableTest(test.TestCase):
             value_dtype=dtypes.float32,
             initializer=initializer,
             dim=10,
-            database_path=DATABASE_PATH,
+            database_path=ROCKSDB_CONFIG_PARAMS['database_path'],
             embedding_name='t2_test_variable_initializer',
         )
         self.evaluate(table.clear())
@@ -462,7 +473,7 @@ class RocksDBVariableTest(test.TestCase):
           initializer=-1.0,
           name='t1',
           dim=1,
-          database_path=DATABASE_PATH,
+          database_path=ROCKSDB_CONFIG_PARAMS['database_path'],
           embedding_name='t3_test_save_restore',
       )
       self.evaluate(table.clear())
@@ -546,7 +557,7 @@ class RocksDBVariableTest(test.TestCase):
           name="t1",
           initializer=default_val,
           checkpoint=True,
-          database_path=DATABASE_PATH,
+          database_path=ROCKSDB_CONFIG_PARAMS['database_path'],
           embedding_name='t4_save_restore_only_table',
       )
       self.evaluate(table.clear())
@@ -581,7 +592,7 @@ class RocksDBVariableTest(test.TestCase):
           name="t1",
           initializer=default_val,
           checkpoint=True,
-          database_path=DATABASE_PATH,
+          database_path=ROCKSDB_CONFIG_PARAMS['database_path'],
           embedding_name='t6_save_restore_only_table',
       )
       self.evaluate(table.clear())
@@ -639,7 +650,7 @@ class RocksDBVariableTest(test.TestCase):
           value_dtype=value_dtype,
           initializer=init_ops.random_normal_initializer(0.0, 0.01),
           dim=dim,
-          database_path=DATABASE_PATH,
+          database_path=ROCKSDB_CONFIG_PARAMS['database_path'],
           embedding_name='t5_training_save_restore',
       )
       self.evaluate(params.clear())
@@ -735,7 +746,7 @@ class RocksDBVariableTest(test.TestCase):
           value_dtype=value_dtype,
           initializer=0,
           dim=dim,
-          database_path=DATABASE_PATH,
+          database_path=ROCKSDB_CONFIG_PARAMS['database_path'],
           embedding_name='t6_training_save_restore_by_files',
           export_path=save_path,
       )
@@ -792,27 +803,30 @@ class RocksDBVariableTest(test.TestCase):
     ):
       default_val = -1
       with variable_scope.variable_scope("embedding", reuse=True):
-        table1 = de.get_variable('t1_test_get_variable',
-                                 dtypes.int64,
-                                 dtypes.int32,
-                                 initializer=default_val,
-                                 dim=2,
-                                 database_path=DATABASE_PATH,
-                                 embedding_name='t7_get_variable')
-        table2 = de.get_variable('t1_test_get_variable',
-                                 dtypes.int64,
-                                 dtypes.int32,
-                                 initializer=default_val,
-                                 dim=2,
-                                 database_path=DATABASE_PATH,
-                                 embedding_name='t7_get_variable')
-        table3 = de.get_variable('t3_test_get_variable',
-                                 dtypes.int64,
-                                 dtypes.int32,
-                                 initializer=default_val,
-                                 dim=2,
-                                 database_path=DATABASE_PATH,
-                                 embedding_name='t7_get_variable')
+        table1 = de.get_variable(
+            't1_test_get_variable',
+            dtypes.int64,
+            dtypes.int32,
+            initializer=default_val,
+            dim=2,
+            database_path=ROCKSDB_CONFIG_PARAMS['database_path'],
+            embedding_name='t7_get_variable')
+        table2 = de.get_variable(
+            't1_test_get_variable',
+            dtypes.int64,
+            dtypes.int32,
+            initializer=default_val,
+            dim=2,
+            database_path=ROCKSDB_CONFIG_PARAMS['database_path'],
+            embedding_name='t7_get_variable')
+        table3 = de.get_variable(
+            't3_test_get_variable',
+            dtypes.int64,
+            dtypes.int32,
+            initializer=default_val,
+            dim=2,
+            database_path=ROCKSDB_CONFIG_PARAMS['database_path'],
+            embedding_name='t7_get_variable')
         self.evaluate(table1.clear())
         self.evaluate(table2.clear())
         self.evaluate(table3.clear())
@@ -833,7 +847,7 @@ class RocksDBVariableTest(test.TestCase):
             't900',
             initializer=-1,
             dim=2,
-            database_path=DATABASE_PATH,
+            database_path=ROCKSDB_CONFIG_PARAMS['database_path'],
             embedding_name='t8_get_variable_reuse_error',
         )
         with self.assertRaisesRegexp(ValueError,
@@ -842,7 +856,7 @@ class RocksDBVariableTest(test.TestCase):
               't900',
               initializer=-1,
               dim=2,
-              database_path=DATABASE_PATH,
+              database_path=ROCKSDB_CONFIG_PARAMS['database_path'],
               embedding_name='t8_get_variable_reuse_error',
           )
 
@@ -866,7 +880,7 @@ class RocksDBVariableTest(test.TestCase):
         dtypes.int32,
         initializer=0,
         dim=1,
-        database_path=DATABASE_PATH,
+        database_path=ROCKSDB_CONFIG_PARAMS['database_path'],
         embedding_name='t9_sharing_between_multi_sessions',
     )
     self.evaluate(table.clear())
@@ -913,7 +927,7 @@ class RocksDBVariableTest(test.TestCase):
           dtypes.int32,
           initializer=default_val,
           dim=2,
-          database_path=DATABASE_PATH,
+          database_path=ROCKSDB_CONFIG_PARAMS['database_path'],
           embedding_name='t10_dynamic_embedding_variable',
       )
       self.evaluate(table.clear())
@@ -964,7 +978,7 @@ class RocksDBVariableTest(test.TestCase):
           dtypes.int32,
           initializer=default_val,
           dim=2,
-          database_path=DATABASE_PATH,
+          database_path=ROCKSDB_CONFIG_PARAMS['database_path'],
           embedding_name='t101_dynamic_embedding_variable_export_insert_a',
       )
       self.evaluate(table1.clear())
@@ -989,7 +1003,7 @@ class RocksDBVariableTest(test.TestCase):
           dtypes.int32,
           initializer=default_val,
           dim=2,
-          database_path=DATABASE_PATH,
+          database_path=ROCKSDB_CONFIG_PARAMS['database_path'],
           embedding_name='t10_dynamic_embedding_variable_export_insert_b',
       )
       self.evaluate(table2.clear())
@@ -1015,7 +1029,7 @@ class RocksDBVariableTest(test.TestCase):
           dtypes.int32,
           initializer=default_val,
           dim=2,
-          database_path=DATABASE_PATH,
+          database_path=ROCKSDB_CONFIG_PARAMS['database_path'],
           embedding_name='t110_dynamic_embedding_variable_invalid_shape',
       )
       self.evaluate(table.clear())
@@ -1059,7 +1073,7 @@ class RocksDBVariableTest(test.TestCase):
           dtypes.int64,
           dtypes.float32,
           initializer=default_val,
-          database_path=DATABASE_PATH,
+          database_path=ROCKSDB_CONFIG_PARAMS['database_path'],
           embedding_name='t130_dynamic_embedding_variable_duplicate_insert',
       )
       self.evaluate(table.clear())
@@ -1089,7 +1103,7 @@ class RocksDBVariableTest(test.TestCase):
           dtypes.int64,
           dtypes.int32,
           initializer=default_val,
-          database_path=DATABASE_PATH,
+          database_path=ROCKSDB_CONFIG_PARAMS['database_path'],
           embedding_name='t140_dynamic_embedding_variable_find_high_rank',
       )
       self.evaluate(table.clear())
@@ -1117,7 +1131,7 @@ class RocksDBVariableTest(test.TestCase):
           dtypes.int64,
           dtypes.int32,
           initializer=default_val,
-          database_path=DATABASE_PATH,
+          database_path=ROCKSDB_CONFIG_PARAMS['database_path'],
           embedding_name='t150_dynamic_embedding_variable_insert_low_rank',
       )
       self.evaluate(table.clear())
@@ -1144,7 +1158,7 @@ class RocksDBVariableTest(test.TestCase):
           dtypes.int64,
           dtypes.int32,
           initializer=default_val,
-          database_path=DATABASE_PATH,
+          database_path=ROCKSDB_CONFIG_PARAMS['database_path'],
           embedding_name='t160_dynamic_embedding_variable_remove_low_rank',
       )
       self.evaluate(table.clear())
@@ -1177,7 +1191,7 @@ class RocksDBVariableTest(test.TestCase):
           dtypes.int32,
           initializer=default_val,
           dim=3,
-          database_path=DATABASE_PATH,
+          database_path=ROCKSDB_CONFIG_PARAMS['database_path'],
           embedding_name='t170_dynamic_embedding_variable_insert_high_rank',
       )
       self.evaluate(table.clear())
@@ -1208,7 +1222,7 @@ class RocksDBVariableTest(test.TestCase):
           dtypes.int32,
           initializer=default_val,
           dim=3,
-          database_path=DATABASE_PATH,
+          database_path=ROCKSDB_CONFIG_PARAMS['database_path'],
           embedding_name='t180_dynamic_embedding_variable_remove_high_rank',
       )
       self.evaluate(table.clear())
@@ -1241,7 +1255,7 @@ class RocksDBVariableTest(test.TestCase):
           dtypes.int64,
           dtypes.int32,
           initializer=default_val,
-          database_path=DATABASE_PATH,
+          database_path=ROCKSDB_CONFIG_PARAMS['database_path'],
           embedding_name='t191_dynamic_embedding_variables',
       )
       table2 = de.get_variable(
@@ -1249,7 +1263,7 @@ class RocksDBVariableTest(test.TestCase):
           dtypes.int64,
           dtypes.int32,
           initializer=default_val,
-          database_path=DATABASE_PATH,
+          database_path=ROCKSDB_CONFIG_PARAMS['database_path'],
           embedding_name='t192_dynamic_embedding_variables',
       )
       table3 = de.get_variable(
@@ -1257,7 +1271,7 @@ class RocksDBVariableTest(test.TestCase):
           dtypes.int64,
           dtypes.int32,
           initializer=default_val,
-          database_path=DATABASE_PATH,
+          database_path=ROCKSDB_CONFIG_PARAMS['database_path'],
           embedding_name='t193_dynamic_embedding_variables',
       )
       self.evaluate(table1.clear())
@@ -1295,7 +1309,7 @@ class RocksDBVariableTest(test.TestCase):
           dtypes.int64,
           dtypes.int32,
           initializer=default_val,
-          database_path=DATABASE_PATH,
+          database_path=ROCKSDB_CONFIG_PARAMS['database_path'],
           embedding_name='t200_dynamic_embedding_variable_with_tensor_default',
       )
       self.evaluate(table.clear())
@@ -1325,7 +1339,7 @@ class RocksDBVariableTest(test.TestCase):
           dtypes.int64,
           dtypes.int32,
           initializer=default_val,
-          database_path=DATABASE_PATH,
+          database_path=ROCKSDB_CONFIG_PARAMS['database_path'],
           embedding_name='t210_signature_mismatch',
       )
       self.evaluate(table.clear())
@@ -1373,7 +1387,7 @@ class RocksDBVariableTest(test.TestCase):
           dtypes.int64,
           dtypes.float32,
           initializer=default_val,
-          database_path=DATABASE_PATH,
+          database_path=ROCKSDB_CONFIG_PARAMS['database_path'],
           embedding_name='t220_dynamic_embedding_variable_int_float',
       )
       self.evaluate(table.clear())
@@ -1440,7 +1454,7 @@ class RocksDBVariableTest(test.TestCase):
         dim=embed_dim,
         init_size=256,
         restrict_policy=de.TimestampRestrictPolicy,
-        database_path=DATABASE_PATH,
+        database_path=ROCKSDB_CONFIG_PARAMS['database_path'],
         embedding_name='dynamic_embedding_variable_with_restrict_v1',
     )
     self.evaluate(var_guard_by_tstp.clear())
@@ -1453,7 +1467,7 @@ class RocksDBVariableTest(test.TestCase):
         dim=embed_dim,
         init_size=256,
         restrict_policy=de.FrequencyRestrictPolicy,
-        database_path=DATABASE_PATH,
+        database_path=ROCKSDB_CONFIG_PARAMS['database_path'],
         embedding_name='dynamic_embedding_variable_with_restrict_v1',
     )
     self.evaluate(var_guard_by_freq.clear())
@@ -1520,7 +1534,7 @@ class RocksDBVariableTest(test.TestCase):
         initializer=-1.,
         dim=embed_dim,
         restrict_policy=de.TimestampRestrictPolicy,
-        database_path=DATABASE_PATH,
+        database_path=ROCKSDB_CONFIG_PARAMS['database_path'],
         embedding_name='dynamic_embedding_variable_with_restrict_v2',
     )
     self.evaluate(var_guard_by_tstp.clear())
@@ -1532,7 +1546,7 @@ class RocksDBVariableTest(test.TestCase):
         initializer=-1.,
         dim=embed_dim,
         restrict_policy=de.FrequencyRestrictPolicy,
-        database_path=DATABASE_PATH,
+        database_path=ROCKSDB_CONFIG_PARAMS['database_path'],
         embedding_name='dynamic_embedding_variable_with_restrict_v2',
     )
     self.evaluate(var_guard_by_freq.clear())
@@ -1579,5 +1593,5 @@ class RocksDBVariableTest(test.TestCase):
 
 if __name__ == "__main__":
   if DELETE_DATABASE_AT_STARTUP:
-    shutil.rmtree(DATABASE_PATH, ignore_errors=True)
+    shutil.rmtree(ROCKSDB_CONFIG_PARAMS['database_path'], ignore_errors=True)
   test.main()

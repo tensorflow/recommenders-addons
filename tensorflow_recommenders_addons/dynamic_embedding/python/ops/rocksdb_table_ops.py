@@ -47,7 +47,7 @@ class RocksDBTable(LookupInterface):
     out = table.lookup(query_keys)
     print(out.eval())
     ```
-    """
+  """
 
   default_rocksdb_params = {"model_lib_abs_dir": "/tmp/"}
 
@@ -65,26 +65,26 @@ class RocksDBTable(LookupInterface):
       checkpoint=False,
   ):
     """
-        Creates an empty `RocksDBTable` object.
+      Creates an empty `RocksDBTable` object.
 
-        Creates a RocksDB table through OS environment variables, the type of its keys and values
-        are specified by key_dtype and value_dtype, respectively.
+      Creates a RocksDB table through OS environment variables, the type of its keys and values
+      are specified by key_dtype and value_dtype, respectively.
 
-        Args:
-            key_dtype: the type of the key tensors.
-            value_dtype: the type of the value tensors.
-            default_value: The value to use if a key is missing in the table.
-            name: A name for the operation (optional, usually it's embedding table name).
-            checkpoint: if True, the contents of the table are saved to and restored
-                from a RocksDB binary dump files according to the directory "[model_lib_abs_dir]/[model_tag]/[name].rdb".
-            If `shared_name` is empty for a checkpointed table, it is shared using the table node name.
+      Args:
+          key_dtype: the type of the key tensors.
+          value_dtype: the type of the value tensors.
+          default_value: The value to use if a key is missing in the table.
+          name: A name for the operation (optional, usually it's embedding table name).
+          checkpoint: if True, the contents of the table are saved to and restored
+              from a RocksDB binary dump files according to the directory "[model_lib_abs_dir]/[model_tag]/[name].rdb".
+          If `shared_name` is empty for a checkpointed table, it is shared using the table node name.
 
-        Returns:
-            A `RocksDBTable` object.
+      Returns:
+          A `RocksDBTable` object.
 
-        Raises:
-            ValueError: If checkpoint is True and no name was specified.
-        """
+      Raises:
+          ValueError: If checkpoint is True and no name was specified.
+    """
 
     self._default_value = ops.convert_to_tensor(default_value,
                                                 dtype=value_dtype)

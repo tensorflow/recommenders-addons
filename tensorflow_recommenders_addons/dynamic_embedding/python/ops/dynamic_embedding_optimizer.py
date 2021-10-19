@@ -19,6 +19,7 @@ from __future__ import division
 from __future__ import print_function
 
 import functools
+from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_creator import KVCreator
 import six
 
 from tensorflow_recommenders_addons import dynamic_embedding as de

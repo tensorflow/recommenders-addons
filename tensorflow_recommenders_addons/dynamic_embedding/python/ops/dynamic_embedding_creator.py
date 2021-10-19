@@ -1,4 +1,4 @@
-# Copyright 2020 The TensorFlow Recommenders-Addons Authors.
+# Copyright 2021 The TensorFlow Recommenders-Addons Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -162,3 +162,62 @@ class RedisTableCreator(KVCreator):
         checkpoint=checkpoint,
         config=self.config,
     )
+
+
+class RocksDBTableConfig(object):
+    """
+    RocksDBTableConfig config json file for loading a RocksDB database.
+    An example of a configuration file is shown below:
+    ""
+    {
+    "database_path": "/tmp/file_system_path_to_where_the_database_path",
+    "embedding_name": "name_of_this_embedding",  // We use RocksDB column families for this.
+    "read_only": 0,  // If 1, the database is opened in read-only mode. Having multiple read-only
+                     // connections to the same database is possible.
+    "estimate_size": 0,  // If 1, size() will only return estimates, which is faster but inaccurate.
+    "export_path": "/tmp/some_path,  // If set, export/import will dump/restore database to/from
+                                     // filesystem.
+    }
+    ""
+    """
+    def __init__(
+        self,
+        src="/tmp/rocksdb_config.json",
+    ):
+        if isinstance(src, str):
+            with open(src, 'r', encoding='utf-8') as src:
+                self.params = json.load(src)
+        elif isinstance(src, dict):
+            self.params = {k: v for k, v in src.items()}
+        else:
+            raise ValueError
+
+
+class RocksDBTableCreator(KVCreator):
+    """
+    RedisTableCreator will create a object to pass itself to the others classes
+    for creating a real RocksDB client instance which can interact with TF.
+    """
+
+    def create(
+        self,
+        key_dtype=None,
+        value_dtype=None,
+        default_value=None,
+        name=None,
+        checkpoint=None,
+        init_size=None,
+        config=None,
+    ):
+        real_config = config if config is not None else self.config
+        if not isinstance(real_config, RocksDBTableConfig):
+            raise TypeError("config should be instance of 'config', but got ",
+                            str(type(real_config)))
+        return de.RocksDBTable(
+            key_dtype=key_dtype,
+            value_dtype=value_dtype,
+            default_value=default_value,
+            name=name,
+            checkpoint=checkpoint,
+            config=real_config,
+        )
