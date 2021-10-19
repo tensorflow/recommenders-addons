@@ -86,7 +86,7 @@ class RedisWrapper<RedisInstance, K, V,
     SetPublicConnParams(conn_opts, pool_opts, redis_connection_params);
 
     try {
-      static auto redis_client = std::make_shared<RedisInstance>(
+      auto redis_client = std::make_shared<RedisInstance>(
           RedisInstance(conn_opts, pool_opts, role));
       redis_client->set("key test for connecting", "val test for connecting",
                         std::chrono::milliseconds(1));
@@ -153,10 +153,7 @@ class RedisWrapper<RedisInstance, K, V,
   }
 
   static std::shared_ptr<RedisWrapper<RedisInstance, K, V>> get_instance() {
-    /* for the Meyer's Singleton mode.
-      When make Class constructor private, it will be not allow using
-      make_shared to init the Class. It' not safe, but having no choice. */
-    static std::shared_ptr<RedisWrapper<RedisInstance, K, V>> instance_ptr(
+    std::shared_ptr<RedisWrapper<RedisInstance, K, V>> instance_ptr(
         new RedisWrapper<RedisInstance, K, V>());
     return instance_ptr;
   }
