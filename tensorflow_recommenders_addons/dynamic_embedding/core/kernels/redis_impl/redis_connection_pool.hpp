@@ -200,27 +200,43 @@ class RedisWrapper<
       const bool only_get_buckets) override {
     std::vector<std::string> keys_prefix_name_slices_in_redis;
     std::string redis_command;
-    if (only_get_buckets) {
-      redis_command = "KEYS " + keys_prefix_name + "{[0123456789]*}";
-    } else {
-      redis_command = "KEYS " + keys_prefix_name + "*{[0123456789]*}";
-    }
     auto cmd = [](::sw::redis::Connection &connection, const char *str) {
       connection.send(str);
     };
-    std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply;
-    try {
-      reply = redis_conn_read->command(cmd, redis_command.data());
-    } catch (const std::exception &err) {
-      LOG(ERROR) << "RedisHandler error in "
-                    "GetKeyBucketsAndOptimizerParamsWithName for KEYS "
-                 << keys_prefix_name << " -- " << err.what();
-      return keys_prefix_name_slices_in_redis;
-    }
-    keys_prefix_name_slices_in_redis.reserve(reply->elements);
-    for (size_t i = 0; i < reply->elements; ++i) {
-      keys_prefix_name_slices_in_redis.emplace_back(
-          std::string(reply->element[i]->str, reply->element[i]->len));
+    std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply_server;
+    long long cursor = 0;
+    const redisReply *set_reply;
+    keys_prefix_name_slices_in_redis.reserve(
+        redis_connection_params.storage_slice);
+    while (true) {
+      if (only_get_buckets) {
+        redis_command =
+            "SCAN " + std::to_string(cursor) + " MATCH {[0123456789]*}";
+      } else {
+        redis_command =
+            "SCAN " + std::to_string(cursor) + " MATCH *{[0123456789]*}";
+      }
+      try {
+        reply_server = redis_conn_read->command(cmd, redis_command.data());
+      } catch (const std::exception &err) {
+        LOG(ERROR) << "RedisHandler error in "
+                      "GetKeyBucketsAndOptimizerParamsWithName for SCAN "
+                   << keys_prefix_name << " -- " << err.what();
+      }
+      if (reply_server->element[0]->type == REDIS_REPLY_STRING) {
+        // #define REDIS_REPLY_STRING 1
+        cursor = std::atoll(reply_server->element[0]->str);
+      }
+      if (reply_server->element[1]->type == REDIS_REPLY_ARRAY) {
+        set_reply = reply_server->element[1];
+        for (size_t i = 1; i < set_reply->elements; ++i) {
+          keys_prefix_name_slices_in_redis.emplace_back(std::string(
+              set_reply->element[i]->str, set_reply->element[i]->len));
+        }
+      }
+      if (cursor == 0) {
+        break;
+      }
     }
     return keys_prefix_name_slices_in_redis;
   }
@@ -237,7 +253,7 @@ class RedisWrapper<
       keys_prefix_name_slices_in_redis = std::move(
           GetKeyBucketsAndOptimizerParamsWithName(keys_prefix_name, true));
     } catch (const std::exception &err) {
-      LOG(ERROR) << "RedisHandler error in CheckSlicesNum for KEYS "
+      LOG(ERROR) << "RedisHandler error in CheckSlicesNum for SCAN "
                  << keys_prefix_name << " -- " << err.what();
       return -1;
     }
@@ -270,6 +286,11 @@ class RedisWrapper<
       return -1;
     }
     return -1;
+  }
+
+  virtual std::vector<std::pair<unsigned, unsigned>> ClusterNodesSlots(
+      bool full_slots) override {
+    return std::vector<std::pair<unsigned, unsigned>>();
   }
 
   virtual size_t TableSizeInBucket(
@@ -471,8 +492,9 @@ class RedisWrapper<
       wr = &wrs[i];
       if (wr->aio_nbytes > 0) {
         for (size_t i = 3; i > 0; --i) {
-          while (aio_error(wr) == EINPROGRESS)
+          while (aio_error(wr) == EINPROGRESS) {
             ;
+          }
           if ((ret = aio_return(wr)) > 0) {
             break;
           } else {

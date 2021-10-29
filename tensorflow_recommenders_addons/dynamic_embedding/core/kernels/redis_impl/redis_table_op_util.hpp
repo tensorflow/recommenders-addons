@@ -102,6 +102,23 @@ Status launchFindWithExistsCore(
       _table_instance->MgetCommand(keys, threads_Find.at(thread_context_id),
                                    begin, end, keys_prefix_name_slices);
 
+  auto exists_flat = exists.flat<bool>();
+  for (auto i = 0; i < end - begin; ++i) {
+    if (reply[0] != nullptr) {
+      if (reply[0]->type == REDIS_REPLY_ARRAY) {
+        if (reply[0]->element[i]->type ==
+            REDIS_REPLY_STRING)  // #define REDIS_REPLY_STRING 1
+        {
+          exists_flat(i) = true;  // Direct access to Tensor data in TensorFlow
+        } else {
+          exists_flat(i) = false;
+        }
+      }
+    } else {
+      exists_flat(i) = false;
+    }
+  }
+
   auto statu =
       _table_instance->MgetToTensor(values, default_value, is_full_default,
                                     threads_Find.at(thread_context_id), reply,
@@ -406,11 +423,11 @@ std::string BuildKeysPrefixNameWithModelTag(const std::string &model_tag,
 }
 
 std::vector<std::string> BuildKeysPrefixNameSlices(
+    const std::vector<std::pair<unsigned, unsigned>> cluster_slots,
     const unsigned storage_slice, std::vector<std::string> redis_hash_tags,
     const std::string &keys_prefix_name) {
   std::vector<std::string> keys_prefix_name_slices;
   keys_prefix_name_slices.reserve(storage_slice);
-  const unsigned slot_num_in_redis = 16384 / storage_slice;
   if (redis_hash_tags.size() == storage_slice) {
     LOG(INFO) << "Using the prefix redis_hash_tags for every bucket.";
     for (auto redis_hash_tag : redis_hash_tags) {
@@ -423,19 +440,54 @@ std::vector<std::string> BuildKeysPrefixNameSlices(
       keys_prefix_name_slices.emplace_back(keys_prefix_name + redis_hash_tag);
     }
   } else {
-    LOG(WARNING)
+    LOG(INFO)
         << "Number of prefix redis_hash_tags is not equal to the prefix "
            "storage_slice. Now using the hash tags generated sequentially.";
-    for (unsigned i = 0; i < storage_slice; ++i) {
-      keys_prefix_name_slices.emplace_back(
-          keys_prefix_name + '{' +
-          std::to_string(redis_slots_tab[slot_num_in_redis * i]) + '}');
+    const unsigned slot_num_in_redis = 16384 / storage_slice;
+    const unsigned slot_in_redis_rem = 16384 % storage_slice;
+    if (cluster_slots.size() == 0) {
+      for (unsigned i = 0; i < storage_slice; ++i) {
+        keys_prefix_name_slices.emplace_back(
+            keys_prefix_name + '{' +
+            std::to_string(
+                redis_slots_tab[slot_num_in_redis * i + slot_in_redis_rem]) +
+            '}');
+      }
+    } else {
+      if (cluster_slots.size() < storage_slice) {
+        for (unsigned i = 0; i < storage_slice;) {
+          for (auto cluster_slot : cluster_slots) {
+            keys_prefix_name_slices.emplace_back(
+                keys_prefix_name + '{' +
+                std::to_string(redis_slots_tab[cluster_slot.first +
+                                               i / cluster_slots.size() *
+                                                   ((cluster_slot.second -
+                                                     cluster_slot.first) *
+                                                    cluster_slots.size() /
+                                                    storage_slice)]) +
+                '}');
+            ++i;
+            if (i == storage_slice) {
+              break;
+            }
+          }
+        }
+      } else {
+        LOG(WARNING) << "Nodes in Redis service is bigger than storage_slice "
+                        "set by user, it may cause data skew.";
+        for (unsigned i = 0; i < storage_slice; ++i) {
+          keys_prefix_name_slices.emplace_back(
+              keys_prefix_name + '{' +
+              std::to_string(redis_slots_tab[cluster_slots.at(i).first]) + '}');
+        }
+      }
     }
   }
   return keys_prefix_name_slices;
 }
 
 void CreateKeysPrefixNameHandle(
+    const std::vector<std::pair<unsigned, unsigned>> cluster_slots,
     const Redis_Connection_Params *const redis_connection_params,
     const std::string &embedding_name, std::string &keys_prefix_name_runtime,
     std::string &keys_prefix_name_import,
@@ -445,14 +497,14 @@ void CreateKeysPrefixNameHandle(
       redis_connection_params->model_tag_runtime,
       redis_connection_params->using_md5_prefix_name, embedding_name);
   keys_prefix_name_slices_runtime = BuildKeysPrefixNameSlices(
-      redis_connection_params->storage_slice,
+      cluster_slots, redis_connection_params->storage_slice,
       redis_connection_params->redis_hash_tags_runtime,
       keys_prefix_name_runtime);
   keys_prefix_name_import = BuildKeysPrefixNameWithModelTag(
       redis_connection_params->model_tag_import,
       redis_connection_params->using_md5_prefix_name, embedding_name);
   keys_prefix_name_slices_import = BuildKeysPrefixNameSlices(
-      redis_connection_params->storage_slice,
+      cluster_slots, redis_connection_params->storage_slice,
       redis_connection_params->redis_hash_tags_import, keys_prefix_name_import);
 }
 
