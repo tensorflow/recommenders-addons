@@ -25,6 +25,7 @@ limitations under the License.
 
 #include <cmath>
 #include <iostream>
+#include <sstream>
 
 #include "md5.h"
 #include "tensorflow/core/framework/tensor.h"
@@ -366,6 +367,9 @@ class RedisVirtualWrapper {
       const std::string &keys_prefix_name, const bool only_get_buckets) = 0;
 
   virtual int CheckSlicesNum(const std::string &keys_prefix_name) = 0;
+
+  virtual std::vector<std::pair<unsigned, unsigned>> ClusterNodesSlots(
+      bool full_slots) = 0;
 
   virtual size_t TableSizeInBucket(
       const std::string &keys_prefix_name_slice) = 0;

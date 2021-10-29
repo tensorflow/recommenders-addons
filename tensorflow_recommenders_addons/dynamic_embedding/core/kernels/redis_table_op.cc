@@ -94,10 +94,10 @@ class RedisTableOfTensors final : public LookupInterface {
                            std::vector<std::string> &keys_prefix_name_slices,
                            const Tensor &keys, Tensor *values,
                            const Tensor &default_value, const int64 &total,
-                           const int64 &default_value_flat2_dim0,
                            const int64 &Velems_per_flat2_dim0,
                            std::vector<ThreadContext *> &threads_Find) {
-    const bool is_full_default = (total == default_value_flat2_dim0);
+    const bool is_full_default =
+        (values->NumElements() == default_value.NumElements());
 
     const int64 max_parallelism = (total / multi_redis_cmd_max_argc) + 1;
 
@@ -121,10 +121,10 @@ class RedisTableOfTensors final : public LookupInterface {
                   std::vector<std::string> &keys_prefix_name_slices,
                   const Tensor &keys, Tensor *values,
                   const Tensor &default_value, const int64 &total,
-                  const int64 &default_value_flat2_dim0,
                   const int64 &Velems_per_flat2_dim0,
                   std::vector<ThreadContext *> &threads_Find) {
-    const bool is_full_default = (total == default_value_flat2_dim0);
+    const bool is_full_default =
+        (values->NumElements() == default_value.NumElements());
 
     OP_REQUIRES_OK(
         ctx,
@@ -136,10 +136,10 @@ class RedisTableOfTensors final : public LookupInterface {
   void launchFindWithExists_parallel(
       OpKernelContext *ctx, std::vector<std::string> &keys_prefix_name_slices,
       const Tensor &keys, Tensor *values, const Tensor &default_value,
-      Tensor &exists, const int64 &total, const int64 &default_value_flat2_dim0,
-      const int64 &Velems_per_flat2_dim0,
+      Tensor &exists, const int64 &total, const int64 &Velems_per_flat2_dim0,
       std::vector<ThreadContext *> &threads_Find) {
-    const bool is_full_default = (total == default_value_flat2_dim0);
+    const bool is_full_default =
+        (values->NumElements() == default_value.NumElements());
 
     const int64 max_parallelism = (total / multi_redis_cmd_max_argc) + 1;
 
@@ -165,10 +165,10 @@ class RedisTableOfTensors final : public LookupInterface {
                             const Tensor &keys, Tensor *values,
                             const Tensor &default_value, Tensor &exists,
                             const int64 &total,
-                            const int64 &default_value_flat2_dim0,
                             const int64 &Velems_per_flat2_dim0,
                             std::vector<ThreadContext *> &threads_Find) {
-    const bool is_full_default = (total == default_value_flat2_dim0);
+    const bool is_full_default =
+        (values->NumElements() == default_value.NumElements());
 
     OP_REQUIRES_OK(
         ctx, launchFindWithExistsCore(
@@ -299,10 +299,10 @@ class RedisTableOfTensors final : public LookupInterface {
                "redis_config_abs_dir "
             << redis_config_abs_dir_tem << " is used.";
         redis_config_abs_dir = redis_config_abs_dir_tem;
+      } else {
+        LOG(INFO) << "TFRA Redis config file path is " << redis_config_abs_dir;
       }
     }
-
-    LOG(INFO) << "TFRA Redis config file path is " << redis_config_abs_dir;
 
     if (get_file_size(redis_config_abs_dir) > 0) {
       OP_REQUIRES_OK(ctx, ParseJsonConfig(&redis_config_abs_dir,
@@ -323,10 +323,7 @@ class RedisTableOfTensors final : public LookupInterface {
       runtime_value_dim_ = default_value_total;
     }
 
-    CreateKeysPrefixNameHandle(&redis_connection_params, embedding_name,
-                               keys_prefix_name, keys_prefix_name_import,
-                               keys_prefix_name_slices,
-                               keys_prefix_name_slices_import);
+    std::vector<std::pair<unsigned, unsigned>> cluster_slots;
 
     // creat redis instance
     switch (redis_connection_params.redis_connection_mode) {
@@ -337,6 +334,7 @@ class RedisTableOfTensors final : public LookupInterface {
         OP_REQUIRES_OK(ctx,
                        _table_instance->set_params(redis_connection_params));
         OP_REQUIRES_OK(ctx, _table_instance->Conn());
+        cluster_slots = _table_instance->ClusterNodesSlots(false);
         break;
       }
       case SentinelMode: {
@@ -367,13 +365,41 @@ class RedisTableOfTensors final : public LookupInterface {
       }
     }
 
+    CreateKeysPrefixNameHandle(cluster_slots, &redis_connection_params,
+                               embedding_name, keys_prefix_name,
+                               keys_prefix_name_import, keys_prefix_name_slices,
+                               keys_prefix_name_slices_import);
+
+    // Rehash buckets
     if (redis_connection_params.model_tag_import ==
             redis_connection_params.model_tag_runtime &&
-        redis_connection_params.redis_hash_tags_import !=
-            redis_connection_params.redis_hash_tags_runtime) {
+        keys_prefix_name_slices_import != keys_prefix_name_slices) {
       if (_table_instance->CheckSlicesNum(keys_prefix_name_import) == 1) {
         LOG(INFO) << "Arrange the new Redis hash tags to the table "
                   << keys_prefix_name_import << ". And remove the old one.";
+        auto keys_prefix_name_slices_redis =
+            _table_instance->GetKeyBucketsAndOptimizerParamsWithName(
+                keys_prefix_name_import, true);
+        if (keys_prefix_name_slices_redis != keys_prefix_name_slices_import) {
+          std::stringstream warning_print;
+          for (auto keys_prefix_name_slice_import :
+               keys_prefix_name_slices_import) {
+            warning_print << keys_prefix_name_slice_import << " , ";
+          }
+          warning_print << "; And the keys_prefix_name_slices are: ";
+          for (auto keys_prefix_name_slice_redis :
+               keys_prefix_name_slices_redis) {
+            warning_print << keys_prefix_name_slice_redis << " , ";
+          }
+          warning_print << " . Now try to replace imported "
+                           "keys_prefix_name_slices with those in Redis. "
+                        << std::endl;
+          LOG(WARNING) << "Hashtag in Redis for " << keys_prefix_name_import
+                       << " is not equal to the imported one. Imported "
+                          "keys_prefix_name_slices are: "
+                       << warning_print.str();
+          keys_prefix_name_slices_import.swap(keys_prefix_name_slices_redis);
+        }
         OP_REQUIRES_OK(
             ctx, _table_instance->DuplicateInRedis(
                      keys_prefix_name_slices_import, keys_prefix_name_slices));
@@ -394,13 +420,14 @@ class RedisTableOfTensors final : public LookupInterface {
                   << keys_prefix_name;
         OP_REQUIRES_OK(ctx, ReCreateTableBuckets(ctx, keys_prefix_name_import));
       }
-    }
 
-    if (_table_instance->CheckSlicesNum(keys_prefix_name) != 1) {
-      LOG(WARNING)
-          << "CheckSlicesNum fails after many operations. If you are in the "
-             "first few steps of your training, you can ignore this warning.";
-    };
+      if (_table_instance->CheckSlicesNum(keys_prefix_name) != 1) {
+        LOG(WARNING)
+            << "CheckSlicesNum fails after many operations. Please check your "
+               "Redis service manually. If you are in the first few steps of "
+               "your training, you can ignore this warning.";
+      }
+    }
 
     // remove expiring time of buckets
     OP_REQUIRES_OK(ctx, _table_instance->SetPersistBuckets(keys_prefix_name));
@@ -572,17 +599,15 @@ class RedisTableOfTensors final : public LookupInterface {
     int64 total = keys.NumElements();
     const int64 Velems_per_flat2_dim0 =
         values->NumElements() / keys.NumElements();
-    const int64 default_value_dim0 = default_value.dim_size(0);
 
     if (total < (multi_redis_cmd_max_argc - 1)) {
       launchFind(ctx, keys_prefix_name_slices, keys, values, default_value,
-                 total, default_value_dim0, Velems_per_flat2_dim0,
-                 threads_Find);
+                 total, Velems_per_flat2_dim0, threads_Find);
     } else {
       // redis commmand args > multi_redis_cmd_max_argc
       launchFind_parallel(ctx, keys_prefix_name_slices, keys, values,
-                          default_value, total, default_value_dim0,
-                          Velems_per_flat2_dim0, threads_Find);
+                          default_value, total, Velems_per_flat2_dim0,
+                          threads_Find);
     }
 
     return Status::OK();
@@ -594,17 +619,16 @@ class RedisTableOfTensors final : public LookupInterface {
     int64 total = keys.NumElements();
     const int64 Velems_per_flat2_dim0 =
         values->NumElements() / keys.NumElements();
-    const int64 default_value_dim0 = default_value.dim_size(0);
 
     if (total < (multi_redis_cmd_max_argc - 1)) {
       launchFindWithExists(ctx, keys_prefix_name_slices, keys, values,
-                           default_value, exists, total, default_value_dim0,
-                           Velems_per_flat2_dim0, threads_Find);
+                           default_value, exists, total, Velems_per_flat2_dim0,
+                           threads_Find);
     } else {
       // redis commmand args > multi_redis_cmd_max_argc
-      launchFindWithExists_parallel(
-          ctx, keys_prefix_name_slices, keys, values, default_value, exists,
-          total, default_value_dim0, Velems_per_flat2_dim0, threads_Find);
+      launchFindWithExists_parallel(ctx, keys_prefix_name_slices, keys, values,
+                                    default_value, exists, total,
+                                    Velems_per_flat2_dim0, threads_Find);
     }
 
     return Status::OK();
@@ -681,11 +705,12 @@ class RedisTableOfTensors final : public LookupInterface {
                      "service for "
                   << keys_prefix_name_import;
         if (redis_connection_params.model_tag_import !=
-                redis_connection_params.model_tag_runtime &&
-            _table_instance->CheckSlicesNum(keys_prefix_name_import) == 1 &&
-            _table_instance->CheckSlicesNum(keys_prefix_name) != 1) {
-          return _table_instance->DuplicateInRedis(
-              keys_prefix_name_slices_import, keys_prefix_name_slices);
+            redis_connection_params.model_tag_runtime) {
+          if (_table_instance->CheckSlicesNum(keys_prefix_name_import) == 1 &&
+              _table_instance->CheckSlicesNum(keys_prefix_name) != 1) {
+            return _table_instance->DuplicateInRedis(
+                keys_prefix_name_slices_import, keys_prefix_name_slices);
+          }
         }
         return Status::OK();
       }
@@ -707,15 +732,6 @@ class RedisTableOfTensors final : public LookupInterface {
         check_dir(folder_dir + redis_connection_params.model_tag_import);
 
     auto statu = Status::OK();
-    if (redis_connection_params.model_tag_import !=
-            redis_connection_params.model_tag_runtime &&
-        _table_instance->CheckSlicesNum(keys_prefix_name_import) == 1) {
-      statu = _table_instance->DuplicateInRedis(keys_prefix_name_slices_import,
-                                                keys_prefix_name_slices);
-      if (statu != Status::OK()) {
-        return statu;
-      }
-    }
 
     for (unsigned i = 0; i < storage_slice; ++i) {
       file_path = folder_dir + keys_prefix_name_slices_import[i] + ".rdb";
