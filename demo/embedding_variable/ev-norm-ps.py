@@ -15,7 +15,14 @@ tf.app.flags.DEFINE_integer("interval", 60, "interval")
 tf.app.flags.DEFINE_string("protocol", "grpc", "interval")
 
 FLAGS = tf.app.flags.FLAGS
-
+STANDARD_PS_OPS = ("Variable", "EVHandleOp", "VariableV2", "AutoReloadVariable",
+                   "MutableHashTable", "MutableHashTableV2",
+                   "MutableHashTableOfTensors", "MutableHashTableOfTensorsV2",
+                   "MutableDenseHashTable", "MutableDenseHashTableV2",
+                   "VarHandleOp", "BoostedTreesEnsembleResourceHandleOp",
+                   "BoostedTreesQuantileStreamResourceHandleOp",
+                   "ResourceConditionalAccumulator",
+                   "DecisionTreeResource")
 
 #tf.logging.set_verbosity(tf.logging.DEBUG)
 def model_fn(ids, labels):
@@ -59,7 +66,8 @@ def train(task_index, cluster, is_chief, target, buckets):
 
   available_worker_device = "/job:worker/task:%d" % (task_index)
   with tf.device(
-      tf.train.replica_device_setter(worker_device=available_worker_device,
+      tf.train.replica_device_setter(ps_ops=STANDARD_PS_OPS,
+                                     worker_device=available_worker_device,
                                      cluster=cluster)):
     loss, opt, emb = model_fn(x, y_)
     local_step = 1
