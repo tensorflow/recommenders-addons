@@ -365,26 +365,29 @@ class RedisWrapper<RedisInstance, K, V,
     if (reply->type == REDIS_REPLY_STRING) {
       std::vector<std::vector<::sw::redis::StringView>> csv_table;
       std::vector<::sw::redis::StringView> csv_table_row;
+      csv_table.reserve(redis_connection_params.storage_slice * 2);
       csv_table_row.reserve(10);
       const char *str_ptr = reply->str;
+      const char *const str_ptr_begin = reply->str;
       for (size_t i = 0, col = 0; i < reply->len; ++i) {
-        if (*str_ptr == ' ') {
+        if (*(str_ptr_begin + i) == ' ') {
           csv_table_row.emplace_back(::sw::redis::StringView(str_ptr, i - col));
           col = i + 1;
-          str_ptr = str_ptr + i + 1;
-        } else if (*str_ptr == '\n') {
+          str_ptr = str_ptr_begin + i + 1;
+        } else if (*(str_ptr_begin + i) == '\n') {
           csv_table_row.emplace_back(::sw::redis::StringView(str_ptr, i - col));
           csv_table.push_back(csv_table_row);
           csv_table_row.clear();
           col = i + 1;
-          str_ptr = str_ptr + i + 1;
+          str_ptr = str_ptr_begin + i + 1;
         }
       }
       std::string tmp_slot_num;
-      tmp_slot_num.reserve(4);
+      tmp_slot_num.reserve(5);
       unsigned tmp_first_slot = 0, tmp_second_slot = 0;
       for (auto row : csv_table) {
-        if (strcmp(row.at(2).data(), "master") == 0) {
+        if (strncmp(row.at(2).data(), "master", 6) == 0 ||
+            strncmp(row.at(2).data(), "myself,master", 13) == 0) {
           if (full_slots) {
             for (size_t i = 8; i < row.size(); ++i) {
               for (const char *num = row.at(i).data();
@@ -401,8 +404,8 @@ class RedisWrapper<RedisInstance, K, V,
                   std::make_pair(tmp_first_slot, tmp_second_slot));
             }
           } else {
-            for (const char *num = row.at(8).data();
-                 num != num + row.at(8).size(); ++num) {
+            const char *const num_end = row.at(8).data() + row.at(8).size();
+            for (const char *num = row.at(8).data(); num != num_end; ++num) {
               if (*num != '-') {
                 tmp_slot_num.push_back(*num);
               } else {
@@ -411,6 +414,7 @@ class RedisWrapper<RedisInstance, K, V,
               }
             }
             tmp_second_slot = std::stoul(tmp_slot_num);
+            tmp_slot_num.clear();
             cluster_slots.push_back(
                 std::make_pair(tmp_first_slot, tmp_second_slot));
           }

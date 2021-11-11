@@ -443,9 +443,9 @@ std::vector<std::string> BuildKeysPrefixNameSlices(
     LOG(INFO)
         << "Number of prefix redis_hash_tags is not equal to the prefix "
            "storage_slice. Now using the hash tags generated sequentially.";
-    const unsigned slot_num_in_redis = 16384 / storage_slice;
-    const unsigned slot_in_redis_rem = 16384 % storage_slice;
     if (cluster_slots.size() == 0) {
+      const unsigned slot_num_in_redis = 16384 / storage_slice;
+      const unsigned slot_in_redis_rem = 16384 % storage_slice;
       for (unsigned i = 0; i < storage_slice; ++i) {
         keys_prefix_name_slices.emplace_back(
             keys_prefix_name + '{' +
@@ -473,8 +473,10 @@ std::vector<std::string> BuildKeysPrefixNameSlices(
           }
         }
       } else {
-        LOG(WARNING) << "Nodes in Redis service is bigger than storage_slice "
-                        "set by user, it may cause data skew.";
+        if (cluster_slots.size() > storage_slice) {
+          LOG(WARNING) << "Nodes in Redis service is bigger than storage_slice "
+                          "set by user, it may cause data skew.";
+        }
         for (unsigned i = 0; i < storage_slice; ++i) {
           keys_prefix_name_slices.emplace_back(
               keys_prefix_name + '{' +
