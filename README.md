@@ -172,7 +172,7 @@ pip install artifacts/tensorflow_recommenders_addons_gpu-*.whl
 ##### Data Type Matrix for `tfra.dynamic_embedding.Variable` 
 |  Values \\ Keys  | int64  | int32 | string |
 |:----:|:----:|:----:|:----:| 
-| float  | CPU, GPU | CPU | CPU |
+| float  | CPU, GPU | CPU, GPU | CPU |
 | half  | CPU, GPU | - | CPU |
 | int32  | CPU, GPU | CPU | CPU |
 | int8  | CPU, GPU | - | CPU |
