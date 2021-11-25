@@ -919,6 +919,60 @@ every bucket has its own BucketContext for sending data---for locating reply-
     return Status::OK();
   }
 
+  virtual Status MgetToTensorWithExist(
+      Tensor *values, const Tensor &default_value, Tensor &exists,
+      const bool is_full_default, ThreadContext *thread_context,
+      std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>>
+          &reply,
+      const int64 begin, const int64 max_i,
+      const int64 Velems_per_dim0) override {
+    const V *pv_raw =
+        reinterpret_cast<const V *>(values->tensor_data().data()) +
+        begin * Velems_per_dim0;
+
+    const V *dft_raw =
+        reinterpret_cast<const V *>(default_value.tensor_data().data()) +
+        begin * Velems_per_dim0;
+    const V *const dft_raw_begin =
+        reinterpret_cast<const V *>(default_value.tensor_data().data());
+    auto exists_flat = exists.flat<bool>();
+
+    redisReply *temp_reply;
+    bool print_once = false;
+    for (int64 i = 0, j = begin; i < max_i - begin;
+         ++i, ++j, pv_raw += Velems_per_dim0, dft_raw += Velems_per_dim0) {
+      if (reply[0] != nullptr) {
+        if (reply[0]->type == REDIS_REPLY_ARRAY) {
+          temp_reply = reply[0]->element[i];
+          if (temp_reply->type ==
+              REDIS_REPLY_STRING)  // #define REDIS_REPLY_STRING 1
+          {
+            ReplyMemcpyToValTensor<V>(
+                pv_raw, temp_reply->str,
+                Velems_per_dim0);  // Direct access to Tensor data in TensorFlow
+            exists_flat(j) = true;
+          } else {
+            CopyDefaultToTensor(is_full_default, pv_raw, dft_raw, dft_raw_begin,
+                                Velems_per_dim0);
+            exists_flat(j) = false;
+          }
+        }
+      } else {
+        if (!print_once) {
+          LOG(WARNING)
+              << "Redis reply from MgetCommend has some problems with error "
+              << ", using default values to repalce.";
+          print_once = true;
+        }
+        CopyDefaultToTensor(is_full_default, pv_raw, dft_raw, dft_raw_begin,
+                            Velems_per_dim0);
+        exists_flat(j) = false;
+      }
+    }
+
+    return Status::OK();
+  }
+
   virtual Status MsetCommand(
       const Tensor &keys, const Tensor &values, ThreadContext *thread_context,
       const int64 begin, const int64 max_i, const int64 Velems_per_dim0,

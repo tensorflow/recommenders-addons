@@ -1087,6 +1087,70 @@ every bucket has its own BucketContext for sending data---for locating reply-
     return Status::OK();
   }
 
+  virtual Status MgetToTensorWithExist(
+      Tensor *values, const Tensor &default_value, Tensor &exists,
+      const bool is_full_default, ThreadContext *thread_context,
+      std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>>
+          &reply,
+      const int64 begin, const int64 max_i,
+      const int64 Velems_per_dim0) override {
+    const V *pv_raw =
+        reinterpret_cast<const V *>(values->tensor_data().data()) +
+        begin * Velems_per_dim0;
+    const V *dft_raw =
+        reinterpret_cast<const V *>(default_value.tensor_data().data()) +
+        begin * Velems_per_dim0;
+    const V *const dft_raw_begin =
+        reinterpret_cast<const V *>(default_value.tensor_data().data());
+    auto exists_flat = exists.flat<bool>();
+
+    const std::vector<unsigned> *bucket_locs =
+        thread_context->bucket_locs.get();
+    const unsigned &storage_slice = redis_connection_params.storage_slice;
+    unsigned buckets_iters_nums[storage_slice];
+    unsigned bucket_loc;
+    memset(buckets_iters_nums, 0U, sizeof(buckets_iters_nums));
+    redisReply *temp_reply;
+    bool print_once[storage_slice];
+    memset(print_once, false, sizeof(print_once));
+    for (int64 i = 0, j = begin; i < (max_i - begin);
+         ++i, ++j, pv_raw += Velems_per_dim0, dft_raw += Velems_per_dim0) {
+      bucket_loc = (*bucket_locs)[i];
+      if (reply[bucket_loc] != nullptr) {
+        if (reply[bucket_loc]->type == REDIS_REPLY_ARRAY) {
+          temp_reply =
+              reply[bucket_loc]->element[buckets_iters_nums[bucket_loc]];
+          ++(buckets_iters_nums[bucket_loc]);
+          if (temp_reply->type ==
+              REDIS_REPLY_STRING)  // #define REDIS_REPLY_STRING 1
+          {
+            ReplyMemcpyToValTensor<V>(
+                pv_raw, temp_reply->str,
+                Velems_per_dim0);  // Direct access to Tensor data in TensorFlow
+            exists_flat(j) = true;
+          } else {
+            CopyDefaultToTensor(is_full_default, pv_raw, dft_raw, dft_raw_begin,
+                                Velems_per_dim0);
+            exists_flat(j) = false;
+          }
+        }
+      } else {
+        if (!print_once[bucket_loc]) {
+          LOG(WARNING) << "Redis reply in bucket_loc " << bucket_loc
+                       << " from MgetCommend has some problems with error "
+                       << ", using default values to repalce.";
+          print_once[bucket_loc] = true;
+        }
+        ++(buckets_iters_nums[bucket_loc]);
+        CopyDefaultToTensor(is_full_default, pv_raw, dft_raw, dft_raw_begin,
+                            Velems_per_dim0);
+        exists_flat(j) = false;
+      }
+    }
+
+    return Status::OK();
+  }
+
   virtual Status MsetCommand(
       const Tensor &keys, const Tensor &values, ThreadContext *thread_context,
       const int64 begin, const int64 max_i, const int64 Velems_per_dim0,
