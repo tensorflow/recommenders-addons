@@ -414,6 +414,13 @@ class RedisVirtualWrapper {
           &reply,
       const int64 begin, const int64 max_i, const int64 Velems_per_dim0) = 0;
 
+  virtual Status MgetToTensorWithExist(
+      Tensor *values, const Tensor &default_value, Tensor &exists,
+      const bool is_full_default, ThreadContext *thread_context,
+      std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>>
+          &reply,
+      const int64 begin, const int64 max_i, const int64 Velems_per_dim0) = 0;
+
   virtual Status MsetCommand(
       const Tensor &keys, const Tensor &values, ThreadContext *thread_context,
       const int64 begin, const int64 max_i, const int64 Velems_per_dim0,

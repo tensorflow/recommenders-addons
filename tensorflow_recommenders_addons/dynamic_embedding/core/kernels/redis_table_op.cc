@@ -338,6 +338,13 @@ class RedisTableOfTensors final : public LookupInterface {
         break;
       }
       case SentinelMode: {
+        if (redis_connection_params.storage_slice != 1) {
+          ctx->CtxFailure(errors::InvalidArgument(
+              "storage_slice in redis_connection_params is " +
+              std::to_string(redis_connection_params.storage_slice) +
+              ". storage_slice should be 1 when in Redis single node "
+              "mode(SentinelMode)."));
+        }
         multi_redis_cmd_max_argc =
             redis_connection_params.keys_sending_size * 1;
         _table_instance = RedisWrapper<Redis, K, V>::get_instance();
@@ -352,7 +359,7 @@ class RedisTableOfTensors final : public LookupInterface {
                    << " The Stream connection mode is still being TODO.";
         ctx->CtxFailure(errors::InvalidArgument(
             std::to_string(redis_connection_params.redis_connection_mode) +
-            " is illegal redis_connection_mode."));
+            " is illegal redis_connection_mode in redis_connection_params."));
         break;
       }
       default: {

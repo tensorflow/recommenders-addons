@@ -102,27 +102,10 @@ Status launchFindWithExistsCore(
       _table_instance->MgetCommand(keys, threads_Find.at(thread_context_id),
                                    begin, end, keys_prefix_name_slices);
 
-  auto exists_flat = exists.flat<bool>();
-  for (auto i = 0; i < end - begin; ++i) {
-    if (reply[0] != nullptr) {
-      if (reply[0]->type == REDIS_REPLY_ARRAY) {
-        if (reply[0]->element[i]->type ==
-            REDIS_REPLY_STRING)  // #define REDIS_REPLY_STRING 1
-        {
-          exists_flat(i) = true;  // Direct access to Tensor data in TensorFlow
-        } else {
-          exists_flat(i) = false;
-        }
-      }
-    } else {
-      exists_flat(i) = false;
-    }
-  }
-
-  auto statu =
-      _table_instance->MgetToTensor(values, default_value, is_full_default,
-                                    threads_Find.at(thread_context_id), reply,
-                                    begin, end, Velems_per_flat2_dim0);
+  auto statu = _table_instance->MgetToTensorWithExist(
+      values, default_value, exists, is_full_default,
+      threads_Find.at(thread_context_id), reply, begin, end,
+      Velems_per_flat2_dim0);
 
   threads_Find[thread_context_id]->thread_occupied.store(
       false, std::memory_order_release);
