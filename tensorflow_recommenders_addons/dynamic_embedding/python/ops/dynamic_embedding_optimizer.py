@@ -61,10 +61,6 @@ def DynamicEmbeddingOptimizer(self, bp_v2=None):
 
   def _distributed_apply(distribution, grads_and_vars, name, apply_state):
     """`apply_gradients` using a `DistributionStrategy`."""
-    reduced_grads = distribution.extended.batch_reduce_to(
-        ds_reduce_util.ReduceOp.SUM, grads_and_vars)
-    var_list = [v for _, v in grads_and_vars]
-    grads_and_vars = zip(reduced_grads, var_list)
 
     def apply_grad_to_update_var(var, grad):
       """Apply gradient to variable."""
