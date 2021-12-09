@@ -153,13 +153,14 @@ struct Redis_Connection_Params {
   //
   // Below there is user-defined parameters in this custom op, not Redis
   // setting parameters
+  int storage_slice_import = -1;
   unsigned storage_slice =
-      1;  // For deciding bucket number, which usually is how many Redis
-          // instance may be used in the trainning.
-  unsigned storage_slice_log2 = 0;  // For fast calculation.
-  unsigned expire_model_tag_in_seconds =
+      1;  // For deciding bucket number, which usually is how
+          // many Redis instance may be used in the trainning.
+  int expire_model_tag_in_seconds =
       604800;  // To eliminate unwanted model versions in Redis to ensure
-               // sufficient storage space.
+               // sufficient storage space. It will not take effect if it is
+               // less than zero.
   unsigned long long keys_sending_size =
       1024;  // Determines how many keys to send at a time
              // for performance tuning
@@ -202,12 +203,10 @@ struct Redis_Connection_Params {
         x.redis_sentinel_connect_timeout;  // milliseconds
     redis_sentinel_socket_timeout =
         x.redis_sentinel_socket_timeout;  // milliseconds
-    storage_slice_log2 =
-        round_next_power_two_bitlen(x.storage_slice);  // beter for modding.
+    storage_slice_import =
+        x.storage_slice_import >= 0 ? x.storage_slice_import : x.storage_slice;
     storage_slice = x.storage_slice;
-    expire_model_tag_in_seconds = x.expire_model_tag_in_seconds > 0
-                                      ? x.expire_model_tag_in_seconds
-                                      : 2626560;
+    expire_model_tag_in_seconds = x.expire_model_tag_in_seconds;
     model_tag_import = x.model_tag_import;
     redis_hash_tags_import.assign(x.redis_hash_tags_import.begin(),
                                   x.redis_hash_tags_import.end());

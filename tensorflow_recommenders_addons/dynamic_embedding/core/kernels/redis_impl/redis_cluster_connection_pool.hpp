@@ -264,11 +264,11 @@ class RedisWrapper<RedisInstance, K, V,
       cursor = 0;
       while (true) {
         if (only_get_buckets) {
-          redis_command =
-              "SCAN " + std::to_string(cursor) + " MATCH {[0123456789]*}";
+          redis_command = "SCAN " + std::to_string(cursor) + " MATCH " +
+                          keys_prefix_name + "{[0123456789]*}";
         } else {
-          redis_command =
-              "SCAN " + std::to_string(cursor) + " MATCH *{[0123456789]*}";
+          redis_command = "SCAN " + std::to_string(cursor) + " MATCH " +
+                          keys_prefix_name + "*{[0123456789]*}";
         }
         try {
           reply_server =
@@ -285,7 +285,7 @@ class RedisWrapper<RedisInstance, K, V,
         }
         if (reply_server->element[1]->type == REDIS_REPLY_ARRAY) {
           set_reply = reply_server->element[1];
-          for (size_t i = 1; i < set_reply->elements; ++i) {
+          for (size_t i = 0; i < set_reply->elements; ++i) {
             keys_prefix_name_slices_in_redis.emplace_back(std::string(
                 set_reply->element[i]->str, set_reply->element[i]->len));
           }
@@ -421,6 +421,9 @@ class RedisWrapper<RedisInstance, K, V,
         }
       }
     }
+    std::sort(cluster_slots.begin(), cluster_slots.end());
+    cluster_slots.erase(std::unique(cluster_slots.begin(), cluster_slots.end()),
+                        cluster_slots.end());
     return cluster_slots;
   }
 
@@ -541,29 +544,30 @@ class RedisWrapper<RedisInstance, K, V,
 
   virtual Status SetExpireBuckets(
       const std::string &keys_prefix_name) override {
-    // std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply;
-    const std::string expire_command("EXPIRE ");
-    std::string redis_command;
-    auto cmd = [](::sw::redis::Connection &connection,
-                  ::sw::redis::StringView hkey,
-                  const char *str) { connection.send(str); };
-    auto &&bucket_names =
-        GetKeyBucketsAndOptimizerParamsWithName(keys_prefix_name, false);
-    for (auto bucket_name : bucket_names) {
-      redis_command.clear();
-      redis_command =
-          expire_command + bucket_name + ' ' +
-          std::to_string(redis_connection_params.expire_model_tag_in_seconds);
-      try {
-        /*reply=*/redis_conn_write->command(cmd, bucket_name,
-                                            redis_command.data());
-      } catch (const std::exception &err) {
-        LOG(ERROR) << "RedisHandler error in SetExpireBuckets for "
-                   << bucket_name << " -- " << err.what();
-        return errors::Unknown(err.what());
+    if (redis_connection_params.expire_model_tag_in_seconds >= 0) {
+      // std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply;
+      const std::string expire_command("EXPIRE ");
+      std::string redis_command;
+      auto cmd = [](::sw::redis::Connection &connection,
+                    ::sw::redis::StringView hkey,
+                    const char *str) { connection.send(str); };
+      auto &&bucket_names =
+          GetKeyBucketsAndOptimizerParamsWithName(keys_prefix_name, false);
+      for (auto bucket_name : bucket_names) {
+        redis_command.clear();
+        redis_command =
+            expire_command + bucket_name + ' ' +
+            std::to_string(redis_connection_params.expire_model_tag_in_seconds);
+        try {
+          /*reply=*/redis_conn_write->command(cmd, bucket_name,
+                                              redis_command.data());
+        } catch (const std::exception &err) {
+          LOG(ERROR) << "RedisHandler error in SetExpireBuckets for "
+                     << bucket_name << " -- " << err.what();
+          return errors::Unknown(err.what());
+        }
       }
     }
-
     return Status::OK();
   }
 
