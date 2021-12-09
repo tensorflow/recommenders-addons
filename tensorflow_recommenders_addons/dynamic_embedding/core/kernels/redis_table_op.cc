@@ -378,22 +378,49 @@ class RedisTableOfTensors final : public LookupInterface {
                                keys_prefix_name_slices_import);
 
     // Rehash buckets
+    auto keys_prefix_name_slices_import_sort = keys_prefix_name_slices_import;
+    std::sort(keys_prefix_name_slices_import_sort.begin(),
+              keys_prefix_name_slices_import_sort.end());
+    auto keys_prefix_name_slices_sort = keys_prefix_name_slices;
+    std::sort(keys_prefix_name_slices_sort.begin(),
+              keys_prefix_name_slices_sort.end());
     if (redis_connection_params.model_tag_import ==
             redis_connection_params.model_tag_runtime &&
-        keys_prefix_name_slices_import != keys_prefix_name_slices) {
-      if (_table_instance->CheckSlicesNum(keys_prefix_name_import) == 1) {
-        LOG(INFO) << "Arrange the new Redis hash tags to the table "
-                  << keys_prefix_name_import << ". And remove the old one.";
-        auto keys_prefix_name_slices_redis =
-            _table_instance->GetKeyBucketsAndOptimizerParamsWithName(
-                keys_prefix_name_import, true);
-        if (keys_prefix_name_slices_redis != keys_prefix_name_slices_import) {
+        (keys_prefix_name_slices_import_sort != keys_prefix_name_slices_sort ||
+         redis_connection_params.storage_slice_import !=
+             static_cast<int>(redis_connection_params.storage_slice))) {
+      auto keys_prefix_name_slices_redis =
+          _table_instance->GetKeyBucketsAndOptimizerParamsWithName(
+              keys_prefix_name_import, true);
+      auto keys_prefix_name_slices_redis_sort = keys_prefix_name_slices_redis;
+      std::sort(keys_prefix_name_slices_redis_sort.begin(),
+                keys_prefix_name_slices_redis_sort.end());
+      LOG(INFO) << "Arrange the new Redis hash tags to the table "
+                << keys_prefix_name_import
+                << ". And remove the old one. Remember changing config file "
+                   "next time!";
+      if (keys_prefix_name_slices_redis.size() ==
+          redis_connection_params.storage_slice) {
+        if (keys_prefix_name_slices_redis_sort ==
+            keys_prefix_name_slices_import_sort) {
+          OP_REQUIRES_OK(ctx, _table_instance->DuplicateInRedis(
+                                  keys_prefix_name_slices_import,
+                                  keys_prefix_name_slices));
+          for (auto keys_prefix_name_slice_import :
+               keys_prefix_name_slices_import) {
+            OP_REQUIRES_OK(ctx, _table_instance->RemoveHkeysInBuckets(
+                                    keys_prefix_name_slice_import));
+          }
+        }
+      } else {
+        if (keys_prefix_name_slices_redis_sort !=
+            keys_prefix_name_slices_import_sort) {
           std::stringstream warning_print;
           for (auto keys_prefix_name_slice_import :
                keys_prefix_name_slices_import) {
             warning_print << keys_prefix_name_slice_import << " , ";
           }
-          warning_print << "; And the keys_prefix_name_slices are: ";
+          warning_print << "; And the keys_prefix_name_slices_redis are: ";
           for (auto keys_prefix_name_slice_redis :
                keys_prefix_name_slices_redis) {
             warning_print << keys_prefix_name_slice_redis << " , ";
@@ -407,16 +434,7 @@ class RedisTableOfTensors final : public LookupInterface {
                        << warning_print.str();
           keys_prefix_name_slices_import.swap(keys_prefix_name_slices_redis);
         }
-        OP_REQUIRES_OK(
-            ctx, _table_instance->DuplicateInRedis(
-                     keys_prefix_name_slices_import, keys_prefix_name_slices));
-        for (auto keys_prefix_name_slice_import :
-             keys_prefix_name_slices_import) {
-          OP_REQUIRES_OK(ctx, _table_instance->RemoveHkeysInBuckets(
-                                  keys_prefix_name_slice_import));
-        }
-      } else {
-        LOG(ERROR)
+        LOG(WARNING)
             << "The embedding table prefix name " << keys_prefix_name_import
             << " has already been saved in the Redis Servers. "
             << "And its number of slices is not equal to the number you putted "
@@ -502,8 +520,8 @@ class RedisTableOfTensors final : public LookupInterface {
 
     redisReply *temp_reply;
     for (size_t i = 0; i < keys_prefix_name_slices_in_redis.size(); ++i) {
-      slice_keys_size =
-          _table_instance->TableSizeInBucket(keys_prefix_name_slices[i]);
+      slice_keys_size = _table_instance->TableSizeInBucket(
+          keys_prefix_name_slices_in_redis[i]);
       // fill Tensor keys_temp
       try {
         TF_RETURN_IF_ERROR(ctx->allocate_temp(DataTypeToEnum<K>::v(),
@@ -517,39 +535,44 @@ class RedisTableOfTensors final : public LookupInterface {
         cursor = 0;
         while (true) {
           hscan_reply.reset();
-          hscan_reply = _table_instance->HscanGetKeysValsInBucket(
-              keys_prefix_name_slices[i], &cursor, multi_redis_cmd_max_argc);
+          hscan_reply = std::move(_table_instance->HscanGetKeysValsInBucket(
+              keys_prefix_name_slices_in_redis[i], &cursor,
+              multi_redis_cmd_max_argc));
           if (hscan_reply == nullptr) {
             return errors::Unknown(
                 "Unknown errors happen when HscanGetKeysValsInBucket in "
                 "ReCreateTableBuckets");
           }
-          kvs_reply = hscan_reply->element[1];
-          // fill Tensor keys and values
-          for (size_t j = 0; j < kvs_reply->elements; ++j) {
-            temp_reply = kvs_reply->element[j];
-            if (temp_reply->type ==
-                REDIS_REPLY_STRING) {  // #define REDIS_REPLY_STRING 1
-              ReplyMemcpyToKeyTensor<K>(
-                  pk_raw, temp_reply->str,
-                  temp_reply
-                      ->len);  // Direct access to Tensor data in TensorFlow
-            }
-            ++pk_raw;
+          if (hscan_reply->type == REDIS_REPLY_ARRAY &&
+              hscan_reply->elements > 1) {
+            kvs_reply = hscan_reply->element[1];
+            // fill Tensor keys and values
+            for (size_t j = 0; j < kvs_reply->elements; ++j) {
+              temp_reply = kvs_reply->element[j];
+              if (temp_reply->type ==
+                  REDIS_REPLY_STRING) {  // #define REDIS_REPLY_STRING 1
+                ReplyMemcpyToKeyTensor<K>(
+                    pk_raw, temp_reply->str,
+                    temp_reply
+                        ->len);  // Direct access to Tensor data in TensorFlow
+              }
+              ++pk_raw;
 
-            ++j;
-            temp_reply = kvs_reply->element[j];
-            if (temp_reply->type ==
-                REDIS_REPLY_STRING) {  // #define REDIS_REPLY_STRING 1
-              ReplyMemcpyToValTensor<V>(
-                  pv_raw, temp_reply->str,
-                  runtime_value_dim_);  // Direct access to Tensor data in
-                                        // TensorFlow
+              ++j;
+              temp_reply = kvs_reply->element[j];
+              if (temp_reply->type ==
+                  REDIS_REPLY_STRING) {  // #define REDIS_REPLY_STRING 1
+                ReplyMemcpyToValTensor<V>(
+                    pv_raw, temp_reply->str,
+                    runtime_value_dim_);  // Direct access to Tensor data in
+                                          // TensorFlow
+              }
+              pv_raw += runtime_value_dim_;
             }
-            pv_raw += runtime_value_dim_;
           }
 
-          LOG(INFO) << "The cursor of scanning " << keys_prefix_name_slices[i]
+          LOG(INFO) << "The cursor of scanning "
+                    << keys_prefix_name_slices_in_redis[i]
                     << " in ReCreateTableBuckets is " << cursor << " now.";
           if (cursor == 0) {
             break;
@@ -588,7 +611,6 @@ class RedisTableOfTensors final : public LookupInterface {
         }
       }
     }
-
     return Status::OK();
   }
 
@@ -701,7 +723,8 @@ class RedisTableOfTensors final : public LookupInterface {
     if (redis_connection_params.table_store_mode == 1) {
       // When there is not a corresponding table existing in Redis service and
       // table_store_mode==1, try to restore from a Redis binary dump files
-      // which paths are directory '[model_lib_abs_dir]/[model_tag]/[name].rdb'.
+      // which paths are directory
+      // '[model_lib_abs_dir]/[model_tag]/[name].rdb'.
       return ImportValuesFromFiles(ctx);
     } else {
       if (keys.NumElements() > 0 &&
@@ -715,6 +738,9 @@ class RedisTableOfTensors final : public LookupInterface {
             redis_connection_params.model_tag_runtime) {
           if (_table_instance->CheckSlicesNum(keys_prefix_name_import) == 1 &&
               _table_instance->CheckSlicesNum(keys_prefix_name) != 1) {
+            LOG(INFO) << "Because model_tag_import is not equal to "
+                         "model_tag_runtime. Now begin to DuplicateInRedis, "
+                         "remember changing config file next time!";
             return _table_instance->DuplicateInRedis(
                 keys_prefix_name_slices_import, keys_prefix_name_slices);
           }
@@ -839,7 +865,8 @@ class RedisTableOfTensors final : public LookupInterface {
       if (statu != Status::OK()) {
         return statu;
       }
-      // for (auto &fd : EXPORT_fds) // for now the writting may be not finished
+      // for (auto &fd : EXPORT_fds) // for now the writting may be not
+      // finished
       //   close(fd);
     }
 

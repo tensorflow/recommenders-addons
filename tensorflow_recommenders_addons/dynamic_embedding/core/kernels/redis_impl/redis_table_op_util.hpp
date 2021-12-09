@@ -325,19 +325,14 @@ Status ParseJsonConfig(const std::string *const redis_config_abs_dir,
 
   ReadOneJsonToParams(redis_sentinel_socket_timeout, integer);
 
-  json_hangar_it = json_hangar.find("storage_slice");
-  if (json_hangar_it != json_hangar.end()) {
-    if (json_hangar_it->second->type == json_integer) {
-      redis_connection_params->storage_slice_log2 =
-          round_next_power_two_bitlen(json_hangar_it->second->u.integer);
-      redis_connection_params->storage_slice =
-          json_hangar_it->second->u.integer;
-    } else {
-      LOG(ERROR) << "storage_slice should be json_integer";
-      return Status(error::INVALID_ARGUMENT,
-                    "storage_slice should be json_integer");
-    }
-  }
+  ReadOneJsonToParams(storage_slice_import, integer);
+
+  ReadOneJsonToParams(storage_slice, integer);
+
+  redis_connection_params->storage_slice_import =
+      redis_connection_params->storage_slice_import > 0
+          ? redis_connection_params->storage_slice_import
+          : redis_connection_params->storage_slice;
 
   ReadOneJsonToParams(keys_sending_size, integer);
 
@@ -489,7 +484,8 @@ void CreateKeysPrefixNameHandle(
       redis_connection_params->model_tag_import,
       redis_connection_params->using_md5_prefix_name, embedding_name);
   keys_prefix_name_slices_import = BuildKeysPrefixNameSlices(
-      cluster_slots, redis_connection_params->storage_slice,
+      cluster_slots,
+      static_cast<unsigned>(redis_connection_params->storage_slice_import),
       redis_connection_params->redis_hash_tags_import, keys_prefix_name_import);
 }
 
