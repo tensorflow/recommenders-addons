@@ -1051,6 +1051,95 @@ every bucket has its own BucketContext for sending data---for locating reply-
     return Status::OK();
   }
 
+  virtual Status MaccumCommand(
+      const Tensor &keys, const Tensor &values_or_delta, const Tensor &exists,
+      ThreadContext *thread_context, const int64 begin, const int64 max_i,
+      const int64 Velems_per_dim0,
+      const std::vector<std::string> &keys_prefix_name_slices) override {
+    const int &&total = max_i - begin;
+    const int &&argc = total * 2 + 4;
+
+    const static char *redis_command = "HMACCUM";
+    const static std::size_t redis_command_byte = 7;
+    std::string dTypestr = DataTypeString(values_or_delta.dtype());
+
+    thread_context->HandleReserve(1U, argc, 0);
+
+    std::vector<const char *> *ptrs_0 = thread_context->buckets[0]->ptrs.get();
+    std::vector<std::size_t> *sizes_0 = thread_context->buckets[0]->sizes.get();
+
+    const K *const pk_raw_end =
+        reinterpret_cast<const K *>(keys.tensor_data().data()) + max_i;
+    const K *pk_raw =
+        reinterpret_cast<const K *>(keys.tensor_data().data()) + begin;
+
+    const std::size_t &&V_byte_size = Velems_per_dim0 * sizeof(V);
+
+    const V *pv_raw =
+        reinterpret_cast<const V *>(values_or_delta.tensor_data().data()) +
+        begin * Velems_per_dim0;
+
+    auto ptrs_iter = ptrs_0->begin();
+    *ptrs_iter = redis_command;
+    ++ptrs_iter;
+    *ptrs_iter = keys_prefix_name_slices[0].data();
+    ++ptrs_iter;
+    *ptrs_iter = dTypestr.c_str();
+    ++ptrs_iter;
+
+    auto sizes_iter = sizes_0->begin();
+    *sizes_iter = redis_command_byte;
+    ++sizes_iter;
+    *sizes_iter = keys_prefix_name_slices[0].size();
+    ++sizes_iter;
+    *sizes_iter = dTypestr.size();
+    ++sizes_iter;
+
+    VContentAndTypeSizeResult VCATS_temp;
+    // std::vector<char> for storage all string in one KV pair
+    std::vector<std::vector<char>> buff_temp(total);
+
+    for (int i = 0; pk_raw != pk_raw_end;
+         ++i, ++pk_raw, pv_raw += Velems_per_dim0) {
+      VCATS_temp = VContentAndTypeSize<V>(VCATS_temp, Velems_per_dim0,
+                                          V_byte_size, pv_raw, buff_temp[i]);
+
+      *ptrs_iter = KContentPointer<K>(
+          pk_raw);  // Direct access to Tensor data in TensorFlow
+      *(++ptrs_iter) = VCATS_temp.VContentPointer;
+      ++ptrs_iter;
+
+      *sizes_iter = KTypeSize<K>(pk_raw);  // key data char size
+      *(++sizes_iter) = VCATS_temp.VTypeSize;
+      ++sizes_iter;
+    }
+
+    const bool *pe_raw =
+        reinterpret_cast<const bool *>(exists.tensor_data().data()) + begin;
+    *ptrs_iter = KContentPointer<bool>(pe_raw);
+    *sizes_iter = total * KTypeSize<bool>(pe_raw);
+
+    assert(ptrs_0->front() == redis_command);
+    assert(sizes_0->front() == redis_command_byte);
+
+    auto cmd = [](::sw::redis::Connection &connection, const int argc,
+                  const std::vector<const char *> *ptrs_0,
+                  const std::vector<std::size_t> *sizes_0) {
+      connection.send(argc, const_cast<const char **>(ptrs_0->data()),
+                      sizes_0->data());
+    };
+
+    try {
+      redis_conn_write->command(cmd, argc, ptrs_0, sizes_0);
+    } catch (const std::exception &err) {
+      LOG(ERROR) << "RedisHandler error in MACCUM_COMMAND for HMACCUM "
+                 << keys_prefix_name_slices[0] << " -- " << err.what();
+      return errors::Unknown(err.what());
+    }
+
+    return Status::OK();
+  }
+
   virtual Status DelCommand(
       const Tensor &keys, ThreadContext *thread_context, const int64 begin,
       const int64 max_i,
