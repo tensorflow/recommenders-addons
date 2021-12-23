@@ -21,7 +21,6 @@ limitations under the License.
 #include <sw/redis++/sentinel.h>
 #include <sys/stat.h>
 #include <unistd.h>
-#include <x86intrin.h>
 
 #include <cmath>
 #include <iostream>
@@ -314,13 +313,19 @@ class RedisVirtualWrapper {
   template <typename RedisClient>
   inline bool RedisClusterEnabled(RedisClient redis_client) {
     auto info_cluster = redis_client->command("info", "cluster");
-    auto tmp_char = strtok(info_cluster->str, "\n");
-    tmp_char = strtok(NULL, "\n");
-    tmp_char = strtok(tmp_char, ":");
-    auto cluster_bool = strtok(NULL, ":");
-    if (strcmp(cluster_bool, "1\r") == 0) {
-      return true;
+    if (info_cluster->len > 0) {
+      auto tmp_char = strtok(info_cluster->str, "\n");
+      tmp_char = strtok(NULL, "\n");
+      tmp_char = strtok(tmp_char, ":");
+      auto cluster_bool = strtok(NULL, ":");
+      if (strcmp(cluster_bool, "1\r") == 0) {
+        return true;
+      } else {
+        return false;
+      }
     } else {
+      LOG(WARNING)
+          << "INFO CLUSTER has no response. Regard as a single node mode.";
       return false;
     }
   }
@@ -464,11 +469,46 @@ inline unsigned KBucketNum(const T *in, const unsigned storage_slice) {
   return (static_cast<const int>(*in) % storage_slice);
 }
 
+#if defined(__arm64__) /* || defined (__aarch64__) */
+#define CRC32CB(crc, value) \
+  __asm__("crc32cb %w[c], %w[c], %w[v]" : [ c ] "+r"(crc) : [ v ] "r"(value))
+#define CRC32CH(crc, value) \
+  __asm__("crc32ch %w[c], %w[c], %w[v]" : [ c ] "+r"(crc) : [ v ] "r"(value))
+#define CRC32CW(crc, value) \
+  __asm__("crc32cw %w[c], %w[c], %w[v]" : [ c ] "+r"(crc) : [ v ] "r"(value))
+#define CRC32CX(crc, value) \
+  __asm__("crc32cx %w[c], %w[c], %x[v]" : [ c ] "+r"(crc) : [ v ] "r"(value))
+#elif defined(__x86_64__)
+#define CRC32CB(crc, value) __asm__("crc32b %1, %0" : "+r"(crc) : "rm"(value))
+#define CRC32CH(crc, value) __asm__("crc32w %1, %0" : "+r"(crc) : "rm"(value))
+#define CRC32CW(crc, value) __asm__("crc32l %1, %0" : "+r"(crc) : "rm"(value))
+#define CRC32CX(crc, value) __asm__("crc32q %1, %0" : "+r"(crc) : "rm"(value))
+#else
+#error Currently architectures other than ARM64 or X86_64 are not supported
+#endif
+
+inline uint32_t crc32c_hash(uint32_t crc, const uint8_t *p, size_t length) {
+  while ((length -= sizeof(uint64_t)) >= 0) {
+    CRC32CX(crc, *((uint64_t *)p));
+    p += sizeof(uint64_t);
+  }
+  if (length & sizeof(uint32_t)) {
+    CRC32CW(crc, *((uint32_t *)p));
+    p += sizeof(uint32_t);
+  }
+  if (length & sizeof(uint16_t)) {
+    CRC32CH(crc, *((uint16_t *)p));
+    p += sizeof(uint16_t);
+  }
+  if (length & sizeof(uint8_t)) CRC32CB(crc, *p);
+  return crc;
+}
+
 template <>
 inline unsigned KBucketNum<tstring>(const tstring *in,
                                     const unsigned storage_slice) {
-  const auto tem_char = *(reinterpret_cast<const unsigned char *>(in));
-  return (_mm_crc32_u8(0xffffffff, tem_char) % storage_slice);
+  const uint8_t *tem_char = reinterpret_cast<const uint8_t *>(in);
+  return (crc32c_hash(0xffffffff, tem_char, in->length()) % storage_slice);
 }
 
 template <typename T>
