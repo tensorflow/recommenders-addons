@@ -14,7 +14,6 @@ limitations under the License.
 ==============================================================================*/
 
 #include <inttypes.h>
-#include <nmmintrin.h>
 #include <sw/redis++/connection.h>
 #include <sw/redis++/connection_pool.h>
 #include <sw/redis++/redis++.h>
