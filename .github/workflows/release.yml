@@ -43,7 +43,7 @@ jobs:
         # TODO: add back 'windows-latest' when it can be compiled.
         os: ['macos-latest', 'ubuntu-18.04']
         py-version: ['3.6', '3.7', '3.8', '3.9']
-        tf-version: ['1.15.2', '2.5.1']
+        tf-version: ['2.5.1']
         tf-need-cuda: ['1', '0']
         tf-cuda-version: ['10.0', '11.2']
         tf-cudnn-version: ['7.6', '8.1']
@@ -54,15 +54,6 @@ jobs:
           # excludes python3.6 on macOS
           - os: 'macos-latest'
             py-version: '3.6'
-          # excludes TF1.15.2 on py38
-          - py-version: '3.8'
-            tf-version: '1.15.2'
-          - py-version: '3.9'
-            tf-version: '1.15.2'
-          # excludes TF1.15.2 with cuda 11.2
-          - os: 'ubuntu-18.04'
-            tf-version: '1.15.2'
-            tf-cuda-version: '11.2'
           # excludes TF2.4.1 with cuda 10.0
           - tf-version: '2.5.1'
             tf-cuda-version: '10.0'
@@ -133,9 +124,6 @@ jobs:
           # excludes cuda on macOS
           - os: 'macOS'
             tf-need-cuda: '1'
-          # excludes python3.6 on macOS
-          - os: 'macOS'
-            py-version: '3.6'
       fail-fast: false
     if: (github.event_name == 'push' && github.ref == 'refs/heads/master') || github.event_name == 'release'
     steps:
