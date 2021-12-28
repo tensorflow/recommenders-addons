@@ -1,8 +1,7 @@
 import tensorflow as tf
 import tensorflow_datasets as tfds
-import sys
 
-ENCODDING_SEGMENT_LENGTH = 1000000
+ENCODING_SEGMENT_LENGTH = 1000000
 NON_LETTER_OR_NUMBER_PATTERN = r'[^a-zA-Z0-9]'
 
 FAETURES = [
@@ -11,6 +10,8 @@ FAETURES = [
     'review_date', 'review_headline', 'review_id', 'star_rating', 'total_votes'
 ]
 LABEL = 'verified_purchase'
+
+NUM_FEATURE_SLOTS = 0
 
 
 class _RawFeature(object):
@@ -22,13 +23,15 @@ class _RawFeature(object):
     if not isinstance(category, int):
       raise TypeError('category must be an integer.')
     self.category = category
+    global NUM_FEATURE_SLOTS
+    NUM_FEATURE_SLOTS = max(NUM_FEATURE_SLOTS, self.category)
 
   def encode(self, tensor):
     raise NotImplementedError
 
   def match_category(self, tensor):
-    min_code = self.category * ENCODDING_SEGMENT_LENGTH
-    max_code = (self.category + 1) * ENCODDING_SEGMENT_LENGTH
+    min_code = self.category * ENCODING_SEGMENT_LENGTH
+    max_code = (self.category + 1) * ENCODING_SEGMENT_LENGTH
     mask = tf.math.logical_and(tf.greater_equal(tensor, min_code),
                                tf.less(tensor, max_code))
     return mask
@@ -40,8 +43,8 @@ class _StringFeature(_RawFeature):
     super(_StringFeature, self).__init__(dtype, category)
 
   def encode(self, tensor):
-    tensor = tf.strings.to_hash_bucket_fast(tensor, ENCODDING_SEGMENT_LENGTH)
-    tensor += ENCODDING_SEGMENT_LENGTH * self.category
+    tensor = tf.strings.to_hash_bucket_fast(tensor, ENCODING_SEGMENT_LENGTH)
+    tensor += ENCODING_SEGMENT_LENGTH * self.category
     return tensor
 
 
@@ -53,8 +56,8 @@ class _TextFeature(_RawFeature):
   def encode(self, tensor):
     tensor = tf.strings.regex_replace(tensor, NON_LETTER_OR_NUMBER_PATTERN, ' ')
     tensor = tf.strings.split(tensor, sep=' ').to_tensor('')
-    tensor = tf.strings.to_hash_bucket_fast(tensor, ENCODDING_SEGMENT_LENGTH)
-    tensor += ENCODDING_SEGMENT_LENGTH * self.category
+    tensor = tf.strings.to_hash_bucket_fast(tensor, ENCODING_SEGMENT_LENGTH)
+    tensor += ENCODING_SEGMENT_LENGTH * self.category
     return tensor
 
 
@@ -65,23 +68,23 @@ class _IntegerFeature(_RawFeature):
 
   def encode(self, tensor):
     tensor = tf.as_string(tensor)
-    tensor = tf.strings.to_hash_bucket_fast(tensor, ENCODDING_SEGMENT_LENGTH)
-    tensor += ENCODDING_SEGMENT_LENGTH * self.category
+    tensor = tf.strings.to_hash_bucket_fast(tensor, ENCODING_SEGMENT_LENGTH)
+    tensor += ENCODING_SEGMENT_LENGTH * self.category
     return tensor
 
 
 FEATURE_AND_ENCODER = {
-    'customer_id': _StringFeature(tf.string, 1),
-    'helpful_votes': _IntegerFeature(tf.int32, 2),
-    'product_category': _StringFeature(tf.string, 3),
-    'product_id': _StringFeature(tf.string, 4),
-    'product_parent': _StringFeature(tf.string, 5),
-    'product_title': _TextFeature(tf.string, 6),
-    #'review_body': _TextFeature(tf.string, 7),  # bad feature
-    'review_headline': _TextFeature(tf.string, 8),
-    'review_id': _StringFeature(tf.string, 9),
-    'star_rating': _IntegerFeature(tf.int32, 10),
-    'total_votes': _IntegerFeature(tf.int32, 11),
+    'customer_id': _StringFeature(tf.string, 0),
+    'helpful_votes': _IntegerFeature(tf.int32, 1),
+    'product_category': _StringFeature(tf.string, 2),
+    'product_id': _StringFeature(tf.string, 3),
+    'product_parent': _StringFeature(tf.string, 4),
+    'product_title': _TextFeature(tf.string, 5),
+    'review_headline': _TextFeature(tf.string, 6),
+    'review_id': _StringFeature(tf.string, 7),
+    'star_rating': _IntegerFeature(tf.int32, 8),
+    'total_votes': _IntegerFeature(tf.int32, 9),
+    #'review_body': _TextFeature(tf.string, 10),  # bad feature
 }
 
 
@@ -97,6 +100,12 @@ def encode_feature(data):
     collected_features.append(feature)
   collected_features = tf.concat(collected_features, 1)
   return collected_features
+
+
+@tf.function
+def get_category(tensor):
+  x = tf.math.floordiv(tensor, ENCODING_SEGMENT_LENGTH)
+  return x
 
 
 def get_labels(data):

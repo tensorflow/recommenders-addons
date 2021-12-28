@@ -13,6 +13,6 @@ It will produce a model to `export_dir`.
 
 ## Inference:
 ```bash
-python main.py --mode=test  --export_dir="export" --batch_size=10
+python main.py --mode=test  --export_dir="export" --batch_size=64
 ```
 It will print accuracy to the prediction on verified purchase of the digital video games.
