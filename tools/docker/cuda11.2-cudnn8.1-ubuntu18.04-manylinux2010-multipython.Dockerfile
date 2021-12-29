@@ -25,6 +25,11 @@ RUN apt-get update && apt-get install -y \
       xz-utils \
       libjpeg-dev \
       zlib1g-dev \
+      libgflags-dev \
+      libsnappy-dev \
+      libbz2-dev \
+      liblz4-dev \
+      libzstd-dev \
       && \
     rm -rf /var/lib/apt/lists/*
 
@@ -98,3 +103,9 @@ RUN /install/install_pip_packages_by_version.sh "/usr/local/bin/pip3.7"
 ENV CLANG_VERSION="r7f6f9f4cf966c78a315d15d6e913c43cfa45c47c"
 COPY install/install_latest_clang.sh /install/
 RUN /install/install_latest_clang.sh
+
+RUN ln -s /usr/lib/x86_64-linux-gnu/liblz4.so.1 /usr/local/lib/liblz4.so
+RUN ln -s /usr/lib/x86_64-linux-gnu/libzstd.so.1 /usr/local/lib/libzstd.so
+
+COPY install/install_rocksdb.sh /install/
+RUN /install/install_rocksdb.sh "6.22.1"
