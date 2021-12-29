@@ -23,6 +23,7 @@ RUN ln -sf /usr/local/bin/python$PY_VERSION /usr/bin/python
 # Use devtoolset-7 as tool chain
 RUN rm -r /usr/bin/gcc*
 ENV PATH=/dt7/usr/bin:${PATH}
+ENV LD_LIBRARY_PATH=/usr/local/lib:${LD_LIBRARY_PATH}
 ENV LD_LIBRARY_PATH=/dt7/user/lib64:${LD_LIBRARY_PATH}
 ENV LD_LIBRARY_PATH=/dt7/user/lib:${LD_LIBRARY_PATH}
 ENV MANPATH=/dt7/user/share/man:${LD_LIBRARY_PATH}
