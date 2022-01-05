@@ -86,7 +86,7 @@ class RedisWrapper<RedisInstance, K, V,
     SetPublicConnParams(conn_opts, pool_opts, redis_connection_params);
 
     try {
-      static auto redis_client = std::make_shared<RedisInstance>(
+      auto redis_client = std::make_shared<RedisInstance>(
           RedisInstance(conn_opts, pool_opts, role));
       redis_client->set("key test for connecting", "val test for connecting",
                         std::chrono::milliseconds(1));
@@ -153,10 +153,7 @@ class RedisWrapper<RedisInstance, K, V,
   }
 
   static std::shared_ptr<RedisWrapper<RedisInstance, K, V>> get_instance() {
-    /* for the Meyer's Singleton mode.
-      When make Class constructor private, it will be not allow using
-      make_shared to init the Class. It' not safe, but having no choice. */
-    static std::shared_ptr<RedisWrapper<RedisInstance, K, V>> instance_ptr(
+    std::shared_ptr<RedisWrapper<RedisInstance, K, V>> instance_ptr(
         new RedisWrapper<RedisInstance, K, V>());
     return instance_ptr;
   }
@@ -212,11 +209,6 @@ class RedisWrapper<RedisInstance, K, V,
       const bool only_get_buckets) override {
     std::vector<std::string> keys_prefix_name_slices_in_redis;
     std::string redis_command;
-    if (only_get_buckets) {
-      redis_command = "KEYS " + keys_prefix_name + "{[0123456789]*}";
-    } else {
-      redis_command = "KEYS " + keys_prefix_name + "*{[0123456789]*}";
-    }
     // get cluster info
     auto cmd = [](::sw::redis::Connection &connection,
                   ::sw::redis::StringView hkey) {
@@ -250,6 +242,8 @@ class RedisWrapper<RedisInstance, K, V,
     std::unique_ptr<Redis> redis_client;
     std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply_server;
     ConnectionOptions connection_options;
+    long long cursor = 0;
+    const redisReply *set_reply;
     keys_prefix_name_slices_in_redis.reserve(
         redis_connection_params.storage_slice);
     for (size_t i = 0; i < ip_port_set.size(); ++i) {
@@ -267,17 +261,38 @@ class RedisWrapper<RedisInstance, K, V,
       auto cmd_per_server = [](::sw::redis::Connection &connection,
                                const char *str) { connection.send(str); };
       reply_server.reset();
-      try {
-        reply_server =
-            redis_client->command(cmd_per_server, redis_command.data());
-      } catch (const std::exception &err) {
-        LOG(ERROR) << "RedisHandler error "
-                      "GetKeyBucketsAndOptimizerParamsWithName(KEYS) in for IP "
-                   << ip_port_set[i].first << " --  " << err.what();
-      }
-      for (size_t i = 0; i < reply_server->elements; ++i) {
-        keys_prefix_name_slices_in_redis.emplace_back(std::string(
-            reply_server->element[i]->str, reply_server->element[i]->len));
+      cursor = 0;
+      while (true) {
+        if (only_get_buckets) {
+          redis_command = "SCAN " + std::to_string(cursor) + " MATCH " +
+                          keys_prefix_name + "{[0123456789]*}";
+        } else {
+          redis_command = "SCAN " + std::to_string(cursor) + " MATCH " +
+                          keys_prefix_name + "*{[0123456789]*}";
+        }
+        try {
+          reply_server =
+              redis_client->command(cmd_per_server, redis_command.data());
+        } catch (const std::exception &err) {
+          LOG(ERROR)
+              << "RedisHandler error "
+                 "GetKeyBucketsAndOptimizerParamsWithName(SCAN) in for IP "
+              << ip_port_set[i].first << " --  " << err.what();
+        }
+        if (reply_server->element[0]->type == REDIS_REPLY_STRING) {
+          // #define REDIS_REPLY_STRING 1
+          cursor = std::atoll(reply_server->element[0]->str);
+        }
+        if (reply_server->element[1]->type == REDIS_REPLY_ARRAY) {
+          set_reply = reply_server->element[1];
+          for (size_t i = 0; i < set_reply->elements; ++i) {
+            keys_prefix_name_slices_in_redis.emplace_back(std::string(
+                set_reply->element[i]->str, set_reply->element[i]->len));
+          }
+        }
+        if (cursor == 0) {
+          break;
+        }
       }
     }
     return keys_prefix_name_slices_in_redis;
@@ -295,7 +310,7 @@ class RedisWrapper<RedisInstance, K, V,
       keys_prefix_name_slices_in_redis = std::move(
           GetKeyBucketsAndOptimizerParamsWithName(keys_prefix_name, true));
     } catch (const std::exception &err) {
-      LOG(ERROR) << "RedisHandler error in CheckSlicesNum for KEYS "
+      LOG(ERROR) << "RedisHandler error in CheckSlicesNum for SCAN "
                  << keys_prefix_name << " -- " << err.what();
       return -1;
     }
@@ -328,6 +343,88 @@ class RedisWrapper<RedisInstance, K, V,
       return -1;
     }
     return -1;
+  }
+
+  virtual std::vector<std::pair<unsigned, unsigned>> ClusterNodesSlots(
+      bool full_slots) override {
+    std::vector<std::pair<unsigned, unsigned>> cluster_slots;
+    cluster_slots.reserve(redis_connection_params.storage_slice);
+    auto cmd = [](::sw::redis::Connection &connection,
+                  ::sw::redis::StringView hkey) {
+      connection.send("CLUSTER NODES");
+    };
+    ::sw::redis::StringView _hkey("0");
+    std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply;
+    try {
+      reply = redis_conn_read->command(cmd, _hkey);
+    } catch (const std::exception &err) {
+      LOG(ERROR) << "RedisHandler error in ClusterNodesSlots --  "
+                 << err.what();
+      return cluster_slots;
+    }
+    if (reply->type == REDIS_REPLY_STRING) {
+      std::vector<std::vector<::sw::redis::StringView>> csv_table;
+      std::vector<::sw::redis::StringView> csv_table_row;
+      csv_table.reserve(redis_connection_params.storage_slice * 2);
+      csv_table_row.reserve(10);
+      const char *str_ptr = reply->str;
+      const char *const str_ptr_begin = reply->str;
+      for (size_t i = 0, col = 0; i < reply->len; ++i) {
+        if (*(str_ptr_begin + i) == ' ') {
+          csv_table_row.emplace_back(::sw::redis::StringView(str_ptr, i - col));
+          col = i + 1;
+          str_ptr = str_ptr_begin + i + 1;
+        } else if (*(str_ptr_begin + i) == '\n') {
+          csv_table_row.emplace_back(::sw::redis::StringView(str_ptr, i - col));
+          csv_table.push_back(csv_table_row);
+          csv_table_row.clear();
+          col = i + 1;
+          str_ptr = str_ptr_begin + i + 1;
+        }
+      }
+      std::string tmp_slot_num;
+      tmp_slot_num.reserve(5);
+      unsigned tmp_first_slot = 0, tmp_second_slot = 0;
+      for (auto row : csv_table) {
+        if (strncmp(row.at(2).data(), "master", 6) == 0 ||
+            strncmp(row.at(2).data(), "myself,master", 13) == 0) {
+          if (full_slots) {
+            for (size_t i = 8; i < row.size(); ++i) {
+              for (const char *num = row.at(i).data();
+                   num != num + row.at(i).size(); ++num) {
+                if (*num != '-') {
+                  tmp_slot_num.push_back(*num);
+                } else {
+                  tmp_first_slot = std::stoul(tmp_slot_num);
+                  tmp_slot_num.clear();
+                }
+              }
+              tmp_second_slot = std::stoul(tmp_slot_num);
+              cluster_slots.push_back(
+                  std::make_pair(tmp_first_slot, tmp_second_slot));
+            }
+          } else {
+            const char *const num_end = row.at(8).data() + row.at(8).size();
+            for (const char *num = row.at(8).data(); num != num_end; ++num) {
+              if (*num != '-') {
+                tmp_slot_num.push_back(*num);
+              } else {
+                tmp_first_slot = std::stoul(tmp_slot_num);
+                tmp_slot_num.clear();
+              }
+            }
+            tmp_second_slot = std::stoul(tmp_slot_num);
+            tmp_slot_num.clear();
+            cluster_slots.push_back(
+                std::make_pair(tmp_first_slot, tmp_second_slot));
+          }
+        }
+      }
+    }
+    std::sort(cluster_slots.begin(), cluster_slots.end());
+    cluster_slots.erase(std::unique(cluster_slots.begin(), cluster_slots.end()),
+                        cluster_slots.end());
+    return cluster_slots;
   }
 
   virtual size_t TableSizeInBucket(
@@ -447,29 +544,30 @@ class RedisWrapper<RedisInstance, K, V,
 
   virtual Status SetExpireBuckets(
       const std::string &keys_prefix_name) override {
-    // std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply;
-    const std::string expire_command("EXPIRE ");
-    std::string redis_command;
-    auto cmd = [](::sw::redis::Connection &connection,
-                  ::sw::redis::StringView hkey,
-                  const char *str) { connection.send(str); };
-    auto &&bucket_names =
-        GetKeyBucketsAndOptimizerParamsWithName(keys_prefix_name, false);
-    for (auto bucket_name : bucket_names) {
-      redis_command.clear();
-      redis_command =
-          expire_command + bucket_name + ' ' +
-          std::to_string(redis_connection_params.expire_model_tag_in_seconds);
-      try {
-        /*reply=*/redis_conn_write->command(cmd, bucket_name,
-                                            redis_command.data());
-      } catch (const std::exception &err) {
-        LOG(ERROR) << "RedisHandler error in SetExpireBuckets for "
-                   << bucket_name << " -- " << err.what();
-        return errors::Unknown(err.what());
+    if (redis_connection_params.expire_model_tag_in_seconds >= 0) {
+      // std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply;
+      const std::string expire_command("EXPIRE ");
+      std::string redis_command;
+      auto cmd = [](::sw::redis::Connection &connection,
+                    ::sw::redis::StringView hkey,
+                    const char *str) { connection.send(str); };
+      auto &&bucket_names =
+          GetKeyBucketsAndOptimizerParamsWithName(keys_prefix_name, false);
+      for (auto bucket_name : bucket_names) {
+        redis_command.clear();
+        redis_command =
+            expire_command + bucket_name + ' ' +
+            std::to_string(redis_connection_params.expire_model_tag_in_seconds);
+        try {
+          /*reply=*/redis_conn_write->command(cmd, bucket_name,
+                                              redis_command.data());
+        } catch (const std::exception &err) {
+          LOG(ERROR) << "RedisHandler error in SetExpireBuckets for "
+                     << bucket_name << " -- " << err.what();
+          return errors::Unknown(err.what());
+        }
       }
     }
-
     return Status::OK();
   }
 
@@ -536,8 +634,9 @@ class RedisWrapper<RedisInstance, K, V,
       wr = &wrs[i];
       if (wr->aio_nbytes > 0) {
         for (size_t i = 3; i > 0; --i) {
-          while (aio_error(wr) == EINPROGRESS)
+          while (aio_error(wr) == EINPROGRESS) {
             ;
+          }
           if ((ret = aio_return(wr)) > 0) {
             break;
           } else {
@@ -986,6 +1085,70 @@ every bucket has its own BucketContext for sending data---for locating reply-
         ++(buckets_iters_nums[bucket_loc]);
         CopyDefaultToTensor(is_full_default, pv_raw, dft_raw, dft_raw_begin,
                             Velems_per_dim0);
+      }
+    }
+
+    return Status::OK();
+  }
+
+  virtual Status MgetToTensorWithExist(
+      Tensor *values, const Tensor &default_value, Tensor &exists,
+      const bool is_full_default, ThreadContext *thread_context,
+      std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>>
+          &reply,
+      const int64 begin, const int64 max_i,
+      const int64 Velems_per_dim0) override {
+    const V *pv_raw =
+        reinterpret_cast<const V *>(values->tensor_data().data()) +
+        begin * Velems_per_dim0;
+    const V *dft_raw =
+        reinterpret_cast<const V *>(default_value.tensor_data().data()) +
+        begin * Velems_per_dim0;
+    const V *const dft_raw_begin =
+        reinterpret_cast<const V *>(default_value.tensor_data().data());
+    auto exists_flat = exists.flat<bool>();
+
+    const std::vector<unsigned> *bucket_locs =
+        thread_context->bucket_locs.get();
+    const unsigned &storage_slice = redis_connection_params.storage_slice;
+    unsigned buckets_iters_nums[storage_slice];
+    unsigned bucket_loc;
+    memset(buckets_iters_nums, 0U, sizeof(buckets_iters_nums));
+    redisReply *temp_reply;
+    bool print_once[storage_slice];
+    memset(print_once, false, sizeof(print_once));
+    for (int64 i = 0, j = begin; i < (max_i - begin);
+         ++i, ++j, pv_raw += Velems_per_dim0, dft_raw += Velems_per_dim0) {
+      bucket_loc = (*bucket_locs)[i];
+      if (reply[bucket_loc] != nullptr) {
+        if (reply[bucket_loc]->type == REDIS_REPLY_ARRAY) {
+          temp_reply =
+              reply[bucket_loc]->element[buckets_iters_nums[bucket_loc]];
+          ++(buckets_iters_nums[bucket_loc]);
+          if (temp_reply->type ==
+              REDIS_REPLY_STRING)  // #define REDIS_REPLY_STRING 1
+          {
+            ReplyMemcpyToValTensor<V>(
+                pv_raw, temp_reply->str,
+                Velems_per_dim0);  // Direct access to Tensor data in TensorFlow
+            exists_flat(j) = true;
+          } else {
+            CopyDefaultToTensor(is_full_default, pv_raw, dft_raw, dft_raw_begin,
+                                Velems_per_dim0);
+            exists_flat(j) = false;
+          }
+        }
+      } else {
+        if (!print_once[bucket_loc]) {
+          LOG(WARNING) << "Redis reply in bucket_loc " << bucket_loc
+                       << " from MgetCommend has some problems with error "
+                       << ", using default values to repalce.";
+          print_once[bucket_loc] = true;
+        }
+        ++(buckets_iters_nums[bucket_loc]);
+        CopyDefaultToTensor(is_full_default, pv_raw, dft_raw, dft_raw_begin,
+                            Velems_per_dim0);
+        exists_flat(j) = false;
       }
     }
 

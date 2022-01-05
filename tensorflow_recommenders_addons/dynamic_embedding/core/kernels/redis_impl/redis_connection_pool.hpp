@@ -14,7 +14,6 @@ limitations under the License.
 ==============================================================================*/
 
 #include <inttypes.h>
-#include <nmmintrin.h>
 #include <sw/redis++/connection.h>
 #include <sw/redis++/connection_pool.h>
 #include <sw/redis++/redis++.h>
@@ -101,7 +100,7 @@ class RedisWrapper<
     auto sentinel = std::make_shared<Sentinel>(sentinel_opts);
 
     try {
-      static auto redis_client = std::make_shared<RedisInstance>(
+      auto redis_client = std::make_shared<RedisInstance>(
           RedisInstance(sentinel, redis_connection_params.redis_master_name,
                         role, conn_opts, pool_opts));
       redis_client->ping();
@@ -135,7 +134,7 @@ class RedisWrapper<
     SetPublicConnParams(conn_opts, pool_opts, redis_connection_params);
 
     try {
-      static auto redis_client =
+      auto redis_client =
           std::make_shared<RedisInstance>(RedisInstance(conn_opts, pool_opts));
       redis_client->ping();
       if (RedisClusterEnabled(redis_client) == true) {
@@ -189,10 +188,7 @@ class RedisWrapper<
   }
 
   static std::shared_ptr<RedisWrapper<RedisInstance, K, V>> get_instance() {
-    /* for the Meyer's Singleton mode.
-      When make Class constructor private, it will be not allow using
-      make_shared to init the Class. It' not safe, but having no choice. */
-    static std::shared_ptr<RedisWrapper<RedisInstance, K, V>> instance_ptr(
+    std::shared_ptr<RedisWrapper<RedisInstance, K, V>> instance_ptr(
         new RedisWrapper<RedisInstance, K, V>());
     return instance_ptr;
   }
@@ -203,27 +199,43 @@ class RedisWrapper<
       const bool only_get_buckets) override {
     std::vector<std::string> keys_prefix_name_slices_in_redis;
     std::string redis_command;
-    if (only_get_buckets) {
-      redis_command = "KEYS " + keys_prefix_name + "{[0123456789]*}";
-    } else {
-      redis_command = "KEYS " + keys_prefix_name + "*{[0123456789]*}";
-    }
     auto cmd = [](::sw::redis::Connection &connection, const char *str) {
       connection.send(str);
     };
-    std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply;
-    try {
-      reply = redis_conn_read->command(cmd, redis_command.data());
-    } catch (const std::exception &err) {
-      LOG(ERROR) << "RedisHandler error in "
-                    "GetKeyBucketsAndOptimizerParamsWithName for KEYS "
-                 << keys_prefix_name << " -- " << err.what();
-      return keys_prefix_name_slices_in_redis;
-    }
-    keys_prefix_name_slices_in_redis.reserve(reply->elements);
-    for (size_t i = 0; i < reply->elements; ++i) {
-      keys_prefix_name_slices_in_redis.emplace_back(
-          std::string(reply->element[i]->str, reply->element[i]->len));
+    std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply_server;
+    long long cursor = 0;
+    const redisReply *set_reply;
+    keys_prefix_name_slices_in_redis.reserve(
+        redis_connection_params.storage_slice);
+    while (true) {
+      if (only_get_buckets) {
+        redis_command = "SCAN " + std::to_string(cursor) + " MATCH " +
+                        keys_prefix_name + "{[0123456789]*}";
+      } else {
+        redis_command = "SCAN " + std::to_string(cursor) + " MATCH " +
+                        keys_prefix_name + "*{[0123456789]*}";
+      }
+      try {
+        reply_server = redis_conn_read->command(cmd, redis_command.data());
+      } catch (const std::exception &err) {
+        LOG(ERROR) << "RedisHandler error in "
+                      "GetKeyBucketsAndOptimizerParamsWithName for SCAN "
+                   << keys_prefix_name << " -- " << err.what();
+      }
+      if (reply_server->element[0]->type == REDIS_REPLY_STRING) {
+        // #define REDIS_REPLY_STRING 1
+        cursor = std::atoll(reply_server->element[0]->str);
+      }
+      if (reply_server->element[1]->type == REDIS_REPLY_ARRAY) {
+        set_reply = reply_server->element[1];
+        for (size_t i = 0; i < set_reply->elements; ++i) {
+          keys_prefix_name_slices_in_redis.emplace_back(std::string(
+              set_reply->element[i]->str, set_reply->element[i]->len));
+        }
+      }
+      if (cursor == 0) {
+        break;
+      }
     }
     return keys_prefix_name_slices_in_redis;
   }
@@ -240,7 +252,7 @@ class RedisWrapper<
       keys_prefix_name_slices_in_redis = std::move(
           GetKeyBucketsAndOptimizerParamsWithName(keys_prefix_name, true));
     } catch (const std::exception &err) {
-      LOG(ERROR) << "RedisHandler error in CheckSlicesNum for KEYS "
+      LOG(ERROR) << "RedisHandler error in CheckSlicesNum for SCAN "
                  << keys_prefix_name << " -- " << err.what();
       return -1;
     }
@@ -273,6 +285,11 @@ class RedisWrapper<
       return -1;
     }
     return -1;
+  }
+
+  virtual std::vector<std::pair<unsigned, unsigned>> ClusterNodesSlots(
+      bool full_slots) override {
+    return std::vector<std::pair<unsigned, unsigned>>();
   }
 
   virtual size_t TableSizeInBucket(
@@ -387,28 +404,29 @@ class RedisWrapper<
 
   virtual Status SetExpireBuckets(
       const std::string &keys_prefix_name) override {
-    // std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply;
-    const std::string expire_command("EXPIRE ");
-    std::string redis_command;
-    auto cmd = [](::sw::redis::Connection &connection, const char *str) {
-      connection.send(str);
-    };
-    auto &&bucket_names =
-        GetKeyBucketsAndOptimizerParamsWithName(keys_prefix_name, false);
-    for (auto bucket_name : bucket_names) {
-      redis_command.clear();
-      redis_command =
-          expire_command + bucket_name + ' ' +
-          std::to_string(redis_connection_params.expire_model_tag_in_seconds);
-      try {
-        /*reply=*/redis_conn_write->command(cmd, redis_command.data());
-      } catch (const std::exception &err) {
-        LOG(ERROR) << "RedisHandler error in SetExpireBuckets for "
-                   << bucket_name << " -- " << err.what();
-        return errors::Unknown(err.what());
+    if (redis_connection_params.expire_model_tag_in_seconds >= 0) {
+      // std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply;
+      const std::string expire_command("EXPIRE ");
+      std::string redis_command;
+      auto cmd = [](::sw::redis::Connection &connection, const char *str) {
+        connection.send(str);
+      };
+      auto &&bucket_names =
+          GetKeyBucketsAndOptimizerParamsWithName(keys_prefix_name, false);
+      for (auto bucket_name : bucket_names) {
+        redis_command.clear();
+        redis_command =
+            expire_command + bucket_name + ' ' +
+            std::to_string(redis_connection_params.expire_model_tag_in_seconds);
+        try {
+          /*reply=*/redis_conn_write->command(cmd, redis_command.data());
+        } catch (const std::exception &err) {
+          LOG(ERROR) << "RedisHandler error in SetExpireBuckets for "
+                     << bucket_name << " -- " << err.what();
+          return errors::Unknown(err.what());
+        }
       }
     }
-
     return Status::OK();
   }
 
@@ -474,8 +492,9 @@ class RedisWrapper<
       wr = &wrs[i];
       if (wr->aio_nbytes > 0) {
         for (size_t i = 3; i > 0; --i) {
-          while (aio_error(wr) == EINPROGRESS)
+          while (aio_error(wr) == EINPROGRESS) {
             ;
+          }
           if ((ret = aio_return(wr)) > 0) {
             break;
           } else {
@@ -894,6 +913,60 @@ every bucket has its own BucketContext for sending data---for locating reply-
         }
         CopyDefaultToTensor(is_full_default, pv_raw, dft_raw, dft_raw_begin,
                             Velems_per_dim0);
+      }
+    }
+
+    return Status::OK();
+  }
+
+  virtual Status MgetToTensorWithExist(
+      Tensor *values, const Tensor &default_value, Tensor &exists,
+      const bool is_full_default, ThreadContext *thread_context,
+      std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>>
+          &reply,
+      const int64 begin, const int64 max_i,
+      const int64 Velems_per_dim0) override {
+    const V *pv_raw =
+        reinterpret_cast<const V *>(values->tensor_data().data()) +
+        begin * Velems_per_dim0;
+
+    const V *dft_raw =
+        reinterpret_cast<const V *>(default_value.tensor_data().data()) +
+        begin * Velems_per_dim0;
+    const V *const dft_raw_begin =
+        reinterpret_cast<const V *>(default_value.tensor_data().data());
+    auto exists_flat = exists.flat<bool>();
+
+    redisReply *temp_reply;
+    bool print_once = false;
+    for (int64 i = 0, j = begin; i < max_i - begin;
+         ++i, ++j, pv_raw += Velems_per_dim0, dft_raw += Velems_per_dim0) {
+      if (reply[0] != nullptr) {
+        if (reply[0]->type == REDIS_REPLY_ARRAY) {
+          temp_reply = reply[0]->element[i];
+          if (temp_reply->type ==
+              REDIS_REPLY_STRING)  // #define REDIS_REPLY_STRING 1
+          {
+            ReplyMemcpyToValTensor<V>(
+                pv_raw, temp_reply->str,
+                Velems_per_dim0);  // Direct access to Tensor data in TensorFlow
+            exists_flat(j) = true;
+          } else {
+            CopyDefaultToTensor(is_full_default, pv_raw, dft_raw, dft_raw_begin,
+                                Velems_per_dim0);
+            exists_flat(j) = false;
+          }
+        }
+      } else {
+        if (!print_once) {
+          LOG(WARNING)
+              << "Redis reply from MgetCommend has some problems with error "
+              << ", using default values to repalce.";
+          print_once = true;
+        }
+        CopyDefaultToTensor(is_full_default, pv_raw, dft_raw, dft_raw_begin,
+                            Velems_per_dim0);
+        exists_flat(j) = false;
       }
     }
 

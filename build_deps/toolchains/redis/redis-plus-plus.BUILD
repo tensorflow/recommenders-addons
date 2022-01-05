@@ -1,4 +1,4 @@
-load("@rules_foreign_cc//tools/build_defs:cmake.bzl", "cmake_external")
+load("@rules_foreign_cc//foreign_cc:defs.bzl", "cmake")
 load(
     "@local_config_tf//:build_defs.bzl",
     "D_GLIBCXX_USE_CXX11_ABI",
@@ -16,7 +16,7 @@ filegroup(
     visibility = ["//visibility:public"],
 )
 
-cmake_external(
+cmake(
     name = "redis-plus-plus",
     cache_entries = {
         # CMake's find_package wants to find cmake config for liba,
@@ -27,13 +27,13 @@ cmake_external(
         "HIREDIS_LIB": "$EXT_BUILD_DEPS/hiredis/lib",
         "HIREDIS_HEADER": "$EXT_BUILD_DEPS/hiredis/include",
     },
-    cmake_options = [
+    generate_args = [
         "-DCMAKE_BUILD_TYPE=Release",
         "-DREDIS_PLUS_PLUS_BUILD_TEST=OFF",
         "-DREDIS_PLUS_PLUS_CXX_STANDARD=11",
         "-DCMAKE_CXX_FLAGS="+D_GLIBCXX_USE_CXX11_ABI,
     ],
     lib_source = "@redis-plus-plus//:all_srcs",
-    static_libraries = ["libredis++.a"],
+    out_static_libs = ["libredis++.a"],
     deps = ["@hiredis"],
 )

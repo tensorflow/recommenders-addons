@@ -109,6 +109,7 @@ class RedisTableConfig(object):
         "redis_connection_lifetime": 100,
         "redis_sentinel_connect_timeout": 1000,
         "redis_sentinel_socket_timeout": 1000,
+        "storage_slice_import": 1,
         "storage_slice": 1,
         "keys_sending_size": 1024,
         "using_md5_prefix_name": False,

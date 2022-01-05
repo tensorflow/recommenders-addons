@@ -102,10 +102,10 @@ Status launchFindWithExistsCore(
       _table_instance->MgetCommand(keys, threads_Find.at(thread_context_id),
                                    begin, end, keys_prefix_name_slices);
 
-  auto statu =
-      _table_instance->MgetToTensor(values, default_value, is_full_default,
-                                    threads_Find.at(thread_context_id), reply,
-                                    begin, end, Velems_per_flat2_dim0);
+  auto statu = _table_instance->MgetToTensorWithExist(
+      values, default_value, exists, is_full_default,
+      threads_Find.at(thread_context_id), reply, begin, end,
+      Velems_per_flat2_dim0);
 
   threads_Find[thread_context_id]->thread_occupied.store(
       false, std::memory_order_release);
@@ -325,19 +325,14 @@ Status ParseJsonConfig(const std::string *const redis_config_abs_dir,
 
   ReadOneJsonToParams(redis_sentinel_socket_timeout, integer);
 
-  json_hangar_it = json_hangar.find("storage_slice");
-  if (json_hangar_it != json_hangar.end()) {
-    if (json_hangar_it->second->type == json_integer) {
-      redis_connection_params->storage_slice_log2 =
-          round_next_power_two_bitlen(json_hangar_it->second->u.integer);
-      redis_connection_params->storage_slice =
-          json_hangar_it->second->u.integer;
-    } else {
-      LOG(ERROR) << "storage_slice should be json_integer";
-      return Status(error::INVALID_ARGUMENT,
-                    "storage_slice should be json_integer");
-    }
-  }
+  ReadOneJsonToParams(storage_slice_import, integer);
+
+  ReadOneJsonToParams(storage_slice, integer);
+
+  redis_connection_params->storage_slice_import =
+      redis_connection_params->storage_slice_import > 0
+          ? redis_connection_params->storage_slice_import
+          : redis_connection_params->storage_slice;
 
   ReadOneJsonToParams(keys_sending_size, integer);
 
@@ -406,11 +401,11 @@ std::string BuildKeysPrefixNameWithModelTag(const std::string &model_tag,
 }
 
 std::vector<std::string> BuildKeysPrefixNameSlices(
+    const std::vector<std::pair<unsigned, unsigned>> cluster_slots,
     const unsigned storage_slice, std::vector<std::string> redis_hash_tags,
     const std::string &keys_prefix_name) {
   std::vector<std::string> keys_prefix_name_slices;
   keys_prefix_name_slices.reserve(storage_slice);
-  const unsigned slot_num_in_redis = 16384 / storage_slice;
   if (redis_hash_tags.size() == storage_slice) {
     LOG(INFO) << "Using the prefix redis_hash_tags for every bucket.";
     for (auto redis_hash_tag : redis_hash_tags) {
@@ -423,19 +418,56 @@ std::vector<std::string> BuildKeysPrefixNameSlices(
       keys_prefix_name_slices.emplace_back(keys_prefix_name + redis_hash_tag);
     }
   } else {
-    LOG(WARNING)
+    LOG(INFO)
         << "Number of prefix redis_hash_tags is not equal to the prefix "
            "storage_slice. Now using the hash tags generated sequentially.";
-    for (unsigned i = 0; i < storage_slice; ++i) {
-      keys_prefix_name_slices.emplace_back(
-          keys_prefix_name + '{' +
-          std::to_string(redis_slots_tab[slot_num_in_redis * i]) + '}');
+    if (cluster_slots.size() == 0) {
+      const unsigned slot_num_in_redis = 16384 / storage_slice;
+      const unsigned slot_in_redis_rem = 16384 % storage_slice;
+      for (unsigned i = 0; i < storage_slice; ++i) {
+        keys_prefix_name_slices.emplace_back(
+            keys_prefix_name + '{' +
+            std::to_string(
+                redis_slots_tab[slot_num_in_redis * i + slot_in_redis_rem]) +
+            '}');
+      }
+    } else {
+      if (cluster_slots.size() < storage_slice) {
+        for (unsigned i = 0; i < storage_slice;) {
+          for (auto cluster_slot : cluster_slots) {
+            keys_prefix_name_slices.emplace_back(
+                keys_prefix_name + '{' +
+                std::to_string(redis_slots_tab[cluster_slot.first +
+                                               i / cluster_slots.size() *
+                                                   ((cluster_slot.second -
+                                                     cluster_slot.first) *
+                                                    cluster_slots.size() /
+                                                    storage_slice)]) +
+                '}');
+            ++i;
+            if (i == storage_slice) {
+              break;
+            }
+          }
+        }
+      } else {
+        if (cluster_slots.size() > storage_slice) {
+          LOG(WARNING) << "Nodes in Redis service is bigger than storage_slice "
+                          "set by user, it may cause data skew.";
+        }
+        for (unsigned i = 0; i < storage_slice; ++i) {
+          keys_prefix_name_slices.emplace_back(
+              keys_prefix_name + '{' +
+              std::to_string(redis_slots_tab[cluster_slots.at(i).first]) + '}');
+        }
+      }
     }
   }
   return keys_prefix_name_slices;
 }
 
 void CreateKeysPrefixNameHandle(
+    const std::vector<std::pair<unsigned, unsigned>> cluster_slots,
     const Redis_Connection_Params *const redis_connection_params,
     const std::string &embedding_name, std::string &keys_prefix_name_runtime,
     std::string &keys_prefix_name_import,
@@ -445,14 +477,15 @@ void CreateKeysPrefixNameHandle(
       redis_connection_params->model_tag_runtime,
       redis_connection_params->using_md5_prefix_name, embedding_name);
   keys_prefix_name_slices_runtime = BuildKeysPrefixNameSlices(
-      redis_connection_params->storage_slice,
+      cluster_slots, redis_connection_params->storage_slice,
       redis_connection_params->redis_hash_tags_runtime,
       keys_prefix_name_runtime);
   keys_prefix_name_import = BuildKeysPrefixNameWithModelTag(
       redis_connection_params->model_tag_import,
       redis_connection_params->using_md5_prefix_name, embedding_name);
   keys_prefix_name_slices_import = BuildKeysPrefixNameSlices(
-      redis_connection_params->storage_slice,
+      cluster_slots,
+      static_cast<unsigned>(redis_connection_params->storage_slice_import),
       redis_connection_params->redis_hash_tags_import, keys_prefix_name_import);
 }
 

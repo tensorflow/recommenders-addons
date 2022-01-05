@@ -55,6 +55,10 @@ def is_linux():
   return platform.system() == "Linux"
 
 
+def is_arm64():
+  return platform.machine() == "arm64"
+
+
 def is_raspi_arm():
   return os.uname()[4] == "armv7l"
 
@@ -205,7 +209,8 @@ def create_build_configuration():
     write("build:windows --copt=/arch=AVX")
 
   if is_macos() or is_linux():
-    write("build --copt=-mavx")
+    if not is_arm64():
+      write("build --copt=-mavx")
 
   if os.getenv("TF_NEED_CUDA", "0") == "1":
     print("> Building GPU & CPU ops")

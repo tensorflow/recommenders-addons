@@ -279,20 +279,36 @@ class Variable(base.Trackable):
     else:
       self._restrict_policy = None
 
-    key_dtype_list = [dtypes.int32, dtypes.int64, dtypes.string]
-    value_dtype_list = [
-        dtypes.int32, dtypes.int64, dtypes.bool, dtypes.float32, dtypes.float64,
-        dtypes.half, dtypes.int8, dtypes.string
-    ]
+    valid_dtype_list = [[dtypes.int64, dtypes.float32],
+                        [dtypes.int64,
+                         dtypes.half], [dtypes.int64, dtypes.int32],
+                        [dtypes.int64, dtypes.int8],
+                        [dtypes.int64, dtypes.int64],
+                        [dtypes.int64, dtypes.float64],
+                        [dtypes.int64, dtypes.string],
+                        [dtypes.int32, dtypes.float32],
+                        [dtypes.int32, dtypes.int32],
+                        [dtypes.int32, dtypes.float64],
+                        [dtypes.string, dtypes.float32],
+                        [dtypes.string, dtypes.half],
+                        [dtypes.string, dtypes.int32],
+                        [dtypes.string, dtypes.int8],
+                        [dtypes.string, dtypes.int64],
+                        [dtypes.string, dtypes.float64],
+                        [dtypes.string, dtypes.bool]]
     if "GPU" in self.devices[0].upper():
-      key_dtype_list = [dtypes.int64]
-      value_dtype_list = [
-          dtypes.int32, dtypes.float32, dtypes.half, dtypes.int8
+      valid_dtype_list = [
+          [dtypes.int64, dtypes.float32],
+          [dtypes.int64, dtypes.half],
+          [dtypes.int64, dtypes.int32],
+          [dtypes.int64, dtypes.int8],
+          [dtypes.int64, dtypes.int64],
+          [dtypes.int32, dtypes.float32],
       ]
-    if key_dtype not in key_dtype_list:
-      raise TypeError("key_dtype should be ", key_dtype_list)
-    if value_dtype not in value_dtype_list:
-      raise TypeError("value_dtype should be ", value_dtype_list)
+    if [key_dtype, value_dtype] not in valid_dtype_list:
+      raise TypeError(
+          "key-value dtype ({}-{}) is not support! The valid dtypes are \n{}\n".
+          format(key_dtype, value_dtype, valid_dtype_list))
 
     _initializer = initializer
     if _initializer is None:

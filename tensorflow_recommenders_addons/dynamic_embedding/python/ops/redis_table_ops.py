@@ -18,6 +18,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import fcntl
 import functools
 import json
 import os
@@ -79,6 +80,8 @@ class RedisTable(LookupInterface):
       "redis_sentinel_connect_timeout": 1000,  # milliseconds
       "redis_sentinel_socket_timeout": 1000,  # milliseconds
       # Below there is user-defined parameters in this custom op, not Redis setting parameters
+      "storage_slice_import":
+          -1,  # If storage_slice_import is not equal to storage_slice, rehash will happen. Equaling -1 means same as storage_slice.
       "storage_slice":
           1,  # For deciding bucket number, which usually is how many Redis instance may be used in the trainning.
       "keys_sending_size":
@@ -92,8 +95,9 @@ class RedisTable(LookupInterface):
           "test",  #  model_tag_runtime for version and any other information for now.
       "redis_hash_tags_runtime": [
       ],  # Deciding hash tag for every bucket for now, Note that the hash tag must be wrapped in curly braces {}.
-      "expire_model_tag_in_seconds":
-          604800,  # To eliminate unwanted model versions in Redis to ensure sufficient storage space.
+      "expire_model_tag_in_seconds": 604800,
+      # To eliminate unwanted model versions in Redis to ensure sufficient storage space.
+      # It will not take effect if it is less than zero.
       "table_store_mode": 1,
       # Saving and restoring table into ensor in TF savedmodel variable file, table_store_mode = 0;
       # Saving and restoring table into redis rdb file in model_lib_abs_dir, table_store_mode = 1;
@@ -195,17 +199,23 @@ class RedisTable(LookupInterface):
     if self.redis_config_file_create == True and self.redis_config_file_exist == False:
       with open(self._config.redis_config_abs_dir, 'w+',
                 encoding='utf-8') as f0:
+        fcntl.flock(f0, fcntl.LOCK_EX)
         f0.write(
             json.dumps(self.default_redis_params, indent=2, ensure_ascii=True))
+        fcntl.flock(f0, fcntl.LOCK_UN)
     else:
       with open(self._config.redis_config_abs_dir, 'r', encoding='utf-8') as f0:
+        fcntl.flock(f0, fcntl.LOCK_EX)
         params_load = json.load(f0)
+        fcntl.flock(f0, fcntl.LOCK_UN)
         self._redis_params = self.default_redis_params.copy()
         for k in self._redis_params.keys():
           if k in params_load:
             self._redis_params[k] = params_load[k]
       with open(self._config.redis_config_abs_dir, 'w', encoding='utf-8') as f1:
+        fcntl.flock(f1, fcntl.LOCK_EX)
         f1.write(json.dumps(self._redis_params, indent=2, ensure_ascii=True))
+        fcntl.flock(f1, fcntl.LOCK_UN)
 
     self._shared_name = None
     if context.executing_eagerly():

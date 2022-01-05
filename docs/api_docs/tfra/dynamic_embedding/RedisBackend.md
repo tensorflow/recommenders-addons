@@ -48,6 +48,7 @@ Below is an example of a JSON file, along with comments on the corresponding pro
       "redis_sentinel_socket_timeout": 1000,  // milliseconds
 
       // Below there is user-defined parameters in this custom op, not Redis setting parameters
+      "storage_slice_import": 2, // If storage_slice_import is not equal to storage_slice, rehash will happen. Equaling -1 means same as storage_slice.
       "storage_slice": 2,  // For deciding bucket number, which usually is how many Redis instance may be used in the trainning.
       "keys_sending_size": 1024,  // Determines how many keys to send at a time for performance tuning
       "using_md5_prefix_name": False,  // 1=true, 0=false
@@ -55,7 +56,7 @@ Below is an example of a JSON file, along with comments on the corresponding pro
       "redis_hash_tags_import": ["{6379}","{26379}"], // Deciding hash tag for every bucket from last time, Note that the hash tag must be wrapped in curly braces {}.
       "model_tag_runtime": "test",  // model_tag_runtime for version and any other information for now.
       "redis_hash_tags_runtime": ["{3560}","{120}"], // Deciding hash tag for every bucket for now, Note that the hash tag must be wrapped in curly braces {}.
-      "expire_model_tag_in_seconds": 604800,  // To eliminate unwanted model versions in Redis to ensure sufficient storage space.
+      "expire_model_tag_in_seconds": 604800,  // To eliminate unwanted model versions in Redis to ensure sufficient storage space. It will not take effect if it is less than zero.
       "table_store_mode": 1,  // Saving and restoring table into ensor in TF savedmodel variable file, table_store_mode = 0; Saving and restoring table into redis rdb file in model_lib_abs_dir, table_store_mode = 1; Saving and restoring nothing, keeping data in redis servers, table_store_mode = 2.
       "model_lib_abs_dir": "/tmp/"  // if table_store_mode equals 1, then it will try to save or resoter table from model_lib_abs_dir which has been mounted in system
   }

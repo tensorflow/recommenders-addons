@@ -55,6 +55,13 @@ custom_op_library(
         "-pthread",
         "-Ofast",
     ],
+    linkopts = select({
+        "@bazel_tools//src/conditions:linux_x86_64": [
+            "-lpthread",
+            "-lrt",
+        ],
+        "//conditions:default": [],
+    }),
     deps = [
         "@hiredis",
         "@redis-plus-plus//:redis-plus-plus",

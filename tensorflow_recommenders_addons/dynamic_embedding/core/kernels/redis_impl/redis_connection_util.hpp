@@ -21,10 +21,10 @@ limitations under the License.
 #include <sw/redis++/sentinel.h>
 #include <sys/stat.h>
 #include <unistd.h>
-#include <x86intrin.h>
 
 #include <cmath>
 #include <iostream>
+#include <sstream>
 
 #include "md5.h"
 #include "tensorflow/core/framework/tensor.h"
@@ -152,13 +152,14 @@ struct Redis_Connection_Params {
   //
   // Below there is user-defined parameters in this custom op, not Redis
   // setting parameters
+  int storage_slice_import = -1;
   unsigned storage_slice =
-      1;  // For deciding bucket number, which usually is how many Redis
-          // instance may be used in the trainning.
-  unsigned storage_slice_log2 = 0;  // For fast calculation.
-  unsigned expire_model_tag_in_seconds =
+      1;  // For deciding bucket number, which usually is how
+          // many Redis instance may be used in the trainning.
+  int expire_model_tag_in_seconds =
       604800;  // To eliminate unwanted model versions in Redis to ensure
-               // sufficient storage space.
+               // sufficient storage space. It will not take effect if it is
+               // less than zero.
   unsigned long long keys_sending_size =
       1024;  // Determines how many keys to send at a time
              // for performance tuning
@@ -201,12 +202,10 @@ struct Redis_Connection_Params {
         x.redis_sentinel_connect_timeout;  // milliseconds
     redis_sentinel_socket_timeout =
         x.redis_sentinel_socket_timeout;  // milliseconds
-    storage_slice_log2 =
-        round_next_power_two_bitlen(x.storage_slice);  // beter for modding.
+    storage_slice_import =
+        x.storage_slice_import >= 0 ? x.storage_slice_import : x.storage_slice;
     storage_slice = x.storage_slice;
-    expire_model_tag_in_seconds = x.expire_model_tag_in_seconds > 0
-                                      ? x.expire_model_tag_in_seconds
-                                      : 2626560;
+    expire_model_tag_in_seconds = x.expire_model_tag_in_seconds;
     model_tag_import = x.model_tag_import;
     redis_hash_tags_import.assign(x.redis_hash_tags_import.begin(),
                                   x.redis_hash_tags_import.end());
@@ -314,13 +313,19 @@ class RedisVirtualWrapper {
   template <typename RedisClient>
   inline bool RedisClusterEnabled(RedisClient redis_client) {
     auto info_cluster = redis_client->command("info", "cluster");
-    auto tmp_char = strtok(info_cluster->str, "\n");
-    tmp_char = strtok(NULL, "\n");
-    tmp_char = strtok(tmp_char, ":");
-    auto cluster_bool = strtok(NULL, ":");
-    if (strcmp(cluster_bool, "1\r") == 0) {
-      return true;
+    if (info_cluster->len > 0) {
+      auto tmp_char = strtok(info_cluster->str, "\n");
+      tmp_char = strtok(NULL, "\n");
+      tmp_char = strtok(tmp_char, ":");
+      auto cluster_bool = strtok(NULL, ":");
+      if (strcmp(cluster_bool, "1\r") == 0) {
+        return true;
+      } else {
+        return false;
+      }
     } else {
+      LOG(WARNING)
+          << "INFO CLUSTER has no response. Regard as a single node mode.";
       return false;
     }
   }
@@ -367,6 +372,9 @@ class RedisVirtualWrapper {
 
   virtual int CheckSlicesNum(const std::string &keys_prefix_name) = 0;
 
+  virtual std::vector<std::pair<unsigned, unsigned>> ClusterNodesSlots(
+      bool full_slots) = 0;
+
   virtual size_t TableSizeInBucket(
       const std::string &keys_prefix_name_slice) = 0;
 
@@ -406,6 +414,13 @@ class RedisVirtualWrapper {
   virtual Status MgetToTensor(
       Tensor *values, const Tensor &default_value, const bool is_full_default,
       ThreadContext *thread_context,
+      std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>>
+          &reply,
+      const int64 begin, const int64 max_i, const int64 Velems_per_dim0) = 0;
+
+  virtual Status MgetToTensorWithExist(
+      Tensor *values, const Tensor &default_value, Tensor &exists,
+      const bool is_full_default, ThreadContext *thread_context,
       std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>>
           &reply,
       const int64 begin, const int64 max_i, const int64 Velems_per_dim0) = 0;
@@ -454,11 +469,46 @@ inline unsigned KBucketNum(const T *in, const unsigned storage_slice) {
   return (static_cast<const int>(*in) % storage_slice);
 }
 
+#if defined(__arm64__) /* || defined (__aarch64__) */
+#define CRC32CB(crc, value) \
+  __asm__("crc32cb %w[c], %w[c], %w[v]" : [ c ] "+r"(crc) : [ v ] "r"(value))
+#define CRC32CH(crc, value) \
+  __asm__("crc32ch %w[c], %w[c], %w[v]" : [ c ] "+r"(crc) : [ v ] "r"(value))
+#define CRC32CW(crc, value) \
+  __asm__("crc32cw %w[c], %w[c], %w[v]" : [ c ] "+r"(crc) : [ v ] "r"(value))
+#define CRC32CX(crc, value) \
+  __asm__("crc32cx %w[c], %w[c], %x[v]" : [ c ] "+r"(crc) : [ v ] "r"(value))
+#elif defined(__x86_64__)
+#define CRC32CB(crc, value) __asm__("crc32b %1, %0" : "+r"(crc) : "rm"(value))
+#define CRC32CH(crc, value) __asm__("crc32w %1, %0" : "+r"(crc) : "rm"(value))
+#define CRC32CW(crc, value) __asm__("crc32l %1, %0" : "+r"(crc) : "rm"(value))
+#define CRC32CX(crc, value) __asm__("crc32q %1, %0" : "+r"(crc) : "rm"(value))
+#else
+#error Currently architectures other than ARM64 or X86_64 are not supported
+#endif
+
+inline uint32_t crc32c_hash(uint32_t crc, const uint8_t *p, size_t length) {
+  while ((length -= sizeof(uint64_t)) >= 0) {
+    CRC32CX(crc, *((uint64_t *)p));
+    p += sizeof(uint64_t);
+  }
+  if (length & sizeof(uint32_t)) {
+    CRC32CW(crc, *((uint32_t *)p));
+    p += sizeof(uint32_t);
+  }
+  if (length & sizeof(uint16_t)) {
+    CRC32CH(crc, *((uint16_t *)p));
+    p += sizeof(uint16_t);
+  }
+  if (length & sizeof(uint8_t)) CRC32CB(crc, *p);
+  return crc;
+}
+
 template <>
 inline unsigned KBucketNum<tstring>(const tstring *in,
                                     const unsigned storage_slice) {
-  const auto tem_char = *(reinterpret_cast<const unsigned char *>(in));
-  return (_mm_crc32_u8(0xffffffff, tem_char) % storage_slice);
+  const uint8_t *tem_char = reinterpret_cast<const uint8_t *>(in);
+  return (crc32c_hash(0xffffffff, tem_char, in->length()) % storage_slice);
 }
 
 template <typename T>
