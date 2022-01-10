@@ -626,17 +626,18 @@ class RedisTableOfTensors final : public LookupInterface {
   Status Find(OpKernelContext *ctx, const Tensor &keys, Tensor *values,
               const Tensor &default_value) override {
     int64 total = keys.NumElements();
-    const int64 Velems_per_flat2_dim0 =
-        values->NumElements() / keys.NumElements();
+    if (total > 0) {
+      const int64 Velems_per_flat2_dim0 = values->NumElements() / total;
 
-    if (total < (multi_redis_cmd_max_argc - 1)) {
-      launchFind(ctx, keys_prefix_name_slices, keys, values, default_value,
-                 total, Velems_per_flat2_dim0, threads_Find);
-    } else {
-      // redis commmand args > multi_redis_cmd_max_argc
-      launchFind_parallel(ctx, keys_prefix_name_slices, keys, values,
-                          default_value, total, Velems_per_flat2_dim0,
-                          threads_Find);
+      if (total < (multi_redis_cmd_max_argc - 1)) {
+        launchFind(ctx, keys_prefix_name_slices, keys, values, default_value,
+                   total, Velems_per_flat2_dim0, threads_Find);
+      } else {
+        // redis commmand args > multi_redis_cmd_max_argc
+        launchFind_parallel(ctx, keys_prefix_name_slices, keys, values,
+                            default_value, total, Velems_per_flat2_dim0,
+                            threads_Find);
+      }
     }
 
     return Status::OK();
@@ -646,47 +647,47 @@ class RedisTableOfTensors final : public LookupInterface {
                         Tensor *values, const Tensor &default_value,
                         Tensor &exists) {
     int64 total = keys.NumElements();
-    const int64 Velems_per_flat2_dim0 =
-        values->NumElements() / keys.NumElements();
+    if (total > 0) {
+      const int64 Velems_per_flat2_dim0 = values->NumElements() / total;
 
-    if (total < (multi_redis_cmd_max_argc - 1)) {
-      launchFindWithExists(ctx, keys_prefix_name_slices, keys, values,
-                           default_value, exists, total, Velems_per_flat2_dim0,
-                           threads_Find);
-    } else {
-      // redis commmand args > multi_redis_cmd_max_argc
-      launchFindWithExists_parallel(ctx, keys_prefix_name_slices, keys, values,
-                                    default_value, exists, total,
-                                    Velems_per_flat2_dim0, threads_Find);
+      if (total < (multi_redis_cmd_max_argc - 1)) {
+        launchFindWithExists(ctx, keys_prefix_name_slices, keys, values,
+                             default_value, exists, total,
+                             Velems_per_flat2_dim0, threads_Find);
+      } else {
+        // redis commmand args > multi_redis_cmd_max_argc
+        launchFindWithExists_parallel(ctx, keys_prefix_name_slices, keys,
+                                      values, default_value, exists, total,
+                                      Velems_per_flat2_dim0, threads_Find);
+      }
     }
-
     return Status::OK();
   }
 
   Status DoInsert(bool clear, OpKernelContext *ctx, const Tensor &keys,
                   const Tensor &values) {
     int64 total = keys.NumElements();
-    const int64 Velems_per_flat2_dim0 =
-        values.NumElements() / keys.NumElements();
-    auto statu = Status::OK();
-    if (clear) {
-      for (auto keys_prefix_name_slice : keys_prefix_name_slices) {
-        statu = _table_instance->RemoveHkeysInBuckets(keys_prefix_name_slice);
-        if (statu != Status::OK()) {
-          return statu;
+    if (total > 0) {
+      const int64 Velems_per_flat2_dim0 = values.NumElements() / total;
+      auto statu = Status::OK();
+      if (clear) {
+        for (auto keys_prefix_name_slice : keys_prefix_name_slices) {
+          statu = _table_instance->RemoveHkeysInBuckets(keys_prefix_name_slice);
+          if (statu != Status::OK()) {
+            return statu;
+          }
         }
       }
+      if (total < (multi_redis_cmd_max_argc - 1)) {
+        launchInsert(ctx, keys_prefix_name_slices, keys, values, total,
+                     Velems_per_flat2_dim0, threads_Insert);
+      } else {
+        launchInsert_parallel(
+            ctx, keys_prefix_name_slices, keys, values, total,
+            Velems_per_flat2_dim0,
+            threads_Insert);  // redis commmand args > multi_redis_cmd_max_argc
+      }
     }
-    if (total < (multi_redis_cmd_max_argc - 1)) {
-      launchInsert(ctx, keys_prefix_name_slices, keys, values, total,
-                   Velems_per_flat2_dim0, threads_Insert);
-    } else {
-      launchInsert_parallel(
-          ctx, keys_prefix_name_slices, keys, values, total,
-          Velems_per_flat2_dim0,
-          threads_Insert);  // redis commmand args > multi_redis_cmd_max_argc
-    }
-
     return Status::OK();
   }
 
@@ -697,12 +698,14 @@ class RedisTableOfTensors final : public LookupInterface {
 
   Status Remove(OpKernelContext *ctx, const Tensor &keys) override {
     int64 total = keys.NumElements();
-    if (total < (multi_redis_cmd_max_argc - 1)) {
-      launchDelete(ctx, keys_prefix_name_slices, keys, total, threads_Delete);
-    } else {
-      // redis commmand args > multi_redis_cmd_max_argc
-      launchDelete_parallel(ctx, keys_prefix_name_slices, keys, total,
-                            threads_Delete);
+    if (total > 0) {
+      if (total < (multi_redis_cmd_max_argc - 1)) {
+        launchDelete(ctx, keys_prefix_name_slices, keys, total, threads_Delete);
+      } else {
+        // redis commmand args > multi_redis_cmd_max_argc
+        launchDelete_parallel(ctx, keys_prefix_name_slices, keys, total,
+                              threads_Delete);
+      }
     }
     return Status::OK();
   }
