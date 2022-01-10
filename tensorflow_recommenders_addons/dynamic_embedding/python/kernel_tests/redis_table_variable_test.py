@@ -407,6 +407,58 @@ class RedisVariableTest(test.TestCase):
         table.clear()
         del table
 
+  def test_empty_kvs(self):
+    if _redis_health_check(redis_config_params["redis_host_ip"][0],
+                           redis_config_params["redis_host_port"][0]) == False:
+      self.skipTest('skip redis test when unable to access the redis service.')
+    id = 0
+    dim_list = [1, 8, 16]
+    kv_list = [[dtypes.int32, dtypes.double], [dtypes.int32, dtypes.float32],
+               [dtypes.int32, dtypes.int32], [dtypes.int64, dtypes.double],
+               [dtypes.int64, dtypes.float32], [dtypes.int64, dtypes.int32],
+               [dtypes.int64, dtypes.int64], [dtypes.int64, dtypes.string],
+               [dtypes.int64, dtypes.int8], [dtypes.int64, dtypes.half],
+               [dtypes.string, dtypes.double], [dtypes.string, dtypes.float32],
+               [dtypes.string, dtypes.int32], [dtypes.string, dtypes.int64],
+               [dtypes.string, dtypes.int8], [dtypes.string, dtypes.half]]
+
+    def _convert(v, t):
+      return np.array(v).astype(_type_converter(t))
+
+    for (key_dtype, value_dtype), dim in itertools.product(kv_list, dim_list):
+      id += 1
+      with self.session(config=default_config,
+                        use_gpu=test_util.is_gpu_available()) as sess:
+        keys = constant_op.constant(
+            np.array([]).astype(_type_converter(key_dtype)), key_dtype)
+        values = constant_op.constant(_convert([], value_dtype), value_dtype)
+        table = de.get_variable(
+            't1-' + str(id) + '_test_empty_kvs',
+            key_dtype=key_dtype,
+            value_dtype=value_dtype,
+            initializer=np.array([-1]).astype(_type_converter(value_dtype)),
+            dim=dim,
+            kv_creator=de.RedisTableCreator(config=redis_config))
+
+        table.clear()
+
+        self.assertAllEqual(0, self.evaluate(table.size()))
+        with self.assertRaisesOpError("Expected shape"):
+          self.evaluate(table.upsert(keys, values))
+        self.assertAllEqual(0, self.evaluate(table.size()))
+
+        output = table.lookup(keys)
+        self.assertAllEqual([0, dim], output.get_shape())
+
+        result = self.evaluate(output)
+
+        self.assertAllEqual(np.reshape(_convert([], value_dtype), (0, dim)),
+                            _convert(result, value_dtype))
+
+        table.clear()
+        del table
+
+  # TODO Add bp_v2 feature to Redis backend
   # def test_variable_find_with_exists_and_accum(self):
   #   if _redis_health_check(redis_config_params["redis_host_ip"][0], redis_config_params["redis_host_port"][0]) == False:
   #     self.skipTest('skip redis test when unable to access the redis service.')
