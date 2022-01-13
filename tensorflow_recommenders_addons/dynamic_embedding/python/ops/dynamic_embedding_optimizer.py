@@ -24,6 +24,7 @@ import six
 
 from tensorflow_recommenders_addons import dynamic_embedding as de
 
+from tensorflow.keras.optimizers import Optimizer as keras_optimizer
 from tensorflow.python.distribute import distribution_strategy_context as distribute_ctx
 from tensorflow.python.distribute import reduce_util as ds_reduce_util
 from tensorflow.python.eager import context
@@ -37,6 +38,7 @@ from tensorflow.python.ops import variables
 from tensorflow.python.ops import variable_scope
 from tensorflow.python.training import optimizer
 from tensorflow.python.training import slot_creator
+from tensorflow.python.training.tracking import base as trackable
 
 
 def DynamicEmbeddingOptimizer(self, bp_v2=None):
@@ -154,7 +156,7 @@ def DynamicEmbeddingOptimizer(self, bp_v2=None):
 
       return self._iterations.assign_add(1)
 
-  def add_slot(var, slot_name, initializer="zeros"):
+  def add_slot(var, slot_name, initializer="zeros", shape=None):
     """Add a new slot variable for `var`."""
     if slot_name not in self._slot_names:
       self._slot_names.append(slot_name)
@@ -164,8 +166,14 @@ def DynamicEmbeddingOptimizer(self, bp_v2=None):
     if weight is None:
       if isinstance(initializer, six.string_types) or callable(initializer):
         initializer = initializers.get(initializer)
+        if isinstance(
+            initializer,
+            trackable.CheckpointInitialValueCallable) or (shape is not None):
+          slot_shape = shape
+        else:
+          slot_shape = var.shape
         initial_value = functools.partial(initializer,
-                                          shape=var.shape,
+                                          shape=slot_shape,
                                           dtype=var.dtype)
       else:
         initial_value = initializer
@@ -277,7 +285,8 @@ def DynamicEmbeddingOptimizer(self, bp_v2=None):
     self._get_or_make_slot = _get_or_make_slot
     self._get_or_make_slot_with_initializer = _get_or_make_slot_with_initializer
     self._zeros_slot = _zeros_slot
-  elif isinstance(self, optimizer_v2.OptimizerV2):
+  elif isinstance(self, optimizer_v2.OptimizerV2) or isinstance(
+      self, keras_optimizer):
     self.add_slot = add_slot
     self._distributed_apply = _distributed_apply
   else:
