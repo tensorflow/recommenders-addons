@@ -24,13 +24,23 @@ import tensorflow as tf
 
 _TFRA_BAZELRC = ".bazelrc"
 
+
 # Maping TensorFlow version to valid Bazel version.
-_VALID_BAZEL_VERSION = {
-    "1.15.2": "0.26.1",
-    "2.4.0": "3.1.0",
-    "2.4.1": "3.1.0",
-    "2.5.1": "3.7.2"
-}
+def _VALID_BAZEL_VERSION(tf_version):
+  if tf_version < "2.0.0":
+    logging.warn(
+        'There is only limited support for TensorFlow under version 2.0.0 '
+        'because its Bazel version, and requiring users to make some Bazel script changes '
+        'refering to the previous COMMIT to compile properly by themselves.')
+    return "0.26.1"
+  elif tf_version >= "2.0.0":
+    logging.info(
+        'To ensure code compatibility with Bazel rules_foreign_cc component, '
+        'we specify Bazel version greater than 3.7.2 '
+        'for Tensorflow versions greater than 2.0.0.')
+    return "3.7.2"
+  else:
+    raise ValueError('Unsupport TensorFlow version {}.'.format(tf_version))
 
 
 # Writes variables to bazelrc file
@@ -125,7 +135,7 @@ def get_tf_version_integer():
         '\nPlease install a TensorFlow on your compiling machine, '
         'The compiler needs to know the version of Tensorflow '
         'and get TF c++ headers according to the installed TensorFlow. '
-        '\nNote: Only TensorFlow 2.5.1, 2.4.1, 1.15.2 are supported.')
+        '\nNote: Only TensorFlow 2.7.0, 2.5.1, 2.4.1, 1.15.2 are supported.')
   try:
     major, minor, patch = version.split('.')
     assert len(
@@ -154,7 +164,7 @@ def check_bazel_version():
   stream = os.popen('bazel version |grep label')
   output = stream.read()
   installed_bazel_version = str(output).split(":")[1].strip()
-  valid_bazel_version = _VALID_BAZEL_VERSION[tf.__version__]
+  valid_bazel_version = _VALID_BAZEL_VERSION(tf.__version__)
   if installed_bazel_version != valid_bazel_version:
     raise ValueError('Bazel version is {}, but {} is needed.'.format(
         installed_bazel_version, valid_bazel_version))
