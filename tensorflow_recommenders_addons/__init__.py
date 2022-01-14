@@ -22,10 +22,9 @@ you the flexibility to build complex models.
 __all__ = ['dynamic_embedding', 'embedding_variable']
 
 from tensorflow_recommenders_addons.utils.ensure_tf_install import _check_tf_version
+from tensorflow_recommenders_addons.version import __version__
 
 _check_tf_version()
-
-__version__ = "v0.1.0"
 
 from tensorflow_recommenders_addons import dynamic_embedding
 from tensorflow_recommenders_addons import embedding_variable
