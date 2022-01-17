@@ -25,10 +25,12 @@ import tensorflow as tf
 _TFRA_BAZELRC = ".bazelrc"
 
 # Maping TensorFlow version to valid Bazel version.
+# According to Tensorflow official document, the recommended bazel version for tensorflow 2.4.0
+# and 2.4.1 is 3.1.0. But rules_foreign_cc 0.6.0 requires bazel 3.7.0 + to build the code without bug.
 _VALID_BAZEL_VERSION = {
     "1.15.2": "0.26.1",
-    "2.4.0": "3.1.0",
-    "2.4.1": "3.1.0",
+    "2.4.0": "3.7.2",
+    "2.4.1": "3.7.2",
     "2.5.1": "3.7.2"
 }
 
