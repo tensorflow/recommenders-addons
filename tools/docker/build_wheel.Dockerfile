@@ -3,6 +3,7 @@ ARG TF_VERSION
 ARG PY_VERSION
 ARG TF_NEED_CUDA
 ARG TF_NAME
+ARG HOROVOD_VERSION
 ARG BUILD_IMAGE
 FROM ${BUILD_IMAGE} as base_install
 
@@ -20,22 +21,21 @@ RUN mv /usr/bin/lsb_release2 /usr/bin/lsb_release
 ARG PY_VERSION
 RUN ln -sf /usr/local/bin/python$PY_VERSION /usr/bin/python
 
-# Use devtoolset-7 as tool chain
-RUN rm -r /usr/bin/gcc*
 ENV PATH=/dt7/usr/bin:${PATH}
 ENV LD_LIBRARY_PATH=/usr/local/lib:${LD_LIBRARY_PATH}
 ENV LD_LIBRARY_PATH=/dt7/user/lib64:${LD_LIBRARY_PATH}
 ENV LD_LIBRARY_PATH=/dt7/user/lib:${LD_LIBRARY_PATH}
 ENV MANPATH=/dt7/user/share/man:${LD_LIBRARY_PATH}
 ENV INFOPATH=/dt7/user/share/info
-RUN ln -sf /dt7/usr/bin/cc /usr/bin/gcc
-RUN ln -sf /dt7/usr/bin/gcc /usr/bin/gcc
-RUN ln -sf /dt7/usr/bin/g++ /usr/bin/g++
 
 ARG TF_VERSION
 ARG TF_NAME
+ARG HOROVOD_VERSION
 
 RUN python -m pip install --default-timeout=1000 $TF_NAME==$TF_VERSION
+
+COPY tools/docker/install/install_horovod.sh /install/
+RUN /install/install_horovod.sh $HOROVOD_VERSION
 
 COPY tools/install_deps/ /install_deps
 RUN python -m pip install -r /install_deps/pytest.txt
@@ -57,6 +57,7 @@ ARG NIGHTLY_TIME
 ARG TF_NEED_CUDA
 ARG TF_CUDA_VERSION
 ARG TF_CUDNN_VERSION
+ARG HOROVOD_VERSION
 ENV TF_NEED_CUDA=$TF_NEED_CUDA
 ENV TF_CUDA_VERSION=$TF_CUDA_VERSION
 ENV TF_CUDNN_VERSION=$TF_CUDNN_VERSION

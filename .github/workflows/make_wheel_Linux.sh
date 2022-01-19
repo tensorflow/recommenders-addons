@@ -28,6 +28,10 @@ else
   exit 1
 fi
 
+if [ -z $HOROVOD_VERSION ] ; then
+  export HOROVOD_VERSION='0.23.0'
+fi
+
 DOCKER_BUILDKIT=1 docker build --no-cache \
     -f tools/docker/build_wheel.Dockerfile \
     --output type=local,dest=wheelhouse \
@@ -37,6 +41,7 @@ DOCKER_BUILDKIT=1 docker build --no-cache \
     --build-arg TF_NEED_CUDA \
     --build-arg TF_CUDA_VERSION \
     --build-arg TF_CUDNN_VERSION \
+    --build-arg HOROVOD_VERSION \
     --build-arg BUILD_IMAGE \
     --build-arg NIGHTLY_FLAG \
     --build-arg NIGHTLY_TIME \
