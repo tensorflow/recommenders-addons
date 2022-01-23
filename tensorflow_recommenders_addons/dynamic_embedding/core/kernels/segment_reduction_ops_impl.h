@@ -49,7 +49,9 @@ limitations under the License.
 #endif  // GOOGLE_CUDA || TENSORFLOW_USE_ROCM
 
 #if GOOGLE_CUDA
-#if TF_VERSION_INTEGER >= 2040  // 2.4.0
+#if TF_VERSION_INTEGER >= 2070  // 2.7.0
+#include "tensorflow/core/util/gpu_solvers.h"
+#elif TF_VERSION_INTEGER >= 2040  // 2.4.0
 #include "tensorflow/core/util/cuda_solvers.h"
 #else
 #include "tensorflow/core/kernels/cuda_solvers.h"

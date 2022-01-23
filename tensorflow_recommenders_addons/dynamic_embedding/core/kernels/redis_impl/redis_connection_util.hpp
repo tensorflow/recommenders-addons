@@ -469,7 +469,7 @@ inline unsigned KBucketNum(const T *in, const unsigned storage_slice) {
   return (static_cast<const int>(*in) % storage_slice);
 }
 
-#if defined(__arm64__) /* || defined (__aarch64__) */
+#if defined(__arm64__) || defined(__aarch64__)
 #define CRC32CB(crc, value) \
   __asm__("crc32cb %w[c], %w[c], %w[v]" : [ c ] "+r"(crc) : [ v ] "r"(value))
 #define CRC32CH(crc, value) \
@@ -488,17 +488,32 @@ inline unsigned KBucketNum(const T *in, const unsigned storage_slice) {
 #endif
 
 inline uint32_t crc32c_hash(uint32_t crc, const uint8_t *p, size_t length) {
-  while ((length -= sizeof(uint64_t)) >= 0) {
+#if defined(__arm64__) || defined(__aarch64__)
+  int64_t len_int64 = length;
+  while ((len_int64 -= sizeof(uint64_t)) >= 0) {
     CRC32CX(crc, *((uint64_t *)p));
     p += sizeof(uint64_t);
   }
+  length &= (sizeof(uint64_t) - 1);
+#elif defined(__x86_64__)
+  int32_t len_int32 = length;
+  while ((len_int32 -= sizeof(uint32_t)) >= 0) {
+    CRC32CW(crc, *((uint32_t *)p));
+    p += sizeof(uint32_t);
+  }
+  length &= (sizeof(uint32_t) - 1);
+#else
+#error Currently architectures other than ARM64 or X86_64 are not supported
+#endif
   if (length & sizeof(uint32_t)) {
     CRC32CW(crc, *((uint32_t *)p));
     p += sizeof(uint32_t);
+    length -= sizeof(uint32_t);
   }
   if (length & sizeof(uint16_t)) {
     CRC32CH(crc, *((uint16_t *)p));
     p += sizeof(uint16_t);
+    length -= sizeof(uint16_t);
   }
   if (length & sizeof(uint8_t)) CRC32CB(crc, *p);
   return crc;
