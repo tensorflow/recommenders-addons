@@ -77,13 +77,13 @@ custom_op_library(
         "utils/utils.h",
         "utils/types.h",
     ],
-    deps = [
-        "@rocksdb//:rocksdb",
-    ],
     linkopts = [
         "-lbz2",
         "-llz4",
         "-lzstd",
+    ],
+    deps = [
+        "@rocksdb//:rocksdb",
     ],
 )
 
