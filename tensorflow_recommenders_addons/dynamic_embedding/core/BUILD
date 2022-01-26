@@ -71,19 +71,19 @@ custom_op_library(
 custom_op_library(
     name = "_rocksdb_table_ops.so",
     srcs = [
-        "kernels/rocksdb_table_op.h",
         "kernels/rocksdb_table_op.cc",
+        "kernels/rocksdb_table_op.h",
         "ops/rocksdb_table_ops.cc",
-        "utils/utils.h",
         "utils/types.h",
+        "utils/utils.h",
     ],
     linkopts = [
-        "-lbz2",
-        "-llz4",
-        "-lzstd",
+        # "-lbz2",
+        # "-llz4",
+        # "-lzstd",
     ],
     deps = [
-        "@rocksdb//:rocksdb",
+        "@rocksdb",
     ],
 )
 
