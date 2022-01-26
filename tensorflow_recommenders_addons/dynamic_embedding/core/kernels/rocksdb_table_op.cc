@@ -599,14 +599,16 @@ class RocksDBTableOfTensors final : public PersistentStorageLookupInterface {
         default_value.dtype() != value_dtype()) {
       return errors::InvalidArgument("The tensor dtypes are incompatible.");
     }
-    if (keys.dims() <= values->dims()) {
-      for (int i = 0; i < keys.dims(); ++i) {
-        if (keys.dim_size(i) != values->dim_size(i)) {
-          return errors::InvalidArgument("The tensor sizes are incompatible.");
-        }
-      }
-    } else {
+    if (keys.dims() > values->dims()) {
       return errors::InvalidArgument("The tensor sizes are incompatible.");
+    }
+    for (int i = 0; i < keys.dims(); ++i) {
+      if (keys.dim_size(i) != values->dim_size(i)) {
+        return errors::InvalidArgument("The tensor sizes are incompatible.");
+      }
+    }
+    if (keys.NumElements() == 0) {
+      return Status::OK();
     }
 
     const size_t num_keys = keys.NumElements();
@@ -614,7 +616,7 @@ class RocksDBTableOfTensors final : public PersistentStorageLookupInterface {
     const size_t values_per_key = num_values / std::max(num_keys, 1UL);
     const size_t default_size = default_value.NumElements();
     if (default_size % values_per_key != 0) {
-      std::stringstream msg(std::stringstream::out);
+      std::ostringstream msg;
       msg << "The shapes of the 'values' and 'default_value' tensors are "
              "incompatible"
           << " (" << default_size << " % " << values_per_key << " != 0).";
@@ -1107,12 +1109,40 @@ class RocksDBTableOpKernel : public OpKernel {
         p.container(), p.name(), value);
   }
 
+  Status GetTableHandle(StringPiece input_name, OpKernelContext *ctx,
+                        tstring *container, tstring *table_handle) {
+    {
+      mutex *guard;
+      TF_RETURN_IF_ERROR(ctx->input_ref_mutex(input_name, &guard));
+      mutex_lock lock(*guard);
+      Tensor tensor;
+      TF_RETURN_IF_ERROR(ctx->mutable_input(input_name, &tensor, true));
+      if (tensor.NumElements() != 2) {
+        return errors::InvalidArgument(
+          "Lookup table handle must be scalar, but had shape: ",
+          tensor.shape().DebugString());
+      }
+      auto h = tensor.flat<tstring>();
+      *container = h(0);
+      *table_handle = h(1);
+    }
+    return Status::OK();
+  }
+
   Status GetResourceHashTable(StringPiece input_name, OpKernelContext *ctx,
                               LookupInterface **table) {
     const Tensor *handle_tensor;
     TF_RETURN_IF_ERROR(ctx->input(input_name, &handle_tensor));
     const auto &handle = handle_tensor->scalar<ResourceHandle>()();
     return LookupResource(ctx, handle, table);
+  }
+
+  Status GetReferenceLookupTable(StringPiece input_name, OpKernelContext *ctx,
+                                 LookupInterface **table) {
+    tstring container;
+    tstring table_handle;
+    TF_RETURN_IF_ERROR(GetTableHandle(input_name, ctx, &container, &table_handle));
+    return ctx->resource_manager()->Lookup(container, table_handle, table);
   }
 
   Status GetTable(OpKernelContext *ctx, LookupInterface **table) {

@@ -16,6 +16,7 @@
 
 from abc import ABCMeta
 from tensorflow_recommenders_addons import dynamic_embedding as de
+import json
 
 
 class KVCreator(object, metaclass=ABCMeta):

@@ -56,13 +56,9 @@ class RocksDBTable(LookupInterface):
       key_dtype,
       value_dtype,
       default_value,
-      database_path,
-      embedding_name=None,
-      read_only=False,
-      estimate_size=False,
-      export_path=None,
       name="RocksDBTable",
       checkpoint=False,
+      config=None,
   ):
     """
       Creates an empty `RocksDBTable` object.
@@ -93,12 +89,14 @@ class RocksDBTable(LookupInterface):
     self._key_dtype = key_dtype
     self._value_dtype = value_dtype
     self._name = name
-    self._database_path = database_path
-    self._embedding_name = embedding_name if embedding_name else self._name.split(
-        '_mht_', 1)[0]
-    self._read_only = read_only
-    self._estimate_size = estimate_size
-    self._export_path = export_path
+
+    self._database_path = config.params['database_path']
+    self._embedding_name = config.params['embedding_name']
+    if not self._embedding_name:
+      self._embedding_name = self._name.split('_mht_', 1)[0]
+    self._read_only = config.params['read_only']
+    self._estimate_size = config.params['estimate_size']
+    self._export_path = config.params['export_path']
 
     self._shared_name = None
     if context.executing_eagerly():
@@ -162,7 +160,6 @@ class RocksDBTable(LookupInterface):
         Returns:
             A scalar tensor containing the number of elements in this table.
         """
-    print('SIZE CALLED')
     with ops.name_scope(name, f"{self.name}_Size", (self.resource_handle,)):
       with ops.colocate_with(self.resource_handle):
         size = rocksdb_table_ops.tfra_rocksdb_table_size(self.resource_handle)
@@ -185,7 +182,6 @@ class RocksDBTable(LookupInterface):
         Raises:
             TypeError: when `keys` do not match the table data types.
         """
-    print('REMOVE CALLED')
     if keys.dtype != self._key_dtype:
       raise TypeError(
           f"Signature mismatch. Keys must be dtype {self._key_dtype}, got {keys.dtype}."
@@ -211,7 +207,6 @@ class RocksDBTable(LookupInterface):
         Returns:
             The created Operation.
         """
-    print('CLEAR CALLED')
     with ops.name_scope(name, f"{self.name}_lookup_table_clear",
                         (self.resource_handle, self._default_value)):
       op = rocksdb_table_ops.tfra_rocksdb_table_clear(
@@ -221,7 +216,7 @@ class RocksDBTable(LookupInterface):
 
     return op
 
-  def lookup(self, keys, dynamic_default_values=None, name=None):
+  def lookup(self, keys, dynamic_default_values=None, return_exists=False, name=None):
     """
         Looks up `keys` in a table, outputs the corresponding values.
 
@@ -232,6 +227,8 @@ class RocksDBTable(LookupInterface):
                 table's key_dtype.
             dynamic_default_values: The values to use if a key is missing in the table. If None (by
                 default), the static default_value `self._default_value` will be used.
+            return_exists: if True, will return a additional Tensor which indicates
+                if or not keys are existing in the table.
             name: A name for the operation (optional).
 
         Returns:
@@ -240,19 +237,25 @@ class RocksDBTable(LookupInterface):
         Raises:
             TypeError: when `keys` do not match the table data types.
         """
-    print('LOOKUP CALLED')
     with ops.name_scope(name, f"{self.name}_lookup_table_find",
                         (self.resource_handle, keys, self._default_value)):
       keys = ops.convert_to_tensor(keys, dtype=self._key_dtype, name="keys")
       with ops.colocate_with(self.resource_handle):
-        values = rocksdb_table_ops.tfra_rocksdb_table_find(
+        if return_exists:
+          values, exists = redis_table_ops.tfra_redis_table_find_with_exists(
             self.resource_handle,
             keys,
             dynamic_default_values
             if dynamic_default_values is not None else self._default_value,
-        )
-
-    return values
+          )
+        else:
+          values = rocksdb_table_ops.tfra_rocksdb_table_find(
+              self.resource_handle,
+              keys,
+              dynamic_default_values
+              if dynamic_default_values is not None else self._default_value,
+          )
+    return (values, exists) if return_exists else values
 
   def insert(self, keys, values, name=None):
     """
@@ -270,7 +273,6 @@ class RocksDBTable(LookupInterface):
         Raises:
             TypeError: when `keys` or `values` doesn't match the table data types.
         """
-    print('INSERT CALLED')
     with ops.name_scope(name, f"{self.name}_lookup_table_insert",
                         (self.resource_handle, keys, values)):
       keys = ops.convert_to_tensor(keys, self._key_dtype, name="keys")
@@ -293,7 +295,6 @@ class RocksDBTable(LookupInterface):
             A pair of tensors with the first tensor containing all keys and the second tensors
             containing all values in the table.
         """
-    print('EXPORT CALLED')
     with ops.name_scope(name, f"{self.name}_lookup_table_export_values",
                         (self.resource_handle,)):
       with ops.colocate_with(self.resource_handle):
@@ -305,15 +306,15 @@ class RocksDBTable(LookupInterface):
   def _gather_saveables_for_checkpoint(self):
     """For object-based checkpointing."""
     # full_name helps to figure out the name-based Saver's name for this saveable.
-    if context.executing_eagerly():
-      full_name = self._table_name
-    else:
-      full_name = self._resource_handle.op.name
-
+    # if context.executing_eagerly():
+    #   full_name = self._table_name
+    # else:
+    #   full_name = self._resource_handle.op.name
+    full_name = self._table_name
     return {
         "table":
             functools.partial(
-                self._Saveable,
+                RocksDBTable._Saveable,
                 table=self,
                 name=self._name,
                 full_name=full_name,
@@ -330,13 +331,12 @@ class RocksDBTable(LookupInterface):
           BaseSaverBuilder.SaveSpec(tensors[1], "", name + "-values"),
       ]
       super().__init__(table, specs, name)
-      self.full_name = full_name
+      self._restore_name = table._name
 
     def restore(self, restored_tensors, restored_shapes, name=None):
-      print('RESTORE CALLED')
       del restored_shapes  # unused
       # pylint: disable=protected-access
-      with ops.name_scope(name, f"{self.name}_table_restore"):
+      with ops.name_scope(name, f"{self._restore_name}_table_restore"):
         with ops.colocate_with(self.op.resource_handle):
           return rocksdb_table_ops.tfra_rocksdb_table_import(
               self.op.resource_handle,

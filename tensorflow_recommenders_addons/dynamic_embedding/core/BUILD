@@ -78,9 +78,9 @@ custom_op_library(
         "utils/utils.h",
     ],
     linkopts = [
-        # "-lbz2",
-        # "-llz4",
-        # "-lzstd",
+        "-lbz2",
+        "-llz4",
+        "-lzstd",
     ],
     deps = [
         "@rocksdb",
