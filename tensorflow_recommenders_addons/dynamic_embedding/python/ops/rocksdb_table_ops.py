@@ -216,7 +216,11 @@ class RocksDBTable(LookupInterface):
 
     return op
 
-  def lookup(self, keys, dynamic_default_values=None, return_exists=False, name=None):
+  def lookup(self,
+             keys,
+             dynamic_default_values=None,
+             return_exists=False,
+             name=None):
     """
         Looks up `keys` in a table, outputs the corresponding values.
 
@@ -243,10 +247,10 @@ class RocksDBTable(LookupInterface):
       with ops.colocate_with(self.resource_handle):
         if return_exists:
           values, exists = redis_table_ops.tfra_redis_table_find_with_exists(
-            self.resource_handle,
-            keys,
-            dynamic_default_values
-            if dynamic_default_values is not None else self._default_value,
+              self.resource_handle,
+              keys,
+              dynamic_default_values
+              if dynamic_default_values is not None else self._default_value,
           )
         else:
           values = rocksdb_table_ops.tfra_rocksdb_table_find(

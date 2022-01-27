@@ -75,7 +75,9 @@ def _type_converter(tf_type):
 
 
 def _get_devices():
-  return ["/gpu:0" if len(tf.config.list_physical_devices('GPU')) > 0 else "/cpu:0"]
+  return [
+      "/gpu:0" if len(tf.config.list_physical_devices('GPU')) > 0 else "/cpu:0"
+  ]
 
 
 def _check_device(op, expected_device="gpu"):
@@ -304,6 +306,7 @@ ROCKSDB_CONFIG_PARAMS = {
     'export_path': None,
 }
 
+
 def conf_with(**kwargs):
   config = {k: v for k, v in ROCKSDB_CONFIG_PARAMS.items()}
   for k, v in kwargs.items():
@@ -317,7 +320,6 @@ SKIP_PASSING = False
 SKIP_PASSING_WITH_QUESTIONS = False
 SKIP_FAILING = True
 SKIP_FAILING_WITH_QUESTIONS = True
-
 
 
 @test_util.run_all_in_graph_and_eager_modes
@@ -336,7 +338,8 @@ class RocksDBVariableTest(test.TestCase):
           dtypes.int32,
           initializer=0,
           dim=8,
-          kv_creator=de.RocksDBTableCreator(conf_with(embedding_name='t0_test_basic')),
+          kv_creator=de.RocksDBTableCreator(
+              conf_with(embedding_name='t0_test_basic')),
       )
       self.evaluate(table.clear())
       self.evaluate(table.size())
@@ -392,7 +395,8 @@ class RocksDBVariableTest(test.TestCase):
             value_dtype=value_dtype,
             initializer=np.array([-1]).astype(_type_converter(value_dtype)),
             dim=dim,
-            kv_creator=de.RocksDBTableCreator(conf_with(embedding_name='t1_test_variable')),
+            kv_creator=de.RocksDBTableCreator(
+                conf_with(embedding_name='t1_test_variable')),
         )
         self.evaluate(table.clear())
 
@@ -455,7 +459,8 @@ class RocksDBVariableTest(test.TestCase):
     def _convert(v, t):
       return np.array(v).astype(_type_converter(t))
 
-    for _id, ((key_dtype, value_dtype), dim) in enumerate(itertools.product(kv_list, dim_list)):
+    for _id, ((key_dtype, value_dtype),
+              dim) in enumerate(itertools.product(kv_list, dim_list)):
       with self.session(config=default_config, use_gpu=self.gpu_available):
         keys = constant_op.constant(
             np.array([]).astype(_type_converter(key_dtype)), key_dtype)
@@ -466,7 +471,8 @@ class RocksDBVariableTest(test.TestCase):
             value_dtype=value_dtype,
             initializer=np.array([-1]).astype(_type_converter(value_dtype)),
             dim=dim,
-            kv_creator=de.RocksDBTableCreator(conf_with(embedding_name='t1_test_empty_kvs')),
+            kv_creator=de.RocksDBTableCreator(
+                conf_with(embedding_name='t1_test_empty_kvs')),
         )
         self.evaluate(table.clear())
 
@@ -480,9 +486,8 @@ class RocksDBVariableTest(test.TestCase):
         self.assertAllEqual([0, dim], output.get_shape())
 
         result = self.evaluate(output)
-        self.assertAllEqual(
-            np.reshape(_convert([], value_dtype), (0, dim)),
-            _convert(result, value_dtype))
+        self.assertAllEqual(np.reshape(_convert([], value_dtype), (0, dim)),
+                            _convert(result, value_dtype))
 
         self.evaluate(table.clear())
         del table
@@ -502,8 +507,7 @@ class RocksDBVariableTest(test.TestCase):
             initializer=initializer,
             dim=10,
             kv_creator=de.RocksDBTableCreator(
-                conf_with(embedding_name='t2_test_variable_initializer')
-            ),
+                conf_with(embedding_name='t2_test_variable_initializer')),
         )
         self.evaluate(table.clear())
 
@@ -536,8 +540,7 @@ class RocksDBVariableTest(test.TestCase):
           name='t1',
           dim=1,
           kv_creator=de.RocksDBTableCreator(
-              conf_with(embedding_name='t3_test_save_restore')
-          ),
+              conf_with(embedding_name='t3_test_save_restore')),
       )
       self.evaluate(table.clear())
 
@@ -604,7 +607,9 @@ class RocksDBVariableTest(test.TestCase):
     save_path = os.path.join(tempfile.mkdtemp(prefix=save_dir), "hash")
 
     with self.session(
-        config=default_config, graph=ops.Graph(), use_gpu=self.gpu_available,
+        config=default_config,
+        graph=ops.Graph(),
+        use_gpu=self.gpu_available,
     ) as sess:
       v0 = variables.Variable(10.0, name="v0")
       v1 = variables.Variable(20.0, name="v1")
@@ -619,8 +624,7 @@ class RocksDBVariableTest(test.TestCase):
           initializer=default_val,
           checkpoint=True,
           kv_creator=de.RocksDBTableCreator(
-              conf_with(embedding_name='t4_save_restore_only_table')
-          ),
+              conf_with(embedding_name='t4_save_restore_only_table')),
       )
       self.evaluate(table.clear())
 
@@ -643,7 +647,9 @@ class RocksDBVariableTest(test.TestCase):
       del table
 
     with self.session(
-        config=default_config, graph=ops.Graph(), use_gpu=self.gpu_available,
+        config=default_config,
+        graph=ops.Graph(),
+        use_gpu=self.gpu_available,
     ) as sess:
       default_val = -1
       table = de.Variable(
@@ -653,8 +659,7 @@ class RocksDBVariableTest(test.TestCase):
           initializer=default_val,
           checkpoint=True,
           kv_creator=de.RocksDBTableCreator(
-              conf_with(embedding_name='t6_save_restore_only_table')
-          ),
+              conf_with(embedding_name='t6_save_restore_only_table')),
       )
       self.evaluate(table.clear())
 
@@ -712,12 +717,14 @@ class RocksDBVariableTest(test.TestCase):
           initializer=init_ops.random_normal_initializer(0.0, 0.01),
           dim=dim,
           kv_creator=de.RocksDBTableCreator(
-              conf_with(embedding_name='t5_training_save_restore')
-          ),
+              conf_with(embedding_name='t5_training_save_restore')),
       )
       self.evaluate(params.clear())
 
-      _, var0 = de.embedding_lookup(params, ids, name="emb", return_trainable=True)
+      _, var0 = de.embedding_lookup(params,
+                                    ids,
+                                    name="emb",
+                                    return_trainable=True)
 
       def loss():
         return var0 * var0
@@ -727,7 +734,8 @@ class RocksDBVariableTest(test.TestCase):
       opt_slots = [opt.get_slot(var0, _s) for _s in opt.get_slot_names()]
       _saver = saver.Saver([params] + [_s.params for _s in opt_slots])
 
-      with self.session(config=default_config, use_gpu=self.gpu_available) as sess:
+      with self.session(config=default_config,
+                        use_gpu=self.gpu_available) as sess:
         self.evaluate(variables.global_variables_initializer())
         for _i in range(step):
           self.evaluate([mini])
@@ -741,7 +749,8 @@ class RocksDBVariableTest(test.TestCase):
         params_size = self.evaluate(params.size())
         _saver.save(sess, save_path)
 
-      with self.session(config=default_config, use_gpu=self.gpu_available) as sess:
+      with self.session(config=default_config,
+                        use_gpu=self.gpu_available) as sess:
         self.evaluate(variables.global_variables_initializer())
         self.assertAllEqual(params_size, self.evaluate(params.size()))
 
@@ -807,12 +816,15 @@ class RocksDBVariableTest(test.TestCase):
           initializer=0,
           dim=dim,
           kv_creator=de.RocksDBTableCreator(
-              conf_with(embedding_name='t5_training_save_restore', export_path=save_path)
-          ),
+              conf_with(embedding_name='t5_training_save_restore',
+                        export_path=save_path)),
       )
       self.evaluate(params.clear())
 
-      _, var0 = de.embedding_lookup(params, ids, name="emb", return_trainable=True)
+      _, var0 = de.embedding_lookup(params,
+                                    ids,
+                                    name="emb",
+                                    return_trainable=True)
 
       def loss():
         return var0 * var0
@@ -824,7 +836,8 @@ class RocksDBVariableTest(test.TestCase):
       keys = np.random.randint(1, 100, dim)
       values = np.random.rand(keys.shape[0], dim)
 
-      with self.session(config=default_config, use_gpu=self.gpu_available) as sess:
+      with self.session(config=default_config,
+                        use_gpu=self.gpu_available) as sess:
         self.evaluate(variables.global_variables_initializer())
         self.evaluate(params.upsert(keys, values))
         params_vals = params.lookup(keys)
@@ -835,7 +848,8 @@ class RocksDBVariableTest(test.TestCase):
         params_size = self.evaluate(params.size())
         _saver.save(sess, save_path)
 
-      with self.session(config=default_config, use_gpu=self.gpu_available) as sess:
+      with self.session(config=default_config,
+                        use_gpu=self.gpu_available) as sess:
         _saver.restore(sess, save_path)
         self.evaluate(variables.global_variables_initializer())
         self.assertAllEqual(params_size, self.evaluate(params.size()))
@@ -855,7 +869,9 @@ class RocksDBVariableTest(test.TestCase):
   @test_util.skip_if(SKIP_PASSING)
   def test_get_variable(self):
     with self.session(
-        config=default_config, graph=ops.Graph(), use_gpu=self.gpu_available,
+        config=default_config,
+        graph=ops.Graph(),
+        use_gpu=self.gpu_available,
     ):
       default_val = -1
       with variable_scope.variable_scope("embedding", reuse=True):
@@ -866,8 +882,7 @@ class RocksDBVariableTest(test.TestCase):
             initializer=default_val,
             dim=2,
             kv_creator=de.RocksDBTableCreator(
-                conf_with(embedding_name='t7_get_variable')
-            ),
+                conf_with(embedding_name='t7_get_variable')),
         )
         table2 = de.get_variable(
             't1_test_get_variable',
@@ -876,8 +891,7 @@ class RocksDBVariableTest(test.TestCase):
             initializer=default_val,
             dim=2,
             kv_creator=de.RocksDBTableCreator(
-                conf_with(embedding_name='t7_get_variable')
-            ),
+                conf_with(embedding_name='t7_get_variable')),
         )
         table3 = de.get_variable(
             't3_test_get_variable',
@@ -886,8 +900,7 @@ class RocksDBVariableTest(test.TestCase):
             initializer=default_val,
             dim=2,
             kv_creator=de.RocksDBTableCreator(
-                conf_with(embedding_name='t7_get_variable')
-            ),
+                conf_with(embedding_name='t7_get_variable')),
         )
         self.evaluate(table1.clear())
         self.evaluate(table2.clear())
@@ -900,7 +913,9 @@ class RocksDBVariableTest(test.TestCase):
   def test_get_variable_reuse_error(self):
     ops.disable_eager_execution()
     with self.session(
-        config=default_config, graph=ops.Graph(), use_gpu=self.gpu_available,
+        config=default_config,
+        graph=ops.Graph(),
+        use_gpu=self.gpu_available,
     ):
       with variable_scope.variable_scope('embedding', reuse=False):
         _ = de.get_variable(
@@ -908,8 +923,7 @@ class RocksDBVariableTest(test.TestCase):
             initializer=-1,
             dim=2,
             kv_creator=de.RocksDBTableCreator(
-                conf_with(embedding_name='t8_get_variable_reuse_error')
-            ),
+                conf_with(embedding_name='t8_get_variable_reuse_error')),
         )
         with self.assertRaisesRegexp(ValueError,
                                      'Variable embedding/t900 already exists'):
@@ -918,8 +932,7 @@ class RocksDBVariableTest(test.TestCase):
               initializer=-1,
               dim=2,
               kv_creator=de.RocksDBTableCreator(
-                  conf_with(embedding_name='t8_get_variable_reuse_error')
-              ),
+                  conf_with(embedding_name='t8_get_variable_reuse_error')),
           )
 
   @test_util.skip_if(SKIP_PASSING)
@@ -943,8 +956,7 @@ class RocksDBVariableTest(test.TestCase):
         initializer=0,
         dim=1,
         kv_creator=de.RocksDBTableCreator(
-            conf_with(embedding_name='t9_sharing_between_multi_sessions')
-        ),
+            conf_with(embedding_name='t9_sharing_between_multi_sessions')),
     )
     self.evaluate(table.clear())
 
@@ -990,8 +1002,7 @@ class RocksDBVariableTest(test.TestCase):
           initializer=default_val,
           dim=2,
           kv_creator=de.RocksDBTableCreator(
-              conf_with(embedding_name='t10_dynamic_embedding_variable')
-          ),
+              conf_with(embedding_name='t10_dynamic_embedding_variable')),
       )
       self.evaluate(table.clear())
 
@@ -1044,8 +1055,8 @@ class RocksDBVariableTest(test.TestCase):
           initializer=default_val,
           dim=2,
           kv_creator=de.RocksDBTableCreator(
-              conf_with(embedding_name='t101_dynamic_embedding_variable_export_insert_a')
-          ),
+              conf_with(embedding_name=
+                        't101_dynamic_embedding_variable_export_insert_a')),
       )
       self.evaluate(table1.clear())
 
@@ -1070,8 +1081,9 @@ class RocksDBVariableTest(test.TestCase):
           initializer=default_val,
           dim=2,
           kv_creator=de.RocksDBTableCreator(
-              conf_with(embedding_name='t10_dynamic_embedding_variable_export_insert_b')
-          ),
+              conf_with(
+                  embedding_name='t10_dynamic_embedding_variable_export_insert_b'
+              )),
       )
       self.evaluate(table2.clear())
 
@@ -1096,8 +1108,9 @@ class RocksDBVariableTest(test.TestCase):
           initializer=default_val,
           dim=2,
           kv_creator=de.RocksDBTableCreator(
-              conf_with(embedding_name='t110_dynamic_embedding_variable_invalid_shape')
-          ),
+              conf_with(
+                  embedding_name='t110_dynamic_embedding_variable_invalid_shape'
+              )),
       )
       self.evaluate(table.clear())
 
@@ -1131,7 +1144,8 @@ class RocksDBVariableTest(test.TestCase):
     with self.session(config=default_config, use_gpu=self.gpu_available):
       default_val = -1
       keys = constant_op.constant([0, 1, 2, 2], dtypes.int64)
-      values = constant_op.constant([[0.0], [1.0], [2.0], [3.0]], dtypes.float32)
+      values = constant_op.constant([[0.0], [1.0], [2.0], [3.0]],
+                                    dtypes.float32)
 
       table = de.get_variable(
           't130_test_dynamic_embedding_variable_duplicate_insert',
@@ -1139,8 +1153,8 @@ class RocksDBVariableTest(test.TestCase):
           dtypes.float32,
           initializer=default_val,
           kv_creator=de.RocksDBTableCreator(
-              conf_with(embedding_name='t130_dynamic_embedding_variable_duplicate_insert')
-          ),
+              conf_with(embedding_name=
+                        't130_dynamic_embedding_variable_duplicate_insert')),
       )
       self.evaluate(table.clear())
 
@@ -1169,8 +1183,9 @@ class RocksDBVariableTest(test.TestCase):
           dtypes.int32,
           initializer=default_val,
           kv_creator=de.RocksDBTableCreator(
-              conf_with(embedding_name='t140_dynamic_embedding_variable_find_high_rank')
-          ),
+              conf_with(
+                  embedding_name='t140_dynamic_embedding_variable_find_high_rank'
+              )),
       )
       self.evaluate(table.clear())
 
@@ -1196,7 +1211,9 @@ class RocksDBVariableTest(test.TestCase):
           dtypes.int64,
           dtypes.int32,
           initializer=default_val,
-          kv_creator=de.RocksDBTableCreator(conf_with(embedding_name='t150_dynamic_embedding_variable_insert_low_rank')),
+          kv_creator=de.RocksDBTableCreator(
+              conf_with(embedding_name=
+                        't150_dynamic_embedding_variable_insert_low_rank')),
       )
       self.evaluate(table.clear())
 
@@ -1222,8 +1239,8 @@ class RocksDBVariableTest(test.TestCase):
           dtypes.int32,
           initializer=default_val,
           kv_creator=de.RocksDBTableCreator(
-              conf_with(embedding_name='t160_dynamic_embedding_variable_remove_low_rank')
-          ),
+              conf_with(embedding_name=
+                        't160_dynamic_embedding_variable_remove_low_rank')),
       )
       self.evaluate(table.clear())
 
@@ -1258,8 +1275,8 @@ class RocksDBVariableTest(test.TestCase):
           initializer=default_val,
           dim=3,
           kv_creator=de.RocksDBTableCreator(
-              conf_with(embedding_name='t170_dynamic_embedding_variable_insert_high_rank')
-          ),
+              conf_with(embedding_name=
+                        't170_dynamic_embedding_variable_insert_high_rank')),
       )
       self.evaluate(table.clear())
 
@@ -1272,10 +1289,7 @@ class RocksDBVariableTest(test.TestCase):
 
       result = self.evaluate(output)
       self.assertAllEqual(
-          [
-              [[0, 1, 2], [2, 3, 4]],
-              [[-1, -1, -1], [-1, -1, -1]]
-          ],
+          [[[0, 1, 2], [2, 3, 4]], [[-1, -1, -1], [-1, -1, -1]]],
           result,
       )
 
@@ -1297,8 +1311,8 @@ class RocksDBVariableTest(test.TestCase):
           initializer=default_val,
           dim=3,
           kv_creator=de.RocksDBTableCreator(
-              conf_with(embedding_name='t180_dynamic_embedding_variable_remove_high_rank')
-          ),
+              conf_with(embedding_name=
+                        't180_dynamic_embedding_variable_remove_high_rank')),
       )
       self.evaluate(table.clear())
 
@@ -1315,10 +1329,7 @@ class RocksDBVariableTest(test.TestCase):
 
       result = self.evaluate(output)
       self.assertAllEqual(
-          [
-              [[-1, -1, -1], [2, 3, 4]],
-              [[4, 5, 6], [-1, -1, -1]]
-          ],
+          [[[-1, -1, -1], [2, 3, 4]], [[4, 5, 6], [-1, -1, -1]]],
           result,
       )
 
@@ -1335,8 +1346,7 @@ class RocksDBVariableTest(test.TestCase):
           dtypes.int32,
           initializer=default_val,
           kv_creator=de.RocksDBTableCreator(
-              conf_with(embedding_name='t191_dynamic_embedding_variables')
-          ),
+              conf_with(embedding_name='t191_dynamic_embedding_variables')),
       )
       table2 = de.get_variable(
           't192_test_dynamic_embedding_variables',
@@ -1344,8 +1354,7 @@ class RocksDBVariableTest(test.TestCase):
           dtypes.int32,
           initializer=default_val,
           kv_creator=de.RocksDBTableCreator(
-              conf_with(embedding_name='t192_dynamic_embedding_variables')
-          ),
+              conf_with(embedding_name='t192_dynamic_embedding_variables')),
       )
       table3 = de.get_variable(
           't193_test_dynamic_embedding_variables',
@@ -1353,8 +1362,7 @@ class RocksDBVariableTest(test.TestCase):
           dtypes.int32,
           initializer=default_val,
           kv_creator=de.RocksDBTableCreator(
-              conf_with(embedding_name='t193_dynamic_embedding_variables')
-          ),
+              conf_with(embedding_name='t193_dynamic_embedding_variables')),
       )
       self.evaluate(table1.clear())
       self.evaluate(table2.clear())
@@ -1391,8 +1399,8 @@ class RocksDBVariableTest(test.TestCase):
           dtypes.int32,
           initializer=default_val,
           kv_creator=de.RocksDBTableCreator(
-              conf_with(embedding_name='t200_dynamic_embedding_variable_with_tensor_default')
-          ),
+              conf_with(embedding_name=
+                        't200_dynamic_embedding_variable_with_tensor_default')),
       )
       self.evaluate(table.clear())
 
@@ -1422,8 +1430,7 @@ class RocksDBVariableTest(test.TestCase):
           dtypes.int32,
           initializer=default_val,
           kv_creator=de.RocksDBTableCreator(
-              conf_with(embedding_name='t210_signature_mismatch')
-          ),
+              conf_with(embedding_name='t210_signature_mismatch')),
       )
       self.evaluate(table.clear())
 
@@ -1470,8 +1477,8 @@ class RocksDBVariableTest(test.TestCase):
           dtypes.float32,
           initializer=default_val,
           kv_creator=de.RocksDBTableCreator(
-              conf_with(embedding_name='t220_dynamic_embedding_variable_int_float')
-          ),
+              conf_with(
+                  embedding_name='t220_dynamic_embedding_variable_int_float')),
       )
       self.evaluate(table.clear())
 
@@ -1499,8 +1506,8 @@ class RocksDBVariableTest(test.TestCase):
           dtypes.float32,
           initializer=default_val,
           kv_creator=de.RocksDBTableCreator(
-              conf_with(embedding_name='t230_dynamic_embedding_variable_with_random_init')
-          ),
+              conf_with(embedding_name=
+                        't230_dynamic_embedding_variable_with_random_init')),
       )
       self.evaluate(table.clear())
 
@@ -1539,8 +1546,8 @@ class RocksDBVariableTest(test.TestCase):
         init_size=256,
         restrict_policy=de.TimestampRestrictPolicy,
         kv_creator=de.RocksDBTableCreator(
-            conf_with(embedding_name='dynamic_embedding_variable_with_restrict_v1')
-        ),
+            conf_with(
+                embedding_name='dynamic_embedding_variable_with_restrict_v1')),
     )
     self.evaluate(var_guard_by_tstp.clear())
 
@@ -1553,8 +1560,8 @@ class RocksDBVariableTest(test.TestCase):
         init_size=256,
         restrict_policy=de.FrequencyRestrictPolicy,
         kv_creator=de.RocksDBTableCreator(
-            conf_with(embedding_name='dynamic_embedding_variable_with_restrict_v1')
-        ),
+            conf_with(
+                embedding_name='dynamic_embedding_variable_with_restrict_v1')),
     )
     self.evaluate(var_guard_by_freq.clear())
 
@@ -1622,8 +1629,8 @@ class RocksDBVariableTest(test.TestCase):
         dim=embed_dim,
         restrict_policy=de.TimestampRestrictPolicy,
         kv_creator=de.RocksDBTableCreator(
-            conf_with(embedding_name='dynamic_embedding_variable_with_restrict_v2')
-        ),
+            conf_with(
+                embedding_name='dynamic_embedding_variable_with_restrict_v2')),
     )
     self.evaluate(var_guard_by_tstp.clear())
 
@@ -1635,8 +1642,8 @@ class RocksDBVariableTest(test.TestCase):
         dim=embed_dim,
         restrict_policy=de.FrequencyRestrictPolicy,
         kv_creator=de.RocksDBTableCreator(
-            conf_with(embedding_name='dynamic_embedding_variable_with_restrict_v2')
-        ),
+            conf_with(
+                embedding_name='dynamic_embedding_variable_with_restrict_v2')),
     )
     self.evaluate(var_guard_by_freq.clear())
 
