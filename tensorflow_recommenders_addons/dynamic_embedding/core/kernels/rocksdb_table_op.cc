@@ -1119,8 +1119,8 @@ class RocksDBTableOpKernel : public OpKernel {
       TF_RETURN_IF_ERROR(ctx->mutable_input(input_name, &tensor, true));
       if (tensor.NumElements() != 2) {
         return errors::InvalidArgument(
-          "Lookup table handle must be scalar, but had shape: ",
-          tensor.shape().DebugString());
+            "Lookup table handle must be scalar, but had shape: ",
+            tensor.shape().DebugString());
       }
       auto h = tensor.flat<tstring>();
       *container = h(0);
@@ -1141,7 +1141,8 @@ class RocksDBTableOpKernel : public OpKernel {
                                  LookupInterface **table) {
     tstring container;
     tstring table_handle;
-    TF_RETURN_IF_ERROR(GetTableHandle(input_name, ctx, &container, &table_handle));
+    TF_RETURN_IF_ERROR(
+        GetTableHandle(input_name, ctx, &container, &table_handle));
     return ctx->resource_manager()->Lookup(container, table_handle, table);
   }
 
