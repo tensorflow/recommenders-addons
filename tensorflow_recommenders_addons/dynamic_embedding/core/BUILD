@@ -78,7 +78,7 @@ custom_op_library(
         "utils/utils.h",
     ],
     linkopts = [
-        "-L/usr/lib/x86_64-linux-gnu",
+        "-L/usr/local/lib",
         "-lbz2",
         "-llz4",
         "-lzstd",
