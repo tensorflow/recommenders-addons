@@ -22,7 +22,9 @@ RUN --mount=type=cache,id=cache_pip,target=/root/.cache/pip \
     -r typedapi.txt \
     -r pytest.txt
 
-RUN apt-get update && apt-get install -y sudo rsync cmake
+RUN apt-get update && \
+    apt-get install -y sudo rsync cmake \
+    libbz2-dev liblz4-dev libzstd-dev
 COPY tools/docker/install/install_bazel.sh ./
 RUN ./install_bazel.sh $USE_BAZEL_VERSION
 
@@ -97,7 +99,9 @@ RUN pip install -r requirements.txt
 COPY tools/install_deps/doc_requirements.txt ./
 RUN pip install -r doc_requirements.txt
 
-RUN apt-get update && apt-get install -y sudo rsync cmake
+RUN apt-get update &&
+    apt-get install -y sudo rsync cmake \
+    libbz2-dev liblz4-dev libzstd-dev
 COPY tools/docker/install/install_bazel.sh ./
 RUN ./install_bazel.sh $USE_BAZEL_VERSION
 
