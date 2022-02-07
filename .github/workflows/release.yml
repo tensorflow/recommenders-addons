@@ -42,15 +42,22 @@ jobs:
     strategy:
       matrix:
         # TODO: add back 'windows-latest' when it can be compiled.
-        os: ['macos-latest', 'ubuntu-18.04']
+        os: ['macos-10.15', 'ubuntu-18.04']
         py-version: ['3.7', '3.8', '3.9']
         tf-version: ['2.5.1', '2.7.0']
         tf-need-cuda: ['1', '0']
         tf-cuda-version: ['10.0', '11.2']
         tf-cudnn-version: ['7.6', '8.1']
+        cpu: ['x86']
+        include:
+          - os: 'macos-11'
+            cpu: 'arm64'
+            tf-version: '2.5.0'
+            py-version: '3.9'
+            tf-need-cuda: '0'
         exclude:
           # excludes cuda on macOS
-          - os: 'macos-latest'
+          - os: 'macos-10.15'
             tf-need-cuda: '1'
           # excludes TF2.5.1 with cuda 10.0
           - tf-version: '2.5.1'
@@ -98,8 +105,9 @@ jobs:
           TF_CUDA_VERSION: ${{ matrix.tf-cuda-version }}
           TF_CUDNN_VERSION: ${{ matrix.tf-cudnn-version }}
           NIGHTLY_TIME: ${{ steps.author-date.outputs.result }}
+          CPU: ${{ matrix.cpu }}
         shell: bash
-        run: bash .github/workflows/make_wheel_${OS}.sh
+        run: bash .github/workflows/make_wheel_${OS}_${CPU}.sh
       - uses: haya14busa/action-cond@v1
         id: device
         with:
@@ -108,7 +116,7 @@ jobs:
           if_false: "cpu"
       - uses: actions/upload-artifact@v1
         with:
-          name: ${{ runner.os }}-${{ matrix.py-version }}-tf${{ matrix.tf-version }}-${{ steps.device.outputs.value }}-wheel
+          name: ${{ runner.os }}-${{ matrix.py-version }}-tf${{ matrix.tf-version }}-${{ steps.device.outputs.value }}-${{ matrix.cpu }}-wheel
           path: wheelhouse
   upload-wheels:
     name: Publish wheels to PyPi
@@ -121,6 +129,13 @@ jobs:
         py-version: ['3.7', '3.8', '3.9']
         tf-version: ['2.5.1', '2.7.0']
         tf-need-cuda: ['1', '0']
+        cpu: ['x86']
+        include:
+          - os: 'macOS'
+            cpu: 'arm64'
+            tf-version: '2.5.0'
+            py-version: '3.9'
+            tf-need-cuda: '0'
         exclude:
           # excludes cuda on macOS
           - os: 'macOS'
@@ -136,7 +151,7 @@ jobs:
           if_false: "cpu"
       - uses: actions/download-artifact@v1
         with:
-          name: ${{ matrix.os }}-${{ matrix.py-version }}-tf${{ matrix.tf-version }}-${{ steps.device.outputs.value }}-wheel
+          name: ${{ matrix.os }}-${{ matrix.py-version }}-tf${{ matrix.tf-version }}-${{ steps.device.outputs.value }}-${{ matrix.cpu }}-wheel
           path: ./dist
       - run: |
           set -e -x
