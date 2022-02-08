@@ -17,7 +17,7 @@ on:
 env:
   MIN_PY_VERSION: '3.6'
   MAX_PY_VERSION: '3.9'
-  USE_BAZEL_VERSION: "3.7.2"
+  USE_BAZEL_VERSION: "4.1.0"
   HOROVOD_VERSION: '0.23.0'
 
 jobs:
