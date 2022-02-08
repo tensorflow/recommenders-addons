@@ -34,7 +34,7 @@ def _VALID_BAZEL_VERSION(tf_version):
         'refering to the previous COMMIT to compile properly by themselves.')
     return "0.26.1"
   elif tf_version >= "2.0.0":
-    target_bazel = "4.1.0" if not is_arm64() else "3.7.2"
+    target_bazel = "4.1.0" if is_arm64() else "3.7.2"
     logging.info(
         'To ensure code compatibility with Bazel rules_foreign_cc component, '
         'we specify Bazel version greater than {} '
