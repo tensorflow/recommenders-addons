@@ -54,7 +54,6 @@ custom_op_library(
     copts = [
         "-pthread",
         "-Ofast",
-        "-c",
     ],
     linkopts = select({
         "@bazel_tools//src/conditions:linux_x86_64": [

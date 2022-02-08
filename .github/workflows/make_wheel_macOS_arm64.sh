@@ -12,8 +12,6 @@ export TF_NEED_CUDA=0
 python --version
 python -m pip install --default-timeout=1000 delocate==0.9.1 wheel setuptools
 
-python configure.py
-
 # For dynamic linking, we want the ARM version of TensorFlow.
 # Since we cannot run it on x86 so we need to force pip to install it regardless
 python -m pip install \
@@ -22,6 +20,8 @@ python -m pip install \
   --target=$(python -c 'import site; print(site.getsitepackages()[0])') \
   --upgrade \
   tensorflow-macos==$TF_VERSION
+
+python configure.py
 
 bazel build \
   --cpu=darwin_arm64 \
