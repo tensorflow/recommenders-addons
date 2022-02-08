@@ -230,6 +230,9 @@ def create_build_configuration():
     print("> Building only CPU ops")
 
   print()
+  print("os.uname:", os.uname())
+  print("platform.machine:", platform.machine())
+  print("platform.system:", platform.system())
   print("Build configurations successfully written to", _TFRA_BAZELRC, ":\n")
   print(pathlib.Path(_TFRA_BAZELRC).read_text())
 
