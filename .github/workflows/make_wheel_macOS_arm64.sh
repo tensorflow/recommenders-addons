@@ -26,7 +26,6 @@ bazel build \
   --cpu=darwin_arm64 \
   --copt -mmacosx-version-min=12.0 \
   --linkopt -mmacosx-version-min=12.0 \
-  --copt "-c" \
   --noshow_progress \
   --noshow_loading_progress \
   --verbose_failures \
