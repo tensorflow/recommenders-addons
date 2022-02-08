@@ -2,6 +2,8 @@
 date
 
 output_dir=${1:-"/usr/local/bin"}
+echo "USE_BAZEL_VERSION"
+echo $USE_BAZEL_VERSION
 
 case "$(uname -s)" in
     Darwin) name=bazelisk-darwin-amd64 ;;
