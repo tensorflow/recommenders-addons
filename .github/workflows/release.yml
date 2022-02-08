@@ -38,7 +38,7 @@ jobs:
           bazel test -c opt -k --test_timeout 300,450,1200,3600 --test_output=errors //tensorflow_recommenders_addons/...
   release-wheel:
     name: Build release wheels
-    runs-on: [${{ matrix.os }}, ARM64]
+    runs-on: [self-hosted, ${{ matrix.os }}, ARM64]
     strategy:
       matrix:
         # TODO: add back 'windows-latest' when it can be compiled.
