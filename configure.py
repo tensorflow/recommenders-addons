@@ -34,11 +34,12 @@ def _VALID_BAZEL_VERSION(tf_version):
         'refering to the previous COMMIT to compile properly by themselves.')
     return "0.26.1"
   elif tf_version >= "2.0.0":
+    target_bazel = "4.1.0" if not is_arm64() else "3.7.2"
     logging.info(
         'To ensure code compatibility with Bazel rules_foreign_cc component, '
-        'we specify Bazel version greater than 3.7.2 '
-        'for Tensorflow versions greater than 2.0.0.')
-    return "3.7.2"
+        'we specify Bazel version greater than {} '
+        'for Tensorflow versions greater than 2.0.0.'.format(target_bazel))
+    return target_bazel
   else:
     raise ValueError('Unsupport TensorFlow version {}.'.format(tf_version))
 
