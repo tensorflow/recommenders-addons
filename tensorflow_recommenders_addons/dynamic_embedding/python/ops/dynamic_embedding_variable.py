@@ -25,6 +25,7 @@ from __future__ import print_function
 import functools
 
 from tensorflow_recommenders_addons import dynamic_embedding as de
+from tensorflow_recommenders_addons.utils.check_platform import is_macos, is_arm64
 
 try:
   from tensorflow.python.util import _pywrap_util_port as pywrap
@@ -305,6 +306,11 @@ class Variable(base.Trackable):
           [dtypes.int64, dtypes.int64],
           [dtypes.int32, dtypes.float32],
       ]
+    if is_macos() and is_arm64():
+      if value_dtype == dtypes.half:
+        raise TypeError("""
+          float16 value dtype is not supported on macOS with ARM64 architecture. Please try another type.
+          """)
     if [key_dtype, value_dtype] not in valid_dtype_list:
       raise TypeError(
           "key-value dtype ({}-{}) is not support! The valid dtypes are \n{}\n".

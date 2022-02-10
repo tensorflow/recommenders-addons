@@ -27,6 +27,7 @@ import six
 import tempfile
 
 from tensorflow_recommenders_addons import dynamic_embedding as de
+from tensorflow_recommenders_addons.utils.check_platform import is_macos, is_arm64
 
 from tensorflow.core.protobuf import config_pb2
 from tensorflow.python.client import session
@@ -387,6 +388,10 @@ class VariableTest(test.TestCase):
 
     for (key_dtype, value_dtype), dim in itertools.product(kv_list, dim_list):
       id += 1
+      # Skip float16 tests if the platform is macOS arm64 architecture
+      if is_macos() and is_arm64():
+        if value_dtype == dtypes.half:
+          continue
       with self.session(config=default_config,
                         use_gpu=test_util.is_gpu_available()) as sess:
         keys = constant_op.constant(
@@ -456,6 +461,10 @@ class VariableTest(test.TestCase):
 
     for (key_dtype, value_dtype), dim in itertools.product(kv_list, dim_list):
       id += 1
+      # Skip float16 tests if the platform is macOS arm64 archtecture
+      if is_macos() and is_arm64():
+        if value_dtype == dtypes.half:
+          continue
       with self.session(config=default_config,
                         use_gpu=test_util.is_gpu_available()) as sess:
         base_keys = constant_op.constant(
