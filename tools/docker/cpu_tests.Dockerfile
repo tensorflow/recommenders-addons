@@ -3,12 +3,20 @@ FROM python:3.6 as build_wheel
 
 ARG TF_VERSION=2.5.1
 ARG USE_BAZEL_VERSION=3.7.2
+ARG MPI_VERSION="4.1.1"
+ARG HOROVOD_VERSION="0.23.0"
 
 RUN pip install --default-timeout=1000 tensorflow-cpu==$TF_VERSION
 
 RUN apt-get update && apt-get install -y sudo rsync cmake
 COPY tools/docker/install/install_bazel.sh ./
 RUN ./install_bazel.sh $USE_BAZEL_VERSION
+
+COPY tools/docker/install/install_openmpi.sh ./
+RUN ./install_openmpi.sh $MPI_VERSION
+
+COPY tools/docker/install/install_horovod.sh ./
+RUN ./install_horovod.sh $HOROVOD_VERSION
 
 COPY requirements.txt ./
 RUN pip install -r requirements.txt
