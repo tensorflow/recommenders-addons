@@ -24,5 +24,5 @@ cp -r $_BAZEL_CACHE_DIR $TFRA_HOME/build_deps/tf_header/$TF_VERSION/
 
 5. Start compiling TFRA
 ```shell script
-PY_VERSION="3.6" TF_VERSION="1.15.2" TF_NEED_CUDA=0 sh .github/workflows/make_wheel_Linux.sh
+PY_VERSION="3.7" TF_VERSION="1.15.2" TF_NEED_CUDA=0 sh .github/workflows/make_wheel_Linux.sh
 ```
