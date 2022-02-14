@@ -117,7 +117,7 @@ Check [nvidia-support-matrix](https://docs.nvidia.com/deeplearning/cudnn/support
 - Due to the significant changes in the Tensorflow API, we can only ensure version 0.2.0 compatibility with TF1.15.2 on CPU & GPU, 
   but **there are no official releases**, you can only get it through compiling by the following:
 ```shell
-PY_VERSION="3.6" \
+PY_VERSION="3.7" \
 TF_VERSION="1.15.2" \
 TF_NEED_CUDA=1 \
 sh .github/workflows/make_wheel_Linux.sh
