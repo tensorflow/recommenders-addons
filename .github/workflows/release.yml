@@ -128,7 +128,7 @@ jobs:
         # TODO: add back 'Windows' when it can be compiled.
         os: ['macOS', 'Linux']
         py-version: ['3.7', '3.8', '3.9']
-        tf-version: ['2.5.1', '2.7.0']
+        tf-version: ['2.5.1']
         tf-need-cuda: ['1', '0']
         cpu: ['x86']
 #       TODO(poinwater): add macOS CI once GitHub supports macOS 12.0.0 + 
