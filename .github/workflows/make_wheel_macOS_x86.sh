@@ -6,8 +6,11 @@ if [ -z $HOROVOD_VERSION ] ; then
 fi
 python --version
 
-python -m pip install --default-timeout=1000 delocate==0.9.1 wheel setuptools tensorflow==$TF_VERSION \
-  horovod==$HOROVOD_VERSION
+brew install open-mpi
+
+python -m pip install --default-timeout=1000 delocate==0.9.1 wheel setuptools tensorflow==$TF_VERSION
+bash tools/docker/install/install_horovod.sh $HOROVOD_VERSION --only-cpu
+
 bash tools/testing/build_and_run_tests.sh
 
 bazel build \
