@@ -80,6 +80,8 @@ from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embeddi
     Variable,)
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_variable import (
     GraphKeys,)
+from tensorflow_recommenders_addons.dynamic_embedding.python.ops.warm_start_util import (
+    warm_start, WarmStartHook)
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.restrict_policies import (
     RestrictPolicy,
     TimestampRestrictPolicy,
