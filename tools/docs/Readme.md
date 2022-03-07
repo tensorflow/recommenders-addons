@@ -15,5 +15,5 @@ bazel build //tools/docs:build_docs
 # Use current branch
 bazel-bin/tools/docs/build_docs --git_branch=$(git rev-parse --abbrev-ref HEAD)
 # or specified explicitly
-bazel-bin/tools/docs/build_docs --git_branch=master --output_dir=/tmp/tfa_api
+bazel-bin/tools/docs/build_docs --git_branch=master --output_dir=/tmp/tfra_api
 ```

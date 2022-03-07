@@ -24,11 +24,14 @@ Generate Docs:
 $> from the repo root run: python docs/build_docs.py
 """
 
+import textwrap
+
 from absl import app
 from absl import flags
 
 import tensorflow_recommenders_addons as tfra
 
+from tensorflow_docs.api_generator import pretty_docs
 from tensorflow_docs.api_generator import generate_lib
 from tensorflow_docs.api_generator import public_api
 
@@ -56,9 +59,46 @@ flags.DEFINE_string("site_path", "recommenders-addons/api_docs/python",
                     "Path prefix in the _toc.yaml")
 
 
+def _top_source_link(location):
+  """Retrns a source link with Github image, like the notebook butons."""
+  table_template = textwrap.dedent("""
+    <table class="tfo-notebook-buttons tfo-api" align="left">
+    {}</table>
+    <br/>
+    <br/>
+    <br/>
+    <br/>
+
+    """)
+
+  link_template = textwrap.dedent("""
+    <td>
+      <a target="_blank" href="{url}">
+        <img src="https://www.tensorflow.org/images/GitHub-Mark-32px.png" />
+        View source on GitHub
+      </a>
+    </td>""")
+
+  if location is None or not location.url:
+    return table_template.format('')
+
+  if 'github.com' not in location.url:
+    return table_template.format('') + _small_source_link(location)
+
+  link = link_template.format(url=location.url)
+  table = table_template.format(link)
+  return table
+
+
+def check_and_patch_doc_style():
+  pretty_docs._top_source_link = _top_source_link
+
+
 def main(argv):
   if argv[1:]:
     raise ValueError("Unrecognized arguments: {}".format(argv[1:]))
+
+  check_and_patch_doc_style()
 
   if FLAGS.code_url_prefix:
     code_url_prefix = FLAGS.code_url_prefix
