@@ -43,6 +43,7 @@ from tensorflow.python.ops import sparse_ops
 from tensorflow.python.ops import variables
 from tensorflow.python.ops import variable_scope
 from tensorflow.python.training.tracking import base as trackable
+from tensorflow.python.training.tracking import data_structures
 from tensorflow.python.util import compat
 from tensorflow.python.util.tf_export import tf_export
 
@@ -84,6 +85,7 @@ class TrainableWrapper(resource_variable_ops.ResourceVariable):
     self.model_mode = kwargs.get("model_mode")
     kwargs.pop("model_mode")
     self._tracked_slots = []
+    self._optimizer_vars = data_structures.ListWrapper([])
     super(TrainableWrapper, self).__init__(*args, **kwargs)
 
   def prefetch_values(self, update=False):
@@ -438,10 +440,9 @@ class TrainableWrapper(resource_variable_ops.ResourceVariable):
     )
 
   def transform(self, result):
-    _result = array_ops.reshape(result, shape=array_ops.shape(result))
     if self.max_norm is not None:
-      _result = self._clip(_result, self.ids, self.max_norm)
-    return _result
+      result = self._clip(result, self.ids, self.max_norm)
+    return result
 
   def _track_optimizer_slots(self, slots):
     if not all(isinstance(s, TrainableWrapper) for s in slots):
@@ -463,6 +464,12 @@ class TrainableWrapper(resource_variable_ops.ResourceVariable):
       s._reset_ids(ids)
 
 
+# TODO (Lifann) Introduce ShadowVariable when using tf.function.
+# Could hack the tf.function and mark whether if the Python context
+# is in the `function` scope. When inside `function` scope, create
+# ShadowVariable out of the scope, and then do the lookup. Also
+# need to keep the ShadowVariable on record of the params, without
+# breaking the compatibility of embedding_lookup API.
 def embedding_lookup(
     params,
     ids,
@@ -509,7 +516,8 @@ def embedding_lookup(
             params.key_dtype, ids.dtype))
   if context.executing_eagerly() and (name is None):
     raise ValueError(
-        'Must specify a name for dynamic_embedding.embedding_lookup when running eagerly.'
+        'Must specify a name for dynamic_embedding.embedding_lookup when running '
+        'eagerly. The `de.shadow_ops.embedding_lookup` is recommended in eager case.'
     )
 
   scope = variable_scope.get_variable_scope()

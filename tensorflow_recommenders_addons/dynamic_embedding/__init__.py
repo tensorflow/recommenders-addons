@@ -38,8 +38,10 @@ __all__ = [
     'enable_train_mode',
     'get_model_mode',
     'math',
+    'shadow_ops',
 ]
 
+from tensorflow_recommenders_addons.dynamic_embedding.python import keras
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops import math_ops as math
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_creator import (
     KVCreator,
@@ -89,5 +91,6 @@ from tensorflow_recommenders_addons.dynamic_embedding.python.ops.restrict_polici
 )
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.tf_patch import (
     patch_on_tf,)
+from tensorflow_recommenders_addons.dynamic_embedding.python.ops import shadow_embedding_ops as shadow_ops
 
 patch_on_tf()
