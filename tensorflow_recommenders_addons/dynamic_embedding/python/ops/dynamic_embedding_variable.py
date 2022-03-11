@@ -23,6 +23,7 @@ from __future__ import division
 from __future__ import print_function
 
 import functools
+import tensorflow as tf
 
 from tensorflow_recommenders_addons import dynamic_embedding as de
 from tensorflow_recommenders_addons.utils.check_platform import is_macos, is_arm64
@@ -349,7 +350,10 @@ class Variable(base.Trackable):
 
   def _convert_anything_to_init(self, raw_init, dim):
     init = raw_init
-    valid_list = [init_ops.Initializer, init_ops_v2.Initializer]
+    valid_list = [
+        init_ops.Initializer, init_ops_v2.Initializer,
+        tf.keras.initializers.Initializer
+    ]
     if kinit2 is not None:
       valid_list.append(kinit2.Initializer)
     valid_list = tuple(valid_list)
@@ -359,9 +363,9 @@ class Variable(base.Trackable):
         init = init(shape=[1])
       else:
         try:
-          init = init()
-        except:
           init = init(shape=[1])
+        except:
+          init = init()
     try:
       init = array_ops.reshape(init, [dim])
     except:
@@ -641,7 +645,8 @@ class Variable(base.Trackable):
     Returns:
       List of slot `Variable`s in optimizer.
     """
-    if not isinstance(optimizer, (Optimizer, OptimizerV2)):
+    if not isinstance(optimizer,
+                      (Optimizer, OptimizerV2, tf.keras.optimizers.Optimizer)):
       raise TypeError('Expect an optimizer, but get {}'.format(type(optimizer)))
     slots = []
     snames = optimizer.get_slot_names()

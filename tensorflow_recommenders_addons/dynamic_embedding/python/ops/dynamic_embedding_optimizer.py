@@ -98,7 +98,6 @@ def DynamicEmbeddingOptimizer(self, bp_v2=False, synchronous=False):
       else:
         with ops.colocate_with(None, ignore_existing=True):
           _slots = [self.get_slot(var, _s) for _s in self.get_slot_names()]
-          # Add the optimizer slots to restricting list.
           var._track_optimizer_slots(_slots)
 
           with ops.control_dependencies([grad]):
@@ -184,27 +183,38 @@ def DynamicEmbeddingOptimizer(self, bp_v2=False, synchronous=False):
                                           dtype=var.dtype)
       else:
         initial_value = initializer
-      strategy = distribute_ctx.get_strategy()
-      with strategy.extended.colocate_vars_with(var):
-        if isinstance(var, de.TrainableWrapper):
-          weight = de.create_slots(var, initial_value, slot_name,
-                                   var._shared_name, self._bp_v2)
-        else:
-          weight = variables.Variable(
-              name="%s/%s" % (
-                  var._shared_name,
-                  slot_name,
-              ),  # pylint: disable=protected-access
-              dtype=var.dtype,
-              trainable=False,
-              initial_value=initial_value,
-          )
-      backend.track_variable(weight)
-      slot_dict[slot_name] = weight
-      self._restore_slot_variable(slot_name=slot_name,
-                                  variable=var,
-                                  slot_variable=weight)
-      self._weights.append(weight)
+      with self._distribution_strategy_scope():
+        strategy = distribute_ctx.get_strategy()
+        if not strategy.extended.variable_created_in_scope(var):
+          raise ValueError(
+              "Trying to create optimizer slot variable under the scope for "
+              "tf.distribute.Strategy ({}), which is different from the scope "
+              "used for the original variable ({}). Make sure the slot "
+              "variables are created under the same strategy scope. This may "
+              "happen if you're restoring from a checkpoint outside the scope".
+              format(strategy, var))
+
+        with strategy.extended.colocate_vars_with(var):
+
+          if isinstance(var, de.TrainableWrapper):
+            weight = de.create_slots(var, initial_value, slot_name,
+                                     var._shared_name, self._bp_v2)
+          else:
+            weight = variables.Variable(
+                name="%s/%s" % (
+                    var._shared_name,
+                    slot_name,
+                ),  # pylint: disable=protected-access
+                dtype=var.dtype,
+                trainable=False,
+                initial_value=initial_value,
+            )
+        backend.track_variable(weight)
+        slot_dict[slot_name] = weight
+        self._restore_slot_variable(slot_name=slot_name,
+                                    variable=var,
+                                    slot_variable=weight)
+        self._weights.append(weight)
     return weight
 
   def _get_or_make_slot(var, val, slot_name, op_name):
@@ -390,6 +400,8 @@ def create_slots(primary, init, slot_name, op_name, bp_v2):
       )
 
     scope_store._vars[full_name] = slot_variable_
+    # Record the optimizer Variable into trace.
+    primary._optimizer_vars.append(slot_variable_)
 
   slot_trainable = None
   if context.executing_eagerly():
@@ -399,11 +411,20 @@ def create_slots(primary, init, slot_name, op_name, bp_v2):
     # trainable wrappers of slots. So here set it the name to slot_name
     # for forward compatibility.
     slot_tw_name = slot_name
-  _, slot_trainable = de.embedding_lookup(
-      params=scope_store._vars[full_name],
-      ids=params_ids_,
-      name=slot_tw_name,
-      return_trainable=True,
-  )
+  if isinstance(primary, de.shadow_ops.ShadowVariable):
+    slot_trainable = de.shadow_ops.ShadowVariable(
+        params=scope_store._vars[full_name],
+        ids=primary.ids,
+        exists=primary.exists,
+        name=full_name,
+        trainable=False,
+    )
+  else:
+    _, slot_trainable = de.embedding_lookup(
+        params=scope_store._vars[full_name],
+        ids=params_ids_,
+        name=slot_tw_name,
+        return_trainable=True,
+    )
 
   return slot_trainable

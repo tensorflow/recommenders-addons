@@ -15,6 +15,8 @@
 # lint-as: python3
 
 from abc import ABCMeta
+from tensorflow.python.eager import context
+from tensorflow.python.ops import gen_parsing_ops
 from tensorflow_recommenders_addons import dynamic_embedding as de
 
 
@@ -73,6 +75,14 @@ class CuckooHashTableCreator(KVCreator):
       init_size=None,
       config=None,
   ):
+    self.key_dtype = key_dtype
+    self.value_dtype = value_dtype
+    self.default_value = default_value
+    self.name = name
+    self.checkpoint = checkpoint
+    self.init_size = init_size
+    self.config = config
+
     return de.CuckooHashTable(
         key_dtype=key_dtype,
         value_dtype=value_dtype,
@@ -82,6 +92,22 @@ class CuckooHashTableCreator(KVCreator):
         init_size=init_size,
         config=config,
     )
+
+  def get_config(self):
+    if not context.executing_eagerly():
+      raise RuntimeError(
+          'Unsupported to serialize python object of CuckooHashTableCreator.')
+
+    config = {
+        'key_dtype': self.key_dtype,
+        'value_dtype': self.value_dtype,
+        'default_value': self.default_value.numpy(),
+        'name': self.name,
+        'checkpoint': self.checkpoint,
+        'init_size': self.init_size,
+        'config': self.config,
+    }
+    return config
 
 
 class RedisTableConfig(object):
