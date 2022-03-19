@@ -48,6 +48,7 @@ from tensorflow.python.framework import ops
 from tensorflow.python.framework import tensor_shape
 from tensorflow.python.ops import array_ops
 from tensorflow.python.ops import control_flow_ops
+from tensorflow.python.ops import gen_resource_variable_ops
 from tensorflow.python.ops import resource_variable_ops
 from tensorflow.python.training.tracking import base as trackable
 
@@ -173,6 +174,36 @@ class ShadowVariable(de.TrainableWrapper):
       return self._cached_value
     with ops.colocate_with(None, ignore_existing=True):
       return self._read_variable_op(do_prefetch=do_prefetch)
+
+  def assign(self, value, use_locking=None, name=None, read_value=True):
+    """
+    Assigns a new value to this variable.
+    To discriminate with ResourceVariable, the shadow always uses a
+    variant space to hold the temporary embedding lookup buffer.
+
+    Args:
+      value: A `Tensor`. The new value for this variable.
+      use_locking: If `True`, use locking during the assignment.
+      name: The name to use for the assignment.
+      read_value: A `bool`. Whether to read and return the new value of the
+        variable or not.
+
+    Returns:
+      If `read_value` is `True`, this method will return the new value of the
+      variable after the assignment has completed. Otherwise, when in graph mode
+      it will return the `Operation` that does the assignment, and when in eager
+      mode it will return `None`.
+    """
+    # Note: not depending on the cached value here since this can be used to
+    # initialize the variable.
+    with resource_variable_ops._handle_graph(self.handle):
+      value_tensor = ops.convert_to_tensor(value, dtype=self.dtype)
+      assign_op = gen_resource_variable_ops.assign_variable_op(self.handle,
+                                                               value_tensor,
+                                                               name=name)
+      if read_value:
+        return self._lazy_read(assign_op)
+    return assign_op
 
   def _reset_ids(self, ids):
     return self.ids.assign(ids, use_locking=True)
