@@ -5,66 +5,65 @@
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/tensorflow-recommenders-addons)](https://pypi.org/project/tensorflow-recommenders-addons/)
 [![Documentation](https://img.shields.io/badge/api-reference-blue.svg)](docs/api_docs/)
 
-
 TensorFlow Recommenders Addons(TFRA) are a collection of projects related to large-scale recommendation systems 
 built upon TensorFlow by introducing the **Dynamic Embedding Technology** to TensorFlow 
-that make TensorFlow more suitable for trainning models of **Search, Recommendations and Advertising**. 
-These projects are contributed and maintained by the community. Those contributions will be complementary to
-TensorFlow Core and TensorFlow Recommenders etc.
+that makes TensorFlow more suitable for trainning models of **Search, Recommendations and Advertising** and 
+makes building, evaluating, and serving sophisticated recommenders models easy. 
+See approved TensorFlow RFC #[313](https://github.com/tensorflow/community/pull/313).
+Those contributions will be complementary to TensorFlow Core and TensorFlow Recommenders etc. 
 
-## Scope
+## Main Features
 
-See approved TensorFlow RFC #[313](https://github.com/tensorflow/community/pull/313). 
-
-TensorFlow has open-sourced [TensorFlow Recommenders](https://blog.tensorflow.org/2020/09/introducing-tensorflow-recommenders.html)
-([github.com/tensorflow/recommenders](http://github.com/tensorflow/recommenders)),
-an open-source TensorFlow package that makes building, evaluating, and serving
-sophisticated recommender models easy.
-
-Further, this repo is maintained by TF SIG Recommenders
-([recommenders@tensorflow.org](https://groups.google.com/a/tensorflow.org/g/recommenders))
-for community contributions. SIG Recommenders can contributes more addons as complementary
-to TensorFlow Recommenders, or any helpful libraries related to recommendation systems using
-TensorFlow. The contribution areas can be broad and don't limit to the topic listed below:
-
-* Training with scale: How to train from super large sparse features? How to
-deal with dynamic embedding and key-value parameters?
-* Serving with efficiency: Given recommendation models are usually pretty
-large, how to serve super large models easily, and how to serve efficiently?
-* Modeling with SoTA techniques: online learning, multi-target learning, deal
-with quality inconsistent among online and offline, model understandability,
-GNN etc.
-* End-to-end pipeline: how to train continuously, e.g. integrate with platforms
-like TFX.
-* Vendor specific extensions and platform integrations: for example, runtime
-specific frameworks (e.g. NVIDIA Merlin, …), and integrations with Cloud services
-(e.g. GCP, AWS, Azure…)
-
-## RFCs
-* [RFC: Dynamic Embedding](rfcs/20200424-sparse-domain-isolation.md)
-* [RFC: Embedding Variable](https://docs.google.com/document/d/1odez6-69YH-eFcp8rKndDHTNGxZgdFFRJufsW94_gl4)
+- Make key-value data structure (dynamic embedding) trainable in TensorFlow
+- Get better recommendation effect compared to static embedding mechanism with no hash conflicts
+- Compatible with all native TensorFlow optimizers and initializers
+- Compatible with native TensorFlow CheckPoint and SavedModel format
+- Fully support train and inference recommeneders models on GPUs
+- Support [TF serving](https://github.com/tensorflow/serving) and [Triton Inference Server](https://github.com/triton-inference-server/server) as inference framework
+- Support variant Key-Value implements as dynamic embedding storage and easy to extend
+  - [cuckoohash_map](https://github.com/efficient/libcuckoo) (from Efficient Computing at Carnegie Mellon, on CPU)
+  - [nvhash](https://github.com/rapidsai/cudf) (from NVIDIA, on GPU)
+  - [Redis](https://github.com/redis/redis)
+- Support half synchronous training based on Horovod
+  - Synchronous training for dense weights
+  - Asynchronous training for sparse weights
 
 ## Subpackages
 
-* [tfra.dynamic_embedding](docs/api_docs/tfra/dynamic_embedding.md)
-* [tfra.embedding_variable](https://github.com/tensorflow/recommenders-addons/blob/master/docs/tutorials/embedding_variable_tutorial.ipynb)
+* [tfra.dynamic_embedding](docs/api_docs/tfra/dynamic_embedding.md), [RFC](rfcs/20200424-sparse-domain-isolation.md)
+* [tfra.embedding_variable](https://github.com/tensorflow/recommenders-addons/blob/master/docs/tutorials/embedding_variable_tutorial.ipynb), [RFC](https://docs.google.com/document/d/1odez6-69YH-eFcp8rKndDHTNGxZgdFFRJufsW94_gl4)
 
-## Tutorials
-See [`docs/tutorials/`](docs/tutorials/) for end-to-end examples of each subpackages.
+## Contributors
 
-## Maintainership
+TensorFlow Recommenders-Addons depends on public contributions, bug fixes, and documentation.
+This project exists thanks to all the people and organizations who contribute. [[Contribute](CONTRIBUTING.md)]
 
-We adopt proxy maintainership as in [TensorFlow Recommenders-Addons](https://github.com/tensorflow/recommenders-addons):
+<a href="https://github.com/tensorflow/recommenders-addons/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=tensorflow/recommenders-addons" />
+</a>
 
-*Projects and subpackages are compartmentalized and each is maintained by those
-with expertise and vested interest in that component.*
 
-*Subpackage maintainership will only be granted after substantial contribution
-has been made in order to limit the number of users with write permission.
-Contributions can come in the form of issue closings, bug fixes, documentation,
-new code, or optimizing existing code. Submodule maintainership can be granted
-with a lower barrier for entry as this will not include write permissions to
-the repo.*
+\
+<a href="https://github.com/tencent">
+  <kbd> <img src="./assets/tencent.png" height="70" /> </kbd>
+</a><a href="https://github.com/alibaba">
+  <kbd> <img src="./assets/alibaba.jpg" height="70" /> </kbd>
+</a><a href="https://vip.com/"> 
+  <kbd> <img src="./assets/vips.jpg" height="70" /> </kbd>
+</a><a href="https://www.zhipin.com//">
+  <kbd> <img src="./assets/boss.svg" height="70" /> </kbd>
+</a>
+
+\
+A special thanks to [NVIDIA Merlin Team](https://github.com/NVIDIA-Merlin) and NVIDIA China DevTech Team, 
+who have provided GPU acceleration technology support and code contribution.
+
+<a href="https://github.com/NVIDIA-Merlin">
+  <kbd> <img src="./assets/merilin.png" height="70" /> </kbd>
+</a>
+
+## Tutorials & Demos
+See [tutorials](docs/tutorials/) and [demo](demo/) for end-to-end examples of each subpackages.
 
 ## Installation
 #### Stable Builds
@@ -101,14 +100,16 @@ is compiled differently. A typical example of this would be `conda`-installed Te
 
 
 #### Compatibility Matrix
-*GPU is supported from version `0.2.0`*
+*GPU is supported by version `0.2.0` and later.*
 
-| TFRA | TensorFlow | Compiler  | CUDA | CUDNN | Compute Capability |
-|:----------------------- |:---- |:---------| :------------ | :---- | :------------ |
-| 0.3.0 | 2.5.1  | GCC 7.3.1 | 11.2 | 8.1 | 6.0, 6.1, 7.0, 7.5, 8.0, 8.6 |
-| 0.2.0 | 2.4.1  | GCC 7.3.1 | 11.0 | 8.0 | 6.0, 6.1, 7.0, 7.5, 8.0 |
-| 0.2.0 | 1.15.2  | GCC 7.3.1 | 10.0 | 7.6 | 6.0, 6.1, 7.0, 7.5 |
-| 0.1.0 | 2.4.1  | GCC 7.3.1 | - | - | - |
+| TFRA  | TensorFlow   | Compiler   | CUDA | CUDNN | Compute Capability           | CPU           |
+|:------|:-------------|:-----------|:-----|:------|:-----------------------------|:--------------|
+| 0.4.0 | 2.5.1        | GCC 7.3.1  | 11.2 | 8.1   | 6.0, 6.1, 7.0, 7.5, 8.0, 8.6 | x86 |
+| 0.4.0 | 2.5.0 | Xcode 13.1 | -    | -     | -                            | Apple M1      |
+| 0.3.1 | 2.5.1        | GCC 7.3.1  | 11.2 | 8.1   | 6.0, 6.1, 7.0, 7.5, 8.0, 8.6 | x86           |
+| 0.2.0 | 2.4.1        | GCC 7.3.1  | 11.0 | 8.0   | 6.0, 6.1, 7.0, 7.5, 8.0      | x86           |
+| 0.2.0 | 1.15.2       | GCC 7.3.1  | 10.0 | 7.6   | 6.0, 6.1, 7.0, 7.5           | x86           |
+| 0.1.0 | 2.4.1        | GCC 7.3.1  | -    | -     | -                            | x86           |
 
 Check [nvidia-support-matrix](https://docs.nvidia.com/deeplearning/cudnn/support-matrix/index.html) for more details.
 
@@ -120,7 +121,7 @@ Check [nvidia-support-matrix](https://docs.nvidia.com/deeplearning/cudnn/support
 PY_VERSION="3.7" \
 TF_VERSION="1.15.2" \
 TF_NEED_CUDA=1 \
-sh .github/workflows/make_wheel_Linux.sh
+sh .github/workflows/make_wheel_Linux_x86.sh
 
 # .whl file will be created in ./wheelhouse/
 ```
@@ -136,7 +137,7 @@ Please install a TensorFlow on your compiling machine, The compiler needs to kno
 its headers according to the installed TensorFlow. 
 
 ```
-export TF_VERSION=["2.5.1", "2.4.1", "1.15.2"]
+export TF_VERSION="2.5.1"  # "2.7.0", "2.5.1" are well tested.
 pip install tensorflow[-gpu]==$TF_VERSION
 
 git clone https://github.com/tensorflow/recommenders-addons.git
@@ -203,12 +204,13 @@ de = tfra.dynamic_embedding.get_variable("VariableOnGpu",
 sess_config.gpu_options.allow_growth = True
 ```
 
-### Compatibility with Tensorflow Serving
+## Inference with TensorFlow Serving
 
 #### Compatibility Matrix
-| TFRA | TensorFlow | Serving | Compiler  | CUDA | CUDNN | Compute Capability |
-|:----- |:---- |:---- |:---------| :------------ | :---- | :------------ |
-| 0.3.0 | 2.5.1  | 2.5.2  | GCC 7.3.1 | 11.2| 8.1 | 6.0, 6.1, 7.0, 7.5, 8.0, 8.6 |
+| TFRA  | TensorFlow | Serving | Compiler  | CUDA | CUDNN | Compute Capability |
+|:------|:---- |:---- |:---------| :------------ | :---- | :------------ |
+| 0.4.0 | 2.5.1  | 2.5.2  | GCC 7.3.1 | 11.2| 8.1 | 6.0, 6.1, 7.0, 7.5, 8.0, 8.6 |
+| 0.3.1 | 2.5.1  | 2.5.2  | GCC 7.3.1 | 11.2| 8.1 | 6.0, 6.1, 7.0, 7.5, 8.0, 8.6 |
 | 0.2.0 | 2.4.1  | 2.4.0  | GCC 7.3.1 | 11.0 | 8.0 | 6.0, 6.1, 7.0, 7.5, 8.0 |
 | 0.2.0 | 1.15.2  | 1.15.0  | GCC 7.3.1 | 10.0 | 7.6 | 6.0, 6.1, 7.0, 7.5 |
 | 0.1.0 | 2.4.1  | 2.4.0  | GCC 7.3.1 | - | - | - |
@@ -231,14 +233,9 @@ SUPPORTED_TENSORFLOW_OPS = if_v2([]) + if_not_v2([
     "//tensorflow_recommenders_addons/dynamic_embedding/core:_math_ops.so",
 ]
 ```
+**NOTICE**
+- Distributed inference is only supported when using Redis as Key-Value storage. 
 
-## Contributing
-
-TensorFlow Recommenders-Addons is a community-led open source project. As such,
-the project depends on public contributions, bug fixes, and documentation. This
-project adheres to TensorFlow's Code of Conduct. 
-
-Please follow up the [contributing guide](CONTRIBUTING.md) for more details.
 
 ## Community
 
@@ -247,6 +244,7 @@ Please follow up the [contributing guide](CONTRIBUTING.md) for more details.
 
 ## Acknowledgment
 We are very grateful to the maintainers of [tensorflow/addons](https://github.com/tensorflow/addons) for borrowing a lot of code from [tensorflow/addons](https://github.com/tensorflow/addons) to build our workflow and documentation system.
+We also want to extend a thank you to the Google team members who have helped with CI setup and reviews!
 
 ## Licence
 Apache License 2.0
