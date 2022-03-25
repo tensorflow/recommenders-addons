@@ -41,14 +41,18 @@ from tensorflow.python.training import slot_creator
 from tensorflow.python.training.tracking import base as trackable
 
 
-def DynamicEmbeddingOptimizer(self, bp_v2=None):
+def DynamicEmbeddingOptimizer(self, bp_v2=False, synchronous=False):
   """ An optimizer wrapper to make any TensorFlow optimizer capable of training
   Dynamic Embeddding Variables.
 
   Args:
     self: a TensorFlow optimizer.
-    bp_v2: By default is None, If None use params_var_.bp_v2 setting
-        (see `tfra.dynamic_embedding_variable.get_variable`)
+    bp_v2: If True, updating parameters will use updating instead of setting, which solves
+      the race condition problem among workers during back-propagation in large-scale
+      distributed asynchronous training. Reference: https://www.usenix.org/system/files/osdi20-jiang.pdf
+    synchronous: If True, we will use horovod's all-reduce method to merge the dense grad of model parameter, 
+      the default reduce method is SUM. For TrainableWrapper's grad, keep same with before.
+
   Example usage:
 
     ```python
@@ -60,6 +64,9 @@ def DynamicEmbeddingOptimizer(self, bp_v2=None):
     The optimizer itself but has ability to train Dynamic Embedding Variables.
   """
   self._bp_v2 = bp_v2
+  self._hvd_sync = synchronous
+
+  original_apply_gradients = self.apply_gradients
 
   def _distributed_apply(distribution, grads_and_vars, name, apply_state):
     """`apply_gradients` using a `DistributionStrategy`."""
@@ -91,7 +98,6 @@ def DynamicEmbeddingOptimizer(self, bp_v2=None):
       else:
         with ops.colocate_with(None, ignore_existing=True):
           _slots = [self.get_slot(var, _s) for _s in self.get_slot_names()]
-          # Add the optimizer slots to restricting list.
           var._track_optimizer_slots(_slots)
 
           with ops.control_dependencies([grad]):
@@ -177,27 +183,38 @@ def DynamicEmbeddingOptimizer(self, bp_v2=None):
                                           dtype=var.dtype)
       else:
         initial_value = initializer
-      strategy = distribute_ctx.get_strategy()
-      with strategy.extended.colocate_vars_with(var):
-        if isinstance(var, de.TrainableWrapper):
-          weight = de.create_slots(var, initial_value, slot_name,
-                                   var._shared_name, self._bp_v2)
-        else:
-          weight = variables.Variable(
-              name="%s/%s" % (
-                  var._shared_name,
-                  slot_name,
-              ),  # pylint: disable=protected-access
-              dtype=var.dtype,
-              trainable=False,
-              initial_value=initial_value,
-          )
-      backend.track_variable(weight)
-      slot_dict[slot_name] = weight
-      self._restore_slot_variable(slot_name=slot_name,
-                                  variable=var,
-                                  slot_variable=weight)
-      self._weights.append(weight)
+      with self._distribution_strategy_scope():
+        strategy = distribute_ctx.get_strategy()
+        if not strategy.extended.variable_created_in_scope(var):
+          raise ValueError(
+              "Trying to create optimizer slot variable under the scope for "
+              "tf.distribute.Strategy ({}), which is different from the scope "
+              "used for the original variable ({}). Make sure the slot "
+              "variables are created under the same strategy scope. This may "
+              "happen if you're restoring from a checkpoint outside the scope".
+              format(strategy, var))
+
+        with strategy.extended.colocate_vars_with(var):
+
+          if isinstance(var, de.TrainableWrapper):
+            weight = de.create_slots(var, initial_value, slot_name,
+                                     var._shared_name, self._bp_v2)
+          else:
+            weight = variables.Variable(
+                name="%s/%s" % (
+                    var._shared_name,
+                    slot_name,
+                ),  # pylint: disable=protected-access
+                dtype=var.dtype,
+                trainable=False,
+                initial_value=initial_value,
+            )
+        backend.track_variable(weight)
+        slot_dict[slot_name] = weight
+        self._restore_slot_variable(slot_name=slot_name,
+                                    variable=var,
+                                    slot_variable=weight)
+        self._weights.append(weight)
     return weight
 
   def _get_or_make_slot(var, val, slot_name, op_name):
@@ -281,12 +298,77 @@ def DynamicEmbeddingOptimizer(self, bp_v2=None):
       named_slots[optimizer._var_key(var)] = new_slot_variable
     return named_slots[optimizer._var_key(var)]
 
+  def apply_gradients(grads_and_vars, global_step=None, name=None):
+    """Apply gradients to variables.
+    Args:
+      grads_and_vars: List of (gradient, variable) pairs as returned by
+        compute_gradients().
+      global_step: Optional Variable to increment by one after the
+        variables have been updated.
+      name: Optional name for the returned operation.  Default to the
+        name passed to the Optimizer constructor.
+
+    Returns:
+      train_op: apply gradients op to be executed by each replica.
+
+    Raises:
+      ValueError: If the grads_and_vars is empty.
+      ValueError: If global step is not provided, the staleness cannot be
+        checked.
+    """
+    try:
+      import horovod.tensorflow as hvd
+    except ImportError:
+      raise ValueError(
+          "Please install Horovod first if you want to use distributed synchronous training based on Horovod"
+      )
+    if not grads_and_vars:
+      raise ValueError("Must supply at least one variable")
+
+    if global_step is None:
+      raise ValueError("Global step is required to check staleness")
+
+    trainable_grad_and_vars = []
+    aggregated_grad = []
+    var_list = []
+
+    with backend.name_scope(name or self._name):
+      for grad, var in grads_and_vars:
+        if isinstance(var, de.TrainableWrapper):
+          trainable_grad_and_vars.append((grad, var))
+          continue
+        var_list.append(var)
+        with ops.device(var.device):
+          # Dense gradients.
+          if grad is None:
+            aggregated_grad.append(None)  # pass-through.
+            continue
+          else:
+            aggregated_grad.append(hvd.allreduce(grad, op=hvd.Sum))
+
+      aggregated_grads_and_vars = zip(aggregated_grad, var_list)
+      update_op = original_apply_gradients(aggregated_grads_and_vars,
+                                           global_step)
+      if trainable_grad_and_vars:
+        trainable_update_op = original_apply_gradients(trainable_grad_and_vars,
+                                                       global_step)
+        train_op = control_flow_ops.group([update_op, trainable_update_op])
+      else:
+        train_op = update_op
+      return train_op
+
   if isinstance(self, optimizer.Optimizer):
     self._get_or_make_slot = _get_or_make_slot
     self._get_or_make_slot_with_initializer = _get_or_make_slot_with_initializer
     self._zeros_slot = _zeros_slot
+    if self._hvd_sync:
+      self.apply_gradients = apply_gradients
   elif isinstance(self, optimizer_v2.OptimizerV2) or isinstance(
       self, keras_optimizer):
+    if self._hvd_sync:
+      raise Exception(
+          "OptimizerV2 didn't support distributed sync train now, please use tf.train.XxxxOptimizer."
+      )
     self.add_slot = add_slot
     self._distributed_apply = _distributed_apply
   else:
@@ -318,6 +400,8 @@ def create_slots(primary, init, slot_name, op_name, bp_v2):
       )
 
     scope_store._vars[full_name] = slot_variable_
+    # Record the optimizer Variable into trace.
+    primary._optimizer_vars.append(slot_variable_)
 
   slot_trainable = None
   if context.executing_eagerly():
@@ -327,11 +411,20 @@ def create_slots(primary, init, slot_name, op_name, bp_v2):
     # trainable wrappers of slots. So here set it the name to slot_name
     # for forward compatibility.
     slot_tw_name = slot_name
-  _, slot_trainable = de.embedding_lookup(
-      params=scope_store._vars[full_name],
-      ids=params_ids_,
-      name=slot_tw_name,
-      return_trainable=True,
-  )
+  if isinstance(primary, de.shadow_ops.ShadowVariable):
+    slot_trainable = de.shadow_ops.ShadowVariable(
+        params=scope_store._vars[full_name],
+        ids=primary.ids,
+        exists=primary.exists,
+        name=full_name,
+        trainable=False,
+    )
+  else:
+    _, slot_trainable = de.embedding_lookup(
+        params=scope_store._vars[full_name],
+        ids=params_ids_,
+        name=slot_tw_name,
+        return_trainable=True,
+    )
 
   return slot_trainable

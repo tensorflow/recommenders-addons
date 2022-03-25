@@ -27,6 +27,20 @@ except ImportError:
   kinit2 = None
   pass  # for compatible with TF < 2.3.x
 
+try:
+  import tensorflow as tf
+  kinit_tf = tf.keras.initializers
+except ImportError:
+  kinit_tf = None
+  pass  # for compatible with TF >= 2.6.x
+
+try:
+  import keras as K
+  kinit_K = K.initializers
+except ImportError:
+  kinit_K = None
+  pass  # for compatible with standalone Keras
+
 from tensorflow.core.framework import node_def_pb2
 from tensorflow.python.eager import context
 from tensorflow.python.framework import device as pydev
@@ -43,8 +57,11 @@ from tensorflow.python.platform import tf_logging
 from tensorflow.python.training import device_setter
 from tensorflow.python.training import optimizer
 from tensorflow.python.training import slot_creator
+from tensorflow.python.training.tracking import base
 
 _PARTITION_SHAPE = 'partition_shape'
+
+tf_checkpoint_position_bind_object = base.CheckpointPosition.bind_object
 
 
 class _DenseDynamicEmbeddingTrainableProcessor(optimizer._OptimizableVariable):
@@ -343,6 +360,12 @@ def __call__for_keras_init_v2(self, shape, dtype=None, **kwargs):
   return self._random_generator.random_uniform(shape, -limit, limit, dtype)
 
 
+def bind_object(self, trackable):
+  if isinstance(trackable, de.shadow_ops.ShadowVariable):
+    return False
+  return tf_checkpoint_position_bind_object(self, trackable)
+
+
 def patch_on_tf():
   optimizer._get_processor = _get_processor
   slot_creator._create_slot_var = _create_slot_var
@@ -351,3 +374,8 @@ def patch_on_tf():
     kinit1.VarianceScaling.__call__ = __call__for_keras_init_v1
   if kinit2 is not None:
     kinit2.VarianceScaling.__call__ = __call__for_keras_init_v2
+  if kinit_tf is not None:
+    kinit_tf.VarianceScaling.__call__ = __call__for_keras_init_v2
+  if kinit_K is not None:
+    kinit_K.VarianceScaling.__call__ = __call__for_keras_init_v2
+  base.CheckpointPosition.bind_object = bind_object

@@ -65,7 +65,9 @@ apt-get install -y --no-install-recommends \
     vim \
     wget \
     zip \
-    zlib1g-dev
+    zlib1g-dev \
+    software-properties-common \
+    openssh-client \
 
 # populate the database
 updatedb

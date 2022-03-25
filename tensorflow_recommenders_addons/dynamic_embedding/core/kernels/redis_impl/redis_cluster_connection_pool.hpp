@@ -429,20 +429,20 @@ class RedisWrapper<RedisInstance, K, V,
 
   virtual size_t TableSizeInBucket(
       const std::string &keys_prefix_name_slice) override {
-    std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply;
     const std::string command_string = "HLEN " + keys_prefix_name_slice;
     auto cmd = [](::sw::redis::Connection &connection,
                   ::sw::redis::StringView hkey,
                   const char *str) { connection.send(str); };
-    size_t size = 0;
-    reply.reset();
+    std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply;
     try {
       reply = redis_conn_read->command(cmd, keys_prefix_name_slice,
                                        command_string.data());
     } catch (const std::exception &err) {
       LOG(ERROR) << "RedisHandler error in TableSizeInBucket for slices "
                  << keys_prefix_name_slice << " -- " << err.what();
+      throw(err);
     }
+    size_t size = 0;
     if (reply->type == REDIS_REPLY_INTEGER)  // #define REDIS_REPLY_STRING 1
     {
       size += reply->integer;  // decimal
