@@ -7,10 +7,12 @@
 
 TensorFlow Recommenders Addons(TFRA) are a collection of projects related to large-scale recommendation systems 
 built upon TensorFlow by introducing the **Dynamic Embedding Technology** to TensorFlow 
-that makes TensorFlow more suitable for trainning models of **Search, Recommendations and Advertising** and 
+that makes TensorFlow more suitable for training models of **Search, Recommendations, and Advertising** and 
 makes building, evaluating, and serving sophisticated recommenders models easy. 
 See approved TensorFlow RFC #[313](https://github.com/tensorflow/community/pull/313).
 Those contributions will be complementary to TensorFlow Core and TensorFlow Recommenders etc. 
+
+For Apple silicon(M1), please refer to [Apple Silicon Support](#apple-silicon-support-beta-release).
 
 ## Main Features
 
@@ -18,7 +20,7 @@ Those contributions will be complementary to TensorFlow Core and TensorFlow Reco
 - Get better recommendation effect compared to static embedding mechanism with no hash conflicts
 - Compatible with all native TensorFlow optimizers and initializers
 - Compatible with native TensorFlow CheckPoint and SavedModel format
-- Fully support train and inference recommeneders models on GPUs
+- Fully support train and inference recommenders models on GPUs
 - Support [TF serving](https://github.com/tensorflow/serving) and [Triton Inference Server](https://github.com/triton-inference-server/server) as inference framework
 - Support variant Key-Value implements as dynamic embedding storage and easy to extend
   - [cuckoohash_map](https://github.com/efficient/libcuckoo) (from Efficient Computing at Carnegie Mellon, on CPU)
@@ -114,7 +116,8 @@ is compiled differently. A typical example of this would be `conda`-installed Te
 Check [nvidia-support-matrix](https://docs.nvidia.com/deeplearning/cudnn/support-matrix/index.html) for more details.
 
 **NOTICE**
-- The release packages have strict version binding relationship with TensorFlow. 
+
+- The release packages have a strict version binding relationship with TensorFlow. 
 - Due to the significant changes in the Tensorflow API, we can only ensure version 0.2.0 compatibility with TF1.15.2 on CPU & GPU, 
   but **there are no official releases**, you can only get it through compiling by the following:
 ```shell
@@ -127,7 +130,7 @@ sh .github/workflows/make_wheel_Linux_x86.sh
 ```
 
 - If you need to work with TensorFlow 1.14.x or older version, we suggest you give up,
-but maybe this doc can help you : [Extract headers from TensorFlow compiling dirctory](./build_deps/tf_header/README.md).
+but maybe this doc can help you : [Extract headers from TensorFlow compiling directory](./build_deps/tf_header/README.md).
 At the same time, we find some OPs used by TRFA have better performance, so we highly recommend you update TensorFlow to 2.x.
 
 #### Installing from Source
@@ -136,7 +139,7 @@ You can also install from source. This requires the [Bazel](https://bazel.build/
 Please install a TensorFlow on your compiling machine, The compiler needs to know the version of Tensorflow and 
 its headers according to the installed TensorFlow. 
 
-```
+```shell
 export TF_VERSION="2.5.1"  # "2.7.0", "2.5.1" are well tested.
 pip install tensorflow[-gpu]==$TF_VERSION
 
@@ -169,8 +172,53 @@ bazel build --enable_runfiles build_pip_pkg
 TF_NEED_CUDA=1 bazel-bin/build_pip_pkg artifacts
 pip install artifacts/tensorflow_recommenders_addons_gpu-*.whl
 ```
+##### Apple Silicon Support (Beta Release)
+Requirements:
+
+- macOS 12.0.0+
+- Python 3.8 or 3.9
+- tensorflow-macos 2.5.0
+- bazel 4.1.0+
+
+Before installing **TFRA** from source, you need to install tensorflow-macos from Apple. To install the natively supported version of tensorflow-macos, it's required to install the [Conda environment](https://github.com/conda-forge/miniforge). 
+
+After installing conda environment, run the following commands in the terminal.
+
+```sh
+# Create a virtual environment
+conda create -n $YOUR-ENVIRONMENT-NAME Python=$PYTHON_VERSION
+
+# Activate your environment
+conda activate $YOUR-ENVIRONMENT-NAME
+
+# Install TensorFlow macOS dependencies via miniforge
+conda install -c apple tensorflow-deps==2.5.0
+
+# Install base TensorFlow
+python -m pip install tensorflow-macos==2.5.0
+
+# Install TensorFlow Recommenders Addons from PyPi distribution (optional)
+python -m pip install tensorflow-recommenders-addons --no-deps
+```
+
+There is a difference between the [tensorflow-macos installation instruction](https://developer.apple.com/metal/tensorflow-plugin/) and our instruction because this build requires Python 3.8 or 3.9 and tensorflow-macos 2.5.0.
+
+The building script has been tested on macOS Monterey, If you are using macOS Big Sur, you may need to customize the building script.
+
+```shell
+# Build arm64 wheel from source
+PY_VERSION=$PYTHON_VERSION TF_VERSION="2.5.0" TF_NEED_CUDA="0" sh .github/workflows/make_wheel_macOS_arm64.sh
+
+# Install
+python -m pip install --no-deps ./artifacts/*.whl
+```
+
+**NOTICE:**
+
+- The Apple silicon version TFRA doesn't support data type **float16**, the issue may be fixed in the future release.
 
 ##### Data Type Matrix for `tfra.dynamic_embedding.Variable` 
+
 |  Values \\ Keys  | int64  | int32 | string |
 |:----:|:----:|:----:|:----:| 
 | float  | CPU, GPU | CPU, GPU | CPU |
@@ -184,7 +232,8 @@ pip install artifacts/tensorflow_recommenders_addons_gpu-*.whl
 
 ##### To use GPU by `tfra.dynamic_embedding.Variable`
 The `tfra.dynamic_embedding.Variable` will ignore the device placement mechanism of TensorFlow, 
-you should specify the `devices` onto GPUs explictly for it.
+you should specify the `devices` onto GPUs explicitly for it.
+
 ```python
 import tensorflow as tf
 import tensorflow_recommenders_addons as tfra
@@ -246,6 +295,6 @@ SUPPORTED_TENSORFLOW_OPS = if_v2([]) + if_not_v2([
 We are very grateful to the maintainers of [tensorflow/addons](https://github.com/tensorflow/addons) for borrowing a lot of code from [tensorflow/addons](https://github.com/tensorflow/addons) to build our workflow and documentation system.
 We also want to extend a thank you to the Google team members who have helped with CI setup and reviews!
 
-## Licence
+## License
 Apache License 2.0
 

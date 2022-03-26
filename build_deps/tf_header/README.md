@@ -1,4 +1,4 @@
-# Extract headers from TensorFlow compiling dirctory
+# Extract headers from TensorFlow compiling directory
 -----------------
 
 For some C++ headers needed by TFRA are not included in installation directory of old version Tensorflow.
