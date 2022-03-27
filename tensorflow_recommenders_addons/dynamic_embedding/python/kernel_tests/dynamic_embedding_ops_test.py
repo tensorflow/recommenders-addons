@@ -23,6 +23,7 @@ import itertools
 import math
 import numpy as np
 import os
+import tensorflow as tf
 
 from tensorflow_recommenders_addons import dynamic_embedding as de
 
@@ -47,9 +48,12 @@ from tensorflow.python.ops import embedding_ops
 from tensorflow.python.ops import gen_array_ops
 from tensorflow.python.ops import init_ops
 from tensorflow.python.ops import math_ops
-from tensorflow.python.ops import variable_scope
+from tensorflow.python.ops import nn_ops
+from tensorflow.python.ops import nn_impl
+from tensorflow.python.ops import resource_variable_ops
 from tensorflow.python.ops import script_ops
 from tensorflow.python.ops import variables
+from tensorflow.python.ops import variable_scope
 from tensorflow.python.platform import test
 from tensorflow.python.training import device_setter
 from tensorflow.python.training import server_lib
@@ -1294,6 +1298,85 @@ class TrainableWrapperPlacementTest(test.TestCase):
                                           return_trainable=True)
     self.assertAllEqual(tw_p.device, '/job:dist/task:1')
     self.assertAllEqual(tw_q.device, '/job:dist/task:1')
+
+
+@test_util.run_all_in_graph_and_eager_modes
+class EmbeddingLookupEagerTest(test.TestCase):
+
+  def _create_input_and_params(self,
+                               name,
+                               batch_size=4,
+                               nids=64,
+                               embedding_size=1):
+    assert nids % batch_size == 0
+    ids = math_ops.range(0, nids, dtype=dtypes.int64)
+    ids = array_ops.reshape(ids, (batch_size, -1))
+    labels = array_ops.zeros((batch_size,), dtype=dtypes.float32)
+    devar = de.get_variable(name + '/dynamic_embedding',
+                            dim=embedding_size,
+                            initializer=tf.keras.initializers.Zeros())
+    tfvar = tf.Variable(tf.keras.initializers.Zeros()((nids, embedding_size),
+                                                      dtype=tf.float32))
+    return ids, labels, devar, tfvar
+
+  def _loss_fn(self, params, ids, labels):
+
+    if isinstance(params, de.Variable):
+      embedding = de.embedding_lookup(params, ids)
+    elif isinstance(
+        params, (resource_variable_ops.ResourceVariable, variables.Variable)):
+      embedding = embedding_ops.embedding_lookup(params, ids)
+    else:
+      raise TypeError
+
+    logits = math_ops.reduce_mean(math_ops.reduce_sum(embedding, 1), 1)
+    entropy = nn_impl.sigmoid_cross_entropy_with_logits(logits=logits,
+                                                        labels=labels)
+    loss = math_ops.reduce_mean(entropy)
+    return loss
+
+  def test_run_training_eagerly(self):
+    if not context.executing_eagerly():
+      self.skipTest('Only test functional API in eager mode.')
+
+    batch_size = 4
+    ids, labels, devar, tfvar = self._create_input_and_params('vns079',
+                                                              embedding_size=1)
+    nsteps = 10
+
+    loss_fn = tf.function()(self._loss_fn)
+
+    def sorted_dynamic_embedding_value():
+      embedding_var = devar
+      optimizer = tf.keras.optimizers.Adam(1E-3)
+      optimizer = de.DynamicEmbeddingOptimizer(optimizer)
+
+      def var_fn():
+        return list(embedding_var.trainable_store.values())
+
+      for _ in range(nsteps):
+        optimizer.minimize(lambda: loss_fn(embedding_var, ids, labels), var_fn)
+
+      keys, values = embedding_var.export()
+      order = tf.argsort(keys)
+      return array_ops.gather(values, order)
+
+    def sorted_static_embedding_value():
+      embedding_var = tfvar
+      optimizer = tf.keras.optimizers.Adam(1E-3)
+      optimizer = de.DynamicEmbeddingOptimizer(optimizer)
+
+      def var_fn():
+        return [embedding_var]
+
+      for _ in range(nsteps):
+        optimizer.minimize(lambda: loss_fn(embedding_var, ids, labels), var_fn)
+
+      return embedding_var.read_value()
+
+    de_values = sorted_dynamic_embedding_value()
+    tf_values = sorted_static_embedding_value()
+    self.assertAllClose(de_values, tf_values)
 
 
 if __name__ == "__main__":

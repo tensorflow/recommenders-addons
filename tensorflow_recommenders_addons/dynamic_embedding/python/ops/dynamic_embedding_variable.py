@@ -23,8 +23,10 @@ from __future__ import division
 from __future__ import print_function
 
 import functools
+import tensorflow as tf
 
 from tensorflow_recommenders_addons import dynamic_embedding as de
+from tensorflow_recommenders_addons.utils.check_platform import is_macos, is_arm64
 
 try:
   from tensorflow.python.util import _pywrap_util_port as pywrap
@@ -305,6 +307,11 @@ class Variable(base.Trackable):
           [dtypes.int64, dtypes.int64],
           [dtypes.int32, dtypes.float32],
       ]
+    if is_macos() and is_arm64():
+      if value_dtype == dtypes.half:
+        raise TypeError("""
+          float16 value dtype is not supported on macOS with ARM64 architecture. Please try another type.
+          """)
     if [key_dtype, value_dtype] not in valid_dtype_list:
       raise TypeError(
           "key-value dtype ({}-{}) is not support! The valid dtypes are \n{}\n".
@@ -343,7 +350,10 @@ class Variable(base.Trackable):
 
   def _convert_anything_to_init(self, raw_init, dim):
     init = raw_init
-    valid_list = [init_ops.Initializer, init_ops_v2.Initializer]
+    valid_list = [
+        init_ops.Initializer, init_ops_v2.Initializer,
+        tf.keras.initializers.Initializer
+    ]
     if kinit2 is not None:
       valid_list.append(kinit2.Initializer)
     valid_list = tuple(valid_list)
@@ -353,9 +363,9 @@ class Variable(base.Trackable):
         init = init(shape=[1])
       else:
         try:
-          init = init()
-        except:
           init = init(shape=[1])
+        except:
+          init = init()
     try:
       init = array_ops.reshape(init, [dim])
     except:
@@ -635,7 +645,8 @@ class Variable(base.Trackable):
     Returns:
       List of slot `Variable`s in optimizer.
     """
-    if not isinstance(optimizer, (Optimizer, OptimizerV2)):
+    if not isinstance(optimizer,
+                      (Optimizer, OptimizerV2, tf.keras.optimizers.Optimizer)):
       raise TypeError('Expect an optimizer, but get {}'.format(type(optimizer)))
     slots = []
     snames = optimizer.get_slot_names()
@@ -647,6 +658,43 @@ class Variable(base.Trackable):
         except:
           continue
     return slots
+
+  def get_trainable_by_name(self, name):
+    """
+    Get trainable shadow variable when using eager execution.
+
+    Example:
+    ```python
+    from tensorflow_recommenders_addons import dynamic_embedding as de
+    init = tf.keras.initializers.RandomNormal()
+    params = de.get_variable('foo', dim=4, initializer=init)
+    optimizer = tf.keras.optimizers.Adam(1E-3)
+    optimizer = de.DynamicEmbeddingOptimizer(optimizer)
+
+    @tf.function
+    def loss_fn(ids):
+      emb = de.embedding_lookup(params, ids, name='user_embedding')
+      emb = tf.math.reduce_sum(emb, axis=1)
+      loss = tf.reduce_mean(emb)
+      return loss
+
+    for i in range(10):
+      optimizer.minimize(lambda: loss_fn(ids),
+                         var_list=[params.get_eager_trainable_by_name('user_embedding')])
+    ```
+
+    Args:
+      name: str. Name used to get the trainable shadow to the Variable.
+
+    Returns:
+      A ShadowVariable object refers to the specific name.
+
+    Raises:
+      RuntimeError: if not in eager mode.
+    """
+    if not isinstance(name, str):
+      raise TypeError('name should be a string')
+    return self._trainable_store.get(name, None)
 
   def _gather_saveables_for_checkpoint(self):
     g = ops.get_default_graph()
@@ -666,6 +714,10 @@ class Variable(base.Trackable):
           # merge all tables saveable to one dict with their own name.
           saveables[saveable.keywords["name"]] = saveable
       return saveables
+
+  @property
+  def trainable_store(self):
+    return self._trainable_store
 
 
 @tf_export("dynamic_embedding.get_variable")

@@ -31,6 +31,7 @@ import sys
 import tempfile
 
 from tensorflow_recommenders_addons import dynamic_embedding as de
+from tensorflow_recommenders_addons.utils.check_platform import is_windows, is_macos, is_arm64, is_linux, is_raspi_arm
 
 from tensorflow.core.protobuf import config_pb2
 from tensorflow.python.client import session
@@ -296,7 +297,7 @@ redis_config_path = os.path.join(redis_config_path, "redis_config.json")
 redis_config_params = {
     "redis_host_ip": ["127.0.0.1"],
     "redis_host_port": [6379],
-    "storage_slice": 4,
+    "storage_slice": 1,
     "table_store_mode": 0
 }
 with open(redis_config_path, 'w', encoding='utf-8') as f:
@@ -355,6 +356,10 @@ class RedisVariableTest(test.TestCase):
 
     for (key_dtype, value_dtype), dim in itertools.product(kv_list, dim_list):
       id += 1
+      # Skip float16 tests if the platform is macOS arm64 architecture
+      if is_macos() and is_arm64():
+        if value_dtype == dtypes.half:
+          continue
       with self.session(config=default_config,
                         use_gpu=test_util.is_gpu_available()) as sess:
         keys = constant_op.constant(
@@ -427,6 +432,10 @@ class RedisVariableTest(test.TestCase):
 
     for (key_dtype, value_dtype), dim in itertools.product(kv_list, dim_list):
       id += 1
+      # Skip float16 tests if the platform is macOS arm64 architecture
+      if is_macos() and is_arm64():
+        if value_dtype == dtypes.half:
+          continue
       with self.session(config=default_config,
                         use_gpu=test_util.is_gpu_available()) as sess:
         keys = constant_op.constant(
@@ -458,7 +467,7 @@ class RedisVariableTest(test.TestCase):
         table.clear()
         del table
 
-  # TODO Add bp_v2 feature to Redis backend
+  # TODO(Heka) Add bp_v2 feature to Redis backend
   # def test_variable_find_with_exists_and_accum(self):
   #   if _redis_health_check(redis_config_params["redis_host_ip"][0], redis_config_params["redis_host_port"][0]) == False:
   #     self.skipTest('skip redis test when unable to access the redis service.')
@@ -874,7 +883,7 @@ class RedisVariableTest(test.TestCase):
       redis_config_params_modify = {
           "redis_host_ip": ["127.0.0.1"],
           "redis_host_port": [6379],
-          "storage_slice": 4,
+          "storage_slice": 1,
           "table_store_mode": 1,
           "model_lib_abs_dir": save_path
       }
@@ -1813,22 +1822,6 @@ class RedisVariableTest(test.TestCase):
                                 kv_creator=de.RedisTableCreator(
                                     config=redis_config_modify_wrong_ip))
         self.evaluate(table.size())
-
-
-def is_macos():
-  return platform.system() == "Darwin"
-
-
-def is_windows():
-  return platform.system() == "Windows"
-
-
-def is_linux():
-  return platform.system() == "Linux"
-
-
-def is_raspi_arm():
-  return os.uname()[4] == "armv7l"
 
 
 if __name__ == "__main__":

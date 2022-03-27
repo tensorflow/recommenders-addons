@@ -43,8 +43,11 @@ from tensorflow.python.ops import sparse_ops
 from tensorflow.python.ops import variables
 from tensorflow.python.ops import variable_scope
 from tensorflow.python.training.tracking import base as trackable
+from tensorflow.python.training.tracking import data_structures
 from tensorflow.python.util import compat
 from tensorflow.python.util.tf_export import tf_export
+
+_ANONYMOUS_TRAINABLE_STORE_KEY = '_anonymous_trainable_store_key'
 
 
 class TrainableWrapper(resource_variable_ops.ResourceVariable):
@@ -84,6 +87,7 @@ class TrainableWrapper(resource_variable_ops.ResourceVariable):
     self.model_mode = kwargs.get("model_mode")
     kwargs.pop("model_mode")
     self._tracked_slots = []
+    self._optimizer_vars = data_structures.ListWrapper([])
     super(TrainableWrapper, self).__init__(*args, **kwargs)
 
   def prefetch_values(self, update=False):
@@ -438,10 +442,9 @@ class TrainableWrapper(resource_variable_ops.ResourceVariable):
     )
 
   def transform(self, result):
-    _result = array_ops.reshape(result, shape=array_ops.shape(result))
     if self.max_norm is not None:
-      _result = self._clip(_result, self.ids, self.max_norm)
-    return _result
+      result = self._clip(result, self.ids, self.max_norm)
+    return result
 
   def _track_optimizer_slots(self, slots):
     if not all(isinstance(s, TrainableWrapper) for s in slots):
@@ -488,14 +491,20 @@ def embedding_lookup(
       validate_indices: No used, just for compatible with nn.embedding_lookup .
       max_norm: If not `None`, each embedding is clipped if its l2-norm is larger
         than this value.
-      return_trainable: optional, If True, also return TrainableWrapper
+      return_trainable: optional, If True, also return TrainableWrapper. If in
+        eager mode, it will return a `ShadowVariable`, which is eager derivative of
+        TrainableWrapper. If inside tf.function scope, then set return_trainable
+        is disabled. Please use `dynamic_embedding.Variable.get_trainable_by_name` or
+        `dynamic_embedding.Variable.trainable_store` to get the created trainable
+        shadow inside tf.function scope.
     Returns:
       A tensor with shape [shape of ids] + [dim],
         dim is equal to the value dim of params.
         containing the values from the params tensor(s) for keys in ids.
       trainable_wrap:
         A TrainableWrapper object used to fill the Optimizers `var_list`
-          Only provided if `return_trainable` is True.
+          Only provided if `return_trainable` is True. If in eager mode,
+          it will be a `ShadowVariable`, which is eager derivative of TrainableWrapper.
     """
   if isinstance(params, (list, tuple)) and len(params) > 1:
     raise ValueError("Only one params is allowed.")
@@ -509,7 +518,8 @@ def embedding_lookup(
             params.key_dtype, ids.dtype))
   if context.executing_eagerly() and (name is None):
     raise ValueError(
-        'Must specify a name for dynamic_embedding.embedding_lookup when running eagerly.'
+        'Must specify a name for dynamic_embedding.embedding_lookup when running '
+        'eagerly. The `de.shadow_ops.embedding_lookup` is recommended in eager case.'
     )
 
   scope = variable_scope.get_variable_scope()
@@ -540,28 +550,58 @@ def embedding_lookup(
       if params.trainable:
         collections += [ops.GraphKeys.TRAINABLE_VARIABLES]
 
-      def _create_trainable(trainable_name):
-        return de.TrainableWrapper(params,
-                                   ids,
-                                   max_norm=max_norm,
-                                   initial_value=initial_value,
-                                   dtype=params.value_dtype,
-                                   trainable=params.trainable,
-                                   collections=collections,
-                                   model_mode=ModelMode.CURRENT_SETTING,
-                                   name=trainable_name)
+      def _create_or_get_trainable(trainable_name):
+        if trainable_name is None:
+          if context.executing_eagerly():
+            raise ValueError(
+                'Must provide a name for embedding_lookup when using eager execution.'
+            )
+          trainable_name = ops.get_default_graph().unique_name(
+              _ANONYMOUS_TRAINABLE_STORE_KEY)
+        if not context.executing_eagerly() and not ops.inside_function():
+          wrapper = de.TrainableWrapper(params,
+                                        ids,
+                                        max_norm=max_norm,
+                                        initial_value=initial_value,
+                                        dtype=params.value_dtype,
+                                        trainable=params.trainable,
+                                        collections=collections,
+                                        model_mode=ModelMode.CURRENT_SETTING,
+                                        name=trainable_name)
+          params._trainable_store[trainable_name] = wrapper
+          return wrapper
+        else:
+          with ops.init_scope():
+            shadow = params._trainable_store.get(trainable_name, None)
+            if shadow is None:
+              shadow = de.shadow_ops.ShadowVariable(
+                  params,
+                  name=trainable_name,
+                  max_norm=max_norm,
+                  trainable=params.trainable,
+                  model_mode=ModelMode.CURRENT_SETTING)
+              params._trainable_store[trainable_name] = shadow
+          return shadow
 
       with ops.colocate_with(ids, ignore_existing=True):
-        if context.executing_eagerly():
-          trainable_ = params._trainable_store.get(name, None)
-          if trainable_ is None:
-            trainable_ = _create_trainable(name)
-            params._trainable_store[name] = trainable_
-          else:
-            trainable_._reset_ids(ids)
-        else:
-          trainable_ = _create_trainable(name)
-          params._trainable_store[name] = trainable_
+        trainable_ = _create_or_get_trainable(name)
+
+      if isinstance(trainable_, de.shadow_ops.ShadowVariable):
+        embeddings = de.shadow_ops.embedding_lookup(
+            trainable_,
+            ids,
+            partition_strategy=partition_strategy,
+            name=name,
+            validate_indices=validate_indices)
+        if return_trainable:
+          if not context.executing_eagerly():
+            raise NotImplementedError(
+                'return_trainable currently is not implemented when using tf.function.'
+                ' Please use `Variable.trainable_store` or `Variable.get_trainable_by_name`'
+                ' to access the shadow trainable variable if call `embedding_lookup` series'
+                ' APIs inside tf.function scope.')
+          return embeddings, trainable_
+        return embeddings
 
     embeddings = array_ops.identity(trainable_)
     embeddings = array_ops.reshape(embeddings, shape=embeddings_shape)
@@ -730,7 +770,7 @@ def embedding_lookup_sparse(
     embeddings, trainable_ = embedding_lookup(
         params,
         ids,
-        name=name + "/embedding_lookup",
+        name=name + '/embedding_lookup',
         partition_strategy=partition_strategy,
         max_norm=max_norm,
         return_trainable=True,

@@ -56,6 +56,8 @@ def get_project_name_version():
 
   if "--nightly" in sys.argv:
     project_name = "tfra-nightly"
+    if os.getenv("TF_NEED_CUDA", "0") == "1":
+      project_name = project_name + "-gpu"
     version["__version__"] += get_last_commit_time()
     sys.argv.remove("--nightly")
 

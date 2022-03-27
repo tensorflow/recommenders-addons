@@ -30,6 +30,7 @@ RUN apt-get update && apt-get install -y \
       libbz2-dev \
       liblz4-dev \
       libzstd-dev \
+      openssh-client \
       && \
     rm -rf /var/lib/apt/lists/*
 
@@ -47,20 +48,7 @@ FROM nvidia/cuda:11.2.0-cudnn8-devel-ubuntu18.04
 COPY --from=devtoolset /dt7 /dt7
 COPY --from=devtoolset /dt8 /dt8
 
-RUN chmod 777 /tmp/
-
-# Install TensorRT.
-RUN echo \
-    deb https://developer.download.nvidia.com/compute/machine-learning/repos/ubuntu1604/x86_64 / \
-    > /etc/apt/sources.list.d/nvidia-ml.list \
-      && \
-    apt-get update && apt-get install -y \
-    libnvinfer-dev=7.1.3-1+cuda11.0 \
-    libnvinfer7=7.1.3-1+cuda11.0 \
-    libnvinfer-plugin-dev=7.1.3-1+cuda11.0 \
-    libnvinfer-plugin7=7.1.3-1+cuda11.0 \
-      && \
-    rm -rf /var/lib/apt/lists/*
+ENV DEBIAN_FRONTEND=noninteractive
 
 # Copy and run the install scripts.
 ARG DEBIAN_FRONTEND=noninteractive
@@ -82,8 +70,21 @@ RUN apt-get update && apt-get install -y \
     libnss3-dev \
     libreadline-dev \
     patchelf \
+    gcc-multilib \
       && \
     rm -rf /var/lib/apt/lists/*
+
+RUN chmod 777 /tmp/
+WORKDIR /tmp/
+
+COPY install/install_trt.sh /install/
+RUN /install/install_trt.sh "7.2.3-1+cuda11.1"
+
+COPY install/install_nccl.sh /install/
+RUN /install/install_nccl.sh "2.8.4-1+cuda11.2"
+
+COPY install/install_rocksdb.sh /install/
+RUN /install/install_rocksdb.sh "6.22.1"
 
 COPY install/install_bazel.sh /install/
 RUN /install/install_bazel.sh "3.7.2"
@@ -104,8 +105,14 @@ ENV CLANG_VERSION="r7f6f9f4cf966c78a315d15d6e913c43cfa45c47c"
 COPY install/install_latest_clang.sh /install/
 RUN /install/install_latest_clang.sh
 
-RUN ln -s /usr/lib/x86_64-linux-gnu/liblz4.so.1 /usr/local/lib/liblz4.so
-RUN ln -s /usr/lib/x86_64-linux-gnu/libzstd.so.1 /usr/local/lib/libzstd.so
+COPY install/use_devtoolset_7.sh /install/
+RUN /install/use_devtoolset_7.sh
 
 COPY install/install_rocksdb.sh /install/
 RUN /install/install_rocksdb.sh "6.22.1"
+
+COPY install/install_openmpi.sh /install/
+RUN /install/install_openmpi.sh "4.1.1"
+
+# clean
+RUN rm -rf /tmp/*

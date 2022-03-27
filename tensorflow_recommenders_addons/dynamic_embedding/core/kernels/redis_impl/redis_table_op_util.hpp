@@ -39,16 +39,14 @@ size_t SelectAvailableThreadContext(
     std::vector<ThreadContext *> &threads_context,
     std::mutex &threads_context_mutex) {
   size_t thread_context_id = 0;
-  bool thread_context_i_status = false;
-
-  std::lock_guard<std::mutex> guard(threads_context_mutex);
+  bool *thread_context_i_status = new bool[threads_context.size()]();
 
   for (; thread_context_id < threads_context.size(); ++thread_context_id) {
-    thread_context_i_status = false;
+    thread_context_i_status[thread_context_id] = false;
     if (threads_context[thread_context_id]
             ->thread_occupied.compare_exchange_strong(
-                thread_context_i_status, true, std::memory_order_seq_cst,
-                std::memory_order_relaxed) == true) {
+                thread_context_i_status[thread_context_id], true,
+                std::memory_order_seq_cst) == true) {
       break;
     }
   }
@@ -57,6 +55,7 @@ size_t SelectAvailableThreadContext(
     threads_context.back()->thread_occupied.store(true,
                                                   std::memory_order_release);
   }
+  delete[] thread_context_i_status;
   return thread_context_id;
 }
 

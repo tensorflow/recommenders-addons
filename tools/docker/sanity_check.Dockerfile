@@ -1,6 +1,6 @@
 #syntax=docker/dockerfile:1.1.5-experimental
 # -------------------------------
-FROM python:3.6 as yapf-test
+FROM python:3.7 as yapf-test
 
 COPY tools/install_deps/yapf.txt ./
 RUN pip install -r yapf.txt
@@ -10,7 +10,7 @@ RUN python tools/check_python_format.py
 RUN touch /ok.txt
 
 # -------------------------------
-FROM python:3.6 as source_code_test
+FROM python:3.7 as source_code_test
 
 ARG USE_BAZEL_VERSION
 
@@ -38,7 +38,7 @@ RUN pytest -v -s /recommenders-addons/tools/testing/
 RUN touch /ok.txt
 
 # -------------------------------
-FROM python:3.6 as valid_build_files
+FROM python:3.7 as valid_build_files
 
 ARG USE_BAZEL_VERSION
 
@@ -57,7 +57,7 @@ RUN --mount=type=cache,id=cache_bazel,target=/root/.cache/bazel \
 RUN touch /ok.txt
 
 # -------------------------------
-FROM python:3.6-alpine as clang-format
+FROM python:3.7-alpine as clang-format
 
 RUN apk add --no-cache git
 RUN git clone https://github.com/gabrieldemarmiesse/clang-format-lint-action.git
@@ -85,7 +85,7 @@ RUN touch /ok.txt
 
 # -------------------------------
 # docs tests
-FROM python:3.6 as docs_tests
+FROM python:3.7 as docs_tests
 
 ARG USE_BAZEL_VERSION
 
@@ -114,7 +114,7 @@ RUN touch /ok.txt
 
 # -------------------------------
 # test the editable mode
-FROM python:3.6 as test_editable_mode
+FROM python:3.7 as test_editable_mode
 
 ARG USE_BAZEL_VERSION
 

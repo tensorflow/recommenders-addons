@@ -1,9 +1,15 @@
 set -e -x
 
 export TF_NEED_CUDA=0
-
+if [ -z $HOROVOD_VERSION ] ; then
+  export HOROVOD_VERSION='0.23.0'
+fi
 python --version
+
+brew install open-mpi
+
 python -m pip install --default-timeout=1000 delocate==0.9.1 wheel setuptools tensorflow==$TF_VERSION
+bash tools/docker/install/install_horovod.sh $HOROVOD_VERSION --only-cpu
 
 bash tools/testing/build_and_run_tests.sh
 

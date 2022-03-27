@@ -304,6 +304,7 @@ class RedisWrapper<
     } catch (const std::exception &err) {
       LOG(ERROR) << "RedisHandler error in TableSizeInBucket for HLEN "
                  << keys_prefix_name_slice << " -- " << err.what();
+      throw(err);
     }
     size_t size = 0;
     if (reply->type == REDIS_REPLY_INTEGER)  // #define REDIS_REPLY_STRING 1
