@@ -8,7 +8,7 @@ ARG HOROVOD_VERSION="0.23.0"
 
 RUN pip install --default-timeout=1000 tensorflow-cpu==$TF_VERSION
 
-RUN apt-get update && apt-get install -y sudo rsync cmake openmpi-bin libopenmpi-dev libbz2-dev liblz4-dev libzstd-dev
+RUN apt-get update && apt-get install -y sudo rsync cmake openmpi-bin libopenmpi-dev
 
 COPY tools/docker/install/install_bazel.sh /install/
 RUN  /install/install_bazel.sh $USE_BAZEL_VERSION
