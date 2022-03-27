@@ -200,11 +200,9 @@ class RocksDBTableConfig(object):
     {
     "database_path": "/tmp/file_system_path_to_where_the_database_path",
     "embedding_name": "name_of_this_embedding",  // We use RocksDB column families for this.
-    "read_only": 0,  // If 1, the database is opened in read-only mode. Having multiple read-only
-                     // connections to the same database is possible.
-    "estimate_size": 0,  // If 1, size() will only return estimates, which is faster but inaccurate.
-    "export_path": "/tmp/some_path,  // If set, export/import will dump/restore database to/from
-                                     // filesystem.
+    "read_only": false,  // If true, the database is opened in read-only mode. Having multiple read-only connections to the same database is possible.
+    "estimate_size": false,  // If true, size() will only return estimates, which is orders of magnitude faster but could be inaccurate.
+    "export_path": "/tmp/some_path,  // If set, export/import will dump/restore database to/from filesystem.
     }
     ""
     """
