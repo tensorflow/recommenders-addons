@@ -47,7 +47,7 @@ typedef uint32_t STRING_SIZE_TYPE;
   do {                                                                    \
     const ROCKSDB_NAMESPACE::Status s = EXPR;                             \
     if (!s.ok()) {                                                        \
-      std::stringstream msg(std::stringstream::out);                      \
+      std::ostringstream msg;                                             \
       msg << "RocksDB error " << s.code() << "; reason: " << s.getState() \
           << "; expr: " << #EXPR;                                         \
       throw std::runtime_error(msg.str());                                \
@@ -74,7 +74,7 @@ inline void get_value(T *dst, const std::string &src, const size_t &n) {
   const size_t dst_size = n * sizeof(T);
 
   if (src.size() < dst_size) {
-    std::stringstream msg(std::stringstream::out);
+    std::ostringstream msg;
     msg << "Expected " << n * sizeof(T) << " bytes, but only " << src.size()
         << " bytes were returned by the database.";
     throw std::runtime_error(msg.str());
@@ -227,7 +227,7 @@ namespace _it {
 template <class T>
 inline void read_key(std::vector<T> &dst, const ROCKSDB_NAMESPACE::Slice &src) {
   if (src.size() != sizeof(T)) {
-    std::stringstream msg(std::stringstream::out);
+    std::ostringstream msg;
     msg << "Key size is out of bounds [ " << src.size() << " != " << sizeof(T)
         << " ].";
     throw std::out_of_range(msg.str());
@@ -239,10 +239,9 @@ template <>
 inline void read_key<tstring>(std::vector<tstring> &dst,
                               const ROCKSDB_NAMESPACE::Slice &src) {
   if (src.size() > std::numeric_limits<KEY_SIZE_TYPE>::max()) {
-    std::stringstream msg(std::stringstream::out);
-    msg << "Key size is out of bounds "
-        << "[ " << src.size() << " > "
-        << std::numeric_limits<KEY_SIZE_TYPE>::max() << "].";
+    std::ostringstream msg;
+    msg << "Key size is out of bounds [ " << src.size() << " > "
+        << std::numeric_limits<KEY_SIZE_TYPE>::max() << " ].";
     throw std::out_of_range(msg.str());
   }
   dst.emplace_back(src.data(), src.size());
@@ -255,9 +254,9 @@ inline size_t read_value(std::vector<T> &dst,
   const size_t n = src_.size() / sizeof(T);
 
   if (n * sizeof(T) != src_.size()) {
-    std::stringstream msg(std::stringstream::out);
-    msg << "Vector value is out of bounds "
-        << "[ " << n * sizeof(T) << " != " << src_.size() << " ].";
+    std::ostringstream msg;
+    msg << "Vector value is out of bounds [ " << n * sizeof(T)
+        << " != " << src_.size() << " ].";
     throw std::out_of_range(msg.str());
   } else if (n < n_limit) {
     throw std::underflow_error("Database entry violates nLimit.");
@@ -393,7 +392,7 @@ class DBWrapper final {
     // If a modification would be required make sure we are not in readonly
     // mode.
     if (read_only_) {
-      throw std::runtime_error("Cannot delete a column in readonly mode.");
+      throw std::runtime_error("Cannot delete a column in read-only mode.");
     }
 
     // Perform actual removal.
@@ -677,7 +676,7 @@ class RocksDBTableOfTensors final : public PersistentStorageLookupInterface {
         const auto &s = (*db_)->MultiGet(read_options_, column_handle_cache_,
                                          k_slices, &v_slices);
         if (s.size() != num_keys) {
-          std::stringstream msg(std::stringstream::out);
+          std::ostringstream msg;
           msg << "Requested " << num_keys << " keys, but only got " << s.size()
               << " responses.";
           throw std::runtime_error(msg.str());
