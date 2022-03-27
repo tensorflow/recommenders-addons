@@ -34,13 +34,13 @@ class RocksDBTableOp : public OpKernel {
   explicit RocksDBTableOp(OpKernelConstruction *ctx)
       : OpKernel(ctx), table_handle_set_(false) {
     if (ctx->output_type(0) == DT_RESOURCE) {
-      OP_REQUIRES_OK(ctx, ctx->allocate_persistent(tensorflow::DT_RESOURCE,
+      OP_REQUIRES_OK(ctx, ctx->allocate_temp(tensorflow::DT_RESOURCE,
                                                    tensorflow::TensorShape({}),
-                                                   &table_handle_, nullptr));
+                                                   &table_handle_));
     } else {
-      OP_REQUIRES_OK(ctx, ctx->allocate_persistent(tensorflow::DT_STRING,
+      OP_REQUIRES_OK(ctx, ctx->allocate_temp(tensorflow::DT_STRING,
                                                    tensorflow::TensorShape({2}),
-                                                   &table_handle_, nullptr));
+                                                   &table_handle_));
     }
 
     OP_REQUIRES_OK(
@@ -82,18 +82,18 @@ class RocksDBTableOp : public OpKernel {
 
     if (ctx->expected_output_dtype(0) == DT_RESOURCE) {
       if (!table_handle_set_) {
-        auto h = table_handle_.AccessTensor(ctx)->scalar<ResourceHandle>();
+        auto h = table_handle_.template scalar<ResourceHandle>();
         h() = MakeResourceHandle<LookupInterface>(ctx, cinfo_.container(),
                                                   cinfo_.name());
       }
-      ctx->set_output(0, *table_handle_.AccessTensor(ctx));
+      ctx->set_output(0, table_handle_);
     } else {
       if (!table_handle_set_) {
-        auto h = table_handle_.AccessTensor(ctx)->template flat<tstring>();
+        auto h = table_handle_.template flat<tstring>();
         h(0) = cinfo_.container();
         h(1) = cinfo_.name();
       }
-      ctx->set_output_ref(0, &mu_, table_handle_.AccessTensor(ctx));
+      ctx->set_output_ref(0, &mu_, &table_handle_);
     }
 
     table_handle_set_ = true;
@@ -102,7 +102,7 @@ class RocksDBTableOp : public OpKernel {
   ~RocksDBTableOp() override {
     if (table_handle_set_ && cinfo_.resource_is_private_to_kernel()) {
       if (!cinfo_.resource_manager()
-               ->Delete<LookupInterface>(cinfo_.container(), cinfo_.name())
+               ->template Delete<LookupInterface>(cinfo_.container(), cinfo_.name())
                .ok()) {
         // Took this over from other code, what should we do here?
       }
@@ -111,7 +111,7 @@ class RocksDBTableOp : public OpKernel {
 
  private:
   mutex mu_;
-  PersistentTensor table_handle_ TF_GUARDED_BY(mu_);
+  Tensor table_handle_ TF_GUARDED_BY(mu_);
   bool table_handle_set_ TF_GUARDED_BY(mu_);
   ContainerInfo cinfo_;
   bool use_node_name_sharing_;
