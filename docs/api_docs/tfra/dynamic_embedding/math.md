@@ -27,5 +27,9 @@ math operations.
 
 ## Functions
 
+[`sparse_fill_empty_rows(...)`](../../tfra/dynamic_embedding/math/sparse_fill_empty_rows.md): Fills empty rows in the input 2-D `SparseTensor` with a default value. 
+
+[`sparse_reshape(...)`](../../tfra/dynamic_embedding/math/sparse_reshape.md): Reshapes a `SparseTensor` to represent values in a new dense shape.
+
 [`sparse_segment_sum(...)`](../../tfra/dynamic_embedding/math/sparse_segment_sum.md): Computes the sum along sparse segments of a tensor. It do same things
 

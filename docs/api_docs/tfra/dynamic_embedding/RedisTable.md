@@ -1,5 +1,5 @@
 <div itemscope itemtype="http://developers.google.com/ReferenceObject">
-<meta itemprop="name" content="tfra.dynamic_embedding.CuckooHashTable" />
+<meta itemprop="name" content="tfra.dynamic_embedding.RedisTable" />
 <meta itemprop="path" content="Stable" />
 <meta itemprop="property" content="key_dtype"/>
 <meta itemprop="property" content="name"/>
@@ -14,16 +14,17 @@
 <meta itemprop="property" content="lookup"/>
 <meta itemprop="property" content="remove"/>
 <meta itemprop="property" content="size"/>
+<meta itemprop="property" content="default_redis_params"/>
 </div>
 
-# tfra.dynamic_embedding.CuckooHashTable
+# tfra.dynamic_embedding.RedisTable
 
 <!-- Insert buttons and diff -->
 
 <table class="tfo-notebook-buttons tfo-api" align="left">
 
 <td>
-  <a target="_blank" href="https://github.com/tensorflow/recommenders-addons/tree/master/tensorflow_recommenders_addons/dynamic_embedding/python/ops/cuckoo_hashtable_ops.py">
+  <a target="_blank" href="https://github.com/tensorflow/recommenders-addons/tree/master/tensorflow_recommenders_addons/dynamic_embedding/python/ops/redis_table_ops.py">
     <img src="https://www.tensorflow.org/images/GitHub-Mark-32px.png" />
     View source on GitHub
   </a>
@@ -35,7 +36,7 @@
 
 
 
-## Class `CuckooHashTable`
+## Class `RedisTable`
 
 A generic mutable hash table implementation.
 
@@ -51,7 +52,7 @@ remove method. It does not support initialization via the init method.
 
 
 ```python
-table = tfra.dynamic_embedding.CuckooHashTable(key_dtype=tf.string,
+table = tfra.dynamic_embedding.RedisTable(key_dtype=tf.string,
                                                value_dtype=tf.int64,
                                                default_value=-1)
 sess.run(table.insert(keys, values))
@@ -61,23 +62,23 @@ print(out.eval())
 
 <h2 id="__init__"><code>__init__</code></h2>
 
-<a target="_blank" href="https://github.com/tensorflow/recommenders-addons/tree/master/tensorflow_recommenders_addons/dynamic_embedding/python/ops/cuckoo_hashtable_ops.py">View source</a>
+<a target="_blank" href="https://github.com/tensorflow/recommenders-addons/tree/master/tensorflow_recommenders_addons/dynamic_embedding/python/ops/redis_table_ops.py">View source</a>
 
 ``` python
 __init__(
     key_dtype,
     value_dtype,
     default_value,
-    name='CuckooHashTable',
-    checkpoint=(True),
-    init_size=0,
+    name='RedisTable',
+    checkpoint=(False),
     config=None
 )
 ```
 
-Creates an empty `CuckooHashTable` object.
+Creates an empty `RedisTable` object.
 
-Creates a table, the type of its keys and values are specified by key_dtype
+Creates a redis table through OS envionment variables,
+the type of its keys and values are specified by key_dtype
 and value_dtype, respectively.
 
 #### Args:
@@ -86,17 +87,15 @@ and value_dtype, respectively.
 * <b>`key_dtype`</b>: the type of the key tensors.
 * <b>`value_dtype`</b>: the type of the value tensors.
 * <b>`default_value`</b>: The value to use if a key is missing in the table.
-* <b>`name`</b>: A name for the operation (optional).
+* <b>`name`</b>: A name for the operation (optional, usually it's embedding table name).
 * <b>`checkpoint`</b>: if True, the contents of the table are saved to and restored
-  from checkpoints. If `shared_name` is empty for a checkpointed table, it
-  is shared using the table node name.
-* <b>`init_size`</b>: initial size for the Variable and initial size of each hash
-  tables will be int(init_size / N), N is the number of the devices.
+  from a Redis binary dump files according to the directory "[model_lib_abs_dir]/[model_tag]/[name].rdb".
+  If `shared_name` is empty for a checkpointed table, it is shared using the table node name.
 
 
 #### Returns:
 
-A `CuckooHashTable` object.
+A `RedisTable` object.
 
 
 
@@ -144,7 +143,7 @@ Looks up `keys` in a table, outputs the corresponding values.
 
 <h3 id="accum"><code>accum</code></h3>
 
-<a target="_blank" href="https://github.com/tensorflow/recommenders-addons/tree/master/tensorflow_recommenders_addons/dynamic_embedding/python/ops/cuckoo_hashtable_ops.py">View source</a>
+<a target="_blank" href="https://github.com/tensorflow/recommenders-addons/tree/master/tensorflow_recommenders_addons/dynamic_embedding/python/ops/redis_table_ops.py">View source</a>
 
 ``` python
 accum(
@@ -184,7 +183,7 @@ The created Operation.
 
 <h3 id="clear"><code>clear</code></h3>
 
-<a target="_blank" href="https://github.com/tensorflow/recommenders-addons/tree/master/tensorflow_recommenders_addons/dynamic_embedding/python/ops/cuckoo_hashtable_ops.py">View source</a>
+<a target="_blank" href="https://github.com/tensorflow/recommenders-addons/tree/master/tensorflow_recommenders_addons/dynamic_embedding/python/ops/redis_table_ops.py">View source</a>
 
 ``` python
 clear(name=None)
@@ -206,14 +205,14 @@ The created Operation.
 
 <h3 id="export"><code>export</code></h3>
 
-<a target="_blank" href="https://github.com/tensorflow/recommenders-addons/tree/master/tensorflow_recommenders_addons/dynamic_embedding/python/ops/cuckoo_hashtable_ops.py">View source</a>
+<a target="_blank" href="https://github.com/tensorflow/recommenders-addons/tree/master/tensorflow_recommenders_addons/dynamic_embedding/python/ops/redis_table_ops.py">View source</a>
 
 ``` python
 export(name=None)
 ```
 
-Returns tensors of all keys and values in the table.
-
+Returns nothing in Redis Implement. It will dump some binary files
+to model_lib_abs_dir.
 
 #### Args:
 
@@ -229,7 +228,7 @@ A pair of tensors with the first tensor containing all keys and the
 
 <h3 id="insert"><code>insert</code></h3>
 
-<a target="_blank" href="https://github.com/tensorflow/recommenders-addons/tree/master/tensorflow_recommenders_addons/dynamic_embedding/python/ops/cuckoo_hashtable_ops.py">View source</a>
+<a target="_blank" href="https://github.com/tensorflow/recommenders-addons/tree/master/tensorflow_recommenders_addons/dynamic_embedding/python/ops/redis_table_ops.py">View source</a>
 
 ``` python
 insert(
@@ -266,7 +265,7 @@ The created Operation.
 
 <h3 id="lookup"><code>lookup</code></h3>
 
-<a target="_blank" href="https://github.com/tensorflow/recommenders-addons/tree/master/tensorflow_recommenders_addons/dynamic_embedding/python/ops/cuckoo_hashtable_ops.py">View source</a>
+<a target="_blank" href="https://github.com/tensorflow/recommenders-addons/tree/master/tensorflow_recommenders_addons/dynamic_embedding/python/ops/redis_table_ops.py">View source</a>
 
 ``` python
 lookup(
@@ -311,7 +310,7 @@ A tensor containing the values in the same shape as `keys` using the
 
 <h3 id="remove"><code>remove</code></h3>
 
-<a target="_blank" href="https://github.com/tensorflow/recommenders-addons/tree/master/tensorflow_recommenders_addons/dynamic_embedding/python/ops/cuckoo_hashtable_ops.py">View source</a>
+<a target="_blank" href="https://github.com/tensorflow/recommenders-addons/tree/master/tensorflow_recommenders_addons/dynamic_embedding/python/ops/redis_table_ops.py">View source</a>
 
 ``` python
 remove(
@@ -345,7 +344,7 @@ The created Operation.
 
 <h3 id="size"><code>size</code></h3>
 
-<a target="_blank" href="https://github.com/tensorflow/recommenders-addons/tree/master/tensorflow_recommenders_addons/dynamic_embedding/python/ops/cuckoo_hashtable_ops.py">View source</a>
+<a target="_blank" href="https://github.com/tensorflow/recommenders-addons/tree/master/tensorflow_recommenders_addons/dynamic_embedding/python/ops/redis_table_ops.py">View source</a>
 
 ``` python
 size(name=None)
@@ -367,3 +366,6 @@ A scalar tensor containing the number of elements in this table.
 
 
 
+## Class Members
+
+* `default_redis_params` <a id="default_redis_params"></a>

@@ -27,17 +27,31 @@ Export dynamic_embedding APIs.
 
 ## Modules
 
+[`keras`](../tfra/dynamic_embedding/keras.md) module
+
 [`math`](../tfra/dynamic_embedding/math.md) module: math operations.
+
+[`shadow_ops`](../tfra/dynamic_embedding/shadow_ops.md) module: Dynamic Embedding is designed for Large-scale Sparse Weights Training.
 
 ## Classes
 
 [`class CuckooHashTable`](../tfra/dynamic_embedding/CuckooHashTable.md): A generic mutable hash table implementation.
 
+[`class CuckooHashTableConfig`](../tfra/dynamic_embedding/CuckooHashTableConfig.md)
+
+[`class CuckooHashTableCreator`](../tfra/dynamic_embedding/CuckooHashTableCreator.md):   A generic KV table creator.
+
 [`class FrequencyRestrictPolicy`](../tfra/dynamic_embedding/FrequencyRestrictPolicy.md): A derived policy to eliminate features in variable follow the
 
-[`class GraphKeys`](../tfra/dynamic_embedding/GraphKeys.md): Extended standard names related to `dynamic_embedding_ops.Variable` to use
+[`class GraphKeys`](../tfra/dynamic_embedding/GraphKeys.md): (Deprecated) extended standard names related to
 
 [`class ModelMode`](../tfra/dynamic_embedding/ModelMode.md): The global config of model modes.
+
+[`class RedisTable`](../tfra/dynamic_embedding/RedisTable.md): A generic mutable hash table implementation.
+
+[`class RedisTableConfig`](../tfra/dynamic_embedding/RedisTableConfig.md): RedisTableConfig config json file for connecting Redis service and 
+
+[`class RedisTableCreator`](../tfra/dynamic_embedding/RedisTableCreator.md):   RedisTableCreator will create a object to pass itself to the others classes
 
 [`class RestrictPolicy`](../tfra/dynamic_embedding/RestrictPolicy.md): Base class of restrict policies. Never use this class directly, but
 

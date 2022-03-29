@@ -34,11 +34,12 @@ tfra.dynamic_embedding.get_variable(
     partitioner=default_partition_fn,
     shared_name='get_variable',
     initializer=None,
-    trainable=True,
-    checkpoint=True,
+    trainable=(True),
+    checkpoint=(True),
     init_size=0,
+    kv_creator=None,
     restrict_policy=None,
-    bp_v2=False,
+    bp_v2=(False)
 )
 ```
 
@@ -68,22 +69,26 @@ def default_partition_fn(keys, shard_num):
 * <b>`initializer`</b>: The value to use if a key is missing in the hash table.
   which can a python number, numpy array or `tf.initializer` instances.
   If initializer is `None` (the default), `0` will be used.
-* <b>`trainable`</b>: True, will be treated as a trainable Variable, and add to
-  to the list of variables collected in the graph under the key
-  `GraphKeys.TRAINABLE_VARIABLES`.
+* <b>`trainable`</b>: Bool. If true, the variable will be treated as a trainable.
+  Default is true.
 * <b>`checkpoint`</b>: if True, the contents of the SparseVariable are
   saved to and restored from checkpoints.
   If `shared_name` is empty for a checkpointed table,
   it is shared using the table node name.
-* <b>`init_size`</b>: initial size for the Variable and initial size of each hash 
+* <b>`init_size`</b>: initial size for the Variable and initial size of each hash
   tables will be int(init_size / N), N is the number of the devices.
 * <b>`restrict_policy`</b>: a restrict policy to specify the rule to restrict the
   size of variable. If in training program, the variable is updated by
   optimizer, then the sparse slot variables in optimizer are also be
   restricted.
-* <b>`bp_v2`</b>:update parameters by *updating* instead of *setting*, which solves
-  the race condition problem among workers during backpropagation in large-scale
-  distributed asynchronous training.
+* <b>`bp_v2`</b>: By default with `bp_v2=False`, the optimizer will update
+  dynamic embedding values by *setting* (key, value) after
+  `optimizer.apply_gradient`. If one key is used by multiple workers
+  at the same time, only one of them will be seen, while the others are
+  overwritten. By setting `bp_v2=True`, the optimizer will update
+  parameters by *adding delta* instead of *setting*, which solves the
+  race condition problem among workers during backpropagation in
+  large-scale distributed asynchronous training.
 
 
 #### Returns:

@@ -29,7 +29,7 @@ Information on how to save this Variable as a slice.
   <h4 class="showalways">View aliases</h4>
   <p>
 <b>Main aliases</b>
-<p>`tfra.embedding_variable.EmbeddingVariable.SaveSliceInfo`, `tfra.embedding_variable.embedding_variable_ops.EmbeddingVariable.SaveSliceInfo`, `tfra.embedding_variable.python.ops.embedding_variable_ops.EmbeddingVariable.SaveSliceInfo`</p>
+<p>`tfra.dynamic_embedding.shadow_ops.ShadowVariable.SaveSliceInfo`, `tfra.embedding_variable.EmbeddingVariable.SaveSliceInfo`, `tfra.embedding_variable.embedding_variable_ops.EmbeddingVariable.SaveSliceInfo`, `tfra.embedding_variable.python.ops.embedding_variable_ops.EmbeddingVariable.SaveSliceInfo`</p>
 </p>
 </section>
 
