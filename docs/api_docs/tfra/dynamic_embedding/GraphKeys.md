@@ -26,15 +26,13 @@
 
 ## Class `GraphKeys`
 
-Extended standard names related to `dynamic_embedding_ops.Variable` to use
+(Deprecated) extended standard names related to
 
 
 
 <!-- Placeholder for "Used in" -->
-for graph collections.
-
+`dynamic_embedding_ops.Variable` to use for graph collections.
 The following standard keys are defined:
-
 * `DYNAMIC_EMBEDDING_VARIABLES`: the default collection of
   all `dynamic_embedding_ops.Variable` objects.
 * `TRAINABLE_DYNAMIC_EMBEDDING_VARIABLES`: the subset of

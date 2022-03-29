@@ -34,7 +34,7 @@ tfra.dynamic_embedding.safe_embedding_lookup_sparse(
     name='safe_embedding_lookup_sparse',
     partition_strategy=None,
     max_norm=None,
-    return_trainable=False
+    return_trainable=(False)
 )
 ```
 
@@ -66,7 +66,8 @@ along the last dimension.
   entry. Currently "mean", "sqrtn" and "sum" are supported, with "mean" the
   default.
 * <b>`default_id`</b>: The id to use for an entry with no features.
-* <b>`name`</b>: A name for this operation (optional).
+* <b>`name`</b>: A name for this operation. Name is optional in graph mode and required
+  in eager mode.
 * <b>`partition_strategy`</b>: A string specifying the partitioning strategy. Currently
   `"div"` and `"mod"` are supported. Default is `"div"`.
 * <b>`max_norm`</b>: If not `None`, all embeddings are l2-normalized to max_norm before

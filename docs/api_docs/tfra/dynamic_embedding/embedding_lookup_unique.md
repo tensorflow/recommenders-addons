@@ -32,7 +32,7 @@ tfra.dynamic_embedding.embedding_lookup_unique(
     name=None,
     validate_indices=None,
     max_norm=None,
-    return_trainable=False
+    return_trainable=(False)
 )
 ```
 
@@ -48,7 +48,8 @@ Same interface as embedding_lookup.
 * <b>`params`</b>: A dynamic_embedding.Variable instance.
 * <b>`ids`</b>: a tensor with any shape as same dtype of params.key_dtype.
 * <b>`partition_strategy`</b>: No used, for API compatiblity with `nn.emedding_lookup`.
-* <b>`name`</b>: A name for the operation (optional).
+* <b>`name`</b>: A name for the operation. Name is optional in graph mode and required
+  in eager mode.
 * <b>`validate_indices`</b>: No used, just for compatible with nn.embedding_lookup .
 * <b>`max_norm`</b>: If not `None`, each embedding is clipped if its l2-norm is larger
   than this value.

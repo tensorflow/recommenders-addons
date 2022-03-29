@@ -1,11 +1,15 @@
 <div itemscope itemtype="http://developers.google.com/ReferenceObject">
 <meta itemprop="name" content="tfra.dynamic_embedding.Variable" />
 <meta itemprop="path" content="Stable" />
-<meta itemprop="property" content="resource_handle"/>
 <meta itemprop="property" content="restrict_policy"/>
 <meta itemprop="property" content="tables"/>
+<meta itemprop="property" content="trainable_store"/>
 <meta itemprop="property" content="__init__"/>
+<meta itemprop="property" content="accum"/>
+<meta itemprop="property" content="clear"/>
 <meta itemprop="property" content="export"/>
+<meta itemprop="property" content="get_slot_variables"/>
+<meta itemprop="property" content="get_trainable_by_name"/>
 <meta itemprop="property" content="lookup"/>
 <meta itemprop="property" content="remove"/>
 <meta itemprop="property" content="restrict"/>
@@ -55,31 +59,35 @@ __init__(
     shared_name=None,
     name='DynamicEmbedding_Variable',
     initializer=None,
-    trainable=True,
-    checkpoint=True,
+    trainable=(True),
+    checkpoint=(True),
     init_size=0,
+    kv_creator=None,
     restrict_policy=None,
-    bp_v2=False,
+    bp_v2=(False)
 )
 ```
 
 Creates an empty `Variable` object.
 
-Creates a group of tables placed on devices,
+Creates a group of tables placed on devices specified by `devices`,
+and the device placement mechanism of TensorFlow will be ignored,
 the type of its keys and values are specified by key_dtype
 and value_dtype, respectively.
 The environment variables 'TF_HASHTABLE_INIT_SIZE' can be used to set the
 inital size of each tables, which can help reduce rehash times.
-The default initial table size : 1,048,576 for CPU, 16,777,216 for GPU.
+The default initial table size is 8,192
 
 #### Args:
 
 
 * <b>`key_dtype`</b>: the type of the key tensors.
 * <b>`value_dtype`</b>: the type of the value tensors.
-* <b>`dim`</b>: the length of the value array for each key.
+* <b>`dim`</b>: the length of the value array for each key,
+  on GPUs, `dim` should be less or equal to 200.
 * <b>`devices`</b>: the list of devices holding the tables.
-  One table will be created on each device.
+  One table will be created on each device. By default, `devices` is
+  ['/CPU:0'] and when GPU is available, `devices` is ['/GPU:0']
 * <b>`partitioner`</b>: partition function of keys,
   return the partition index for each key.
 
@@ -93,22 +101,26 @@ def default_partition_fn(keys, shard_num):
 * <b>`initializer`</b>: The value to use if a key is missing in the hash table.
   which can be a python number, numpy array or `tf.initializer` instances.
   If initializer is `None` (the default), `0` will be taken.
-* <b>`trainable`</b>: True, will be treated as a trainable Variable, and add to
-  to the list of variables collected in the graph under the key
-  `GraphKeys.TRAINABLE_VARIABLES`.
+* <b>`trainable`</b>: Bool. If true, the variable will be treated as a trainable.
+  Default is true.
 * <b>`checkpoint`</b>: if True, the contents of the SparseVariable are
   saved to and restored from checkpoints.
   If `shared_name` is empty for a checkpointed table,
   it is shared using the table node name.
-* <b>`init_size`</b>: initial size for the Variable and initial size of each hash 
+* <b>`init_size`</b>: initial size for the Variable and initial size of each hash
   tables will be int(init_size / N), N is the number of the devices.
 * <b>`restrict_policy`</b>: a restrict policy to specify the rule to restrict the
   size of variable. If in training program, the variable is updated by
   optimizer, then the sparse slot variables in optimizer are also be
   restricted.
-* <b>`bp_v2`</b>:update parameters by *updating* instead of *setting*, which solves
-  the race condition problem among workers during backpropagation in large-scale
-  distributed asynchronous training.
+* <b>`bp_v2`</b>: By default with `bp_v2=False`, the optimizer will update
+  dynamic embedding values by *setting* (key, value) after
+  `optimizer.apply_gradient`. If one key is used by multiple workers
+  at the same time, only one of them will be seen, while the others are
+  overwritten. By setting `bp_v2=True`, the optimizer will update
+  parameters by *adding delta* instead of *setting*, which solves the
+  race condition problem among workers during backpropagation in
+  large-scale distributed asynchronous training.
 
 
 #### Returns:
@@ -120,11 +132,6 @@ A `Variable` object.
 
 ## Properties
 
-<h3 id="resource_handle"><code>resource_handle</code></h3>
-
-Returns the resource handle associated with this Resource.
-
-
 <h3 id="restrict_policy"><code>restrict_policy</code></h3>
 
 
@@ -135,9 +142,79 @@ Returns the resource handle associated with this Resource.
 
 
 
+<h3 id="trainable_store"><code>trainable_store</code></h3>
+
+
+
+
 
 
 ## Methods
+
+<h3 id="accum"><code>accum</code></h3>
+
+<a target="_blank" href="https://github.com/tensorflow/recommenders-addons/tree/master/tensorflow_recommenders_addons/dynamic_embedding/python/ops/dynamic_embedding_variable.py">View source</a>
+
+``` python
+accum(
+    keys,
+    old_values,
+    new_values,
+    exists,
+    name=None
+)
+```
+
+Insert `keys` with `values` if not exist, or accumulate a delta value
+  `new_values - old_values` to 'keys'.
+This API will help relieve stale gradient problem in asynchronous training.
+
+#### Args:
+
+
+* <b>`keys`</b>: Keys to insert. Can be a tensor of any shape. Must match
+  the table's key type.
+* <b>`old_values`</b>: old values to be associated with keys. Must be a tensor of
+  arrays with same shape as `keys` and match the table's value type.
+* <b>`new_values`</b>: new values to be associated with keys. Must be a tensor of
+  arrays with same shape as `keys` and match the table's value type.
+* <b>`exists`</b>: A bool type tensor indicates if keys existed or not.
+  Must be a tensor of the same shape as `keys`.
+* <b>`name`</b>: A name for the operation (optional).
+
+
+#### Returns:
+
+The created Operation.
+
+
+
+#### Raises:
+
+
+* <b>`TypeError`</b>: when `keys` or `values` doesn't match the table data types.
+
+<h3 id="clear"><code>clear</code></h3>
+
+<a target="_blank" href="https://github.com/tensorflow/recommenders-addons/tree/master/tensorflow_recommenders_addons/dynamic_embedding/python/ops/dynamic_embedding_variable.py">View source</a>
+
+``` python
+clear(name=None)
+```
+
+clear all keys and values in the table.
+
+
+#### Args:
+
+
+* <b>`name`</b>: A name for the operation (optional).
+
+
+#### Returns:
+
+The created Operation.
+
 
 <h3 id="export"><code>export</code></h3>
 
@@ -162,6 +239,79 @@ A pair of tensors with the first tensor containing all keys and the
   second tensors containing all values in the table.
 
 
+<h3 id="get_slot_variables"><code>get_slot_variables</code></h3>
+
+<a target="_blank" href="https://github.com/tensorflow/recommenders-addons/tree/master/tensorflow_recommenders_addons/dynamic_embedding/python/ops/dynamic_embedding_variable.py">View source</a>
+
+``` python
+get_slot_variables(optimizer)
+```
+
+Get slot variables from optimizer. If Variable is trained by optimizer,
+then it returns the variables in slots of optimizer, else return an empty
+list.
+
+#### Args:
+
+
+* <b>`optimizer`</b>: An optimizer under `tf.keras.optimizers` or `tf.compat.v1.train`.
+
+
+#### Returns:
+
+List of slot `Variable`s in optimizer.
+
+
+<h3 id="get_trainable_by_name"><code>get_trainable_by_name</code></h3>
+
+<a target="_blank" href="https://github.com/tensorflow/recommenders-addons/tree/master/tensorflow_recommenders_addons/dynamic_embedding/python/ops/dynamic_embedding_variable.py">View source</a>
+
+``` python
+get_trainable_by_name(name)
+```
+
+Get trainable shadow variable when using eager execution.
+
+
+#### Example:
+
+
+```python
+from tensorflow_recommenders_addons import dynamic_embedding as de
+init = tf.keras.initializers.RandomNormal()
+params = de.get_variable('foo', dim=4, initializer=init)
+optimizer = tf.keras.optimizers.Adam(1E-3)
+optimizer = de.DynamicEmbeddingOptimizer(optimizer)
+
+@tf.function
+def loss_fn(ids):
+  emb = de.embedding_lookup(params, ids, name='user_embedding')
+  emb = tf.math.reduce_sum(emb, axis=1)
+  loss = tf.reduce_mean(emb)
+  return loss
+
+for i in range(10):
+  optimizer.minimize(lambda: loss_fn(ids),
+                     var_list=[params.get_eager_trainable_by_name('user_embedding')])
+```
+
+#### Args:
+
+
+* <b>`name`</b>: str. Name used to get the trainable shadow to the Variable.
+
+
+#### Returns:
+
+A ShadowVariable object refers to the specific name.
+
+
+
+#### Raises:
+
+
+* <b>`RuntimeError`</b>: if not in eager mode.
+
 <h3 id="lookup"><code>lookup</code></h3>
 
 <a target="_blank" href="https://github.com/tensorflow/recommenders-addons/tree/master/tensorflow_recommenders_addons/dynamic_embedding/python/ops/dynamic_embedding_variable.py">View source</a>
@@ -169,6 +319,7 @@ A pair of tensors with the first tensor containing all keys and the
 ``` python
 lookup(
     keys,
+    return_exists=(False),
     name=None
 )
 ```
@@ -182,6 +333,8 @@ The `default_value` is used for keys not present in the table.
 
 * <b>`keys`</b>: Keys to look up. Can be a tensor of any shape. Must match the
   table's key_dtype.
+* <b>`return_exists`</b>: if True, will return a additional Tensor which indicates
+  if keys are existing in the table.
 * <b>`name`</b>: A name for the operation (optional).
 
 
@@ -190,6 +343,9 @@ The `default_value` is used for keys not present in the table.
 A tensor containing the values in the same shape as `keys` using the
   table's value type.
 
+* <b>`exists`</b>:   A bool type Tensor of the same shape as `keys` which indicates
+    if keys are existing in the table.
+    Only provided if `return_exists` is True.
 
 <h3 id="remove"><code>remove</code></h3>
 
@@ -301,8 +457,8 @@ If key exists already, value will be updated.
 
 * <b>`keys`</b>: Keys to insert. Can be a tensor of any shape. Must match the table's
   key type.
-* <b>`values`</b>: Values to be associated with keys. Must be a tensor of the same
-  shape as `keys` and match the table's value type.
+* <b>`values`</b>: Values to be associated with keys.Must be a tensor of
+  arrays with same shape as `keys` and match the table's value type.
 * <b>`name`</b>: A name for the operation (optional).
 
 

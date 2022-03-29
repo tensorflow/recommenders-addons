@@ -33,7 +33,7 @@ tfra.dynamic_embedding.embedding_lookup_sparse(
     name='embedding_lookup_sparse',
     combiner='mean',
     max_norm=None,
-    return_trainable=False
+    return_trainable=(False)
 )
 ```
 
@@ -60,7 +60,8 @@ is the sum of the size of params along dimension 0.
   indicate all weights should be taken to be 1. If specified, `sp_weights`
   must have exactly the same shape and indices as `sp_ids`.
 * <b>`partition_strategy`</b>: No used.
-* <b>`name`</b>: Optional name for the op.
+* <b>`name`</b>: a name for the operation. Name is optional in graph mode and required
+  in eager mode.
 * <b>`combiner`</b>: A string specifying the reduction op. Currently "mean", "sqrtn"
   and "sum" are supported. "sum" computes the weighted sum of the embedding
   results for each row. "mean" is the weighted sum divided by the total
