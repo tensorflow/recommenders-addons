@@ -122,7 +122,7 @@ def model_fn(features, labels, mode, params):
     sync_hook = HorovodSyncHook(device=device)
     optimizer = tf.compat.v1.train.AdamOptimizer(learning_rate=0.001)
     optimizer = tfra.dynamic_embedding.DynamicEmbeddingOptimizer(
-        optimizer, horovod_synchronous=True)
+        optimizer, synchronous=True)
     train_op = optimizer.minimize(
         loss, global_step=tf.compat.v1.train.get_or_create_global_step())
     return tf.estimator.EstimatorSpec(mode=mode,
