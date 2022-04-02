@@ -50,6 +50,7 @@ from tensorflow.python.keras import initializers as kinit1
 from tensorflow.python.ops import control_flow_ops
 from tensorflow.python.ops import random_ops
 from tensorflow.python.ops import resource_variable_ops as rvo
+from tensorflow.python.ops import init_ops
 from tensorflow.python.ops import math_ops
 from tensorflow.python.ops import variable_scope
 from tensorflow.python.ops import variables
@@ -370,14 +371,21 @@ def patch_on_tf():
   optimizer._get_processor = _get_processor
   slot_creator._create_slot_var = _create_slot_var
   device_setter._ReplicaDeviceChooser.device_function = device_function
+
+  def __call__for_keras_init(variance_scaling):
+    if variance_scaling == init_ops.VarianceScaling:
+      return __call__for_keras_init_v1
+    if kinit2 and variance_scaling == kinit2.VarianceScaling:
+      return __call__for_keras_init_v2
+    return variance_scaling.__call__
+
   if kinit1 is not None:
-    kinit1.VarianceScaling.__call__ = __call__for_keras_init_v1
+    kinit1.__call__ = __call__for_keras_init(kinit1.VarianceScaling)
   if kinit2 is not None:
-    kinit2.VarianceScaling.__call__ = __call__for_keras_init_v2
-  if kinit_tf is not None and kinit_tf.VarianceScaling.__call__ not in (
-      __call__for_keras_init_v1, __call__for_keras_init_v2):
-    kinit_tf.VarianceScaling.__call__ = __call__for_keras_init_v2
-  if kinit_K is not None and kinit_K.VarianceScaling.__call__ not in (
-      __call__for_keras_init_v1, __call__for_keras_init_v2):
-    kinit_K.VarianceScaling.__call__ = __call__for_keras_init_v2
+    kinit2.__call__ = __call__for_keras_init(kinit2.VarianceScaling)
+  if kinit_tf is not None:
+    kinit_tf.__call__ = __call__for_keras_init(kinit_tf.VarianceScaling)
+  if kinit_K is not None:
+    kinit_K.__call__ = __call__for_keras_init(kinit_K.VarianceScaling)
+
   base.CheckpointPosition.bind_object = bind_object
