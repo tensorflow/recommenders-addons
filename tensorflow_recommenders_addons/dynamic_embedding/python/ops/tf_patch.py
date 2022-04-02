@@ -374,8 +374,10 @@ def patch_on_tf():
     kinit1.VarianceScaling.__call__ = __call__for_keras_init_v1
   if kinit2 is not None:
     kinit2.VarianceScaling.__call__ = __call__for_keras_init_v2
-  if kinit_tf is not None:
+  if kinit_tf is not None and kinit_tf.VarianceScaling.__call__ not in (
+      __call__for_keras_init_v1, __call__for_keras_init_v2):
     kinit_tf.VarianceScaling.__call__ = __call__for_keras_init_v2
-  if kinit_K is not None:
+  if kinit_K is not None and kinit_K.VarianceScaling.__call__ not in (
+      __call__for_keras_init_v1, __call__for_keras_init_v2):
     kinit_K.VarianceScaling.__call__ = __call__for_keras_init_v2
   base.CheckpointPosition.bind_object = bind_object
