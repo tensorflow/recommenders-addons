@@ -176,6 +176,7 @@ void CreateTableImpl(TableWrapperBase<K, V>** pptable, size_t max_size,
 
 DECLARE_CREATE_TABLE(int64, float);
 DECLARE_CREATE_TABLE(int64, Eigen::half);
+DECLARE_CREATE_TABLE(int64, int64);
 DECLARE_CREATE_TABLE(int64, int32);
 DECLARE_CREATE_TABLE(int64, int8);
 
