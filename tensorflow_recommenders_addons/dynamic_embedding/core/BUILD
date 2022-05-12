@@ -14,8 +14,9 @@ custom_op_library(
         "kernels/cuckoo_hashtable_op.h",
         "kernels/cuckoo_hashtable_op.cc",
         "ops/cuckoo_hashtable_ops.cc",
-        "utils/utils.h",
+        "utils/filebuffer.h",
         "utils/types.h",
+        "utils/utils.h",
     ] + glob(["kernels/lookup_impl/lookup_table_op_cpu*"]),
     cuda_deps = if_cuda_for_tf_serving(
         ["//tensorflow_recommenders_addons/dynamic_embedding/core/lib/nvhash:nvhashtable"],
@@ -26,8 +27,9 @@ custom_op_library(
         "kernels/cuckoo_hashtable_op.h",
         "kernels/cuckoo_hashtable_op_gpu.h",
         "kernels/cuckoo_hashtable_op_gpu.cu.cc",
-        "utils/utils.h",
+        "utils/filebuffer.h",
         "utils/types.h",
+        "utils/utils.h",
     ] + glob(["kernels/lookup_impl/lookup_table_op_gpu*"])),
     deps = ["//tensorflow_recommenders_addons/dynamic_embedding/core/lib/cuckoo:cuckoohash"],
 )
