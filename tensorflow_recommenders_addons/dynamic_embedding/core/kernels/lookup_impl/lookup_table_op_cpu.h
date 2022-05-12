@@ -28,6 +28,7 @@ limitations under the License.
 #include "tensorflow/core/framework/variant.h"
 #include "tensorflow/core/lib/gtl/inlined_vector.h"
 #include "tensorflow_recommenders_addons/dynamic_embedding/core/lib/cuckoo/cuckoohash_map.hh"
+#include "tensorflow_recommenders_addons/dynamic_embedding/core/utils/filebuffer.h"
 #include "tensorflow_recommenders_addons/dynamic_embedding/core/utils/types.h"
 
 namespace tensorflow {
@@ -129,6 +130,12 @@ class TableWrapperBase {
   virtual void clear() {}
   virtual bool erase(const K& key) {}
   virtual Status export_values(OpKernelContext* ctx, int64 value_dim) {}
+  virtual Status save_to_file(OpKernelContext* ctx, int64 value_dim,
+                              const string filepath, const size_t buffer_size) {
+  }
+  virtual Status load_from_file(OpKernelContext* ctx, int64 value_dim,
+                                const string filepath,
+                                const size_t buffer_size) {}
 };
 
 template <class K, class V, size_t DIM>
@@ -228,6 +235,85 @@ class TableWrapperOptimized final : public TableWrapperBase<K, V> {
       for (int64 j = 0; j < value_dim; j++) {
         values_data(i, j) = value.at(j);
       }
+    }
+    return Status::OK();
+  }
+
+  Status save_to_file(OpKernelContext* ctx, int64 value_dim,
+                      const string filepath,
+                      const size_t buffer_size) override {
+    auto lt = table_->lock_table();
+    int64 size = lt.size();
+
+    size_t key_buffer_size = buffer_size;
+    string key_tmpfile = filepath + ".keys.tmp";
+    string key_file = filepath + ".keys";
+    auto key_buffer = filebuffer::HostFileBuffer<K>(
+        key_tmpfile, key_buffer_size, filebuffer::MODE::WRITE);
+
+    size_t value_buffer_size = key_buffer_size * static_cast<size_t>(value_dim);
+    string value_tmpfile = filepath + ".values.tmp";
+    string value_file = filepath + ".values";
+    auto value_buffer = filebuffer::HostFileBuffer<V>(
+        value_tmpfile, value_buffer_size, filebuffer::MODE::WRITE);
+
+    for (auto it = lt.begin(); it != lt.end(); ++it) {
+      key_buffer.Put(it->first);
+      value_buffer.BatchPut(it->second.data(), it->second.size());
+    }
+    key_buffer.Flush();
+    value_buffer.Flush();
+    key_buffer.Close();
+    value_buffer.Close();
+
+    if (rename(key_tmpfile.c_str(), key_file.c_str()) != 0) {
+      return errors::NotFound("key_tmpfile ", key_tmpfile, " is not found.");
+    }
+    if (rename(value_tmpfile.c_str(), value_file.c_str()) != 0) {
+      return errors::NotFound("value_tmpfile ", value_tmpfile,
+                              " is not found.");
+    }
+    return Status::OK();
+  }
+
+  Status load_from_file(OpKernelContext* ctx, int64 value_dim,
+                        const string filepath,
+                        const size_t buffer_size) override {
+    size_t dim = static_cast<size_t>(value_dim);
+    size_t key_buffer_size = buffer_size;
+    size_t value_buffer_size = key_buffer_size * dim;
+    string key_file = filepath + ".keys";
+    string value_file = filepath + ".values";
+    auto key_buffer = filebuffer::HostFileBuffer<K>(key_file, key_buffer_size,
+                                                    filebuffer::MODE::READ);
+    auto value_buffer = filebuffer::HostFileBuffer<V>(
+        value_file, value_buffer_size, filebuffer::MODE::READ);
+    size_t nkeys = 1;
+
+    size_t total_keys = 0;
+    size_t total_values = 0;
+    while (nkeys > 0) {
+      nkeys = key_buffer.Fill();
+      value_buffer.Fill();
+      total_keys += key_buffer.size();
+      total_values += value_buffer.size();
+      for (size_t i = 0; i < key_buffer.size(); i++) {
+        ValueType value_vec;
+        K key = key_buffer[i];
+        for (size_t j = 0; j < dim; j++) {
+          V value = value_buffer[i * dim + j];
+          value_vec[j] = value;
+        }
+        table_->insert_or_assign(key, value_vec);
+      }
+      key_buffer.Clear();
+      value_buffer.Clear();
+    }
+    if (total_keys * dim != total_values) {
+      LOG(ERROR) << "DataLoss: restore get " << total_keys << " and "
+                 << total_values << " in file " << filepath << " with dim "
+                 << dim;
+      exit(1);
     }
     return Status::OK();
   }

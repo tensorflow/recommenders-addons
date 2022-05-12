@@ -254,6 +254,13 @@ REGISTER_OP(PREFIX_OP_NAME(CuckooHashTableExport))
       return Status::OK();
     });
 
+REGISTER_OP(PREFIX_OP_NAME(CuckooHashTableExportToFile))
+    .Input("table_handle: resource")
+    .Input("filepath: string")
+    .Attr("key_dtype: type")
+    .Attr("value_dtype: type")
+    .Attr("buffer_size: int >= 1");
+
 REGISTER_OP(PREFIX_OP_NAME(CuckooHashTableImport))
     .Input("table_handle: resource")
     .Input("keys: Tin")
@@ -269,6 +276,13 @@ REGISTER_OP(PREFIX_OP_NAME(CuckooHashTableImport))
       TF_RETURN_IF_ERROR(c->Merge(keys, c->input(2), &keys));
       return Status::OK();
     });
+
+REGISTER_OP(PREFIX_OP_NAME(CuckooHashTableImportFromFile))
+    .Input("table_handle: resource")
+    .Input("filepath: string")
+    .Attr("key_dtype: type")
+    .Attr("value_dtype: type")
+    .Attr("buffer_size: int >= 1");
 
 REGISTER_OP(PREFIX_OP_NAME(CuckooHashTableOfTensors))
     .Output("table_handle: resource")

@@ -30,6 +30,7 @@ limitations under the License.
 #include "tensorflow/core/platform/macros.h"
 #include "tensorflow/core/platform/thread_annotations.h"
 #include "tensorflow_recommenders_addons/dynamic_embedding/core/lib/nvhash/nv_hashtable.cuh"
+#include "tensorflow_recommenders_addons/dynamic_embedding/core/utils/filebuffer.h"
 
 namespace tensorflow {
 namespace recommenders_addons {
@@ -60,6 +61,13 @@ class TableWrapperBase {
   virtual void dump(K* d_key, ValueType<V>* d_val, const size_t offset,
                     const size_t search_length, size_t* d_dump_counter,
                     cudaStream_t stream) const {}
+  virtual void dump_to_file(OpKernelContext* ctx, const string filepath,
+                            size_t dim, cudaStream_t stream,
+                            const size_t buffer_size) const {}
+  virtual void load_from_file(OpKernelContext* ctx, const string filepath,
+                              const size_t key_num, size_t dim,
+                              cudaStream_t stream,
+                              const size_t buffer_size) const {}
   virtual void get(const K* d_keys, ValueType<V>* d_vals, bool* d_status,
                    size_t len, ValueType<V>* d_def_val, cudaStream_t stream,
                    bool is_full_size_default) const {}
@@ -96,6 +104,98 @@ class TableWrapper final : public TableWrapperBase<K, V> {
             const size_t search_length, size_t* d_dump_counter,
             cudaStream_t stream) const override {
     table_->dump(d_key, d_val, offset, search_length, d_dump_counter, stream);
+  }
+
+  void dump_to_file(OpKernelContext* ctx, const string filepath, size_t dim,
+                    cudaStream_t stream,
+                    const size_t buffer_size) const override {
+    CUDA_CHECK(cudaStreamSynchronize(stream));
+    K* keys = nullptr;
+    V* values = nullptr;
+    size_t offset = 0;
+    size_t* d_dump_counter;
+    size_t dump_counter;
+    size_t table_capacity = get_capacity();
+
+    CUDA_CHECK(cudaMalloc(&keys, sizeof(K) * buffer_size));
+    CUDA_CHECK(cudaMalloc(&values, sizeof(V) * buffer_size * dim));
+    CUDA_CHECK(cudaMalloc(&d_dump_counter, sizeof(size_t)));
+
+    string key_file = filepath + ".keys";
+    string value_file = filepath + ".values";
+    string key_tmpfile = filepath + ".keys.tmp";
+    string value_tmpfile = filepath + ".values.tmp";
+    auto key_buffer = filebuffer::DeviceFileBuffer<K>(key_tmpfile, buffer_size,
+                                                      filebuffer::MODE::WRITE);
+    auto value_buffer = filebuffer::DeviceFileBuffer<V>(
+        value_tmpfile, buffer_size * dim, filebuffer::MODE::WRITE);
+    size_t search_length = 0;
+
+    size_t total_dumped = 0;
+    while (offset < table_capacity) {
+      if (offset + buffer_size >= table_capacity) {
+        search_length = table_capacity - offset;
+      } else {
+        search_length = buffer_size;
+      }
+      table_->dump(keys, (ValueType<V>*)values, offset, search_length,
+                   d_dump_counter, stream);
+      CUDA_CHECK(cudaMemcpyAsync(&dump_counter, d_dump_counter, sizeof(size_t),
+                                 cudaMemcpyDeviceToHost, stream));
+
+      key_buffer.BatchPut(keys, dump_counter, stream);
+      value_buffer.BatchPut(values, dump_counter * dim, stream);
+      cudaStreamSynchronize(stream);
+      offset += search_length;
+      total_dumped += dump_counter;
+    }
+
+    LOG(INFO) << "Dump finish, offset=" << offset
+              << ", total_dumped=" << total_dumped;
+
+    CUDA_CHECK(cudaFree(keys));
+    CUDA_CHECK(cudaFree(values));
+    CUDA_CHECK(cudaFree(d_dump_counter));
+
+    key_buffer.Close();
+    value_buffer.Close();
+    OP_REQUIRES(
+        ctx, rename(key_tmpfile.c_str(), key_file.c_str()) == 0,
+        errors::NotFound("key_tmpfile ", key_tmpfile, " is not found."));
+    OP_REQUIRES(
+        ctx, rename(value_tmpfile.c_str(), value_file.c_str()) == 0,
+        errors::NotFound("value_tmpfile ", value_tmpfile, " is not found."));
+  }
+
+  void load_from_file(OpKernelContext* ctx, const string filepath,
+                      const size_t key_num, size_t dim, cudaStream_t stream,
+                      const size_t buffer_size) const override {
+    CUDA_CHECK(cudaStreamSynchronize(stream));
+    string key_file = filepath + ".keys";
+    string value_file = filepath + ".values";
+    auto key_buffer = filebuffer::DeviceFileBuffer<K>(key_file, buffer_size,
+                                                      filebuffer::MODE::READ);
+    auto value_buffer = filebuffer::DeviceFileBuffer<V>(
+        value_file, buffer_size * dim, filebuffer::MODE::READ);
+
+    size_t nkeys = 1;
+    size_t total_keys = 0;
+    size_t total_values = 0;
+    while (nkeys > 0) {
+      nkeys = key_buffer.Fill();
+      value_buffer.Fill();
+      total_keys += key_buffer.size();
+      total_values += value_buffer.size();
+
+      table_->upsert(key_buffer.data(), (ValueType<V>*)value_buffer.data(),
+                     nkeys, stream);
+      cudaStreamSynchronize(stream);
+      key_buffer.Clear();
+      value_buffer.Clear();
+    }
+    OP_REQUIRES(ctx, total_keys * dim == total_values,
+                errors::DataLoss("load from file get invalid ", total_keys,
+                                 " keys and", total_values, " values."));
   }
 
   void get(const K* d_keys, ValueType<V>* d_vals, bool* d_status, size_t len,
