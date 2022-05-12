@@ -125,11 +125,11 @@ std::array<unsigned char, 16> MD5(const std::string &src) {
   return md;
 }
 
-enum Connection_Mode { ClusterMode = 0, SentinelMode = 1, StreamMode = 2 };
+enum Connection_Mode { ClusterMode = 0, SentinelMode = 1, StandaloneMode = 2 };
 
 struct Redis_Connection_Params {
   int redis_connection_mode =
-      1;  // ClusterMode = 0, SentinelMode = 1, StreamMode = 2
+      1;  // ClusterMode = 0, SentinelMode = 1, StandaloneMode = 2
   std::string redis_master_name = "master";
   // connection_options
   std::vector<std::string> redis_host_ip = {"127.0.0.1"};
@@ -147,6 +147,8 @@ struct Redis_Connection_Params {
   int redis_wait_timeout = 100000000;   // milliseconds
   int redis_connection_lifetime = 100;  // minutes
   // sentinel_connection_options
+  std::string redis_sentinel_user = "default";
+  std::string redis_sentinel_password = "";
   int redis_sentinel_connect_timeout = 1000;  // milliseconds
   int redis_sentinel_socket_timeout = 1000;   // milliseconds
   //
@@ -156,13 +158,18 @@ struct Redis_Connection_Params {
   unsigned storage_slice =
       1;  // For deciding bucket number, which usually is how
           // many Redis instance may be used in the trainning.
-  int expire_model_tag_in_seconds =
-      604800;  // To eliminate unwanted model versions in Redis to ensure
-               // sufficient storage space. It will not take effect if it is
-               // less than zero.
+  bool using_hash_storage_slice =
+      false;  // If True, IDs will be calculated hash(CRC32) value and then MOD
+              // to decide which bucket number they belong to. If False, only
+              // calculate the remainder.
   unsigned long long keys_sending_size =
       1024;  // Determines how many keys to send at a time
              // for performance tuning
+  bool using_md5_prefix_name = false;
+  bool redis_hash_tags_hypodispersion =
+      false;  // distribution of storag_slice will be hypodispersion in 16354
+              // regardless cluster slot, but still depends on
+              // redis_hash_tags_import/runtime if they aren't empty.
   std::string model_tag_import =
       "test";  // old model_tag for version and any other information
   std::vector<std::string> redis_hash_tags_import =
@@ -173,7 +180,10 @@ struct Redis_Connection_Params {
   std::vector<std::string> redis_hash_tags_runtime =
       {};  // Deciding hash tag for every bucket, Note that the hash tag must be
            // wrapped in curly braces. For example {3560}.
-  bool using_md5_prefix_name = false;
+  int expire_model_tag_in_seconds =
+      604800;  // To eliminate unwanted model versions in Redis to ensure
+               // sufficient storage space. It will not take effect if it is
+               // less than zero.
   std::string model_lib_abs_dir = "/tmp/";
   // if table_store_mode equals 1, then it will try to save or resoter table
   // from model_lib_abs_dir which has been mounted in system
@@ -198,6 +208,8 @@ struct Redis_Connection_Params {
     redis_conn_pool_size = x.redis_conn_pool_size;
     redis_wait_timeout = x.redis_wait_timeout;                // milliseconds
     redis_connection_lifetime = x.redis_connection_lifetime;  // minutes
+    redis_sentinel_user = x.redis_sentinel_user;
+    redis_sentinel_password = x.redis_sentinel_password;
     redis_sentinel_connect_timeout =
         x.redis_sentinel_connect_timeout;  // milliseconds
     redis_sentinel_socket_timeout =
@@ -205,14 +217,17 @@ struct Redis_Connection_Params {
     storage_slice_import =
         x.storage_slice_import >= 0 ? x.storage_slice_import : x.storage_slice;
     storage_slice = x.storage_slice;
-    expire_model_tag_in_seconds = x.expire_model_tag_in_seconds;
+    using_hash_storage_slice = x.using_hash_storage_slice;
+    keys_sending_size = x.keys_sending_size;
+    using_md5_prefix_name = x.using_md5_prefix_name;
+    redis_hash_tags_hypodispersion = x.redis_hash_tags_hypodispersion;
     model_tag_import = x.model_tag_import;
     redis_hash_tags_import.assign(x.redis_hash_tags_import.begin(),
                                   x.redis_hash_tags_import.end());
     model_tag_runtime = x.model_tag_runtime;
     redis_hash_tags_runtime.assign(x.redis_hash_tags_runtime.begin(),
                                    x.redis_hash_tags_runtime.end());
-    using_md5_prefix_name = x.using_md5_prefix_name;
+    expire_model_tag_in_seconds = x.expire_model_tag_in_seconds;
     model_lib_abs_dir = check_dir(x.model_lib_abs_dir);
     table_store_mode = x.table_store_mode;
     return *this;
@@ -305,9 +320,12 @@ class ThreadContext {
   ~ThreadContext() { HandleRelease(); }
 };
 
+typedef unsigned (*KBucketNumHandle)(uint32_t, const uint8_t *, size_t);
+
 class RedisVirtualWrapper {
  protected:
   Redis_Connection_Params redis_connection_params;
+  KBucketNumHandle K_bucket_num_handle;
 
  protected:
   template <typename RedisClient>
@@ -365,6 +383,15 @@ class RedisVirtualWrapper {
     return Status::OK();
   }
 
+  Status set_K_bucket_num_handle(KBucketNumHandle function) {
+    try {
+      K_bucket_num_handle = function;
+    } catch (const std::exception &err) {
+      return errors::Unknown(err.what());
+    }
+    return Status::OK();
+  }
+
   virtual Status Conn() = 0;
 
   virtual std::vector<std::string> GetKeyBucketsAndOptimizerParamsWithName(
@@ -386,7 +413,7 @@ class RedisVirtualWrapper {
                            long long *cursor, const long long count) = 0;
 
   virtual std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> MgetInBucket(
-      const Tensor &keys, const int64 begin, const int64 max_i,
+      const Tensor &keys, const int64_t begin, const int64_t max_i,
       const std::string &keys_prefix_name_slice) = 0;
 
   virtual Status SetExpireBuckets(const std::string &keys_prefix_name) = 0;
@@ -408,7 +435,7 @@ class RedisVirtualWrapper {
 
   virtual std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>>
   MgetCommand(const Tensor &keys, ThreadContext *thread_context,
-              const int64 begin, const int64 max_i,
+              const int64_t begin, const int64_t max_i,
               const std::vector<std::string> &keys_prefix_name_slices) = 0;
 
   virtual Status MgetToTensor(
@@ -416,29 +443,31 @@ class RedisVirtualWrapper {
       ThreadContext *thread_context,
       std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>>
           &reply,
-      const int64 begin, const int64 max_i, const int64 Velems_per_dim0) = 0;
+      const int64_t begin, const int64_t max_i,
+      const int64_t Velems_per_dim0) = 0;
 
   virtual Status MgetToTensorWithExist(
       Tensor *values, const Tensor &default_value, Tensor &exists,
       const bool is_full_default, ThreadContext *thread_context,
       std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>>
           &reply,
-      const int64 begin, const int64 max_i, const int64 Velems_per_dim0) = 0;
+      const int64_t begin, const int64_t max_i,
+      const int64_t Velems_per_dim0) = 0;
 
   virtual Status MsetCommand(
       const Tensor &keys, const Tensor &values, ThreadContext *thread_context,
-      const int64 begin, const int64 max_i, const int64 Velems_per_dim0,
+      const int64_t begin, const int64_t max_i, const int64_t Velems_per_dim0,
       const std::vector<std::string> &keys_prefix_name_slices) = 0;
 
   virtual Status MaccumCommand(
       const Tensor &keys, const Tensor &values, const Tensor &exists,
-      ThreadContext *thread_context, const int64 begin, const int64 max_i,
-      const int64 Velems_per_dim0,
+      ThreadContext *thread_context, const int64_t begin, const int64_t max_i,
+      const int64_t Velems_per_dim0,
       const std::vector<std::string> &keys_prefix_name_slices) = 0;
 
   virtual Status DelCommand(
-      const Tensor &keys, ThreadContext *thread_context, const int64 begin,
-      const int64 max_i,
+      const Tensor &keys, ThreadContext *thread_context, const int64_t begin,
+      const int64_t max_i,
       const std::vector<std::string> &keys_prefix_name_slices) = 0;
 };
 
@@ -470,11 +499,6 @@ inline const char *KContentPointer<tstring>(const tstring *in) {
   return in->data();
 }
 
-template <typename T>
-inline unsigned KBucketNum(const T *in, const unsigned storage_slice) {
-  return (static_cast<const int>(*in) % storage_slice);
-}
-
 #if defined(__arm64__) || defined(__aarch64__)
 #define CRC32CB(crc, value) \
   __asm__("crc32cb %w[c], %w[c], %w[v]" : [ c ] "+r"(crc) : [ v ] "r"(value))
@@ -495,12 +519,12 @@ inline unsigned KBucketNum(const T *in, const unsigned storage_slice) {
 
 inline uint32_t crc32c_hash(uint32_t crc, const uint8_t *p, size_t length) {
 #if defined(__arm64__) || defined(__aarch64__)
-  int64_t len_int64 = length;
-  while ((len_int64 -= sizeof(uint64_t)) >= 0) {
-    CRC32CX(crc, *((uint64_t *)p));
-    p += sizeof(uint64_t);
+  int64_t_t len_int64_t = length;
+  while ((len_int64_t -= sizeof(uint64_t_t)) >= 0) {
+    CRC32CX(crc, *((uint64_t_t *)p));
+    p += sizeof(uint64_t_t);
   }
-  length &= (sizeof(uint64_t) - 1);
+  length &= (sizeof(uint64_t_t) - 1);
 #elif defined(__x86_64__)
   int32_t len_int32 = length;
   while ((len_int32 -= sizeof(uint32_t)) >= 0) {
@@ -525,8 +549,42 @@ inline uint32_t crc32c_hash(uint32_t crc, const uint8_t *p, size_t length) {
   return crc;
 }
 
+template <typename T,
+          std::enable_if_t<(sizeof(T) <= 4) && !std::is_same<tstring, T>::value>
+              * = nullptr>
+unsigned KBucketNumCommonHandle(uint32_t crc, const uint8_t *p, size_t length) {
+  return static_cast<const unsigned>(*reinterpret_cast<const T *>(p));
+}
+
+template <typename T,
+          std::enable_if_t<(sizeof(T) > 4) && !std::is_same<tstring, T>::value>
+              * = nullptr>
+unsigned KBucketNumCommonHandle(uint32_t crc, const uint8_t *p, size_t length) {
+  return static_cast<const unsigned>((*reinterpret_cast<const T *>(p)) &
+                                     0x00000000FFFFFFFF);
+}
+
+template <typename T,
+          std::enable_if_t<std::is_same<tstring, T>::value> * = nullptr>
+unsigned KBucketNumCommonHandle(uint32_t crc, const uint8_t *p, size_t length) {
+  return crc32c_hash(crc, p, length);
+}
+
+unsigned KBucketNumCRC32Handle(uint32_t crc, const uint8_t *p, size_t length) {
+  return crc32c_hash(crc, p, length);
+}
+
+template <typename T>
+inline unsigned KBucketNum(const KBucketNumHandle handle, const T *in,
+                           const unsigned storage_slice) {
+  assert(handle);
+  const uint8_t *tem_char = reinterpret_cast<const uint8_t *>(in);
+  return ((*handle)(0xffffffff, tem_char, sizeof(T))) % storage_slice;
+}
+
 template <>
-inline unsigned KBucketNum<tstring>(const tstring *in,
+inline unsigned KBucketNum<tstring>(const KBucketNumHandle handle,
+                                    const tstring *in,
                                     const unsigned storage_slice) {
   const uint8_t *tem_char = reinterpret_cast<const uint8_t *>(in);
   return (crc32c_hash(0xffffffff, tem_char, in->length()) % storage_slice);
@@ -535,7 +593,7 @@ inline unsigned KBucketNum<tstring>(const tstring *in,
 template <typename T>
 inline const VContentAndTypeSizeResult &VContentAndTypeSize(
     VContentAndTypeSizeResult &_VContentAndTypeSizeResult,
-    const int64 Velems_per_dim0, const std::size_t &V_byte_size, const T *in,
+    const int64_t Velems_per_dim0, const std::size_t &V_byte_size, const T *in,
     std::vector<char> &buff) {
   _VContentAndTypeSizeResult.VTypeSize = V_byte_size;
   _VContentAndTypeSizeResult.VContentPointer =
@@ -553,7 +611,7 @@ var buff is a std::vector<char> from std::vector<std::vector<char>>
 template <>
 inline const VContentAndTypeSizeResult &VContentAndTypeSize<tstring>(
     VContentAndTypeSizeResult &_VContentAndTypeSizeResult,
-    const int64 Velems_per_dim0, const std::size_t &V_byte_size,
+    const int64_t Velems_per_dim0, const std::size_t &V_byte_size,
     const tstring *in, std::vector<char> &buff) {
   const tstring *ps_end = in + Velems_per_dim0;
   unsigned tot = 0;
@@ -586,7 +644,7 @@ inline const VContentAndTypeSizeResult &VContentAndTypeSize<tstring>(
 
 template <typename T>
 void DefaultMemcpyToTensor(const T *const pv_raw, const T *dft,
-                           const int64 Velems_per_dim0) {
+                           const int64_t Velems_per_dim0) {
   void *pv_raw_ = reinterpret_cast<void *>(const_cast<T *>(pv_raw));
   memcpy(pv_raw_, reinterpret_cast<const void *>(dft),
          Velems_per_dim0 *
@@ -596,7 +654,7 @@ void DefaultMemcpyToTensor(const T *const pv_raw, const T *dft,
 template <>
 void DefaultMemcpyToTensor<tstring>(const tstring *const pv_raw,
                                     const tstring *const dft,
-                                    const int64 Velems_per_dim0) {
+                                    const int64_t Velems_per_dim0) {
   const tstring *const pv_raw_end = pv_raw + Velems_per_dim0;
   tstring *pv_it = const_cast<tstring *>(pv_raw);
   const tstring *dft_it = dft;
@@ -621,7 +679,7 @@ void ReplyMemcpyToKeyTensor<tstring>(const tstring *const pk_raw,
 
 template <typename T>
 void ReplyMemcpyToValTensor(const T *const pv_raw, const char *str,
-                            const int64 Velems_per_dim0) {
+                            const int64_t Velems_per_dim0) {
   void *pv_raw_ = reinterpret_cast<void *>(const_cast<T *>(pv_raw));
   memcpy(pv_raw_, str,
          Velems_per_dim0 *
@@ -631,7 +689,7 @@ void ReplyMemcpyToValTensor(const T *const pv_raw, const char *str,
 template <>
 void ReplyMemcpyToValTensor<tstring>(const tstring *const pv_raw,
                                      const char *str,
-                                     const int64 Velems_per_dim0) {
+                                     const int64_t Velems_per_dim0) {
   const tstring *const pv_raw_end = pv_raw + Velems_per_dim0;
   const char *char_view = str;
   unsigned str_bytesize = 0;

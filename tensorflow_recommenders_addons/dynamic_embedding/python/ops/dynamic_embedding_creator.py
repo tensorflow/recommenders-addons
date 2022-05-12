@@ -117,7 +117,7 @@ class RedisTableConfig(object):
   An example of a configuration file is shown below:
   ```python
   {
-    "redis_connection_mode": 1,
+    "redis_connection_mode": 2,
     "redis_master_name": "master",
     "redis_host_ip": [
       "127.0.0.1"
@@ -133,12 +133,16 @@ class RedisTableConfig(object):
     "redis_conn_pool_size": 20,
     "redis_wait_timeout": 100000000,
     "redis_connection_lifetime": 100,
+    "redis_sentinel_user": "default",
+    "redis_sentinel_password": "",
     "redis_sentinel_connect_timeout": 1000,
     "redis_sentinel_socket_timeout": 1000,
     "storage_slice_import": 1,
     "storage_slice": 1,
+    "using_hash_storage_slice": False,
     "keys_sending_size": 1024,
     "using_md5_prefix_name": False,
+    "redis_hash_tags_hypodispersion": False,
     "model_tag_import": "test",
     "redis_hash_tags_import": [],
     "model_tag_runtime": "test",
