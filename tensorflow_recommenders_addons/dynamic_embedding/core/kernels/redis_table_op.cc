@@ -44,8 +44,8 @@ In the code, Redis limits the size of arguments that command can set to
 times. The source code is shown in the following link:
 https://github.com/redis/redis/blob/be6ce8a92a9acbecfaaa6c57a45037fc1018fefe/src/networking.c#L1851
 */
-// constexpr tensorflow::int64 multi_redis_cmd_max_argc = 1024 * 1024;
-static tensorflow::int64 multi_redis_cmd_max_argc =
+// constexpr int64_t multi_redis_cmd_max_argc = 1024 * 1024;
+static int64_t multi_redis_cmd_max_argc =
     128 * 8;  // For better parallelism performance
 
 using sw::redis::OptionalString;
@@ -62,7 +62,7 @@ template <class K, class V>
 class RedisTableOfTensors final : public LookupInterface {
  private:
   TensorShape value_shape_;
-  int64 runtime_value_dim_;
+  int64_t runtime_value_dim_;
   // size_t init_size_;
   std::string redis_config_abs_dir;
   std::string embedding_name;
@@ -94,18 +94,18 @@ class RedisTableOfTensors final : public LookupInterface {
   void launchFind_parallel(OpKernelContext *ctx,
                            std::vector<std::string> &keys_prefix_name_slices,
                            const Tensor &keys, Tensor *values,
-                           const Tensor &default_value, const int64 &total,
-                           const int64 &Velems_per_flat2_dim0,
+                           const Tensor &default_value, const int64_t &total,
+                           const int64_t &Velems_per_flat2_dim0,
                            std::vector<ThreadContext *> &threads_Find) {
     const bool is_full_default =
         (values->NumElements() == default_value.NumElements());
 
-    const int64 max_parallelism = (total / multi_redis_cmd_max_argc) + 1;
+    const int64_t max_parallelism = (total / multi_redis_cmd_max_argc) + 1;
 
     auto shard = [this, &ctx, &total, &keys_prefix_name_slices, &keys, &values,
                   &default_value, &is_full_default, &Velems_per_flat2_dim0,
-                  &threads_Find](int64 begin, int64 end) {
-      const int64 max_i = std::min(total, end);
+                  &threads_Find](int64_t begin, int64_t end) {
+      const int64_t max_i = std::min(total, end);
 
       OP_REQUIRES_OK(
           ctx,
@@ -113,7 +113,7 @@ class RedisTableOfTensors final : public LookupInterface {
                          default_value, is_full_default, Velems_per_flat2_dim0,
                          threads_Find, threads_Find_mutex, begin, max_i));
     };
-    int64 slices_size = std::min(total, multi_redis_cmd_max_argc - 1);
+    int64_t slices_size = std::min(total, multi_redis_cmd_max_argc - 1);
     auto &worker_threads = *ctx->device()->tensorflow_cpu_worker_threads();
     Shard(max_parallelism, worker_threads.workers, total, slices_size, shard);
   }
@@ -121,8 +121,8 @@ class RedisTableOfTensors final : public LookupInterface {
   void launchFind(OpKernelContext *ctx,
                   std::vector<std::string> &keys_prefix_name_slices,
                   const Tensor &keys, Tensor *values,
-                  const Tensor &default_value, const int64 &total,
-                  const int64 &Velems_per_flat2_dim0,
+                  const Tensor &default_value, const int64_t &total,
+                  const int64_t &Velems_per_flat2_dim0,
                   std::vector<ThreadContext *> &threads_Find) {
     const bool is_full_default =
         (values->NumElements() == default_value.NumElements());
@@ -137,18 +137,19 @@ class RedisTableOfTensors final : public LookupInterface {
   void launchFindWithExists_parallel(
       OpKernelContext *ctx, std::vector<std::string> &keys_prefix_name_slices,
       const Tensor &keys, Tensor *values, const Tensor &default_value,
-      Tensor &exists, const int64 &total, const int64 &Velems_per_flat2_dim0,
+      Tensor &exists, const int64_t &total,
+      const int64_t &Velems_per_flat2_dim0,
       std::vector<ThreadContext *> &threads_Find) {
     const bool is_full_default =
         (values->NumElements() == default_value.NumElements());
 
-    const int64 max_parallelism = (total / multi_redis_cmd_max_argc) + 1;
+    const int64_t max_parallelism = (total / multi_redis_cmd_max_argc) + 1;
 
     auto shard = [this, &ctx, &total, &keys_prefix_name_slices, &keys, &values,
                   &default_value, &exists, &is_full_default,
                   &Velems_per_flat2_dim0,
-                  &threads_Find](int64 begin, int64 end) {
-      const int64 max_i = std::min(total, end);
+                  &threads_Find](int64_t begin, int64_t end) {
+      const int64_t max_i = std::min(total, end);
 
       OP_REQUIRES_OK(ctx, launchFindWithExistsCore(
                               _table_instance, keys_prefix_name_slices, keys,
@@ -156,7 +157,7 @@ class RedisTableOfTensors final : public LookupInterface {
                               Velems_per_flat2_dim0, threads_Find,
                               threads_Find_mutex, begin, max_i));
     };
-    int64 slices_size = std::min(total, multi_redis_cmd_max_argc - 1);
+    int64_t slices_size = std::min(total, multi_redis_cmd_max_argc - 1);
     auto &worker_threads = *ctx->device()->tensorflow_cpu_worker_threads();
     Shard(max_parallelism, worker_threads.workers, total, slices_size, shard);
   }
@@ -165,8 +166,8 @@ class RedisTableOfTensors final : public LookupInterface {
                             std::vector<std::string> &keys_prefix_name_slices,
                             const Tensor &keys, Tensor *values,
                             const Tensor &default_value, Tensor &exists,
-                            const int64 &total,
-                            const int64 &Velems_per_flat2_dim0,
+                            const int64_t &total,
+                            const int64_t &Velems_per_flat2_dim0,
                             std::vector<ThreadContext *> &threads_Find) {
     const bool is_full_default =
         (values->NumElements() == default_value.NumElements());
@@ -181,22 +182,22 @@ class RedisTableOfTensors final : public LookupInterface {
   void launchInsert_parallel(OpKernelContext *ctx,
                              std::vector<std::string> &keys_prefix_name_slices,
                              const Tensor &keys, const Tensor &values,
-                             const int64 &total,
-                             const int64 &Velems_per_flat2_dim0,
+                             const int64_t &total,
+                             const int64_t &Velems_per_flat2_dim0,
                              std::vector<ThreadContext *> &threads_Insert) {
-    const int64 max_parallelism = (total / multi_redis_cmd_max_argc) + 1;
+    const int64_t max_parallelism = (total / multi_redis_cmd_max_argc) + 1;
 
     auto shard = [this, &ctx, &total, &keys_prefix_name_slices, &keys, &values,
                   &Velems_per_flat2_dim0,
-                  &threads_Insert](int64 begin, int64 end) {
-      const int64 max_i = std::min(total, end);
+                  &threads_Insert](int64_t begin, int64_t end) {
+      const int64_t max_i = std::min(total, end);
 
       OP_REQUIRES_OK(
           ctx, launchInsertCore(_table_instance, keys_prefix_name_slices, keys,
                                 values, Velems_per_flat2_dim0, threads_Insert,
                                 threads_Insert_mutex, begin, max_i));
     };
-    int64 slices_size = std::min(total, multi_redis_cmd_max_argc - 1);
+    int64_t slices_size = std::min(total, multi_redis_cmd_max_argc - 1);
     auto &worker_threads = *ctx->device()->tensorflow_cpu_worker_threads();
     Shard(max_parallelism, worker_threads.workers, total, slices_size, shard);
   }
@@ -204,7 +205,7 @@ class RedisTableOfTensors final : public LookupInterface {
   void launchInsert(OpKernelContext *ctx,
                     std::vector<std::string> &keys_prefix_name_slices,
                     const Tensor &keys, const Tensor &values,
-                    const int64 &total, const int64 &Velems_per_flat2_dim0,
+                    const int64_t &total, const int64_t &Velems_per_flat2_dim0,
                     std::vector<ThreadContext *> &threads_Insert) {
     OP_REQUIRES_OK(
         ctx, launchInsertCore(_table_instance, keys_prefix_name_slices, keys,
@@ -215,15 +216,15 @@ class RedisTableOfTensors final : public LookupInterface {
   void launchAccum_parallel(OpKernelContext *ctx,
                             std::vector<std::string> &keys_prefix_name_slices,
                             const Tensor &keys, const Tensor &values_or_delta,
-                            const Tensor &exists, const int64 &total,
-                            const int64 &Velems_per_flat2_dim0,
+                            const Tensor &exists, const int64_t &total,
+                            const int64_t &Velems_per_flat2_dim0,
                             std::vector<ThreadContext *> &threads_Insert) {
-    const int64 max_parallelism = (total / multi_redis_cmd_max_argc) + 1;
+    const int64_t max_parallelism = (total / multi_redis_cmd_max_argc) + 1;
 
     auto shard = [this, &ctx, &total, &keys_prefix_name_slices, &keys,
                   &values_or_delta, &exists, &Velems_per_flat2_dim0,
-                  &threads_Insert](int64 begin, int64 end) {
-      const int64 max_i = std::min(total, end);
+                  &threads_Insert](int64_t begin, int64_t end) {
+      const int64_t max_i = std::min(total, end);
 
       OP_REQUIRES_OK(
           ctx,
@@ -231,7 +232,7 @@ class RedisTableOfTensors final : public LookupInterface {
                           values_or_delta, exists, Velems_per_flat2_dim0,
                           threads_Insert, threads_Accum_mutex, begin, max_i));
     };
-    int64 slices_size = std::min(total, multi_redis_cmd_max_argc - 1);
+    int64_t slices_size = std::min(total, multi_redis_cmd_max_argc - 1);
     auto &worker_threads = *ctx->device()->tensorflow_cpu_worker_threads();
     Shard(max_parallelism, worker_threads.workers, total, slices_size, shard);
   }
@@ -239,8 +240,8 @@ class RedisTableOfTensors final : public LookupInterface {
   void launchAccum(OpKernelContext *ctx,
                    std::vector<std::string> &keys_prefix_name_slices,
                    const Tensor &keys, const Tensor &values_or_delta,
-                   const Tensor &exists, const int64 &total,
-                   const int64 &Velems_per_flat2_dim0,
+                   const Tensor &exists, const int64_t &total,
+                   const int64_t &Velems_per_flat2_dim0,
                    std::vector<ThreadContext *> &threads_Insert) {
     OP_REQUIRES_OK(
         ctx, launchAccumCore(_table_instance, keys_prefix_name_slices, keys,
@@ -250,27 +251,27 @@ class RedisTableOfTensors final : public LookupInterface {
 
   void launchDelete_parallel(OpKernelContext *ctx,
                              std::vector<std::string> &keys_prefix_name_slices,
-                             const Tensor &keys, const int64 &total,
+                             const Tensor &keys, const int64_t &total,
                              std::vector<ThreadContext *> &threads_Delete) {
-    const int64 max_parallelism = (total / multi_redis_cmd_max_argc) + 1;
+    const int64_t max_parallelism = (total / multi_redis_cmd_max_argc) + 1;
 
     auto shard = [this, &ctx, &total, &keys_prefix_name_slices, &keys,
-                  &threads_Delete](int64 begin, int64 end) {
-      const int64 max_i = std::min(total, end);
+                  &threads_Delete](int64_t begin, int64_t end) {
+      const int64_t max_i = std::min(total, end);
 
       OP_REQUIRES_OK(
           ctx,
           launchDeleteCore(_table_instance, keys_prefix_name_slices, keys,
                            threads_Delete, threads_Delete_mutex, begin, max_i));
     };
-    int64 slices_size = std::min(total, multi_redis_cmd_max_argc - 1);
+    int64_t slices_size = std::min(total, multi_redis_cmd_max_argc - 1);
     auto &worker_threads = *ctx->device()->tensorflow_cpu_worker_threads();
     Shard(max_parallelism, worker_threads.workers, total, slices_size, shard);
   }
 
   void launchDelete(OpKernelContext *ctx,
                     std::vector<std::string> &keys_prefix_name_slices,
-                    const Tensor &keys, const int64 &total,
+                    const Tensor &keys, const int64_t &total,
                     std::vector<ThreadContext *> &threads_Delete) {
     OP_REQUIRES_OK(
         ctx, launchDeleteCore(_table_instance, keys_prefix_name_slices, keys,
@@ -349,8 +350,8 @@ class RedisTableOfTensors final : public LookupInterface {
                                        redis_config_abs_dir));
     }
 
-    const int64 &&default_value_width = value_shape_.dim_size(0);
-    const int64 &&default_value_total = value_shape_.num_elements();
+    const int64_t &&default_value_width = value_shape_.dim_size(0);
+    const int64_t &&default_value_total = value_shape_.num_elements();
     if (default_value_width == default_value_total) {
       runtime_value_dim_ = default_value_width;
     } else {
@@ -370,38 +371,53 @@ class RedisTableOfTensors final : public LookupInterface {
         _table_instance = RedisWrapper<RedisCluster, K, V>::get_instance();
         OP_REQUIRES_OK(ctx,
                        _table_instance->set_params(redis_connection_params));
+        if (redis_connection_params.using_hash_storage_slice) {
+          OP_REQUIRES_OK(ctx, _table_instance->set_K_bucket_num_handle(
+                                  KBucketNumCRC32Handle));
+        } else {
+          OP_REQUIRES_OK(ctx, _table_instance->set_K_bucket_num_handle(
+                                  KBucketNumCommonHandle<K>));
+        }
         OP_REQUIRES_OK(ctx, _table_instance->Conn());
-        cluster_slots = _table_instance->ClusterNodesSlots(false);
+        if (redis_connection_params.redis_hash_tags_hypodispersion == false)
+          cluster_slots = _table_instance->ClusterNodesSlots(false);
         break;
       }
       case SentinelMode: {
-        if (redis_connection_params.storage_slice != 1) {
-          ctx->CtxFailure(errors::InvalidArgument(
-              "storage_slice in redis_connection_params is " +
-              std::to_string(redis_connection_params.storage_slice) +
-              ". storage_slice should be 1 when in Redis single node "
-              "mode(SentinelMode)."));
-        }
         multi_redis_cmd_max_argc =
             redis_connection_params.keys_sending_size * 1;
         _table_instance = RedisWrapper<Redis, K, V>::get_instance();
         OP_REQUIRES_OK(ctx,
                        _table_instance->set_params(redis_connection_params));
+        if (redis_connection_params.using_hash_storage_slice) {
+          OP_REQUIRES_OK(ctx, _table_instance->set_K_bucket_num_handle(
+                                  KBucketNumCRC32Handle));
+        } else {
+          OP_REQUIRES_OK(ctx, _table_instance->set_K_bucket_num_handle(
+                                  KBucketNumCommonHandle<K>));
+        }
         OP_REQUIRES_OK(ctx, _table_instance->Conn());
         break;
       }
-      case StreamMode: {
-        LOG(ERROR) << "Sorry! redis_connection_mode="
-                   << redis_connection_params.redis_connection_mode
-                   << " The Stream connection mode is still being TODO.";
-        ctx->CtxFailure(errors::InvalidArgument(
-            std::to_string(redis_connection_params.redis_connection_mode) +
-            " is illegal redis_connection_mode in redis_connection_params."));
+      case StandaloneMode: {
+        multi_redis_cmd_max_argc =
+            redis_connection_params.keys_sending_size * 1;
+        _table_instance = RedisWrapper<Redis, K, V>::get_instance(false);
+        OP_REQUIRES_OK(ctx,
+                       _table_instance->set_params(redis_connection_params));
+        if (redis_connection_params.using_hash_storage_slice) {
+          OP_REQUIRES_OK(ctx, _table_instance->set_K_bucket_num_handle(
+                                  KBucketNumCRC32Handle));
+        } else {
+          OP_REQUIRES_OK(ctx, _table_instance->set_K_bucket_num_handle(
+                                  KBucketNumCommonHandle<K>));
+        }
+        OP_REQUIRES_OK(ctx, _table_instance->Conn());
         break;
       }
       default: {
         LOG(ERROR) << "There are only three Redis connection modes, which "
-                      "Cluster=0/Sentinel=1/Stream=2.";
+                      "Cluster=0/Sentinel=1/Standalone=2.";
         ctx->CtxFailure(errors::InvalidArgument(
             std::to_string(redis_connection_params.redis_connection_mode) +
             " is illegal redis_connection_mode."));
@@ -552,7 +568,7 @@ class RedisTableOfTensors final : public LookupInterface {
     const K *pk_raw;
     Tensor values_temp;
     const V *pv_raw;
-    int64 slice_keys_size = 0;
+    int64_t slice_keys_size = 0;
     long long cursor = 0;
 
     redisReply *temp_reply;
@@ -662,9 +678,9 @@ class RedisTableOfTensors final : public LookupInterface {
 
   Status Find(OpKernelContext *ctx, const Tensor &keys, Tensor *values,
               const Tensor &default_value) override {
-    int64 total = keys.NumElements();
+    int64_t total = keys.NumElements();
     if (total > 0) {
-      const int64 Velems_per_flat2_dim0 = values->NumElements() / total;
+      const int64_t Velems_per_flat2_dim0 = values->NumElements() / total;
 
       if (total < (multi_redis_cmd_max_argc - 1)) {
         launchFind(ctx, keys_prefix_name_slices, keys, values, default_value,
@@ -683,9 +699,9 @@ class RedisTableOfTensors final : public LookupInterface {
   Status FindWithExists(OpKernelContext *ctx, const Tensor &keys,
                         Tensor *values, const Tensor &default_value,
                         Tensor &exists) {
-    int64 total = keys.NumElements();
+    int64_t total = keys.NumElements();
     if (total > 0) {
-      const int64 Velems_per_flat2_dim0 = values->NumElements() / total;
+      const int64_t Velems_per_flat2_dim0 = values->NumElements() / total;
 
       if (total < (multi_redis_cmd_max_argc - 1)) {
         launchFindWithExists(ctx, keys_prefix_name_slices, keys, values,
@@ -703,9 +719,9 @@ class RedisTableOfTensors final : public LookupInterface {
 
   Status DoInsert(bool clear, OpKernelContext *ctx, const Tensor &keys,
                   const Tensor &values) {
-    int64 total = keys.NumElements();
+    int64_t total = keys.NumElements();
     if (total > 0) {
-      const int64 Velems_per_flat2_dim0 = values.NumElements() / total;
+      const int64_t Velems_per_flat2_dim0 = values.NumElements() / total;
       auto statu = Status::OK();
       if (clear) {
         for (auto keys_prefix_name_slice : keys_prefix_name_slices) {
@@ -730,8 +746,8 @@ class RedisTableOfTensors final : public LookupInterface {
 
   Status DoAccum(OpKernelContext *ctx, const Tensor &keys,
                  const Tensor &values_or_delta, const Tensor &exists) {
-    int64 total = keys.NumElements();
-    const int64 Velems_per_flat2_dim0 =
+    int64_t total = keys.NumElements();
+    const int64_t Velems_per_flat2_dim0 =
         values_or_delta.NumElements() / keys.NumElements();
 
     if (total < (multi_redis_cmd_max_argc - 1)) {
@@ -758,7 +774,7 @@ class RedisTableOfTensors final : public LookupInterface {
   }
 
   Status Remove(OpKernelContext *ctx, const Tensor &keys) override {
-    int64 total = keys.NumElements();
+    int64_t total = keys.NumElements();
     if (total > 0) {
       if (total < (multi_redis_cmd_max_argc - 1)) {
         launchDelete(ctx, keys_prefix_name_slices, keys, total, threads_Delete);
@@ -945,7 +961,7 @@ class RedisTableOfTensors final : public LookupInterface {
   }
 
   Status ExportValuesToTensor(OpKernelContext *ctx) {
-    int64 total_size = 0;
+    int64_t total_size = 0;
     long long cursor = 0;
     std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> hscan_reply;
     const redisReply *kvs_reply;
@@ -1027,9 +1043,9 @@ class RedisTableOfTensors final : public LookupInterface {
 
   TensorShape value_shape() const override { return value_shape_; }
 
-  int64 MemoryUsed() const override {
-    int64 ret = 0;
-    ret = (int64)(size() * (sizeof(K) + sizeof(V)));
+  int64_t MemoryUsed() const override {
+    int64_t ret = 0;
+    ret = (int64_t)(size() * (sizeof(K) + sizeof(V)));
     return sizeof(RedisTableOfTensors) + ret;
   }
 };
@@ -1178,7 +1194,7 @@ class HashTableInsertOp : public HashTableOpKernel {
     const Tensor &values = ctx->input(2);
     OP_REQUIRES_OK(ctx, table->CheckKeyAndValueTensorsForInsert(keys, values));
 
-    int64 memory_used_before = 0;
+    int64_t memory_used_before = 0;
     if (ctx->track_allocations()) {
       memory_used_before = table->MemoryUsed();
     }
@@ -1217,7 +1233,7 @@ class HashTableAccumOp : public HashTableOpKernel {
     OP_REQUIRES_OK(
         ctx, table->CheckKeyAndValueTensorsForInsert(keys, values_or_deltas));
 
-    int64 memory_used_before = 0;
+    int64_t memory_used_before = 0;
     if (ctx->track_allocations()) {
       memory_used_before = table->MemoryUsed();
     }
@@ -1245,7 +1261,7 @@ class HashTableRemoveOp : public HashTableOpKernel {
     const Tensor &key = ctx->input(1);
     OP_REQUIRES_OK(ctx, table->CheckKeyTensorForRemove(key));
 
-    int64 memory_used_before = 0;
+    int64_t memory_used_before = 0;
     if (ctx->track_allocations()) {
       memory_used_before = table->MemoryUsed();
     }
@@ -1271,7 +1287,7 @@ class HashTableClearOp : public HashTableOpKernel {
     redis_table::RedisTableOfTensors<K, V> *redis_table =
         dynamic_cast<redis_table::RedisTableOfTensors<K, V> *>(table);
 
-    int64 memory_used_before = 0;
+    int64_t memory_used_before = 0;
     if (ctx->track_allocations()) {
       memory_used_before = table->MemoryUsed();
     }
@@ -1295,7 +1311,7 @@ class HashTableSizeOp : public HashTableOpKernel {
 
     Tensor *out;
     OP_REQUIRES_OK(ctx, ctx->allocate_output("size", TensorShape({}), &out));
-    out->flat<int64>().setConstant(table->size());
+    out->flat<int64_t>().setConstant(table->size());
   }
 };
 
@@ -1391,18 +1407,18 @@ REGISTER_KERNEL_BUILDER(
 REGISTER_KERNEL(int32, double);
 REGISTER_KERNEL(int32, float);
 REGISTER_KERNEL(int32, int32);
-REGISTER_KERNEL(int64, double);
-REGISTER_KERNEL(int64, float);
-REGISTER_KERNEL(int64, int32);
-REGISTER_KERNEL(int64, int64);
-REGISTER_KERNEL(int64, tstring);
-REGISTER_KERNEL(int64, int8);
-REGISTER_KERNEL(int64, Eigen::half);
+REGISTER_KERNEL(int64_t, double);
+REGISTER_KERNEL(int64_t, float);
+REGISTER_KERNEL(int64_t, int32);
+REGISTER_KERNEL(int64_t, int64_t);
+REGISTER_KERNEL(int64_t, tstring);
+REGISTER_KERNEL(int64_t, int8);
+REGISTER_KERNEL(int64_t, Eigen::half);
 REGISTER_KERNEL(tstring, bool);
 REGISTER_KERNEL(tstring, double);
 REGISTER_KERNEL(tstring, float);
 REGISTER_KERNEL(tstring, int32);
-REGISTER_KERNEL(tstring, int64);
+REGISTER_KERNEL(tstring, int64_t);
 REGISTER_KERNEL(tstring, int8);
 REGISTER_KERNEL(tstring, Eigen::half);
 

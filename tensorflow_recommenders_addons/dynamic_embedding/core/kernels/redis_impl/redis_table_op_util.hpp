@@ -63,10 +63,10 @@ Status launchFindCore(std::shared_ptr<RedisVirtualWrapper> _table_instance,
                       std::vector<std::string> &keys_prefix_name_slices,
                       const Tensor &keys, Tensor *values,
                       const Tensor &default_value, const bool is_full_default,
-                      const int64 &Velems_per_flat2_dim0,
+                      const int64_t &Velems_per_flat2_dim0,
                       std::vector<ThreadContext *> &threads_Find,
-                      std::mutex &threads_Find_mutex, const int64 begin,
-                      const int64 end) {
+                      std::mutex &threads_Find_mutex, const int64_t begin,
+                      const int64_t end) {
   size_t thread_context_id =
       SelectAvailableThreadContext(threads_Find, threads_Find_mutex);
 
@@ -89,9 +89,9 @@ Status launchFindWithExistsCore(
     std::shared_ptr<RedisVirtualWrapper> _table_instance,
     std::vector<std::string> &keys_prefix_name_slices, const Tensor &keys,
     Tensor *values, const Tensor &default_value, Tensor &exists,
-    const bool is_full_default, const int64 &Velems_per_flat2_dim0,
+    const bool is_full_default, const int64_t &Velems_per_flat2_dim0,
     std::vector<ThreadContext *> &threads_Find, std::mutex &threads_Find_mutex,
-    const int64 begin, const int64 end) {
+    const int64_t begin, const int64_t end) {
   // TODO: Implement the function of not looking up the table if the key does
   // not exist
   size_t thread_context_id =
@@ -115,10 +115,10 @@ Status launchFindWithExistsCore(
 Status launchInsertCore(std::shared_ptr<RedisVirtualWrapper> _table_instance,
                         std::vector<std::string> &keys_prefix_name_slices,
                         const Tensor &keys, const Tensor &values,
-                        const int64 &Velems_per_flat2_dim0,
+                        const int64_t &Velems_per_flat2_dim0,
                         std::vector<ThreadContext *> &threads_Insert,
-                        std::mutex &threads_Insert_mutex, const int64 begin,
-                        const int64 end) {
+                        std::mutex &threads_Insert_mutex, const int64_t begin,
+                        const int64_t end) {
   size_t thread_context_id =
       SelectAvailableThreadContext(threads_Insert, threads_Insert_mutex);
 
@@ -135,10 +135,11 @@ Status launchInsertCore(std::shared_ptr<RedisVirtualWrapper> _table_instance,
 Status launchAccumCore(std::shared_ptr<RedisVirtualWrapper> _table_instance,
                        std::vector<std::string> &keys_prefix_name_slices,
                        const Tensor &keys, const Tensor &values_or_delta,
-                       const Tensor &exists, const int64 &Velems_per_flat2_dim0,
+                       const Tensor &exists,
+                       const int64_t &Velems_per_flat2_dim0,
                        std::vector<ThreadContext *> &threads_Insert,
-                       std::mutex &threads_Accum_mutex, const int64 begin,
-                       const int64 end) {
+                       std::mutex &threads_Accum_mutex, const int64_t begin,
+                       const int64_t end) {
   size_t thread_context_id =
       SelectAvailableThreadContext(threads_Insert, threads_Accum_mutex);
 
@@ -156,8 +157,8 @@ Status launchDeleteCore(std::shared_ptr<RedisVirtualWrapper> _table_instance,
                         std::vector<std::string> &keys_prefix_name_slices,
                         const Tensor &keys,
                         std::vector<ThreadContext *> &threads_Delete,
-                        std::mutex &threads_Delete_mutex, const int64 begin,
-                        const int64 end) {
+                        std::mutex &threads_Delete_mutex, const int64_t begin,
+                        const int64_t end) {
   size_t thread_context_id =
       SelectAvailableThreadContext(threads_Delete, threads_Delete_mutex);
 
@@ -340,6 +341,10 @@ Status ParseJsonConfig(const std::string *const redis_config_abs_dir,
 
   ReadOneJsonToParams(redis_connection_lifetime, integer);
 
+  ReadStringOneJsonToParams(redis_sentinel_user);
+
+  ReadStringOneJsonToParams(redis_sentinel_password);
+
   ReadOneJsonToParams(redis_sentinel_connect_timeout, integer);
 
   ReadOneJsonToParams(redis_sentinel_socket_timeout, integer);
@@ -353,9 +358,13 @@ Status ParseJsonConfig(const std::string *const redis_config_abs_dir,
           ? redis_connection_params->storage_slice_import
           : redis_connection_params->storage_slice;
 
+  ReadOneJsonToParams(using_hash_storage_slice, boolean);
+
   ReadOneJsonToParams(keys_sending_size, integer);
 
   ReadOneJsonToParams(using_md5_prefix_name, boolean);
+
+  ReadOneJsonToParams(redis_hash_tags_hypodispersion, boolean);
 
   ReadStringOneJsonToParams(model_tag_import);
 
