@@ -48,7 +48,7 @@ struct LaunchTensorsFind<CPUDevice, K, V> {
     int64 default_total = default_flat.size();
     bool is_full_default = (total == default_total);
 
-    auto shard = [this, table, key_flat, &value_flat, &default_flat,
+    auto shard = [this, table, &key_flat, &value_flat, &default_flat,
                   &is_full_default](int64 begin, int64 end) {
       for (int64 i = begin; i < end; ++i) {
         if (i >= key_flat.size()) {
@@ -88,7 +88,7 @@ struct LaunchTensorsFindWithExists<CPUDevice, K, V> {
     int64 default_total = default_flat.size();
     bool is_full_default = (total == default_total);
 
-    auto shard = [this, table, key_flat, &value_flat, &default_flat,
+    auto shard = [this, table, &key_flat, &value_flat, &default_flat,
                   &exists_flat, &is_full_default](int64 begin, int64 end) {
       for (int64 i = begin; i < end; ++i) {
         if (i >= key_flat.size()) {
@@ -121,7 +121,7 @@ struct LaunchTensorsInsert<CPUDevice, K, V> {
     int64 total = key_flat.size();
     const auto value_flat = values.flat_inner_dims<V, 2>();
 
-    auto shard = [this, &table, key_flat, &value_flat](int64 begin, int64 end) {
+    auto shard = [this, &table, &key_flat, &value_flat](int64 begin, int64 end) {
       for (int64 i = begin; i < end; ++i) {
         if (i >= key_flat.size()) {
           break;
@@ -170,7 +170,7 @@ struct LaunchTensorsAccum<CPUDevice, K, V> {
     const auto values_or_deltas_flat = values_or_deltas.flat_inner_dims<V, 2>();
     const auto exist_flat = exists.flat<bool>();
 
-    auto shard = [this, &table, key_flat, &values_or_deltas_flat, &exist_flat](
+    auto shard = [this, &table, &key_flat, &values_or_deltas_flat, &exist_flat](
                      int64 begin, int64 end) {
       for (int64 i = begin; i < end; ++i) {
         if (i >= key_flat.size()) {
