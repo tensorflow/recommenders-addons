@@ -1,5 +1,5 @@
 #syntax=docker/dockerfile:1.1.5-experimental
-FROM tensorflow/tensorflow:2.1.0-custom-op-ubuntu16 as dev_container_cpu
+FROM tensorflow/tensorflow:2.5.0-custom-op-ubuntu16 as dev_container_cpu
 ARG TF_PACKAGE
 ARG TF_VERSION
 
@@ -10,8 +10,9 @@ RUN pip install --default-timeout=1000 $TF_PACKAGE==$TF_VERSION
 
 COPY tools/install_deps /install_deps
 COPY requirements.txt /tmp/requirements.txt
-RUN pip install -r /install_deps/black.txt \
-    -r /install_deps/flake8.txt \
+RUN pip install \
+    # -r /install_deps/black.txt \
+    # -r /install_deps/flake8.txt \
     -r /install_deps/pytest.txt \
     -r /install_deps/typedapi.txt \
     -r /tmp/requirements.txt
