@@ -443,10 +443,9 @@ class RedisTable(LookupInterface):
       exists = ops.convert_to_tensor(exists, dtypes.bool, name="exists")
       with ops.colocate_with(self.resource_handle):
         # pylint: disable=protected-access
-        # op = redis_table_ops.tfra_redis_table_accum(self.resource_handle, keys,
-        #                                             values_or_deltas, exists)
-        raise NotImplementedError
-    # return op
+        op = redis_table_ops.tfra_redis_table_accum(self.resource_handle, keys,
+                                                    values_or_deltas, exists)
+    return op
 
   def export(self, name=None):
     """

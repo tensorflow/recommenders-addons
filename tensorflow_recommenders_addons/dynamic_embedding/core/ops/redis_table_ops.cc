@@ -175,6 +175,21 @@ REGISTER_OP(PREFIX_OP_NAME(RedisTableInsert))
       return Status::OK();
     });
 
+REGISTER_OP(PREFIX_OP_NAME(RedisTableAccum))
+    .Input("table_handle: resource")
+    .Input("keys: key_dtype")
+    .Input("values_or_deltas: value_dtype")
+    .Input("exists: bool")
+    .Attr("key_dtype: type")
+    .Attr("value_dtype: type")
+    .SetShapeFn([](InferenceContext *c) {
+      ShapeHandle handle;
+      TF_RETURN_IF_ERROR(c->WithRank(c->input(0), 0, &handle));
+
+      // TODO: Validate keys and values shape.
+      return Status::OK();
+    });
+
 REGISTER_OP(PREFIX_OP_NAME(RedisTableRemove))
     .Input("table_handle: resource")
     .Input("keys: Tin")
