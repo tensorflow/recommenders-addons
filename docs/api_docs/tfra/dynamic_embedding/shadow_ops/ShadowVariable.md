@@ -1,5 +1,5 @@
 <div itemscope itemtype="http://developers.google.com/ReferenceObject">
-<meta itemprop="name" content="tfra.dynamic_embedding.TrainableWrapper" />
+<meta itemprop="name" content="tfra.dynamic_embedding.shadow_ops.ShadowVariable" />
 <meta itemprop="path" content="Stable" />
 <meta itemprop="property" content="SaveSliceInfo"/>
 <meta itemprop="property" content="aggregation"/>
@@ -92,14 +92,14 @@
 <meta itemprop="property" content="value"/>
 </div>
 
-# tfra.dynamic_embedding.TrainableWrapper
+# tfra.dynamic_embedding.shadow_ops.ShadowVariable
 
 <!-- Insert buttons and diff -->
 
 <table class="tfo-notebook-buttons tfo-api" align="left">
 
 <td>
-  <a target="_blank" href="https://github.com/tensorflow/recommenders-addons/tree/master/tensorflow_recommenders_addons/dynamic_embedding/python/ops/dynamic_embedding_ops.py">
+  <a target="_blank" href="https://github.com/tensorflow/recommenders-addons/tree/master/tensorflow_recommenders_addons/dynamic_embedding/python/ops/shadow_embedding_ops.py">
     <img src="https://www.tensorflow.org/images/GitHub-Mark-32px.png" />
     View source on GitHub
   </a>
@@ -111,54 +111,63 @@
 
 
 
-## Class `TrainableWrapper`
+## Class `ShadowVariable`
 
-This class is a trainable wrapper of Dynamic Embedding,
+ShadowVariable is a eager persistent twin of TrainableWrapper.
 
-
+Inherits From: [`TrainableWrapper`](../../../tfra/dynamic_embedding/TrainableWrapper.md)
 
 <!-- Placeholder for "Used in" -->
-and the key role is recording the map relation between params and ids.
-inheriting from the ResourceVariable make it trainable.
+
+ShadowVariable maps the sparse domain, which may reside cross multiple
+devices, as a projection on current device. Its value represents the activated
+part of the sparse domain. When lookup on sparse domain, it will fetch the
+lookup result to local, and could be regarded as trainable object to
+optimizers, like an ordinary variable. It supports the modular programming
+and [tf.function](https://www.tensorflow.org/guide/function).
 
 <h2 id="__init__"><code>__init__</code></h2>
 
-<a target="_blank" href="https://github.com/tensorflow/recommenders-addons/tree/master/tensorflow_recommenders_addons/dynamic_embedding/python/ops/dynamic_embedding_ops.py">View source</a>
+<a target="_blank" href="https://github.com/tensorflow/recommenders-addons/tree/master/tensorflow_recommenders_addons/dynamic_embedding/python/ops/shadow_embedding_ops.py">View source</a>
 
 ``` python
 __init__(
     params,
-    ids,
-    max_norm,
-    *args,
+    name='ShadowVariable',
+    max_norm=None,
+    trainable=(True),
+    distribute_strategy=None,
     **kwargs
 )
 ```
 
-Creates an empty `TrainableWrapper` object.©
+Create a ShadowVariable object.
 
-Creates a group of tables placed on devices,
-the type of its keys and values are specified by key_dtype
-and value_dtype, respectively.
 
 #### Args:
 
 
-* <b>`params`</b>: A dynamic_embedding.Variable instance.
-* <b>`ids`</b>: A tensor with any shape as same dtype of params.key_dtype.
+* <b>`params`</b>: A dynamic_embedding.Variable object represents the sparse domain.
+* <b>`ids`</b>: If set, it needs to be a ResourceVariable, to keep the
+  ids for backward computations. Otherwise the ShadowVariable will
+  create ids variable buffer itself.
+* <b>`name`</b>: Name of the ShadowVariable.
 * <b>`max_norm`</b>: If not `None`, each values is clipped if its l2-norm is larger
   than this value.
-other parameters is same with ResourceVariable.
+* <b>`trainable`</b>: Bool. If true, the variable will be treated as trainable.
+  Default is true.
+* <b>`distribute_strategy`</b>: DistributeStrategy.
 
-#### Returns:
-
-A `TrainableWrapper` object which is a subclass of ResourceVariable.
-
+* <b>`**kwargs`</b>:   model_mode: ModelMode of the option. Default is ModelMode.CURRENT_SETTING.
+    often used internally.
+  ids: A Buffer to store the feature ids. If None, it use a private one.
+  exists: A Buffer to indicate whether the feature ids exist in sparse domain.
+    If None, it use a private one.
 
 
 
 ## Child Classes
-[`class SaveSliceInfo`](../../tfra/dynamic_embedding/TrainableWrapper/SaveSliceInfo.md)
+[`class SaveSliceInfo`](../../../tfra/dynamic_embedding/TrainableWrapper/SaveSliceInfo.md)
 
 ## Properties
 
@@ -1663,6 +1672,8 @@ __xor__(
 
 <h3 id="assign"><code>assign</code></h3>
 
+<a target="_blank" href="https://github.com/tensorflow/recommenders-addons/tree/master/tensorflow_recommenders_addons/dynamic_embedding/python/ops/shadow_embedding_ops.py">View source</a>
+
 ``` python
 assign(
     value,
@@ -1673,7 +1684,8 @@ assign(
 ```
 
 Assigns a new value to this variable.
-
+To discriminate with ResourceVariable, the shadow always uses a
+variant space to hold the temporary embedding lookup buffer.
 
 #### Args:
 
@@ -2019,7 +2031,7 @@ numpy()
 
 <h3 id="prefetch_values"><code>prefetch_values</code></h3>
 
-<a target="_blank" href="https://github.com/tensorflow/recommenders-addons/tree/master/tensorflow_recommenders_addons/dynamic_embedding/python/ops/dynamic_embedding_ops.py">View source</a>
+<a target="_blank" href="https://github.com/tensorflow/recommenders-addons/tree/master/tensorflow_recommenders_addons/dynamic_embedding/python/ops/shadow_embedding_ops.py">View source</a>
 
 ``` python
 prefetch_values(update=(False))
@@ -2673,8 +2685,10 @@ update_op(v0=None)
 
 <h3 id="value"><code>value</code></h3>
 
+<a target="_blank" href="https://github.com/tensorflow/recommenders-addons/tree/master/tensorflow_recommenders_addons/dynamic_embedding/python/ops/shadow_embedding_ops.py">View source</a>
+
 ``` python
-value()
+value(do_prefetch=(False))
 ```
 
 A cached operation which reads the value of this variable.

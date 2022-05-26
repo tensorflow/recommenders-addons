@@ -32,7 +32,7 @@ tfra.dynamic_embedding.embedding_lookup(
     name=None,
     validate_indices=None,
     max_norm=None,
-    return_trainable=False
+    return_trainable=(False)
 )
 ```
 
@@ -51,11 +51,17 @@ leading dimension of the size of the embeddings.
 * <b>`params`</b>: A dynamic_embedding.Variable instance.
 * <b>`ids`</b>: A tensor with any shape as same dtype of params.key_dtype.
 * <b>`partition_strategy`</b>: No used, for API compatiblity with `nn.emedding_lookup`.
-* <b>`name`</b>: A name for the operation (optional).
+* <b>`name`</b>: A name for the operation. Name is optional in graph mode and required
+  in eager mode.
 * <b>`validate_indices`</b>: No used, just for compatible with nn.embedding_lookup .
 * <b>`max_norm`</b>: If not `None`, each embedding is clipped if its l2-norm is larger
   than this value.
-* <b>`return_trainable`</b>: optional, If True, also return TrainableWrapper
+* <b>`return_trainable`</b>: optional, If True, also return TrainableWrapper. If in
+  eager mode, it will return a `ShadowVariable`, which is eager derivative of
+  TrainableWrapper. If inside tf.function scope, then set return_trainable
+  is disabled. Please use <a href="../../tfra/dynamic_embedding/Variable.md#get_trainable_by_name"><code>dynamic_embedding.Variable.get_trainable_by_name</code></a> or
+  <a href="../../tfra/dynamic_embedding/Variable.md#trainable_store"><code>dynamic_embedding.Variable.trainable_store</code></a> to get the created trainable
+  shadow inside tf.function scope.
 
 #### Returns:
 
@@ -64,4 +70,5 @@ A tensor with shape [shape of ids] + [dim],
   containing the values from the params tensor(s) for keys in ids.
 
 * <b>`trainable_wrap`</b>:   A TrainableWrapper object used to fill the Optimizers `var_list`
-    Only provided if `return_trainable` is True.
+    Only provided if `return_trainable` is True. If in eager mode,
+    it will be a `ShadowVariable`, which is eager derivative of TrainableWrapper.

@@ -132,6 +132,26 @@ Status launchInsertCore(std::shared_ptr<RedisVirtualWrapper> _table_instance,
   return statu;
 }
 
+Status launchAccumCore(std::shared_ptr<RedisVirtualWrapper> _table_instance,
+                       std::vector<std::string> &keys_prefix_name_slices,
+                       const Tensor &keys, const Tensor &values_or_delta,
+                       const Tensor &exists, const int64 &Velems_per_flat2_dim0,
+                       std::vector<ThreadContext *> &threads_Insert,
+                       std::mutex &threads_Accum_mutex, const int64 begin,
+                       const int64 end) {
+  size_t thread_context_id =
+      SelectAvailableThreadContext(threads_Insert, threads_Accum_mutex);
+
+  auto statu = _table_instance->MaccumCommand(
+      keys, values_or_delta, exists, threads_Insert.at(thread_context_id),
+      begin, end, Velems_per_flat2_dim0, keys_prefix_name_slices);
+
+  threads_Insert[thread_context_id]->thread_occupied.store(
+      false, std::memory_order_release);
+
+  return statu;
+}
+
 Status launchDeleteCore(std::shared_ptr<RedisVirtualWrapper> _table_instance,
                         std::vector<std::string> &keys_prefix_name_slices,
                         const Tensor &keys,

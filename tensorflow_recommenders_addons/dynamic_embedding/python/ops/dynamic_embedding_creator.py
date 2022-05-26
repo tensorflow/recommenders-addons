@@ -113,44 +113,45 @@ class CuckooHashTableCreator(KVCreator):
 
 class RedisTableConfig(object):
   """ 
-      RedisTableConfig config json file for connecting Redis service and 
-    assign the embedding table starage properties.
-      An example of a configuration file is shown below:
-      ""
-      {
-        "redis_connection_mode": 1,
-        "redis_master_name": "master",
-        "redis_host_ip": [
-          "127.0.0.1"
-        ],
-        "redis_host_port": 6379,
-        "redis_user": "default",
-        "redis_password": "",
-        "redis_db": 0,
-        "redis_read_access_slave": False,
-        "redis_connect_keep_alive": False,
-        "redis_connect_timeout": 1000,
-        "redis_socket_timeout": 1000,
-        "redis_conn_pool_size": 20,
-        "redis_wait_timeout": 100000000,
-        "redis_connection_lifetime": 100,
-        "redis_sentinel_connect_timeout": 1000,
-        "redis_sentinel_socket_timeout": 1000,
-        "storage_slice_import": 1,
-        "storage_slice": 1,
-        "keys_sending_size": 1024,
-        "using_md5_prefix_name": False,
-        "model_tag_import": "test",
-        "redis_hash_tags_import": [],
-        "model_tag_runtime": "test",
-        "redis_hash_tags_runtime": [],
-        "expire_model_tag_in_seconds": 604800,
-        "table_store_mode": 1,
-        "model_lib_abs_dir": "/tmp/"
-      }
-      ""
-      Refer to the default_redis_params variable in RedisTable class 
-    for the description of the JSON configuration file
+  RedisTableConfig config json file for connecting Redis service and 
+  assign the embedding table starage properties.
+  An example of a configuration file is shown below:
+  ```python
+  {
+    "redis_connection_mode": 1,
+    "redis_master_name": "master",
+    "redis_host_ip": [
+      "127.0.0.1"
+    ],
+    "redis_host_port": 6379,
+    "redis_user": "default",
+    "redis_password": "",
+    "redis_db": 0,
+    "redis_read_access_slave": False,
+    "redis_connect_keep_alive": False,
+    "redis_connect_timeout": 1000,
+    "redis_socket_timeout": 1000,
+    "redis_conn_pool_size": 20,
+    "redis_wait_timeout": 100000000,
+    "redis_connection_lifetime": 100,
+    "redis_sentinel_connect_timeout": 1000,
+    "redis_sentinel_socket_timeout": 1000,
+    "storage_slice_import": 1,
+    "storage_slice": 1,
+    "keys_sending_size": 1024,
+    "using_md5_prefix_name": False,
+    "model_tag_import": "test",
+    "redis_hash_tags_import": [],
+    "model_tag_runtime": "test",
+    "redis_hash_tags_runtime": [],
+    "expire_model_tag_in_seconds": 604800,
+    "table_store_mode": 1,
+    "model_lib_abs_dir": "/tmp/"
+  }
+  ```
+  Refer to the [Redis table config guide](https://github.com/tensorflow/recommenders-addons/blob/master/docs/api_docs/tfra/dynamic_embedding/RedisBackend.md)
+  and default_redis_params variable in RedisTable class 
+  to learn the description of the JSON configuration file
   """
 
   def __init__(

@@ -78,6 +78,7 @@ class RedisTableOfTensors final : public LookupInterface {
   std::vector<ThreadContext *> threads_Delete;
   std::mutex threads_Find_mutex;
   std::mutex threads_Insert_mutex;
+  std::mutex threads_Accum_mutex;
   std::mutex threads_Delete_mutex;
 
   std::vector<aiocb> IMPORT_content;
@@ -209,6 +210,42 @@ class RedisTableOfTensors final : public LookupInterface {
         ctx, launchInsertCore(_table_instance, keys_prefix_name_slices, keys,
                               values, Velems_per_flat2_dim0, threads_Insert,
                               threads_Insert_mutex, 0, total));
+  }
+
+  void launchAccum_parallel(OpKernelContext *ctx,
+                            std::vector<std::string> &keys_prefix_name_slices,
+                            const Tensor &keys, const Tensor &values_or_delta,
+                            const Tensor &exists, const int64 &total,
+                            const int64 &Velems_per_flat2_dim0,
+                            std::vector<ThreadContext *> &threads_Insert) {
+    const int64 max_parallelism = (total / multi_redis_cmd_max_argc) + 1;
+
+    auto shard = [this, &ctx, &total, &keys_prefix_name_slices, &keys,
+                  &values_or_delta, &exists, &Velems_per_flat2_dim0,
+                  &threads_Insert](int64 begin, int64 end) {
+      const int64 max_i = std::min(total, end);
+
+      OP_REQUIRES_OK(
+          ctx,
+          launchAccumCore(_table_instance, keys_prefix_name_slices, keys,
+                          values_or_delta, exists, Velems_per_flat2_dim0,
+                          threads_Insert, threads_Accum_mutex, begin, max_i));
+    };
+    int64 slices_size = std::min(total, multi_redis_cmd_max_argc - 1);
+    auto &worker_threads = *ctx->device()->tensorflow_cpu_worker_threads();
+    Shard(max_parallelism, worker_threads.workers, total, slices_size, shard);
+  }
+
+  void launchAccum(OpKernelContext *ctx,
+                   std::vector<std::string> &keys_prefix_name_slices,
+                   const Tensor &keys, const Tensor &values_or_delta,
+                   const Tensor &exists, const int64 &total,
+                   const int64 &Velems_per_flat2_dim0,
+                   std::vector<ThreadContext *> &threads_Insert) {
+    OP_REQUIRES_OK(
+        ctx, launchAccumCore(_table_instance, keys_prefix_name_slices, keys,
+                             values_or_delta, exists, Velems_per_flat2_dim0,
+                             threads_Insert, threads_Insert_mutex, 0, total));
   }
 
   void launchDelete_parallel(OpKernelContext *ctx,
@@ -691,9 +728,33 @@ class RedisTableOfTensors final : public LookupInterface {
     return Status::OK();
   }
 
+  Status DoAccum(OpKernelContext *ctx, const Tensor &keys,
+                 const Tensor &values_or_delta, const Tensor &exists) {
+    int64 total = keys.NumElements();
+    const int64 Velems_per_flat2_dim0 =
+        values_or_delta.NumElements() / keys.NumElements();
+
+    if (total < (multi_redis_cmd_max_argc - 1)) {
+      launchAccum(ctx, keys_prefix_name_slices, keys, values_or_delta, exists,
+                  total, Velems_per_flat2_dim0, threads_Insert);
+    } else {
+      launchAccum_parallel(
+          ctx, keys_prefix_name_slices, keys, values_or_delta, exists, total,
+          Velems_per_flat2_dim0,
+          threads_Insert);  // redis commmand args > multi_redis_cmd_max_argc
+    }
+
+    return Status::OK();
+  }
+
   Status Insert(OpKernelContext *ctx, const Tensor &keys,
                 const Tensor &values) override {
     return DoInsert(false, ctx, keys, values);
+  }
+
+  Status Accum(OpKernelContext *ctx, const Tensor &keys,
+               const Tensor &values_or_delta, const Tensor &exists) {
+    return DoAccum(ctx, keys, values_or_delta, exists);
   }
 
   Status Remove(OpKernelContext *ctx, const Tensor &keys) override {
@@ -1129,6 +1190,45 @@ class HashTableInsertOp : public HashTableOpKernel {
   }
 };
 
+// Table accum op.
+template <class K, class V>
+class HashTableAccumOp : public HashTableOpKernel {
+ public:
+  using HashTableOpKernel::HashTableOpKernel;
+
+  void Compute(OpKernelContext *ctx) override {
+    LookupInterface *table;
+    OP_REQUIRES_OK(ctx, GetTable(ctx, &table));
+    core::ScopedUnref unref_me(table);
+
+    RedisTableOfTensors<K, V> *redisTable = (RedisTableOfTensors<K, V> *)table;
+
+    DataTypeVector expected_inputs = {expected_input_0_, table->key_dtype(),
+                                      table->value_dtype(),
+                                      DataTypeToEnum<bool>::v()};
+    OP_REQUIRES_OK(ctx, ctx->MatchSignature(expected_inputs, {}));
+
+    const Tensor &keys = ctx->input(1);
+    const Tensor &values_or_deltas = ctx->input(2);
+    const Tensor &exists = ctx->input(3);
+    OP_REQUIRES(ctx, (values_or_deltas.dtype() != DataTypeToEnum<tstring>::v()),
+                errors::InvalidArgument(
+                    "AccumOP is not supporting tstring value type!"));
+    OP_REQUIRES_OK(
+        ctx, table->CheckKeyAndValueTensorsForInsert(keys, values_or_deltas));
+
+    int64 memory_used_before = 0;
+    if (ctx->track_allocations()) {
+      memory_used_before = table->MemoryUsed();
+    }
+    OP_REQUIRES_OK(ctx, redisTable->Accum(ctx, keys, values_or_deltas, exists));
+    if (ctx->track_allocations()) {
+      ctx->record_persistent_memory_allocation(table->MemoryUsed() -
+                                               memory_used_before);
+    }
+  }
+};
+
 // Table remove op.
 class HashTableRemoveOp : public HashTableOpKernel {
  public:
@@ -1275,6 +1375,12 @@ REGISTER_KERNEL_BUILDER(
           .TypeConstraint<key_dtype>("key_dtype")                           \
           .TypeConstraint<value_dtype>("value_dtype"),                      \
       redis_table::HashTableClearOp<key_dtype, value_dtype>);               \
+  REGISTER_KERNEL_BUILDER(                                                  \
+      Name(PREFIX_OP_NAME(RedisTableAccum))                                 \
+          .Device(DEVICE_CPU)                                               \
+          .TypeConstraint<key_dtype>("key_dtype")                           \
+          .TypeConstraint<value_dtype>("value_dtype"),                      \
+      redis_table::HashTableAccumOp<key_dtype, value_dtype>);               \
   REGISTER_KERNEL_BUILDER(                                                  \
       Name(PREFIX_OP_NAME(RedisTableFindWithExists))                        \
           .Device(DEVICE_CPU)                                               \

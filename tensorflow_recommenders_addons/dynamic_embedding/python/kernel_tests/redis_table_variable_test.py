@@ -467,99 +467,102 @@ class RedisVariableTest(test.TestCase):
         table.clear()
         del table
 
-  # TODO(Heka) Add bp_v2 feature to Redis backend
-  # def test_variable_find_with_exists_and_accum(self):
-  #   if _redis_health_check(redis_config_params["redis_host_ip"][0], redis_config_params["redis_host_port"][0]) == False:
-  #     self.skipTest('skip redis test when unable to access the redis service.')
-  #   id = 0
-  #   if test_util.is_gpu_available():
-  #     dim_list = [1, 2, 4, 8, 10, 16, 32, 64, 100, 200]
-  #     kv_list = [[dtypes.int64, dtypes.float32], [dtypes.int64, dtypes.int32],
-  #                [dtypes.int64, dtypes.half], [dtypes.int64, dtypes.int8]]
-  #   else:
-  #     dim_list = [1, 8, 16, 128]
-  #     kv_list = [[dtypes.int32, dtypes.double], [dtypes.int32, dtypes.float32],
-  #                [dtypes.int32, dtypes.int32], [dtypes.int64, dtypes.double],
-  #                [dtypes.int64, dtypes.float32], [dtypes.int64, dtypes.int32],
-  #                [dtypes.int64, dtypes.int64], [dtypes.int64, dtypes.int8],
-  #                [dtypes.int64, dtypes.half], [dtypes.string, dtypes.double],
-  #                [dtypes.string, dtypes.float32], [dtypes.string, dtypes.int32],
-  #                [dtypes.string, dtypes.int64], [dtypes.string, dtypes.int8],
-  #                [dtypes.string, dtypes.half]]
+    def test_variable_find_with_exists_and_accum(self):
+      if _redis_health_check(
+          redis_config_params["redis_host_ip"][0],
+          redis_config_params["redis_host_port"][0]) == False:
+        self.skipTest(
+            'skip redis test when unable to access the redis service.')
+      id = 0
+      if test_util.is_gpu_available():
+        dim_list = [1, 2, 4, 8, 10, 16, 32, 64, 100, 200]
+        kv_list = [[dtypes.int64, dtypes.float32], [dtypes.int64, dtypes.int32],
+                   [dtypes.int64, dtypes.half], [dtypes.int64, dtypes.int8]]
+      else:
+        dim_list = [1, 8, 16, 128]
+        kv_list = [[dtypes.int32,
+                    dtypes.double], [dtypes.int32, dtypes.float32],
+                   [dtypes.int32, dtypes.int32], [dtypes.int64, dtypes.double],
+                   [dtypes.int64, dtypes.float32], [dtypes.int64, dtypes.int32],
+                   [dtypes.int64, dtypes.int64], [dtypes.int64, dtypes.int8],
+                   [dtypes.int64, dtypes.half], [dtypes.string, dtypes.double],
+                   [dtypes.string, dtypes.float32],
+                   [dtypes.string, dtypes.int32], [dtypes.string, dtypes.int64],
+                   [dtypes.string, dtypes.int8], [dtypes.string, dtypes.half]]
 
-  #   def _convert(v, t):
-  #     return np.array(v).astype(_type_converter(t))
+      def _convert(v, t):
+        return np.array(v).astype(_type_converter(t))
 
-  #   for (key_dtype, value_dtype), dim in itertools.product(kv_list, dim_list):
-  #     id += 1
-  #     with self.session(config=default_config,
-  #                       use_gpu=test_util.is_gpu_available()) as sess:
-  #       base_keys = constant_op.constant(
-  #           np.array([0, 1, 2, 3]).astype(_type_converter(key_dtype)),
-  #           key_dtype)
-  #       base_values = constant_op.constant(
-  #           _convert([[0] * dim, [1] * dim, [2] * dim, [3] * dim], value_dtype),
-  #           value_dtype)
+      for (key_dtype, value_dtype), dim in itertools.product(kv_list, dim_list):
+        id += 1
+        with self.session(config=default_config,
+                          use_gpu=test_util.is_gpu_available()) as sess:
+          base_keys = constant_op.constant(
+              np.array([0, 1, 2, 3]).astype(_type_converter(key_dtype)),
+              key_dtype)
+          base_values = constant_op.constant(
+              _convert([[0] * dim, [1] * dim, [2] * dim, [3] * dim],
+                       value_dtype), value_dtype)
 
-  #       simulate_other_process_add_keys = constant_op.constant(
-  #           np.array([100]).astype(_type_converter(key_dtype)), key_dtype)
-  #       simulate_other_process_add_vals = constant_op.constant(
-  #           _convert([
-  #               [99] * dim,
-  #           ], value_dtype), value_dtype)
+          simulate_other_process_add_keys = constant_op.constant(
+              np.array([100]).astype(_type_converter(key_dtype)), key_dtype)
+          simulate_other_process_add_vals = constant_op.constant(
+              _convert([
+                  [99] * dim,
+              ], value_dtype), value_dtype)
 
-  #       simulate_other_process_remove_keys = constant_op.constant(
-  #           np.array([1]).astype(_type_converter(key_dtype)), key_dtype)
-  #       accum_keys = constant_op.constant(
-  #           np.array([0, 1, 100, 3]).astype(_type_converter(key_dtype)),
-  #           key_dtype)
-  #       old_values = constant_op.constant(
-  #           _convert([[0] * dim, [1] * dim, [2] * dim, [3] * dim], value_dtype),
-  #           value_dtype)
-  #       new_values = constant_op.constant(
-  #           _convert([[10] * dim, [11] * dim, [100] * dim, [13] * dim],
-  #                    value_dtype), value_dtype)
-  #       exported_exists = constant_op.constant([True, True, False, True],
-  #                                              dtype=dtypes.bool)
+          simulate_other_process_remove_keys = constant_op.constant(
+              np.array([1]).astype(_type_converter(key_dtype)), key_dtype)
+          accum_keys = constant_op.constant(
+              np.array([0, 1, 100, 3]).astype(_type_converter(key_dtype)),
+              key_dtype)
+          old_values = constant_op.constant(
+              _convert([[0] * dim, [1] * dim, [2] * dim, [3] * dim],
+                       value_dtype), value_dtype)
+          new_values = constant_op.constant(
+              _convert([[10] * dim, [11] * dim, [100] * dim, [13] * dim],
+                       value_dtype), value_dtype)
+          exported_exists = constant_op.constant([True, True, False, True],
+                                                 dtype=dtypes.bool)
 
-  #       table = de.get_variable('taccum1-' + str(id),
-  #                               key_dtype=key_dtype,
-  #                               value_dtype=value_dtype,
-  #                               initializer=np.array([-1]).astype(
-  #                                   _type_converter(value_dtype)),
-  #                               dim=dim)
-  #       self.evaluate(table.clear())
+          table = de.get_variable('taccum1-' + str(id),
+                                  key_dtype=key_dtype,
+                                  value_dtype=value_dtype,
+                                  initializer=np.array([-1]).astype(
+                                      _type_converter(value_dtype)),
+                                  dim=dim)
+          self.evaluate(table.clear())
 
-  #       self.assertAllEqual(0, self.evaluate(table.size()))
+          self.assertAllEqual(0, self.evaluate(table.size()))
 
-  #       self.evaluate(table.upsert(base_keys, base_values))
-  #       _, exists = table.lookup(accum_keys, return_exists=True)
-  #       self.assertAllEqual(self.evaluate(exported_exists),
-  #                           self.evaluate(exists))
-  #       # Simulate multi-process situation that other process operated table,
-  #       # between lookup and accum in this process.
-  #       self.evaluate(
-  #           table.upsert(simulate_other_process_add_keys,
-  #                        simulate_other_process_add_vals))
-  #       self.evaluate(table.remove(simulate_other_process_remove_keys))
-  #       self.assertAllEqual(4, self.evaluate(table.size()))
-  #       self.evaluate(
-  #           table.accum(accum_keys, old_values, new_values, exported_exists))
+          self.evaluate(table.upsert(base_keys, base_values))
+          _, exists = table.lookup(accum_keys, return_exists=True)
+          self.assertAllEqual(self.evaluate(exported_exists),
+                              self.evaluate(exists))
+          # Simulate multi-process situation that other process operated table,
+          # between lookup and accum in this process.
+          self.evaluate(
+              table.upsert(simulate_other_process_add_keys,
+                           simulate_other_process_add_vals))
+          self.evaluate(table.remove(simulate_other_process_remove_keys))
+          self.assertAllEqual(4, self.evaluate(table.size()))
+          self.evaluate(
+              table.accum(accum_keys, old_values, new_values, exported_exists))
 
-  #       exported_keys, exported_values = table.export()
+          exported_keys, exported_values = table.export()
 
-  #       # exported data is in the order of the internal map, i.e. undefined
-  #       sorted_keys = np.sort(self.evaluate(exported_keys), axis=0)
-  #       sorted_values = np.sort(self.evaluate(exported_values), axis=0)
-  #       self.assertAllEqual(
-  #           np.sort(_convert([0, 2, 3, 100], key_dtype), axis=0),
-  #           _convert(sorted_keys, key_dtype))
-  #       self.assertAllEqual(
-  #           _convert([[2] * dim, [10] * dim, [13] * dim, [99] * dim],
-  #                    value_dtype), _convert(sorted_values, value_dtype))
+          # exported data is in the order of the internal map, i.e. undefined
+          sorted_keys = np.sort(self.evaluate(exported_keys), axis=0)
+          sorted_values = np.sort(self.evaluate(exported_values), axis=0)
+          self.assertAllEqual(
+              np.sort(_convert([0, 2, 3, 100], key_dtype), axis=0),
+              _convert(sorted_keys, key_dtype))
+          self.assertAllEqual(
+              _convert([[2] * dim, [10] * dim, [13] * dim, [99] * dim],
+                       value_dtype), _convert(sorted_values, value_dtype))
 
-  #       self.evaluate(table.clear())
-  #       del table
+          self.evaluate(table.clear())
+          del table
 
   def test_variable_initializer(self):
     if _redis_health_check(redis_config_params["redis_host_ip"][0],

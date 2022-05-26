@@ -40,6 +40,7 @@ __all__ = [
     'enable_inference_mode',
     'enable_train_mode',
     'get_model_mode',
+    'keras',
     'math',
     'shadow_ops',
 ]
