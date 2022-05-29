@@ -134,8 +134,15 @@ but maybe this doc can help you : [Extract headers from TensorFlow compiling dir
 At the same time, we find some OPs used by TRFA have better performance, so we highly recommend you update TensorFlow to 2.x.
 
 #### Installing from Source
+
+For all developers, we recommend you use the development docker containers which are all GPU enabled:
+```shell
+docker pull tfra/dev_container:latest-python3.8  # "3.7", "3.9" are all avaliable.
+docker run --privileged --gpus all -it --rm -v $(pwd):$(pwd) tfra/dev_container:latest-3.8
+```
+
 ##### CPU Only
-You can also install from source. This requires the [Bazel](https://bazel.build/) build system (version == 3.7.2).
+You can also install from source. This requires the [Bazel](https://bazel.build/) build system (version == 5.1.1).
 Please install a TensorFlow on your compiling machine, The compiler needs to know the version of Tensorflow and 
 its headers according to the installed TensorFlow. 
 
@@ -158,18 +165,20 @@ pip install artifacts/tensorflow_recommenders_addons-*.whl
 ##### GPU Support
 Only `TF_NEED_CUDA=1` is required and other environment variables are optional:
 ```shell
-PY_VERSION="3.7" \
-TF_NEED_CUDA=1 \
-TF_CUDA_VERSION=11.2 \
-TF_CUDNN_VERSION=8.1 \
-CUDA_TOOLKIT_PATH="/usr/local/cuda" \
-CUDNN_INSTALL_PATH="/usr/lib/x86_64-linux-gnu" \
+export TF_VERSION="2.5.1"  # "2.7.0", "2.5.1" are well tested.
+export PY_VERSION="3.8" 
+export TF_NEED_CUDA=1
+export TF_CUDA_VERSION=11.2
+export TF_CUDNN_VERSION=8.1
+export CUDA_TOOLKIT_PATH="/usr/local/cuda"
+export CUDNN_INSTALL_PATH="/usr/lib/x86_64-linux-gnu"
+
 python configure.py
 ```
 And then build the pip package and install:
 ```shell
 bazel build --enable_runfiles build_pip_pkg
-TF_NEED_CUDA=1 bazel-bin/build_pip_pkg artifacts
+bazel-bin/build_pip_pkg artifacts
 pip install artifacts/tensorflow_recommenders_addons_gpu-*.whl
 ```
 ##### Apple Silicon Support (Beta Release)
