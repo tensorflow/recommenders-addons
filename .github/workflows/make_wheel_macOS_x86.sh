@@ -9,6 +9,8 @@ python --version
 brew install open-mpi
 
 python -m pip install --default-timeout=1000 delocate==0.9.1 wheel setuptools tensorflow==$TF_VERSION
+python -m pip install --upgrade protobuf==3.20.0
+
 bash tools/docker/install/install_horovod.sh $HOROVOD_VERSION --only-cpu
 
 bash tools/testing/build_and_run_tests.sh
