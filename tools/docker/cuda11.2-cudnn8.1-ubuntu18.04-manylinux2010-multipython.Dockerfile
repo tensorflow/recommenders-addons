@@ -77,9 +77,6 @@ RUN apt-get update && apt-get install -y \
 RUN chmod 777 /tmp/
 WORKDIR /tmp/
 
-COPY install/install_trt.sh /install/
-RUN /install/install_trt.sh "7.2.3-1+cuda11.1"
-
 COPY install/install_nccl.sh /install/
 RUN /install/install_nccl.sh "2.8.4-1+cuda11.2"
 
@@ -87,7 +84,7 @@ COPY install/install_rocksdb.sh /install/
 RUN /install/install_rocksdb.sh "6.22.1"
 
 COPY install/install_bazel.sh /install/
-RUN /install/install_bazel.sh "3.7.2"
+RUN /install/install_bazel.sh "5.1.1"
 
 COPY install/build_and_install_python.sh /install/
 RUN /install/build_and_install_python.sh "3.6.9"
