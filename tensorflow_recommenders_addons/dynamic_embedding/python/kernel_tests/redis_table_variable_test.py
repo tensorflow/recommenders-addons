@@ -295,6 +295,7 @@ redis_config_path = os.path.join(tempfile.mkdtemp(prefix=redis_config_dir),
 os.makedirs(redis_config_path)
 redis_config_path = os.path.join(redis_config_path, "redis_config.json")
 redis_config_params = {
+    "redis_connection_mode": 2,
     "redis_host_ip": ["127.0.0.1"],
     "redis_host_port": [6379],
     "storage_slice": 1,
@@ -326,6 +327,7 @@ class RedisVariableTest(test.TestCase):
           dtypes.int32,
           initializer=0,
           dim=8,
+          devices=["/CPU:0"],
           kv_creator=de.RedisTableCreator(config=redis_config))
       table.clear()
       self.evaluate(table.size())
@@ -374,6 +376,7 @@ class RedisVariableTest(test.TestCase):
             value_dtype=value_dtype,
             initializer=np.array([-1]).astype(_type_converter(value_dtype)),
             dim=dim,
+            devices=["/CPU:0"],
             kv_creator=de.RedisTableCreator(config=redis_config))
 
         table.clear()
@@ -447,6 +450,7 @@ class RedisVariableTest(test.TestCase):
             value_dtype=value_dtype,
             initializer=np.array([-1]).astype(_type_converter(value_dtype)),
             dim=dim,
+            devices=["/CPU:0"],
             kv_creator=de.RedisTableCreator(config=redis_config))
 
         table.clear()
@@ -525,12 +529,14 @@ class RedisVariableTest(test.TestCase):
           exported_exists = constant_op.constant([True, True, False, True],
                                                  dtype=dtypes.bool)
 
-          table = de.get_variable('taccum1-' + str(id),
-                                  key_dtype=key_dtype,
-                                  value_dtype=value_dtype,
-                                  initializer=np.array([-1]).astype(
-                                      _type_converter(value_dtype)),
-                                  dim=dim)
+          table = de.get_variable(
+              'taccum1-' + str(id),
+              key_dtype=key_dtype,
+              value_dtype=value_dtype,
+              initializer=np.array([-1]).astype(_type_converter(value_dtype)),
+              dim=dim,
+              devices=["/CPU:0"],
+              kv_creator=de.RedisTableCreator(config=redis_config))
           self.evaluate(table.clear())
 
           self.assertAllEqual(0, self.evaluate(table.size()))
@@ -583,6 +589,7 @@ class RedisVariableTest(test.TestCase):
             value_dtype=dtypes.float32,
             initializer=initializer,
             dim=10,
+            devices=["/CPU:0"],
             kv_creator=de.RedisTableCreator(config=redis_config))
         table.clear()
         vals_op = table.lookup(keys)
@@ -615,6 +622,7 @@ class RedisVariableTest(test.TestCase):
           dim=1,
           name="t1",
           initializer=-1.0,
+          devices=["/CPU:0"],
           kv_creator=de.RedisTableCreator(config=redis_config),
       )
       table.clear()
@@ -647,6 +655,7 @@ class RedisVariableTest(test.TestCase):
           name="t1",
           initializer=-1.0,
           checkpoint=True,
+          devices=["/CPU:0"],
           kv_creator=de.RedisTableCreator(config=redis_config),
       )
       table.clear()
@@ -703,6 +712,7 @@ class RedisVariableTest(test.TestCase):
           name="t1",
           initializer=default_val,
           checkpoint=True,
+          devices=["/CPU:0"],
           kv_creator=de.RedisTableCreator(config=redis_config),
       )
       table.clear()
@@ -737,6 +747,7 @@ class RedisVariableTest(test.TestCase):
           name="t1",
           initializer=default_val,
           checkpoint=True,
+          devices=["/CPU:0"],
           kv_creator=de.RedisTableCreator(config=redis_config),
       )
       table.clear()
@@ -796,6 +807,7 @@ class RedisVariableTest(test.TestCase):
           value_dtype=value_dtype,
           initializer=init_ops.random_normal_initializer(0.0, 0.01),
           dim=dim,
+          devices=["/CPU:0"],
           kv_creator=de.RedisTableCreator(config=redis_config))
       self.evaluate(params.clear())
       params_size = self.evaluate(params.size())
@@ -862,8 +874,6 @@ class RedisVariableTest(test.TestCase):
               np.sort(pairs_before[1], axis=0),
               np.sort(pairs_after[1], axis=0),
           )
-        if test_util.is_gpu_available():
-          self.assertTrue("GPU" in params.tables[0].resource_handle.device)
 
   def test_training_save_restore_by_files(self):
     if _redis_health_check(redis_config_params["redis_host_ip"][0],
@@ -908,6 +918,7 @@ class RedisVariableTest(test.TestCase):
           value_dtype=value_dtype,
           initializer=0,
           dim=dim,
+          devices=["/CPU:0"],
           kv_creator=de.RedisTableCreator(config=redis_config_modify))
 
       _, var0 = de.embedding_lookup(params,
@@ -971,6 +982,7 @@ class RedisVariableTest(test.TestCase):
             dtypes.int32,
             initializer=default_val,
             dim=2,
+            devices=["/CPU:0"],
             kv_creator=de.RedisTableCreator(config=redis_config))
         table2 = de.get_variable(
             "t1" + '_test_get_variable',
@@ -978,6 +990,7 @@ class RedisVariableTest(test.TestCase):
             dtypes.int32,
             initializer=default_val,
             dim=2,
+            devices=["/CPU:0"],
             kv_creator=de.RedisTableCreator(config=redis_config))
         table3 = de.get_variable(
             "t3" + '_test_get_variable',
@@ -985,6 +998,7 @@ class RedisVariableTest(test.TestCase):
             dtypes.int32,
             initializer=default_val,
             dim=2,
+            devices=["/CPU:0"],
             kv_creator=de.RedisTableCreator(config=redis_config))
 
         table1.clear()
@@ -1009,6 +1023,7 @@ class RedisVariableTest(test.TestCase):
             "t900",
             initializer=-1,
             dim=2,
+            devices=["/CPU:0"],
             kv_creator=de.RedisTableCreator(config=redis_config))
         with self.assertRaisesRegexp(ValueError,
                                      "Variable embedding/t900 already exists"):
@@ -1016,6 +1031,7 @@ class RedisVariableTest(test.TestCase):
               "t900",
               initializer=-1,
               dim=2,
+              devices=["/CPU:0"],
               kv_creator=de.RedisTableCreator(config=redis_config))
 
   @test_util.run_v1_only("Multiple sessions")
@@ -1038,6 +1054,7 @@ class RedisVariableTest(test.TestCase):
         dtypes.int32,
         initializer=0,
         dim=1,
+        devices=["/CPU:0"],
         kv_creator=de.RedisTableCreator(config=redis_config))
     self.evaluate(table.clear())
 
@@ -1080,6 +1097,7 @@ class RedisVariableTest(test.TestCase):
           dtypes.int32,
           initializer=default_val,
           dim=2,
+          devices=["/CPU:0"],
           kv_creator=de.RedisTableCreator(config=redis_config))
       table.clear()
 
@@ -1125,6 +1143,7 @@ class RedisVariableTest(test.TestCase):
           dtypes.int32,
           initializer=default_val,
           dim=2,
+          devices=["/CPU:0"],
           kv_creator=de.RedisTableCreator(config=redis_config))
 
       table1.clear()
@@ -1149,6 +1168,7 @@ class RedisVariableTest(test.TestCase):
           dtypes.int32,
           initializer=default_val,
           dim=2,
+          devices=["/CPU:0"],
           kv_creator=de.RedisTableCreator(config=redis_config))
 
       table2.clear()
@@ -1175,6 +1195,7 @@ class RedisVariableTest(test.TestCase):
           dtypes.int32,
           initializer=default_val,
           dim=2,
+          devices=["/CPU:0"],
           kv_creator=de.RedisTableCreator(config=redis_config))
 
       table.clear()
@@ -1219,6 +1240,7 @@ class RedisVariableTest(test.TestCase):
           dtypes.int64,
           dtypes.float32,
           initializer=default_val,
+          devices=["/CPU:0"],
           kv_creator=de.RedisTableCreator(config=redis_config))
 
       table.clear()
@@ -1249,6 +1271,7 @@ class RedisVariableTest(test.TestCase):
           dtypes.int64,
           dtypes.int32,
           initializer=default_val,
+          devices=["/CPU:0"],
           kv_creator=de.RedisTableCreator(config=redis_config))
 
       table.clear()
@@ -1277,6 +1300,7 @@ class RedisVariableTest(test.TestCase):
           dtypes.int64,
           dtypes.int32,
           initializer=default_val,
+          devices=["/CPU:0"],
           kv_creator=de.RedisTableCreator(config=redis_config))
 
       table.clear()
@@ -1304,6 +1328,7 @@ class RedisVariableTest(test.TestCase):
           dtypes.int64,
           dtypes.int32,
           initializer=default_val,
+          devices=["/CPU:0"],
           kv_creator=de.RedisTableCreator(config=redis_config))
 
       table.clear()
@@ -1337,6 +1362,7 @@ class RedisVariableTest(test.TestCase):
           dtypes.int32,
           initializer=default_val,
           dim=3,
+          devices=["/CPU:0"],
           kv_creator=de.RedisTableCreator(config=redis_config))
 
       table.clear()
@@ -1368,6 +1394,7 @@ class RedisVariableTest(test.TestCase):
           dtypes.int32,
           initializer=default_val,
           dim=3,
+          devices=["/CPU:0"],
           kv_creator=de.RedisTableCreator(config=redis_config))
 
       table.clear()
@@ -1402,18 +1429,21 @@ class RedisVariableTest(test.TestCase):
           dtypes.int64,
           dtypes.int32,
           initializer=default_val,
+          devices=["/CPU:0"],
           kv_creator=de.RedisTableCreator(config=redis_config))
       table2 = de.get_variable(
           "t192" + '_test_dynamic_embedding_variables',
           dtypes.int64,
           dtypes.int32,
           initializer=default_val,
+          devices=["/CPU:0"],
           kv_creator=de.RedisTableCreator(config=redis_config))
       table3 = de.get_variable(
           "t193" + '_test_dynamic_embedding_variables',
           dtypes.int64,
           dtypes.int32,
           initializer=default_val,
+          devices=["/CPU:0"],
           kv_creator=de.RedisTableCreator(config=redis_config))
 
       table1.clear()
@@ -1452,6 +1482,7 @@ class RedisVariableTest(test.TestCase):
           dtypes.int64,
           dtypes.int32,
           initializer=default_val,
+          devices=["/CPU:0"],
           kv_creator=de.RedisTableCreator(config=redis_config))
 
       table.clear()
@@ -1481,6 +1512,7 @@ class RedisVariableTest(test.TestCase):
           dtypes.int64,
           dtypes.int32,
           initializer=default_val,
+          devices=["/CPU:0"],
           kv_creator=de.RedisTableCreator(config=redis_config))
 
       table.clear()
@@ -1530,6 +1562,7 @@ class RedisVariableTest(test.TestCase):
           dtypes.int64,
           dtypes.float32,
           initializer=default_val,
+          devices=["/CPU:0"],
           kv_creator=de.RedisTableCreator(config=redis_config))
 
       table.clear()
@@ -1559,6 +1592,7 @@ class RedisVariableTest(test.TestCase):
           dtypes.int64,
           dtypes.float32,
           initializer=default_val,
+          devices=["/CPU:0"],
           kv_creator=de.RedisTableCreator(config=redis_config))
 
       table.clear()
@@ -1594,6 +1628,7 @@ class RedisVariableTest(test.TestCase):
         dim=embed_dim,
         init_size=256,
         restrict_policy=de.TimestampRestrictPolicy,
+        devices=["/CPU:0"],
         kv_creator=de.RedisTableCreator(config=redis_config))
 
     var_guard_by_tstp.clear()
@@ -1606,6 +1641,7 @@ class RedisVariableTest(test.TestCase):
         dim=embed_dim,
         init_size=256,
         restrict_policy=de.FrequencyRestrictPolicy,
+        devices=["/CPU:0"],
         kv_creator=de.RedisTableCreator(config=redis_config))
 
     var_guard_by_freq.clear()
@@ -1670,6 +1706,7 @@ class RedisVariableTest(test.TestCase):
         initializer=-1.,
         dim=embed_dim,
         restrict_policy=de.TimestampRestrictPolicy,
+        devices=["/CPU:0"],
         kv_creator=de.RedisTableCreator(config=redis_config))
 
     var_guard_by_tstp.clear()
@@ -1681,6 +1718,7 @@ class RedisVariableTest(test.TestCase):
         initializer=-1.,
         dim=embed_dim,
         restrict_policy=de.FrequencyRestrictPolicy,
+        devices=["/CPU:0"],
         kv_creator=de.RedisTableCreator(config=redis_config))
 
     var_guard_by_freq.clear()
@@ -1738,7 +1776,7 @@ class RedisVariableTest(test.TestCase):
     redis_config_path = os.path.join(save_path,
                                      "redis_config_modify_wrong_type.json")
     redis_config_params_raw_config = {
-        "redis_connection_mode": 1,
+        "redis_connection_mode": 2,
         "redis_master_name": "master",
         "redis_host_ip": ["127.0.0.1"],
         "redis_host_port": [6379],
@@ -1752,6 +1790,8 @@ class RedisVariableTest(test.TestCase):
         "redis_conn_pool_size": 20,
         "redis_wait_timeout": 100000000,
         "redis_connection_lifetime": 100,
+        "redis_sentinel_user": "default",
+        "redis_sentinel_password": "",
         "redis_sentinel_connect_timeout": 1000,
         "redis_sentinel_socket_timeout": 1000,
         "storage_slice": 4,
@@ -1873,4 +1913,5 @@ if __name__ == "__main__":
       os.popen('redis-cli -h ' + redis_config_params["redis_host_ip"][0] +
                ' -p ' + str(redis_config_params["redis_host_port"][0]) +
                ' FLUSHALL').read())
+  os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
   test.main()
