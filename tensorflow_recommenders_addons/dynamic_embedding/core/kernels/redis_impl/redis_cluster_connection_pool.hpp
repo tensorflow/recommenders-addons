@@ -172,8 +172,6 @@ class RedisWrapper<RedisInstance, K, V,
       } catch (const std::exception &err) {
         LOG(ERROR) << "RedisHandler error in PipeExecRead for slices "
                    << hkey.data() << " -- " << err.what();
-        error_ptr = std::current_exception();
-        throw(err);
       }
     } else {
       return nullptr;
@@ -194,8 +192,6 @@ class RedisWrapper<RedisInstance, K, V,
       } catch (const std::exception &err) {
         LOG(ERROR) << "RedisHandler error in PipeExecWrite for slices "
                    << hkey.data() << " -- " << err.what();
-        error_ptr = std::current_exception();
-        throw(err);
       }
     } else {
       return nullptr;
@@ -1004,7 +1000,7 @@ every bucket has its own BucketContext for sending data---for locating reply-
     try {
       for (unsigned i = 0; i < storage_slice; ++i) {
         results.emplace_back(
-            network_worker_pool->enqueue([this, &cmd, &thread_context, i] {
+            network_worker_pool->enqueue([this, &cmd, thread_context, i] {
               return PipeExecRead(cmd, 3U, thread_context->buckets[i]);
             }));
       }
@@ -1228,7 +1224,7 @@ every bucket has its own BucketContext for sending data---for locating reply-
     try {
       for (unsigned i = 0; i < storage_slice; ++i) {
         results.emplace_back(
-            network_worker_pool->enqueue([this, &cmd, &thread_context, i] {
+            network_worker_pool->enqueue([this, &cmd, thread_context, i] {
               return PipeExecWrite(cmd, 4U, thread_context->buckets[i]);
             }));
       }
@@ -1330,7 +1326,7 @@ every bucket has its own BucketContext for sending data---for locating reply-
     try {
       for (unsigned i = 0; i < storage_slice; ++i) {
         results.emplace_back(
-            network_worker_pool->enqueue([this, &cmd, &thread_context, i] {
+            network_worker_pool->enqueue([this, &cmd, thread_context, i] {
               return PipeExecWrite(cmd, 6U, thread_context->buckets[i]);
             }));
       }
@@ -1411,7 +1407,7 @@ every bucket has its own BucketContext for sending data---for locating reply-
     try {
       for (unsigned i = 0; i < storage_slice; ++i) {
         results.emplace_back(
-            network_worker_pool->enqueue([this, &cmd, &thread_context, i] {
+            network_worker_pool->enqueue([this, &cmd, thread_context, i] {
               return PipeExecWrite(cmd, 3U, thread_context->buckets[i]);
             }));
       }
