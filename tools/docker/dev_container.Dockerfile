@@ -21,6 +21,9 @@ RUN pip install -r /install_deps/yapf.txt \
 RUN bash /install_deps/buildifier.sh
 RUN bash /install_deps/clang-format.sh
 
+COPY tools/docker/install/install_bazel.sh /install/
+RUN /install/install_bazel.sh "5.1.1"
+
 ENV ADDONS_DEV_CONTAINER="1"
 
 # Clean up
