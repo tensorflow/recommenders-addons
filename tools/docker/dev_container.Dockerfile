@@ -19,7 +19,10 @@ RUN pip install -r /install_deps/black.txt \
 RUN bash /install_deps/buildifier.sh
 RUN bash /install_deps/clang-format.sh
 
-ENV TFRA_DEV_CONTAINER="1"
+COPY tools/docker/install/install_bazel.sh /install/
+RUN /install/install_bazel.sh "3.7.2"
+
+ENV ADDONS_DEV_CONTAINER="1"
 
 # Clean up
 RUN apt-get autoremove -y \
