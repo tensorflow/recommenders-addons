@@ -54,14 +54,20 @@ http_archive(
     url = "https://github.com/sewenew/redis-plus-plus/archive/refs/tags/1.2.3.zip",
 )
 
-http_archive(
+# Enable to build RocksDB from source.
+# http_archive(
+#     name = "rocksdb",
+#     build_file = "//build_deps/toolchains/rocksdb:rocksdb.BUILD",
+#     sha256 = "2df8f34a44eda182e22cf84dee7a14f17f55d305ff79c06fb3cd1e5f8831e00d",
+#     strip_prefix = "rocksdb-6.22.1",
+#     urls = [
+#         "https://github.com/facebook/rocksdb/archive/refs/tags/v6.22.1.tar.gz",
+#     ],
+# )
+new_local_repository(
     name = "rocksdb",
     build_file = "//build_deps/toolchains/rocksdb:rocksdb.BUILD",
-    sha256 = "2df8f34a44eda182e22cf84dee7a14f17f55d305ff79c06fb3cd1e5f8831e00d",
-    strip_prefix = "rocksdb-6.22.1",
-    urls = [
-        "https://github.com/facebook/rocksdb/archive/refs/tags/v6.22.1.tar.gz",
-    ],
+    path = "/usr/local"
 )
 
 tf_configure(

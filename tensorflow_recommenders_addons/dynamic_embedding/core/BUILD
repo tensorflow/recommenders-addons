@@ -77,6 +77,10 @@ custom_op_library(
         "utils/types.h",
         "utils/utils.h",
     ],
+    # Hack: To allow allow locating <rocksdb/xyz.h>.
+    includes = [
+        ".",
+    ],
     linkopts = [
         "-L/usr/local/lib",
         "-lbz2",

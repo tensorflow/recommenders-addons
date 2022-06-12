@@ -51,7 +51,6 @@ cd /tmp/rocksdb-$ROCKSDB_VERSION
 DEBUG_LEVEL=0 make static_lib -j \
   EXTRA_CXXFLAGS="-fPIC -D_GLIBCXX_USE_CXX11_ABI=0" \
   EXTRA_CFLAGS="-fPIC -D_GLIBCXX_USE_CXX11_ABI=0"
-chmod -R 777 /tmp/rocksdb-$ROCKSDB_VERSION/librocksdb*
-cp /tmp/rocksdb-$ROCKSDB_VERSION/librocksdb* ${install_dir}
+make install
 rm -f /tmp/$ROCKSDB_VERSION.tar.gz
 rm -rf /tmp/rocksdb-${ROCKSDB_VERSION}
