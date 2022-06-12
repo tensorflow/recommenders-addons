@@ -42,6 +42,7 @@ class RedisWrapper<
     : public RedisVirtualWrapper {
  private:
   SentinelOptions sentinel_opts;
+  bool using_sentinel = true;
   ConnectionOptions conn_opts;
   ConnectionPoolOptions pool_opts;
   ThreadPool *network_worker_pool;
@@ -77,51 +78,68 @@ class RedisWrapper<
   }
 
  public:
+  void SetUsingSentinel(bool use_sentinel) {
+    this->using_sentinel = use_sentinel;
+  }
+
   std::shared_ptr<RedisInstance> StartConn(Role role) {
     assert(redis_connection_params.redis_host_ip.size() ==
            redis_connection_params.redis_host_port.size());
-    sentinel_opts.nodes.clear();
-    for (size_t i = 0; i < redis_connection_params.redis_host_ip.size(); ++i) {
-      sentinel_opts.nodes.push_back(
-          {redis_connection_params.redis_host_ip[i],
-           redis_connection_params.redis_host_port[i]});
-    }
-
-    // Optional. Timeout before we successfully connect to Redis Sentinel.
-    sentinel_opts.connect_timeout = std::chrono::milliseconds(
-        redis_connection_params.redis_sentinel_connect_timeout);
-    // Optional. Timeout before we successfully send request to or receive
-    // response from Redis Sentinel.
-    sentinel_opts.socket_timeout = std::chrono::milliseconds(
-        redis_connection_params.redis_sentinel_socket_timeout);
 
     SetPublicConnParams(conn_opts, pool_opts, redis_connection_params);
 
-    auto sentinel = std::make_shared<Sentinel>(sentinel_opts);
-
-    try {
-      auto redis_client = std::make_shared<RedisInstance>(
-          RedisInstance(sentinel, redis_connection_params.redis_master_name,
-                        role, conn_opts, pool_opts));
-      redis_client->ping();
-      if (RedisClusterEnabled(redis_client) == true) {
-        LOG(ERROR)
-            << "Now is sentinel mode but try to connect Redis cluster nodes. "
-               "Please check redis_connection_mode in config file.";
-        throw std::invalid_argument(
-            "Can not connect to cluster nodes when in sentinel mode, "
-            "redis_connection_mode should be 0 when connect to cluster nodes.");
+    if (this->using_sentinel) {
+      sentinel_opts.nodes.clear();
+      for (size_t i = 0; i < redis_connection_params.redis_host_ip.size();
+           ++i) {
+        sentinel_opts.nodes.push_back(
+            {redis_connection_params.redis_host_ip[i],
+             redis_connection_params.redis_host_port[i]});
       }
-      return redis_client;
-    } catch (const std::exception &err) {
-      LOG(ERROR) << "RedisHandler--error: " << err.what();
-      LOG(INFO)
-          << "Failed to connect to the Sentinel server. Try to connect "
-             "directly with the input IP address as if it were a Redis server.";
-      return start_conn_without_sentinel();
-    } catch (...) {
-      LOG(ERROR) << "RedisHandler--other crash";
-      return nullptr;
+
+      sentinel_opts.password = redis_connection_params.redis_sentinel_password;
+      // Optional. Timeout before we successfully connect to Redis Sentinel.
+      sentinel_opts.connect_timeout = std::chrono::milliseconds(
+          redis_connection_params.redis_sentinel_connect_timeout);
+      // Optional. Timeout before we successfully send request to or receive
+      // response from Redis Sentinel.
+      sentinel_opts.socket_timeout = std::chrono::milliseconds(
+          redis_connection_params.redis_sentinel_socket_timeout);
+
+      auto sentinel = std::make_shared<Sentinel>(sentinel_opts);
+
+      try {
+        auto redis_client = std::make_shared<RedisInstance>(
+            RedisInstance(sentinel, redis_connection_params.redis_master_name,
+                          role, conn_opts, pool_opts));
+        redis_client->ping();
+        if (RedisClusterEnabled(redis_client) == true) {
+          LOG(ERROR)
+              << "Now is sentinel mode but try to connect Redis cluster nodes. "
+                 "Please check redis_connection_mode in config file.";
+          throw std::invalid_argument(
+              "Can not connect to cluster nodes when in sentinel mode, "
+              "redis_connection_mode should be 0 when connect to cluster "
+              "nodes.");
+        }
+        return redis_client;
+      } catch (const std::exception &err) {
+        LOG(ERROR) << "RedisHandler--error: " << err.what();
+        LOG(INFO) << "Failed to connect to the Sentinel server. Try to connect "
+                     "directly with the input IP address as if it were a Redis "
+                     "server.";
+        return start_conn_without_sentinel();
+      } catch (...) {
+        LOG(ERROR) << "RedisHandler--other crash";
+        return nullptr;
+      }
+    } else {
+      try {
+        return start_conn_without_sentinel();
+      } catch (const std::exception &err) {
+        LOG(ERROR) << "RedisHandler--error: " << err.what();
+        return nullptr;
+      }
     }
     return nullptr;
   }
@@ -187,9 +205,11 @@ class RedisWrapper<
     return Status::OK();
   }
 
-  static std::shared_ptr<RedisWrapper<RedisInstance, K, V>> get_instance() {
+  static std::shared_ptr<RedisWrapper<RedisInstance, K, V>> get_instance(
+      bool use_sentinel = true) {
     std::shared_ptr<RedisWrapper<RedisInstance, K, V>> instance_ptr(
         new RedisWrapper<RedisInstance, K, V>());
+    instance_ptr->SetUsingSentinel(use_sentinel);
     return instance_ptr;
   }
 
@@ -357,7 +377,7 @@ class RedisWrapper<
   }
 
   virtual std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> MgetInBucket(
-      const Tensor &keys, const int64 begin, const int64 max_i,
+      const Tensor &keys, const int64_t begin, const int64_t max_i,
       const std::string &keys_prefix_name_slice) override {
     std::unique_ptr<BucketContext> bucket_context_temp(new BucketContext());
     const static char *redis_command = "HMGET";
@@ -796,8 +816,8 @@ every bucket has its own BucketContext for sending data---for locating reply-
   */
   virtual std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>>
   MgetCommand(
-      const Tensor &keys, ThreadContext *thread_context, const int64 begin,
-      const int64 max_i,
+      const Tensor &keys, ThreadContext *thread_context, const int64_t begin,
+      const int64_t max_i,
       const std::vector<std::string> &keys_prefix_name_slices) override {
     const int argc = (max_i - begin) + 2;
 
@@ -858,7 +878,7 @@ every bucket has its own BucketContext for sending data---for locating reply-
   inline void CopyDefaultToTensor(const bool is_full_default, const V *pv_raw,
                                   const V *dft_raw,
                                   const V *const dft_raw_begin,
-                                  const int64 Velems_per_dim0) {
+                                  const int64_t Velems_per_dim0) {
     if (is_full_default) {
       DefaultMemcpyToTensor<V>(
           pv_raw, dft_raw,
@@ -875,8 +895,8 @@ every bucket has its own BucketContext for sending data---for locating reply-
       ThreadContext *thread_context,
       std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>>
           &reply,
-      const int64 begin, const int64 max_i,
-      const int64 Velems_per_dim0) override {
+      const int64_t begin, const int64_t max_i,
+      const int64_t Velems_per_dim0) override {
     const V *pv_raw =
         reinterpret_cast<const V *>(values->tensor_data().data()) +
         begin * Velems_per_dim0;
@@ -925,8 +945,8 @@ every bucket has its own BucketContext for sending data---for locating reply-
       const bool is_full_default, ThreadContext *thread_context,
       std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>>
           &reply,
-      const int64 begin, const int64 max_i,
-      const int64 Velems_per_dim0) override {
+      const int64_t begin, const int64_t max_i,
+      const int64_t Velems_per_dim0) override {
     const V *pv_raw =
         reinterpret_cast<const V *>(values->tensor_data().data()) +
         begin * Velems_per_dim0;
@@ -940,7 +960,7 @@ every bucket has its own BucketContext for sending data---for locating reply-
 
     redisReply *temp_reply;
     bool print_once = false;
-    for (int64 i = 0, j = begin; i < max_i - begin;
+    for (int64_t i = 0, j = begin; i < max_i - begin;
          ++i, ++j, pv_raw += Velems_per_dim0, dft_raw += Velems_per_dim0) {
       if (reply[0] != nullptr) {
         if (reply[0]->type == REDIS_REPLY_ARRAY) {
@@ -976,7 +996,7 @@ every bucket has its own BucketContext for sending data---for locating reply-
 
   virtual Status MsetCommand(
       const Tensor &keys, const Tensor &values, ThreadContext *thread_context,
-      const int64 begin, const int64 max_i, const int64 Velems_per_dim0,
+      const int64_t begin, const int64_t max_i, const int64_t Velems_per_dim0,
       const std::vector<std::string> &keys_prefix_name_slices) override {
     const int &&total = max_i - begin;
     const int &&argc = total * 2 + 2;
@@ -1053,8 +1073,8 @@ every bucket has its own BucketContext for sending data---for locating reply-
 
   virtual Status MaccumCommand(
       const Tensor &keys, const Tensor &values_or_delta, const Tensor &exists,
-      ThreadContext *thread_context, const int64 begin, const int64 max_i,
-      const int64 Velems_per_dim0,
+      ThreadContext *thread_context, const int64_t begin, const int64_t max_i,
+      const int64_t Velems_per_dim0,
       const std::vector<std::string> &keys_prefix_name_slices) override {
     const int &&total = max_i - begin;
     const int &&argc = total * 2 + 4;
@@ -1141,8 +1161,8 @@ every bucket has its own BucketContext for sending data---for locating reply-
   }
 
   virtual Status DelCommand(
-      const Tensor &keys, ThreadContext *thread_context, const int64 begin,
-      const int64 max_i,
+      const Tensor &keys, ThreadContext *thread_context, const int64_t begin,
+      const int64_t max_i,
       const std::vector<std::string> &keys_prefix_name_slices) override {
     const int argc = (max_i - begin) + 2;
 

@@ -172,8 +172,6 @@ class RedisWrapper<RedisInstance, K, V,
       } catch (const std::exception &err) {
         LOG(ERROR) << "RedisHandler error in PipeExecRead for slices "
                    << hkey.data() << " -- " << err.what();
-        error_ptr = std::current_exception();
-        throw(err);
       }
     } else {
       return nullptr;
@@ -194,8 +192,6 @@ class RedisWrapper<RedisInstance, K, V,
       } catch (const std::exception &err) {
         LOG(ERROR) << "RedisHandler error in PipeExecWrite for slices "
                    << hkey.data() << " -- " << err.what();
-        error_ptr = std::current_exception();
-        throw(err);
       }
     } else {
       return nullptr;
@@ -497,7 +493,7 @@ class RedisWrapper<RedisInstance, K, V,
   }
 
   virtual std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> MgetInBucket(
-      const Tensor &keys, const int64 begin, const int64 max_i,
+      const Tensor &keys, const int64_t begin, const int64_t max_i,
       const std::string &keys_prefix_name_slice) override {
     std::unique_ptr<BucketContext> bucket_context_temp(new BucketContext());
     const static char *redis_command = "HMGET";
@@ -937,8 +933,8 @@ every bucket has its own BucketContext for sending data---for locating reply-
   */
   virtual std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>>
   MgetCommand(
-      const Tensor &keys, ThreadContext *thread_context, const int64 begin,
-      const int64 max_i,
+      const Tensor &keys, ThreadContext *thread_context, const int64_t begin,
+      const int64_t max_i,
       const std::vector<std::string> &keys_prefix_name_slices) override {
     const int &&total = max_i - begin;
     const int &&argc = total + 2;
@@ -953,7 +949,7 @@ every bucket has its own BucketContext for sending data---for locating reply-
 
     const unsigned &storage_slice = redis_connection_params.storage_slice;
     const unsigned &&vector_len =
-        (static_cast<int64>(reinterpret_cast<int>(argc)) /
+        (static_cast<int64_t>(reinterpret_cast<int>(argc)) /
          redis_connection_params.storage_slice) +
         2;
 
@@ -968,7 +964,8 @@ every bucket has its own BucketContext for sending data---for locating reply-
     unsigned *pbucket_loc = thread_context->bucket_locs->data();
     unsigned key_bucket_locs = 0;
     for (; pk_raw != pk_raw_end; ++pk_raw) {
-      key_bucket_locs = KBucketNum<K>(pk_raw, storage_slice);
+      key_bucket_locs =
+          KBucketNum<K>(this->K_bucket_num_handle, pk_raw, storage_slice);
       // The bucket to which the key belongs is recorded to facilitate future
       // memory writes that do not recompute the redis hash
       *pbucket_loc = key_bucket_locs;
@@ -1003,7 +1000,7 @@ every bucket has its own BucketContext for sending data---for locating reply-
     try {
       for (unsigned i = 0; i < storage_slice; ++i) {
         results.emplace_back(
-            network_worker_pool->enqueue([this, &cmd, &thread_context, i] {
+            network_worker_pool->enqueue([this, &cmd, thread_context, i] {
               return PipeExecRead(cmd, 3U, thread_context->buckets[i]);
             }));
       }
@@ -1019,7 +1016,7 @@ every bucket has its own BucketContext for sending data---for locating reply-
   inline void CopyDefaultToTensor(const bool is_full_default, const V *pv_raw,
                                   const V *dft_raw,
                                   const V *const dft_raw_begin,
-                                  const int64 Velems_per_dim0) {
+                                  const int64_t Velems_per_dim0) {
     if (is_full_default) {
       DefaultMemcpyToTensor<V>(
           pv_raw, dft_raw,
@@ -1036,8 +1033,8 @@ every bucket has its own BucketContext for sending data---for locating reply-
       ThreadContext *thread_context,
       std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>>
           &reply,
-      const int64 begin, const int64 max_i,
-      const int64 Velems_per_dim0) override {
+      const int64_t begin, const int64_t max_i,
+      const int64_t Velems_per_dim0) override {
     const V *pv_raw =
         reinterpret_cast<const V *>(values->tensor_data().data()) +
         begin * Velems_per_dim0;
@@ -1096,8 +1093,8 @@ every bucket has its own BucketContext for sending data---for locating reply-
       const bool is_full_default, ThreadContext *thread_context,
       std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>>
           &reply,
-      const int64 begin, const int64 max_i,
-      const int64 Velems_per_dim0) override {
+      const int64_t begin, const int64_t max_i,
+      const int64_t Velems_per_dim0) override {
     const V *pv_raw =
         reinterpret_cast<const V *>(values->tensor_data().data()) +
         begin * Velems_per_dim0;
@@ -1117,7 +1114,7 @@ every bucket has its own BucketContext for sending data---for locating reply-
     redisReply *temp_reply;
     bool print_once[storage_slice];
     memset(print_once, false, sizeof(print_once));
-    for (int64 i = 0, j = begin; i < (max_i - begin);
+    for (int64_t i = 0, j = begin; i < (max_i - begin);
          ++i, ++j, pv_raw += Velems_per_dim0, dft_raw += Velems_per_dim0) {
       bucket_loc = (*bucket_locs)[i];
       if (reply[bucket_loc] != nullptr) {
@@ -1157,7 +1154,7 @@ every bucket has its own BucketContext for sending data---for locating reply-
 
   virtual Status MsetCommand(
       const Tensor &keys, const Tensor &values, ThreadContext *thread_context,
-      const int64 begin, const int64 max_i, const int64 Velems_per_dim0,
+      const int64_t begin, const int64_t max_i, const int64_t Velems_per_dim0,
       const std::vector<std::string> &keys_prefix_name_slices) override {
     const int &&total = max_i - begin;
     const int &&argc = total * 2 + 2;
@@ -1177,7 +1174,7 @@ every bucket has its own BucketContext for sending data---for locating reply-
 
     const unsigned &storage_slice = redis_connection_params.storage_slice;
     const unsigned &&vector_len =
-        (static_cast<int64>(reinterpret_cast<int>(argc)) /
+        (static_cast<int64_t>(reinterpret_cast<int>(argc)) /
          redis_connection_params.storage_slice) +
         2;
 
@@ -1198,7 +1195,8 @@ every bucket has its own BucketContext for sending data---for locating reply-
       VCATS_temp = VContentAndTypeSize<V>(VCATS_temp, Velems_per_dim0,
                                           V_byte_size, pv_raw, buff_temp[i]);
       key_bucket_locs =
-          KBucketNum<K>(pk_raw, storage_slice);  // TODO: change it to AVX512
+          KBucketNum<K>(this->K_bucket_num_handle, pk_raw,
+                        storage_slice);  // TODO: change it to AVX512
 
       // Direct access to Tensor data in TensorFlow
       thread_context->HandlePushBack(
@@ -1226,7 +1224,7 @@ every bucket has its own BucketContext for sending data---for locating reply-
     try {
       for (unsigned i = 0; i < storage_slice; ++i) {
         results.emplace_back(
-            network_worker_pool->enqueue([this, &cmd, &thread_context, i] {
+            network_worker_pool->enqueue([this, &cmd, thread_context, i] {
               return PipeExecWrite(cmd, 4U, thread_context->buckets[i]);
             }));
       }
@@ -1246,8 +1244,8 @@ every bucket has its own BucketContext for sending data---for locating reply-
 
   virtual Status MaccumCommand(
       const Tensor &keys, const Tensor &values_or_delta, const Tensor &exists,
-      ThreadContext *thread_context, const int64 begin, const int64 max_i,
-      const int64 Velems_per_dim0,
+      ThreadContext *thread_context, const int64_t begin, const int64_t max_i,
+      const int64_t Velems_per_dim0,
       const std::vector<std::string> &keys_prefix_name_slices) override {
     const int &&total = max_i - begin;
     const int &&argc = total * 2 + 4;
@@ -1270,7 +1268,7 @@ every bucket has its own BucketContext for sending data---for locating reply-
 
     const unsigned &storage_slice = redis_connection_params.storage_slice;
     const unsigned &&vector_len =
-        (static_cast<int64>(reinterpret_cast<int>(argc)) /
+        (static_cast<int64_t>(reinterpret_cast<int>(argc)) /
          redis_connection_params.storage_slice) +
         4;
 
@@ -1292,7 +1290,8 @@ every bucket has its own BucketContext for sending data---for locating reply-
       VCATS_temp = VContentAndTypeSize<V>(VCATS_temp, Velems_per_dim0,
                                           V_byte_size, pv_raw, buff_temp[i]);
       key_bucket_locs =
-          KBucketNum<K>(pk_raw, storage_slice);  // TODO: change it to AVX512
+          KBucketNum<K>(this->K_bucket_num_handle, pk_raw,
+                        storage_slice);  // TODO: change it to AVX512
 
       // Direct access to Tensor data in TensorFlow
       thread_context->HandlePushBack(
@@ -1327,7 +1326,7 @@ every bucket has its own BucketContext for sending data---for locating reply-
     try {
       for (unsigned i = 0; i < storage_slice; ++i) {
         results.emplace_back(
-            network_worker_pool->enqueue([this, &cmd, &thread_context, i] {
+            network_worker_pool->enqueue([this, &cmd, thread_context, i] {
               return PipeExecWrite(cmd, 6U, thread_context->buckets[i]);
             }));
       }
@@ -1346,8 +1345,8 @@ every bucket has its own BucketContext for sending data---for locating reply-
   }
 
   virtual Status DelCommand(
-      const Tensor &keys, ThreadContext *thread_context, const int64 begin,
-      const int64 max_i,
+      const Tensor &keys, ThreadContext *thread_context, const int64_t begin,
+      const int64_t max_i,
       const std::vector<std::string> &keys_prefix_name_slices) override {
     const int &&total = max_i - begin;
     const int &&argc = total + 2;
@@ -1362,7 +1361,7 @@ every bucket has its own BucketContext for sending data---for locating reply-
 
     const unsigned &storage_slice = redis_connection_params.storage_slice;
     const unsigned &&vector_len =
-        (static_cast<int64>(reinterpret_cast<int>(argc)) /
+        (static_cast<int64_t>(reinterpret_cast<int>(argc)) /
          redis_connection_params.storage_slice) +
         2;
 
@@ -1377,7 +1376,8 @@ every bucket has its own BucketContext for sending data---for locating reply-
     unsigned *pbucket_loc = thread_context->bucket_locs->data();
     unsigned key_bucket_locs = 0;
     for (; pk_raw != pk_raw_end; ++pk_raw) {
-      key_bucket_locs = KBucketNum<K>(pk_raw, storage_slice);
+      key_bucket_locs =
+          KBucketNum<K>(this->K_bucket_num_handle, pk_raw, storage_slice);
       // The bucket to which the key belongs is recorded to facilitate future
       // memory writes that do not recompute the redis hash
       *pbucket_loc = key_bucket_locs;
@@ -1407,7 +1407,7 @@ every bucket has its own BucketContext for sending data---for locating reply-
     try {
       for (unsigned i = 0; i < storage_slice; ++i) {
         results.emplace_back(
-            network_worker_pool->enqueue([this, &cmd, &thread_context, i] {
+            network_worker_pool->enqueue([this, &cmd, thread_context, i] {
               return PipeExecWrite(cmd, 3U, thread_context->buckets[i]);
             }));
       }

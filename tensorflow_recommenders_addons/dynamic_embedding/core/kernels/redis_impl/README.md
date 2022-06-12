@@ -24,7 +24,7 @@ Below is an example of a JSON file, along with comments on the corresponding pro
 **Attention! Json files cannot contain comments when actually used!**
 ```json
 {
-      "redis_connection_mode": 1,  // ClusterMode = 0, SentinelMode = 1, StreamMode = 2
+      "redis_connection_mode": 2,  // ClusterMode = 0, SentinelMode = 1, StandaloneMode = 2
       "redis_master_name": "master",
 
       // connection_options
@@ -44,14 +44,20 @@ Below is an example of a JSON file, along with comments on the corresponding pro
       "redis_connection_lifetime": 100,  // minutes
 
       // sentinel_connection_options
+      "redis_sentinel_user": "default",
+      "redis_sentinel_password": "",
       "redis_sentinel_connect_timeout": 1000,  // milliseconds
       "redis_sentinel_socket_timeout": 1000,  // milliseconds
 
       // Below there is user-defined parameters in this custom op, not Redis setting parameters
       "storage_slice_import": 2, // If storage_slice_import is not equal to storage_slice, rehash will happen. Equaling -1 means same as storage_slice.
       "storage_slice": 2,  // For deciding bucket number, which usually is how many Redis instance may be used in the trainning.
+      "using_hash_storage_slice":
+          False,  // If True, IDs will be calculated hash(CRC32) value and then MOD to decide which bucket number they belong to. If False, only calculate the remainder.
       "keys_sending_size": 1024,  // Determines how many keys to send at a time for performance tuning
       "using_md5_prefix_name": False,  // 1=true, 0=false
+      "redis_hash_tags_hypodispersion":
+          False,  // distribution of storag_slice will be hypodispersion in 16354 regardless cluster slot, but still depends on redis_hash_tags_import/runtime if they aren't empty.
       "model_tag_import": "test",  // model_tag_import for version and any other information from last time.
       "redis_hash_tags_import": ["{6379}","{26379}"], // Deciding hash tag for every bucket from last time, Note that the hash tag must be wrapped in curly braces {}.
       "model_tag_runtime": "test",  // model_tag_runtime for version and any other information for now.

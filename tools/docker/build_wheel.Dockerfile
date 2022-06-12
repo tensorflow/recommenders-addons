@@ -43,6 +43,8 @@ RUN python -m pip install -r /install_deps/pytest.txt
 COPY requirements.txt .
 RUN python -m pip install -r requirements.txt
 
+RUN python -m pip install --upgrade protobuf==3.20.0
+
 COPY ./ /recommenders-addons
 WORKDIR /recommenders-addons
 
@@ -85,6 +87,8 @@ FROM python:$PY_VERSION as test_wheel_in_fresh_environment
 ARG TF_VERSION
 ARG TF_NAME
 RUN python -m pip install --default-timeout=1000 $TF_NAME==$TF_VERSION
+
+RUN python -m pip install --upgrade protobuf==3.20.0
 
 COPY --from=make_wheel /recommenders-addons/wheelhouse/ /recommenders-addons/wheelhouse/
 RUN pip install /recommenders-addons/wheelhouse/*.whl

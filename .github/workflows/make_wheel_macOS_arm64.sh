@@ -11,6 +11,7 @@ export TF_NEED_CUDA=0
 
 python --version
 
+RUN python -m pip install --upgrade protobuf==3.20.0
 python configure.py
 
 bazel build \

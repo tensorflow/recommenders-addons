@@ -2,11 +2,13 @@
 FROM python:3.7 as build_wheel
 
 ARG TF_VERSION=2.5.1
-ARG USE_BAZEL_VERSION=3.7.2
+ARG USE_BAZEL_VERSION=5.1.1
 ARG MPI_VERSION="4.1.1"
 ARG HOROVOD_VERSION="0.23.0"
 
 RUN pip install --default-timeout=1000 tensorflow-cpu==$TF_VERSION
+
+RUN python -m pip install --upgrade protobuf==3.20.0
 
 RUN apt-get update && apt-get install -y sudo rsync cmake openmpi-bin libopenmpi-dev
 
@@ -24,6 +26,9 @@ RUN pip install -r pytest.txt pytest-cov
 
 COPY ./ /recommenders-addons
 WORKDIR recommenders-addons
+
+RUN python -m pip install --upgrade protobuf==3.20.0
+
 RUN python configure.py
 RUN pip install -e ./
 RUN --mount=type=cache,id=cache_bazel,target=/root/.cache/bazel \
@@ -41,6 +46,8 @@ COPY tools/install_deps/tensorflow-cpu.txt ./
 RUN pip install --default-timeout=1000 --upgrade --force-reinstall -r tensorflow-cpu.txt
 
 COPY --from=0 /recommenders-addons/artifacts /artifacts
+
+RUN python -m pip install --upgrade protobuf==3.20.0
 
 RUN pip install /artifacts/tensorflow_recommenders_addons-*.whl
 

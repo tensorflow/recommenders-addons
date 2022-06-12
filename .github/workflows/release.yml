@@ -17,7 +17,7 @@ on:
 env:
   MIN_PY_VERSION: '3.7'
   MAX_PY_VERSION: '3.9'
-  USE_BAZEL_VERSION: "3.7.2"
+  USE_BAZEL_VERSION: "5.1.1"
   HOROVOD_VERSION: '0.23.0'
 
 jobs:
@@ -34,6 +34,7 @@ jobs:
           pip install --default-timeout=1000 -r tools/install_deps/pytest.txt -r tools/install_deps/tensorflow-cpu.txt -r requirements.txt
           sudo apt install -y redis > /dev/null 2> /dev/null
           bash tools/install_deps/install_bazelisk.sh ./
+          python -m pip install --upgrade protobuf==3.20.0
           python configure.py
           bazel test -c opt -k --test_timeout 300,450,1200,3600 --test_output=errors //tensorflow_recommenders_addons/...
   release-wheel:
@@ -167,11 +168,15 @@ jobs:
     name: Upload dev container to DockerHub
     needs: [release-wheel, test-with-bazel]
     runs-on: ubuntu-18.04
+    strategy:
+      matrix:
+        py-version: ['3.7', '3.8', '3.9']
     if: (github.event_name == 'push' && github.ref == 'refs/heads/master')
     steps:
       - uses: actions/checkout@v2
       - run: |
           set -e -x
           echo ${{ secrets.DOCKER_PW }} | docker login --username ${{ secrets.DOCKER_USER }} --password-stdin
+          export PY_VERSION=${{ matrix.py-version }}
           bash .github/workflows/github_build_dev_container.sh
-          docker push tfra/dev_container:latest-cpu
+          docker push tfra/dev_container:latest-python${{ matrix.py-version }}
