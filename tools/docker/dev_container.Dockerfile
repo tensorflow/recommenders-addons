@@ -8,7 +8,7 @@ FROM tensorflow/build:latest-python$PY_VERSION as dev_container
 ARG TF_PACKAGE
 ARG TF_VERSION
 
-RUN apt-get install --reinstall python3-apt
+RUN apt-get update && apt-get install --reinstall -y python3-apt
 RUN pip uninstall $TF_PACKAGE -y
 RUN pip install --default-timeout=1000 $TF_PACKAGE==$TF_VERSION
 
