@@ -28,12 +28,18 @@ bash tools/install_so_files.sh
 # one worker per cpu core. Kokoro has 38 cores, that'd be too much
 # for the gpu memory, until we change the device placement to
 # use multiple gpus when they are available.
-EXTRA_ARGS="-n 10"
+EXTRA_ARGS="-n 1"
 if ! [ -x "$(command -v nvidia-smi)" ]; then
   EXTRA_ARGS="-n auto"
 fi
 
-mpirun -np 2 -H localhost:2 --allow-run-as-root pytest -v ./tensorflow_recommenders_addons/dynamic_embedding/python/kernel_tests/horovod_sync_train_test.py
+# TODO(jamesrong): Test on GPU.
+CUDA_VISIBLE_DEVICES="" mpirun -np 2 -H localhost:2 --allow-run-as-root pytest -v ./tensorflow_recommenders_addons/dynamic_embedding/python/kernel_tests/horovod_sync_train_test.py
 
-python -m pytest -v -s --functions-durations=20 --modules-durations=5 $EXTRA_ARGS ./tensorflow_recommenders_addons
+# Only use GPU 0 if available.
+if [ -x "$(command -v nvidia-smi)" ]; then
+  export CUDA_VISIBLE_DEVICES=0
+fi
+
+python -m pytest -v -s --functions-durations=20 --modules-durations=5 $EXTRA_ARGS ./tensorflow_recommenders_addons/dynamic_embedding/python/kernel_tests/
 
