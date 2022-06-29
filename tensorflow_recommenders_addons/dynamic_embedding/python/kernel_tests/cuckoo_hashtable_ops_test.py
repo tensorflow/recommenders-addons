@@ -55,6 +55,46 @@ class CuckooHashtableTest(test.TestCase):
         self.assertTrue(dev_str in printed.contents())
         self.assertTrue("_size={}".format(expect_size) in printed.contents())
 
+  @test_util.run_in_graph_and_eager_modes()
+  def test_cuckoo_hashtable_save_hdfs(self):
+    self.skipTest('Only test for hdfs export, need hdfs path.')
+    initializer = tf.keras.initializers.RandomNormal()
+    dim = 8
+
+    test_devices = ['/CPU:0']
+    for idx, device in enumerate(test_devices):
+      var1 = de.get_variable('vmas142_' + str(idx),
+                             key_dtype=tf.int64,
+                             value_dtype=tf.float32,
+                             initializer=initializer,
+                             devices=[device],
+                             dim=dim)
+      var2 = de.get_variable('lfwa031_' + str(idx),
+                             key_dtype=tf.int64,
+                             value_dtype=tf.float32,
+                             initializer=initializer,
+                             devices=[device],
+                             dim=dim)
+      init_keys = tf.range(0, 10000, dtype=tf.int64)
+      init_values = var1.lookup(init_keys)
+
+      with self.session():
+        self.evaluate(var1.upsert(init_keys, init_values))
+
+        np_keys = self.evaluate(init_keys)
+        np_values = self.evaluate(init_values)
+
+        filepath = "hdfs://path_to_test"
+        self.evaluate(var1.tables[0].save_to_hdfs(filepath, buffer_size=4096))
+        self.evaluate(var2.tables[0].load_from_hdfs(filepath, buffer_size=4096))
+        load_keys, load_values = self.evaluate(var2.export())
+        sort_idx = load_keys.argsort()
+        load_keys = load_keys[sort_idx[::1]]
+        load_values = load_values[sort_idx[::1]]
+
+        self.assertAllEqual(np_keys, load_keys)
+        self.assertAllEqual(np_values, load_values)
+
 
 if __name__ == "__main__":
   test.main()

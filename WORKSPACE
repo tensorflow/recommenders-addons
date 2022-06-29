@@ -54,6 +54,16 @@ http_archive(
     url = "https://github.com/sewenew/redis-plus-plus/archive/refs/tags/1.2.3.zip",
 )
 
+http_archive(
+    name = "hadoop",
+    build_file = "//third_party:hadoop.BUILD",
+    sha256 = "fa9d0587d06c36838e778081bcf8271a9c63060af00b3bf456423c1777a62043",
+    strip_prefix = "hadoop-rel-release-3.3.0",
+    urls = [
+        "https://github.com/apache/hadoop/archive/refs/tags/rel/release-3.3.0.tar.gz",
+    ],
+)
+
 tf_configure(
     name = "local_config_tf",
 )

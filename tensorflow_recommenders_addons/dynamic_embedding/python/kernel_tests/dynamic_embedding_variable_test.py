@@ -630,6 +630,89 @@ class VariableTest(test.TestCase):
 
       del table
 
+  def test_save_restore_hdfs(self):
+    self.skipTest('Only test for hdfs export, need hdfs path.')
+    if context.executing_eagerly():
+      self.skipTest('skip eager test when using legacy Saver.')
+    save_dir = os.path.join(self.get_temp_dir(), "save_restore")
+    save_path = os.path.join(tempfile.mkdtemp(prefix=save_dir), "hash")
+
+    with self.session(config=default_config, graph=ops.Graph()) as sess:
+      v0 = variables.Variable(10.0, name="v0")
+      v1 = variables.Variable(20.0, name="v1")
+
+      keys = constant_op.constant([0, 1, 2], dtypes.int64)
+      values = constant_op.constant([[0.0], [1.0], [2.0]], dtypes.float32)
+      table = de.Variable(
+          key_dtype=dtypes.int64,
+          value_dtype=dtypes.float32,
+          initializer=-1.0,
+          name="t1",
+          dim=1,
+      )
+
+      save = saver.Saver(var_list=[v0, v1])
+      self.evaluate(variables.global_variables_initializer())
+
+      # Check that the parameter nodes have been initialized.
+      self.assertEqual(10.0, self.evaluate(v0))
+      self.assertEqual(20.0, self.evaluate(v1))
+
+      self.assertAllEqual(0, self.evaluate(table.size()))
+      self.evaluate(table.upsert(keys, values))
+      self.assertAllEqual(3, self.evaluate(table.size()))
+
+      # save table
+      for k, v in enumerate(table.tables):
+        self.evaluate(
+            v.save_to_hdfs("hdfs://path_to_test" + str(k), buffer_size=4096))
+
+      val = save.save(sess, save_path)
+      self.assertIsInstance(val, six.string_types)
+      self.assertEqual(save_path, val)
+
+      del table
+
+    with self.session(config=default_config, graph=ops.Graph()) as sess:
+      v0 = variables.Variable(-1.0, name="v0")
+      v1 = variables.Variable(-1.0, name="v1")
+      table = de.Variable(
+          name="t1",
+          key_dtype=dtypes.int64,
+          value_dtype=dtypes.float32,
+          initializer=-1.0,
+          dim=1,
+          checkpoint=True,
+      )
+      self.evaluate(
+          table.upsert(
+              constant_op.constant([0, 1], dtypes.int64),
+              constant_op.constant([[12.0], [24.0]], dtypes.float32),
+          ))
+      size_op = table.size()
+      self.assertAllEqual(2, self.evaluate(size_op))
+
+      save = saver.Saver(var_list=[v0, v1])
+
+      # Restore the saved values in the parameter nodes.
+      save.restore(sess, save_path)
+      # load table
+      for k, v in enumerate(table.tables):
+        self.evaluate(
+            v.load_from_hdfs("hdfs://path_to_test" + str(k), buffer_size=4096))
+      # Check that the parameter nodes have been restored.
+      self.assertEqual([10.0], self.evaluate(v0))
+      self.assertEqual([20.0], self.evaluate(v1))
+
+      self.assertAllEqual(3, self.evaluate(table.size()))
+
+      remove_keys = constant_op.constant([5, 0, 1, 2, 6], dtypes.int64)
+      output = table.lookup(remove_keys)
+      self.assertAllEqual([[-1.0], [0.0], [1.0], [2.0], [-1.0]],
+                          self.evaluate(output))
+
+      del table
+
   def test_save_restore_only_table(self):
     if context.executing_eagerly():
       self.skipTest('skip eager test when using legacy Saver.')
