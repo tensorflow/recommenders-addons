@@ -27,7 +27,10 @@ limitations under the License.
 #include "tensorflow/core/framework/types.h"
 #include "tensorflow/core/framework/variant.h"
 #include "tensorflow/core/lib/gtl/inlined_vector.h"
+#include "tensorflow/core/lib/io/buffered_inputstream.h"
+#include "tensorflow/core/lib/io/random_inputstream.h"
 #include "tensorflow_recommenders_addons/dynamic_embedding/core/lib/cuckoo/cuckoohash_map.hh"
+#include "tensorflow_recommenders_addons/dynamic_embedding/core/lib/hadoop_file_system/hadoop_file_system.h"
 #include "tensorflow_recommenders_addons/dynamic_embedding/core/utils/types.h"
 
 namespace tensorflow {
@@ -135,6 +138,12 @@ class TableWrapperBase {
   virtual Status export_values(OpKernelContext* ctx, int64 value_dim) {
     return Status::OK();
   }
+  virtual Status save_to_hdfs(OpKernelContext* ctx, int64 value_dim,
+                              const string& filepath,
+                              const size_t buffer_size) {}
+  virtual Status load_from_hdfs(OpKernelContext* ctx, int64 value_dim,
+                                const string& filepath,
+                                const size_t buffer_size) {}
 };
 
 template <class K, class V, size_t DIM>
@@ -234,6 +243,79 @@ class TableWrapperOptimized final : public TableWrapperBase<K, V> {
       for (int64 j = 0; j < value_dim; j++) {
         values_data(i, j) = value.at(j);
       }
+    }
+    return Status::OK();
+  }
+
+  Status save_to_hdfs(OpKernelContext* ctx, int64 value_dim,
+                      const string& filepath,
+                      const size_t buffer_size) override {
+    size_t dim = static_cast<size_t>(value_dim);
+    auto lt = table_->lock_table();
+
+    HadoopFileSystem hdfs;
+    std::unique_ptr<WritableFile> writer;
+    const string tmp_file = filepath + ".tmp";
+    TF_RETURN_IF_ERROR(hdfs.NewWritableFile(tmp_file, &writer));
+
+    const uint32 value_len = sizeof(V) * dim;
+    const uint32 record_len = sizeof(K) + value_len;
+    uint64 pos = 0;
+    uint8 content[buffer_size + record_len];
+
+    for (auto it = lt.begin(); it != lt.end(); ++it) {
+      K k = it->first;
+      std::memcpy(content + pos, reinterpret_cast<uint8*>(&k), sizeof(K));
+
+      const auto& jt = it->second.data();
+      std::memcpy(content + pos + sizeof(K), reinterpret_cast<uint8*>(jt),
+                  value_len);
+
+      pos += record_len;
+      if (pos > buffer_size) {
+        TF_RETURN_IF_ERROR(
+            writer->Append(StringPiece(reinterpret_cast<char*>(content), pos)));
+        pos = 0;
+      }
+    }
+
+    if (pos > 0) {
+      TF_RETURN_IF_ERROR(
+          writer->Append(StringPiece(reinterpret_cast<char*>(content), pos)));
+    }
+
+    TF_RETURN_IF_ERROR(writer->Close());
+    TF_RETURN_IF_ERROR(hdfs.RenameFile(tmp_file, filepath));
+    return Status::OK();
+  }
+
+  Status load_from_hdfs(OpKernelContext* ctx, int64 value_dim,
+                        const string& filepath,
+                        const size_t buffer_size) override {
+    size_t dim = static_cast<size_t>(value_dim);
+
+    HadoopFileSystem hdfs;
+    std::unique_ptr<RandomAccessFile> file;
+    TF_RETURN_IF_ERROR(hdfs.NewRandomAccessFile(filepath, &file));
+    std::unique_ptr<io::RandomAccessInputStream> input_stream(
+        new io::RandomAccessInputStream(file.get()));
+    io::BufferedInputStream reader(input_stream.get(), buffer_size);
+
+    uint64 file_size = 0;
+    TF_RETURN_IF_ERROR(hdfs.GetFileSize(filepath, &file_size));
+
+    tstring content;
+    const uint32 value_len = sizeof(V) * dim;
+    const uint32 record_len = sizeof(K) + value_len;
+    uint64 i = 0;
+
+    while (i < file_size) {
+      TF_RETURN_IF_ERROR(reader.ReadNBytes(record_len, &content));
+      K* k = reinterpret_cast<K*>(content.data());
+      ValueType* value_vec =
+          reinterpret_cast<ValueType*>(content.data() + sizeof(K));
+      table_->insert_or_assign(*k, *value_vec);
+      i += record_len;
     }
     return Status::OK();
   }
