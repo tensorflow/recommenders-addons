@@ -116,9 +116,13 @@ class TableWrapperBase {
  public:
   virtual ~TableWrapperBase() {}
   virtual bool insert_or_assign(K key, ConstTensor2D<V>& value_flat,
-                                int64 value_dim, int64 index) {}
+                                int64 value_dim, int64 index) {
+    return false;
+  }
   virtual bool insert_or_accum(K key, ConstTensor2D<V>& value_or_delta_flat,
-                               bool exist, int64 value_dim, int64 index) {}
+                               bool exist, int64 value_dim, int64 index) {
+    return false;
+  }
   virtual void find(const K& key, Tensor2D<V>& value_flat,
                     ConstTensor2D<V>& default_flat, int64 value_dim,
                     bool is_full_size_default, int64 index) const {}
@@ -126,7 +130,7 @@ class TableWrapperBase {
                     ConstTensor2D<V>& default_flat, bool& exist,
                     int64 value_dim, bool is_full_size_default,
                     int64 index) const {}
-  virtual size_t size() const {}
+  virtual size_t size() const { return 0; }
   virtual void clear() {}
   virtual bool erase(const K& key) {}
   virtual Status export_values(OpKernelContext* ctx, int64 value_dim) {}
