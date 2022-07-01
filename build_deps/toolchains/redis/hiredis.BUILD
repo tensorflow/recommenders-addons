@@ -24,5 +24,5 @@ cmake(
         "-DCMAKE_INSTALL_LIBDIR=lib",
     ],
     lib_source = "@hiredis//:all_srcs",
-    out_static_libs = ["libhiredis_static.a"],
+    out_static_libs = ["libhiredis.a"],
 )
