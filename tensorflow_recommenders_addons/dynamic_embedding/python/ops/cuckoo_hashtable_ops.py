@@ -338,6 +338,53 @@ class CuckooHashTable(LookupInterface):
             self.resource_handle, self._key_dtype, self._value_dtype)
     return keys, values
 
+  def save(self, filepath, buffer_size=4194304, name=None):
+    """
+    Returns an operation to save the keys and values in table to
+    filepath. The keys and values will be stored in files with
+    suffix ".keys" and ".values", appended to the filepath.
+
+    Args:
+      filepath: A path to save the table.
+      name: Name for the operation.
+      buffer_size: Number of kv pairs buffer write to file.
+
+    Returns:
+      An operation to save the table.
+    """
+    with ops.name_scope(name, "%s_save_table" % self.name,
+                        [self.resource_handle]):
+      with ops.colocate_with(None, ignore_existing=True):
+        return cuckoo_ops.tfra_cuckoo_hash_table_export_to_file(
+            self.resource_handle,
+            filepath,
+            key_dtype=self._key_dtype,
+            value_dtype=self._value_dtype,
+            buffer_size=buffer_size)
+
+  def load(self, filepath, buffer_size=4194304, name=None):
+    """
+    Returns an operation to load keys and values to table from
+    file. The keys and values files are generated from `save`.
+
+    Args:
+      filepath: A file path stored the table keys and values.
+      name: Name for the operation.
+      buffer_size: Number of kv pairs buffer to read file.
+
+    Returns:
+      An operation to load keys and values to table from file.
+    """
+    with ops.name_scope(name, "%s_load_table" % self.name,
+                        [self.resource_handle]):
+      with ops.colocate_with(None, ignore_existing=True):
+        return cuckoo_ops.tfra_cuckoo_hash_table_import_from_file(
+            self.resource_handle,
+            filepath,
+            key_dtype=self._key_dtype,
+            value_dtype=self._value_dtype,
+            buffer_size=buffer_size)
+
   def _gather_saveables_for_checkpoint(self):
     """For object-based checkpointing."""
     # full_name helps to figure out the name-based Saver's name for this saveable.

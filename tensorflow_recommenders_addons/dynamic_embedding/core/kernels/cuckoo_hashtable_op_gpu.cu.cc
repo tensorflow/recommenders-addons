@@ -56,10 +56,10 @@ class CuckooHashTableOfTensorsGpu final : public LookupInterface {
       Status status = ReadInt64FromEnvVar("TF_HASHTABLE_INIT_SIZE",
                                           1024 * 8,  // 8192 KV pairs by default
                                           &env_var);
-      min_size_ = (size_t)env_var;
+      min_size_ = (size_t)env_var / 2;
       max_size_ = (size_t)env_var;
     } else {
-      min_size_ = init_size;
+      min_size_ = init_size / 2;
       max_size_ = init_size;
     }
 
@@ -176,47 +176,68 @@ class CuckooHashTableOfTensorsGpu final : public LookupInterface {
   }
 
   void RehashIfNeeded(cudaStream_t stream) {
-    K* d_keys;
-    gpu::ValueArrayBase<V>* d_values;
-    size_t* d_dump_counter;
-    size_t new_max_size = max_size_;
+    RehashIfNeeded(stream, min_size_);
+  }
 
-    size_t total_size = table_->get_size(stream);
+  void RehashIfNeeded(cudaStream_t stream, size_t expecting) {
+    K* d_keys = nullptr;
+    gpu::ValueArrayBase<V>* d_values = nullptr;
+    size_t* d_dump_counter;
+    size_t capacity = table_->get_capacity();
+
+    size_t cur_size = table_->get_size(stream);
+    expecting += cur_size;
+    expecting = max(min_size_, expecting);
+
     CUDA_CHECK(cudaStreamSynchronize(stream));
-    if (total_size >= 0.75 * max_size_) {
-      new_max_size = max_size_ * 2;
+    size_t new_max_size = capacity;
+    bool need_rehash = false;
+    while (expecting > 0.75 * new_max_size) {
+      new_max_size *= 2;
+      need_rehash = true;
     }
-    if (total_size < 0.25 * max_size_ && max_size_ > min_size_) {
-      new_max_size = max_size_ / 2;
+    if (expecting < 0.25 * capacity) {
+      new_max_size = capacity / 2;
+      need_rehash = true;
     }
-    if (new_max_size != max_size_) {  // rehash manually.
-      size_t capacity = table_->get_capacity();
+
+    if (need_rehash) {
+      LOG(INFO) << "Need to rehash GPU HashTable, where capacity=" << capacity
+                << ", current_size=" << cur_size << " and expecting "
+                << expecting;
       size_t h_dump_counter = 0;
-      CUDA_CHECK(cudaMallocManaged((void**)&d_dump_counter, sizeof(size_t)));
-      CUDA_CHECK(cudaMallocManaged((void**)&d_keys, sizeof(K) * capacity));
-      CUDA_CHECK(cudaMallocManaged((void**)&d_values,
-                                   sizeof(V) * runtime_dim_ * capacity));
-      table_->dump(d_keys, (gpu::ValueArrayBase<V>*)d_values, 0, capacity,
-                   d_dump_counter, stream);
-      CUDA_CHECK(cudaStreamSynchronize(stream));
+
+      if (cur_size > 0) {
+        CUDA_CHECK(cudaMallocManaged((void**)&d_dump_counter, sizeof(size_t)));
+        CUDA_CHECK(cudaMallocManaged((void**)&d_keys, sizeof(K) * cur_size));
+        CUDA_CHECK(cudaMallocManaged((void**)&d_values,
+                                     sizeof(V) * runtime_dim_ * cur_size));
+        table_->dump(d_keys, (gpu::ValueArrayBase<V>*)d_values, 0, capacity,
+                     d_dump_counter, stream);
+        cudaMemcpyAsync(&h_dump_counter, d_dump_counter, sizeof(size_t),
+                        cudaMemcpyDeviceToHost, stream);
+        CUDA_CHECK(cudaStreamSynchronize(stream));
+      }
 
       delete table_;
       table_ = NULL;
       CreateTable(new_max_size, &table_);
-      CUDA_CHECK(cudaStreamSynchronize(stream));
-      CUDA_CHECK(cudaMemcpy((size_t*)&h_dump_counter, (size_t*)d_dump_counter,
-                            sizeof(size_t), cudaMemcpyDefault));
-      table_->upsert((const K*)d_keys, (const gpu::ValueArrayBase<V>*)d_values,
-                     h_dump_counter, stream);
-      CUDA_CHECK(cudaStreamSynchronize(stream));
-      CUDA_CHECK(cudaFree(d_keys));
-      CUDA_CHECK(cudaFree(d_values));
-      CUDA_CHECK(cudaFree(d_dump_counter));
+
+      if (cur_size > 0) {
+        table_->upsert((const K*)d_keys,
+                       (const gpu::ValueArrayBase<V>*)d_values, h_dump_counter,
+                       stream);
+        cudaStreamSynchronize(stream);
+        cudaFree(d_keys);
+        cudaFree(d_values);
+        cudaFree(d_dump_counter);
+      }
       max_size_ = new_max_size;
+
       LOG(INFO) << "HashTable on GPU changes to new status: [size="
-                << total_size << ", max_size=" << max_size_
+                << h_dump_counter << ", max_size=" << max_size_
                 << ", load factor=" << std::setprecision(2)
-                << (float)total_size / (float)max_size_ << "].";
+                << (float)h_dump_counter / (float)max_size_ << "].";
     }
   }
 
@@ -227,7 +248,7 @@ class CuckooHashTableOfTensorsGpu final : public LookupInterface {
     CUDA_CHECK(cudaStreamCreate(&_stream));
     {
       mutex_lock l(mu_);
-      RehashIfNeeded(_stream);
+      RehashIfNeeded(_stream, len);
       table_->upsert((const K*)keys.tensor_data().data(),
                      (const gpu::ValueArrayBase<V>*)values.tensor_data().data(),
                      len, _stream);
@@ -245,7 +266,7 @@ class CuckooHashTableOfTensorsGpu final : public LookupInterface {
     CUDA_CHECK(cudaStreamCreate(&_stream));
     {
       mutex_lock l(mu_);
-      RehashIfNeeded(_stream);
+      RehashIfNeeded(_stream, len);
       table_->accum(
           (const K*)keys.tensor_data().data(),
           (const gpu::ValueArrayBase<V>*)values_or_deltas.tensor_data().data(),
@@ -300,6 +321,7 @@ class CuckooHashTableOfTensorsGpu final : public LookupInterface {
     if (len > 0) {
       cudaStream_t _stream;
       CUDA_CHECK(cudaStreamCreate(&_stream));
+      RehashIfNeeded(_stream, len);
       CUDA_CHECK(cudaMallocManaged((void**)&d_keys, sizeof(K) * len));
       CUDA_CHECK(
           cudaMallocManaged((void**)&d_values, sizeof(V) * runtime_dim_ * len));
@@ -360,6 +382,54 @@ class CuckooHashTableOfTensorsGpu final : public LookupInterface {
       CUDA_CHECK(cudaStreamSynchronize(_stream));
     }
     CUDA_CHECK(cudaFree(d_dump_counter));
+    CUDA_CHECK(cudaStreamDestroy(_stream));
+    return Status::OK();
+  }
+
+  Status ExportValuesToFile(OpKernelContext* ctx, const string filepath,
+                            const size_t buffer_size) {
+    cudaStream_t _stream;
+    CUDA_CHECK(cudaStreamCreate(&_stream));
+
+    {
+      tf_shared_lock l(mu_);
+      table_->dump_to_file(ctx, filepath, runtime_dim_, _stream, buffer_size);
+      CUDA_CHECK(cudaStreamSynchronize(_stream));
+    }
+    CUDA_CHECK(cudaStreamDestroy(_stream));
+    return Status::OK();
+  }
+
+  Status ImportValuesFromFile(OpKernelContext* ctx, const string filepath,
+                              const size_t buffer_size) {
+    cudaStream_t _stream;
+    CUDA_CHECK(cudaStreamCreate(&_stream));
+
+    {
+      tf_shared_lock l(mu_);
+
+      string keyfile = filepath + ".keys";
+      FILE* tmpfd = fopen(keyfile.c_str(), "rb");
+      if (tmpfd == nullptr) {
+        return errors::NotFound("Failed to read key file", keyfile);
+      }
+      fseek(tmpfd, 0, SEEK_END);
+      long int filesize = ftell(tmpfd);
+      if (filesize <= 0) {
+        fclose(tmpfd);
+        return errors::NotFound("Empty key file.");
+      }
+      size_t size = static_cast<size_t>(filesize) / sizeof(K);
+      fseek(tmpfd, 0, SEEK_SET);
+      fclose(tmpfd);
+
+      table_->clear(_stream);
+      CUDA_CHECK(cudaStreamSynchronize(_stream));
+      RehashIfNeeded(_stream, size);
+      table_->load_from_file(ctx, filepath, size, runtime_dim_, _stream,
+                             buffer_size);
+      CUDA_CHECK(cudaStreamSynchronize(_stream));
+    }
     CUDA_CHECK(cudaStreamDestroy(_stream));
     return Status::OK();
   }
@@ -602,6 +672,36 @@ REGISTER_KERNEL_BUILDER(
     Name(PREFIX_OP_NAME(CuckooHashTableExport)).Device(DEVICE_GPU),
     HashTableExportGpuOp);
 
+// Op that export all keys and values to file.
+template <class K, class V>
+class HashTableExportToFileGpuOp : public OpKernel {
+ public:
+  explicit HashTableExportToFileGpuOp(OpKernelConstruction* ctx)
+      : OpKernel(ctx) {
+    int64 signed_buffer_size = 0;
+    ctx->GetAttr("buffer_size", &signed_buffer_size);
+    buffer_size_ = static_cast<size_t>(signed_buffer_size);
+  }
+
+  void Compute(OpKernelContext* ctx) override {
+    lookup::LookupInterface* table;
+    OP_REQUIRES_OK(ctx, GetLookupTable("table_handle", ctx, &table));
+    core::ScopedUnref unref_me(table);
+
+    const Tensor& ftensor = ctx->input(1);
+    OP_REQUIRES(ctx, TensorShapeUtils::IsScalar(ftensor.shape()),
+                errors::InvalidArgument("filepath must be scalar."));
+    string filepath = string(ftensor.scalar<tstring>()().data());
+    lookup::CuckooHashTableOfTensorsGpu<K, V>* table_cuckoo =
+        (lookup::CuckooHashTableOfTensorsGpu<K, V>*)table;
+    OP_REQUIRES_OK(
+        ctx, table_cuckoo->ExportValuesToFile(ctx, filepath, buffer_size_));
+  }
+
+ private:
+  size_t buffer_size_;
+};
+
 // Clear the table and insert data.
 class HashTableImportGpuOp : public OpKernel {
  public:
@@ -628,33 +728,76 @@ REGISTER_KERNEL_BUILDER(
     Name(PREFIX_OP_NAME(CuckooHashTableImport)).Device(DEVICE_GPU),
     HashTableImportGpuOp);
 
+// Op that import from file.
+template <class K, class V>
+class HashTableImportFromFileGpuOp : public OpKernel {
+ public:
+  explicit HashTableImportFromFileGpuOp(OpKernelConstruction* ctx)
+      : OpKernel(ctx) {
+    int64 signed_buffer_size = 0;
+    ctx->GetAttr("buffer_size", &signed_buffer_size);
+    buffer_size_ = static_cast<size_t>(signed_buffer_size);
+  }
+
+  void Compute(OpKernelContext* ctx) override {
+    lookup::LookupInterface* table;
+    OP_REQUIRES_OK(ctx, GetLookupTable("table_handle", ctx, &table));
+    core::ScopedUnref unref_me(table);
+
+    const Tensor& ftensor = ctx->input(1);
+    OP_REQUIRES(ctx, TensorShapeUtils::IsScalar(ftensor.shape()),
+                errors::InvalidArgument("filepath must be scalar."));
+    string filepath = string(ftensor.scalar<tstring>()().data());
+    lookup::CuckooHashTableOfTensorsGpu<K, V>* table_cuckoo =
+        (lookup::CuckooHashTableOfTensorsGpu<K, V>*)table;
+    OP_REQUIRES_OK(
+        ctx, table_cuckoo->ImportValuesFromFile(ctx, filepath, buffer_size_));
+  }
+
+ private:
+  size_t buffer_size_;
+};
+
 // Register the CuckooHashTableOfTensors op.
 
-#define REGISTER_KERNEL(key_dtype, value_dtype)                            \
-  REGISTER_KERNEL_BUILDER(                                                 \
-      Name(PREFIX_OP_NAME(CuckooHashTableOfTensors))                       \
-          .Device(DEVICE_GPU)                                              \
-          .TypeConstraint<key_dtype>("key_dtype")                          \
-          .TypeConstraint<value_dtype>("value_dtype"),                     \
-      HashTableGpuOp<                                                      \
-          lookup::CuckooHashTableOfTensorsGpu<key_dtype, value_dtype>,     \
-          key_dtype, value_dtype>);                                        \
-  REGISTER_KERNEL_BUILDER(Name(PREFIX_OP_NAME(CuckooHashTableClear))       \
-                              .Device(DEVICE_GPU)                          \
-                              .TypeConstraint<key_dtype>("key_dtype")      \
-                              .TypeConstraint<value_dtype>("value_dtype"), \
-                          HashTableClearGpuOp<key_dtype, value_dtype>)     \
-  REGISTER_KERNEL_BUILDER(Name(PREFIX_OP_NAME(CuckooHashTableAccum))       \
-                              .Device(DEVICE_GPU)                          \
-                              .TypeConstraint<key_dtype>("key_dtype")      \
-                              .TypeConstraint<value_dtype>("value_dtype"), \
-                          HashTableAccumGpuOp<key_dtype, value_dtype>)     \
-  REGISTER_KERNEL_BUILDER(                                                 \
-      Name(PREFIX_OP_NAME(CuckooHashTableFindWithExists))                  \
-          .Device(DEVICE_GPU)                                              \
-          .TypeConstraint<key_dtype>("Tin")                                \
-          .TypeConstraint<value_dtype>("Tout"),                            \
-      HashTableFindWithExistsGpuOp<key_dtype, value_dtype>)
+#define REGISTER_KERNEL(key_dtype, value_dtype)                                \
+  REGISTER_KERNEL_BUILDER(                                                     \
+      Name(PREFIX_OP_NAME(CuckooHashTableOfTensors))                           \
+          .Device(DEVICE_GPU)                                                  \
+          .TypeConstraint<key_dtype>("key_dtype")                              \
+          .TypeConstraint<value_dtype>("value_dtype"),                         \
+      HashTableGpuOp<                                                          \
+          lookup::CuckooHashTableOfTensorsGpu<key_dtype, value_dtype>,         \
+          key_dtype, value_dtype>);                                            \
+  REGISTER_KERNEL_BUILDER(Name(PREFIX_OP_NAME(CuckooHashTableClear))           \
+                              .Device(DEVICE_GPU)                              \
+                              .TypeConstraint<key_dtype>("key_dtype")          \
+                              .TypeConstraint<value_dtype>("value_dtype"),     \
+                          HashTableClearGpuOp<key_dtype, value_dtype>);        \
+  REGISTER_KERNEL_BUILDER(Name(PREFIX_OP_NAME(CuckooHashTableAccum))           \
+                              .Device(DEVICE_GPU)                              \
+                              .TypeConstraint<key_dtype>("key_dtype")          \
+                              .TypeConstraint<value_dtype>("value_dtype"),     \
+                          HashTableAccumGpuOp<key_dtype, value_dtype>);        \
+  REGISTER_KERNEL_BUILDER(Name(PREFIX_OP_NAME(CuckooHashTableExportToFile))    \
+                              .Device(DEVICE_GPU)                              \
+                              .HostMemory("filepath")                          \
+                              .TypeConstraint<key_dtype>("key_dtype")          \
+                              .TypeConstraint<value_dtype>("value_dtype"),     \
+                          HashTableExportToFileGpuOp<key_dtype, value_dtype>); \
+  REGISTER_KERNEL_BUILDER(                                                     \
+      Name(PREFIX_OP_NAME(CuckooHashTableImportFromFile))                      \
+          .Device(DEVICE_GPU)                                                  \
+          .HostMemory("filepath")                                              \
+          .TypeConstraint<key_dtype>("key_dtype")                              \
+          .TypeConstraint<value_dtype>("value_dtype"),                         \
+      HashTableImportFromFileGpuOp<key_dtype, value_dtype>);                   \
+  REGISTER_KERNEL_BUILDER(                                                     \
+      Name(PREFIX_OP_NAME(CuckooHashTableFindWithExists))                      \
+          .Device(DEVICE_GPU)                                                  \
+          .TypeConstraint<key_dtype>("Tin")                                    \
+          .TypeConstraint<value_dtype>("Tout"),                                \
+      HashTableFindWithExistsGpuOp<key_dtype, value_dtype>);
 
 REGISTER_KERNEL(int64, float);
 REGISTER_KERNEL(int64, Eigen::half);
