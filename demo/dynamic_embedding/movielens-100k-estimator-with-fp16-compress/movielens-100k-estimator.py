@@ -165,19 +165,35 @@ def export_for_serving(model_dir, export_dir, ps_num):
   estimator.export_saved_model(export_dir, serving_input_receiver_dense_fn())
 
 
+def test(export_dir):
+  model = tf.saved_model.load(export_dir).signatures["serving_default"]
+  total_loss = 0.0
+  total_batch = 0
+  for data in input_fn():
+    out = model(movie_id=data['movie_id'],
+                user_id=data['user_id'],
+                user_rating=data['user_rating'])
+    loss = tf.keras.losses.MeanSquaredError()(data['user_rating'], out['out'])
+    total_loss += loss.numpy()
+    total_batch = total_batch + 1
+  print(f"Loss: {total_loss / total_batch}")
+
+
 def main(argv):
   del argv
   tf_config = json.loads(os.environ.get('TF_CONFIG') or '{}')
   task_name = tf_config.get('task', {}).get('type')
   task_idx = tf_config.get('task', {}).get('index')
 
-  ps_num = len(tf_config["cluster"]["ps"])
+  ps_num = len(tf_config.get("cluster", {}).get("ps", []))
 
   if FLAGS.mode == "train":
     train(FLAGS.model_dir, ps_num)
   if FLAGS.mode == "serving" and task_name == "chief" and int(task_idx) == 0:
     tfra.dynamic_embedding.enable_inference_mode()
     export_for_serving(FLAGS.model_dir, FLAGS.export_dir, ps_num)
+  if FLAGS.mode == "test":
+    test(FLAGS.export_dir)
 
 
 if __name__ == "__main__":
