@@ -104,7 +104,10 @@ def DynamicEmbeddingOptimizer(self, bp_v2=False, synchronous=False):
           var._track_optimizer_slots(_slots)
 
           with ops.control_dependencies([grad]):
-            v0 = var.read_value(do_prefetch=not var.params.bp_v2)
+            if isinstance(var, de.shadow_ops.ShadowVariable):
+              v0 = var.read_value(do_prefetch=False)
+            else:
+              v0 = var.read_value(do_prefetch=not var.params.bp_v2)
             s0 = [_s.read_value() for _s in _slots]
             _before = [v0] + s0
 
@@ -396,6 +399,7 @@ def create_slots(primary, init, slot_name, op_name, bp_v2):
           devices=params_var_.devices,
           partitioner=params_var_.partition_fn,
           initializer=init,
+          init_size=params_var_.init_size,
           kv_creator=params_var_.kv_creator,
           trainable=False,
           checkpoint=params_var_.checkpoint,
