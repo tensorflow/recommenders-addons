@@ -77,6 +77,9 @@ class _DenseDynamicEmbeddingTrainableProcessor(optimizer._OptimizableVariable):
     # pylint: disable=protected-access
     # for better convergence:
 
+    if not self._v.params.trainable:
+      return control_flow_ops.no_op()
+
     with ops.colocate_with(None, ignore_existing=True):
       _slots = [
           optimizer.get_slot(self._v, _s) for _s in optimizer.get_slot_names()

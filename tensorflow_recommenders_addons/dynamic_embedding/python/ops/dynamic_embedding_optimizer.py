@@ -96,6 +96,9 @@ def DynamicEmbeddingOptimizer(self, bp_v2=False, synchronous=False):
         else:
           return update_op
       else:
+        if not var.params.trainable:
+          return control_flow_ops.no_op()
+
         with ops.colocate_with(None, ignore_existing=True):
           _slots = [self.get_slot(var, _s) for _s in self.get_slot_names()]
           var._track_optimizer_slots(_slots)
