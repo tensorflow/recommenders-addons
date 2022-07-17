@@ -102,7 +102,9 @@ def DynamicEmbeddingOptimizer(self, bp_v2=False, synchronous=False):
 
           with ops.control_dependencies([grad]):
             v0 = var.read_value(do_prefetch=not var.params.bp_v2)
-            s0 = [_s.read_value() for _s in _slots]
+            s0 = [
+                _s.read_value(do_prefetch=not var.params.bp_v2) for _s in _slots
+            ]
             _before = [v0] + s0
 
           if isinstance(grad, ops.IndexedSlices):
