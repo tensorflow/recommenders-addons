@@ -362,14 +362,21 @@ class Variable(base.Trackable):
     while callable(init):
       if isinstance(init, valid_list):
         self.initializer = init
-        init = init(shape=[1])
+        init = init(shape=[dim])
       else:
         try:
           init = init(shape=[1])
         except:
           init = init()
     try:
-      init = array_ops.reshape(init, [dim])
+      init_dims = init.get_shape().as_list()
+      init_dims_mul = 1
+      for init_d in init_dims:
+        init_dims_mul = init_dims_mul * init_d
+      if init_dims_mul == dim:
+        init = array_ops.reshape(init, [dim])
+      else:
+        raise ValueError
     except:
       init = array_ops.fill([dim], array_ops.reshape(init, [-1])[0])
     init = math_ops.cast(init, dtype=self.value_dtype)
