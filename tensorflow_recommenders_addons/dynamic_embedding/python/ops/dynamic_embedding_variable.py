@@ -282,9 +282,10 @@ class Variable(base.Trackable):
       self._restrict_policy = None
 
     valid_dtype_list = [[dtypes.int64, dtypes.float32],
+                        [dtypes.int64, dtypes.half],
+                        [dtypes.int64, dtypes.bfloat16],
                         [dtypes.int64,
-                         dtypes.half], [dtypes.int64, dtypes.int32],
-                        [dtypes.int64, dtypes.int8],
+                         dtypes.int32], [dtypes.int64, dtypes.int8],
                         [dtypes.int64, dtypes.int64],
                         [dtypes.int64, dtypes.float64],
                         [dtypes.int64, dtypes.string],
@@ -293,6 +294,7 @@ class Variable(base.Trackable):
                         [dtypes.int32, dtypes.float64],
                         [dtypes.string, dtypes.float32],
                         [dtypes.string, dtypes.half],
+                        [dtypes.string, dtypes.bfloat16],
                         [dtypes.string, dtypes.int32],
                         [dtypes.string, dtypes.int8],
                         [dtypes.string, dtypes.int64],
@@ -308,9 +310,9 @@ class Variable(base.Trackable):
           [dtypes.int32, dtypes.float32],
       ]
     if is_macos() and is_arm64():
-      if value_dtype == dtypes.half:
+      if value_dtype == dtypes.half or value_dtype == dtypes.bfloat16:
         raise TypeError("""
-          float16 value dtype is not supported on macOS with ARM64 architecture. Please try another type.
+          float16 and bfloat16 value dtypes are not supported on macOS with ARM64 architecture. Please try another type.
           """)
     if [key_dtype, value_dtype] not in valid_dtype_list:
       raise TypeError(
