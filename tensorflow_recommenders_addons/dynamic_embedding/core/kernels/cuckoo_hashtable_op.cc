@@ -774,6 +774,7 @@ REGISTER_KERNEL(int64, int64);
 REGISTER_KERNEL(int64, tstring);
 REGISTER_KERNEL(int64, int8);
 REGISTER_KERNEL(int64, Eigen::half);
+REGISTER_KERNEL(int64, bfloat16);
 REGISTER_KERNEL(tstring, bool);
 REGISTER_KERNEL(tstring, double);
 REGISTER_KERNEL(tstring, float);
@@ -781,6 +782,7 @@ REGISTER_KERNEL(tstring, int32);
 REGISTER_KERNEL(tstring, int64);
 REGISTER_KERNEL(tstring, int8);
 REGISTER_KERNEL(tstring, Eigen::half);
+REGISTER_KERNEL(tstring, bfloat16);
 
 #undef REGISTER_KERNEL
 

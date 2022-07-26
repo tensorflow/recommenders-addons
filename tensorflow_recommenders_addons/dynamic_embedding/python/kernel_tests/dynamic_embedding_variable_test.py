@@ -70,6 +70,7 @@ def _type_converter(tf_type):
       dtypes.float64: np.float64,
       dtypes.string: np.str,
       dtypes.half: np.float16,
+      dtypes.bfloat16: dtypes.bfloat16.as_numpy_dtype,
       dtypes.int8: np.int8,
       dtypes.bool: np.bool,
   }
@@ -378,7 +379,8 @@ class VariableTest(test.TestCase):
                  [dtypes.int64, dtypes.float32], [dtypes.int64, dtypes.int32],
                  [dtypes.int64, dtypes.int64], [dtypes.int64, dtypes.string],
                  [dtypes.int64, dtypes.int8], [dtypes.int64, dtypes.half],
-                 [dtypes.string, dtypes.double],
+                 [dtypes.int64,
+                  dtypes.bfloat16], [dtypes.string, dtypes.double],
                  [dtypes.string, dtypes.float32], [dtypes.string, dtypes.int32],
                  [dtypes.string, dtypes.int64], [dtypes.string, dtypes.int8],
                  [dtypes.string, dtypes.half]]
@@ -388,9 +390,9 @@ class VariableTest(test.TestCase):
 
     for (key_dtype, value_dtype), dim in itertools.product(kv_list, dim_list):
       id += 1
-      # Skip float16 tests if the platform is macOS arm64 architecture
+      # Skip float16 and bfloat16 tests if the platform is macOS arm64 architecture
       if is_macos() and is_arm64():
-        if value_dtype == dtypes.half:
+        if value_dtype == dtypes.half or value_dtype == dtypes.bfloat16:
           continue
       with self.session(config=default_config,
                         use_gpu=test_util.is_gpu_available()) as sess:
@@ -451,7 +453,8 @@ class VariableTest(test.TestCase):
                  [dtypes.int32, dtypes.int32], [dtypes.int64, dtypes.double],
                  [dtypes.int64, dtypes.float32], [dtypes.int64, dtypes.int32],
                  [dtypes.int64, dtypes.int64], [dtypes.int64, dtypes.int8],
-                 [dtypes.int64, dtypes.half], [dtypes.string, dtypes.double],
+                 [dtypes.int64, dtypes.half], [dtypes.int64, dtypes.bfloat16],
+                 [dtypes.string, dtypes.double],
                  [dtypes.string, dtypes.float32], [dtypes.string, dtypes.int32],
                  [dtypes.string, dtypes.int64], [dtypes.string, dtypes.int8],
                  [dtypes.string, dtypes.half]]
@@ -461,9 +464,9 @@ class VariableTest(test.TestCase):
 
     for (key_dtype, value_dtype), dim in itertools.product(kv_list, dim_list):
       id += 1
-      # Skip float16 tests if the platform is macOS arm64 archtecture
+      # Skip float16 and bfloat16 tests if the platform is macOS arm64 archtecture
       if is_macos() and is_arm64():
-        if value_dtype == dtypes.half:
+        if value_dtype == dtypes.half or value_dtype == dtypes.bfloat16:
           continue
       with self.session(config=default_config,
                         use_gpu=test_util.is_gpu_available()) as sess:
