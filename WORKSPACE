@@ -64,12 +64,6 @@ http_archive(
     ],
 )
 
-# new_local_repository(
-#     name = "rocksdb",
-#     build_file = "//build_deps/toolchains/rocksdb:rocksdb.BUILD",
-#     path = "/usr/local"
-# )
-
 http_archive(
     name = "hadoop",
     build_file = "//third_party:hadoop.BUILD",

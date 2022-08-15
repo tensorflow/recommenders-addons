@@ -24,10 +24,15 @@ filegroup(
 #    out_static_libs = ["librocksdb.a"],
 #)
 
+# Enable this to use the precompiled library in our image.
 cc_library(
     name = "rocksdb",
-    srcs = ["lib/librocksdb.a"],
     includes = ["./include"],
     hdrs = glob(["rocksdb/*.h"]),
+    visibility = ["//visibility:public"],
+)
+cc_import(
+    name = "rocksdb_precompiled",
+    static_library = "librocksdb.a",
     visibility = ["//visibility:public"],
 )
