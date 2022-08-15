@@ -45,7 +45,7 @@ typedef uint32_t STRING_SIZE_TYPE;
 
 #define ROCKSDB_OK(EXPR)                                                  \
   do {                                                                    \
-    const ROCKSDB_NAMESPACE::Status s = EXPR;                             \
+    const ROCKSDB_NAMESPACE::Status s = (EXPR);                           \
     if (!s.ok()) {                                                        \
       std::ostringstream msg;                                             \
       msg << "RocksDB error " << s.code() << "; reason: " << s.getState() \
@@ -548,6 +548,28 @@ class RocksDBTableOfTensors final : public PersistentStorageLookupInterface {
   DataType value_dtype() const override { return DataTypeToEnum<V>::v(); }
   TensorShape value_shape() const override { return value_shape_; }
 
+  int64_t MemoryUsed() const override {
+    size_t mem_size = 0;
+    
+    mem_size += sizeof(RocksDBTableOfTensors);
+    mem_size += sizeof(ROCKSDB_NAMESPACE::DB);
+
+    db_->WithColumn<size_t>(embedding_name_, [&](ROCKSDB_NAMESPACE::ColumnFamilyHandle *const column_handle) {
+      for (size_t property : {
+        ROCKSDB_NAMESPACE::DB::Properties::kBlockCacheUsage,
+        ROCKSDB_NAMESPACE::DB::Properties::kEstimateTableReadersMem,
+        ROCKSDB_NAMESPACE::DB::Properties::kCurSizeAllMemTables,
+        ROCKSDB_NAMESPACE::DB::Properties::kBlockCachePinnedUsage
+      }) {
+        uint64_t tmp;
+        ROCKSDB_OK(db_->GetIntProperty(column_handle, property, &tmp))
+        mem_size += tmp;
+      }
+    });
+    
+    return mem_size;
+  }
+
   size_t size() const override {
     auto fn = [this](ROCKSDB_NAMESPACE::ColumnFamilyHandle *const column_handle)
         -> size_t {
@@ -559,7 +581,7 @@ class RocksDBTableOfTensors final : public PersistentStorageLookupInterface {
       // If allowed, try to just estimate of the number of keys.
       if (estimate_size_) {
         uint64_t num_keys;
-        if ((*db_)->GetIntProperty(
+        if (db_->GetIntProperty(
                 column_handle,
                 ROCKSDB_NAMESPACE::DB::Properties::kEstimateNumKeys,
                 &num_keys)) {
@@ -569,7 +591,7 @@ class RocksDBTableOfTensors final : public PersistentStorageLookupInterface {
 
       // Alternative method, walk the entire database column and count the keys.
       std::unique_ptr<ROCKSDB_NAMESPACE::Iterator> iter(
-          (*db_)->NewIterator(read_options_, column_handle));
+          db_->NewIterator(read_options_, column_handle));
       iter->SeekToFirst();
 
       size_t num_keys = 0;
@@ -582,7 +604,6 @@ class RocksDBTableOfTensors final : public PersistentStorageLookupInterface {
     return db_->WithColumn<size_t>(embedding_name_, fn);
   }
 
- public:
   /* --- LOOKUP ------------------------------------------------------------- */
   Status Clear(OpKernelContext *ctx) override {
     if (read_only_) {
