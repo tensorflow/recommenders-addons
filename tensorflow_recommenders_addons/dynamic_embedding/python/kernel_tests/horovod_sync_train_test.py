@@ -21,7 +21,6 @@ from __future__ import print_function
 import itertools
 import pytest
 import tensorflow as tf
-import horovod.tensorflow as hvd
 
 from tensorflow_recommenders_addons import dynamic_embedding as de
 
@@ -49,6 +48,16 @@ class HorovodTest(test.TestCase):
     self.common_minimize_trainable(base_opt, test_opt, name="adam")
 
   def common_minimize_trainable(self, base_opt, test_opt, name):
+    from tensorflow.python.framework.errors_impl import NotFoundError
+
+    # TODO(rhdong): Recover the testing, if the horovod import error is fixed on macOS+TF2.7+.
+    try:
+      import horovod.tensorflow as hvd
+    except NotFoundError:
+      self.skipTest(
+          "Skip the test for horovod import error with Tensorflow-2.7.0 on MacOS-12."
+      )
+
     tf.config.set_soft_device_placement(True)
     hvd.init()
     base_opt = de.DynamicEmbeddingOptimizer(base_opt, synchronous=True)

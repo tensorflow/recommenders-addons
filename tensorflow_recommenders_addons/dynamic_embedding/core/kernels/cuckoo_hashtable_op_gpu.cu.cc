@@ -115,7 +115,6 @@ class CuckooHashTableOfTensorsGpu final : public LookupInterface {
               const Tensor& default_value) override {
     size_t len = d_keys.flat<K>().size();
     bool* d_status;
-    gpu::ValueArrayBase<V>* d_default_value;
 
     auto value_flat = value->flat_inner_dims<V, 2>();
     const auto default_flat = default_value.flat<V>();
@@ -140,7 +139,6 @@ class CuckooHashTableOfTensorsGpu final : public LookupInterface {
         CUDA_CHECK(cudaStreamSynchronize(_stream));
       }
       CUDA_CHECK(cudaFree(d_status));
-      CUDA_CHECK(cudaFree(d_default_value));
       CUDA_CHECK(cudaStreamDestroy(_stream));
     }
     return Status::OK();
@@ -150,7 +148,6 @@ class CuckooHashTableOfTensorsGpu final : public LookupInterface {
                         Tensor* value, const Tensor& default_value,
                         Tensor* exists) {
     size_t len = d_keys.flat<K>().size();
-    gpu::ValueArrayBase<V>* d_default_value;
 
     auto value_flat = value->flat_inner_dims<V, 2>();
     const auto default_flat = default_value.flat<V>();
@@ -173,7 +170,6 @@ class CuckooHashTableOfTensorsGpu final : public LookupInterface {
                     _stream, is_full_default);
         CUDA_CHECK(cudaStreamSynchronize(_stream));
       }
-      CUDA_CHECK(cudaFree(d_default_value));
       CUDA_CHECK(cudaStreamDestroy(_stream));
     }
     return Status::OK();

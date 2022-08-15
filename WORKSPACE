@@ -54,20 +54,30 @@ http_archive(
     url = "https://github.com/sewenew/redis-plus-plus/archive/refs/tags/1.2.3.zip",
 )
 
-# Enable to build RocksDB from source.
-# http_archive(
-#     name = "rocksdb",
-#     build_file = "//build_deps/toolchains/rocksdb:rocksdb.BUILD",
-#     sha256 = "2df8f34a44eda182e22cf84dee7a14f17f55d305ff79c06fb3cd1e5f8831e00d",
-#     strip_prefix = "rocksdb-6.22.1",
-#     urls = [
-#         "https://github.com/facebook/rocksdb/archive/refs/tags/v6.22.1.tar.gz",
-#     ],
-# )
-new_local_repository(
+http_archive(
     name = "rocksdb",
     build_file = "//build_deps/toolchains/rocksdb:rocksdb.BUILD",
-    path = "/usr/local"
+    sha256 = "2df8f34a44eda182e22cf84dee7a14f17f55d305ff79c06fb3cd1e5f8831e00d",
+    strip_prefix = "rocksdb-6.22.1",
+    urls = [
+        "https://github.com/facebook/rocksdb/archive/refs/tags/v6.22.1.tar.gz",
+    ],
+)
+
+# new_local_repository(
+#     name = "rocksdb",
+#     build_file = "//build_deps/toolchains/rocksdb:rocksdb.BUILD",
+#     path = "/usr/local"
+# )
+
+http_archive(
+    name = "hadoop",
+    build_file = "//third_party:hadoop.BUILD",
+    sha256 = "fa9d0587d06c36838e778081bcf8271a9c63060af00b3bf456423c1777a62043",
+    strip_prefix = "hadoop-rel-release-3.3.0",
+    urls = [
+        "https://github.com/apache/hadoop/archive/refs/tags/rel/release-3.3.0.tar.gz",
+    ],
 )
 
 tf_configure(

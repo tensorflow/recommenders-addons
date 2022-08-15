@@ -304,6 +304,18 @@ class CuckooHashTableOfTensors final : public LookupInterface {
     return table_->export_values(ctx, value_dim);
   }
 
+  Status SaveToHDFS(OpKernelContext* ctx, const string& filepath,
+                    const size_t buffer_size) {
+    int64 value_dim = value_shape_.dim_size(0);
+    return table_->save_to_hdfs(ctx, value_dim, filepath, buffer_size);
+  }
+
+  Status LoadFromHDFS(OpKernelContext* ctx, const string& filepath,
+                      const size_t buffer_size) {
+    int64 value_dim = value_shape_.dim_size(0);
+    return table_->load_from_hdfs(ctx, value_dim, filepath, buffer_size);
+  }
+
   DataType key_dtype() const override { return DataTypeToEnum<K>::v(); }
 
   DataType value_dtype() const override { return DataTypeToEnum<V>::v(); }
@@ -607,6 +619,36 @@ class HashTableExportOp : public HashTableOpKernel {
   }
 };
 
+// Op that export all keys and values to HDFS.
+template <class K, class V>
+class HashTableSaveToHDFSOp : public HashTableOpKernel {
+ public:
+  explicit HashTableSaveToHDFSOp(OpKernelConstruction* ctx)
+      : HashTableOpKernel(ctx) {
+    int64 signed_buffer_size = 0;
+    ctx->GetAttr("buffer_size", &signed_buffer_size);
+    buffer_size_ = static_cast<size_t>(signed_buffer_size);
+  }
+
+  void Compute(OpKernelContext* ctx) override {
+    LookupInterface* table;
+    OP_REQUIRES_OK(ctx, GetTable(ctx, &table));
+    core::ScopedUnref unref_me(table);
+
+    const Tensor& ftensor = ctx->input(1);
+    OP_REQUIRES(ctx, TensorShapeUtils::IsScalar(ftensor.shape()),
+                errors::InvalidArgument("filepath must be scalar."));
+    string filepath = string(ftensor.scalar<tstring>()().data());
+
+    lookup::CuckooHashTableOfTensors<K, V>* table_cuckoo =
+        (lookup::CuckooHashTableOfTensors<K, V>*)table;
+    OP_REQUIRES_OK(ctx, table_cuckoo->SaveToHDFS(ctx, filepath, buffer_size_));
+  }
+
+ private:
+  size_t buffer_size_;
+};
+
 // Clear the table and insert data.
 class HashTableImportOp : public HashTableOpKernel {
  public:
@@ -635,6 +677,37 @@ class HashTableImportOp : public HashTableOpKernel {
                                                memory_used_before);
     }
   }
+};
+
+// Clear the table and insert data from HDFS.
+template <class K, class V>
+class HashTableLoadFromHDFSOp : public HashTableOpKernel {
+ public:
+  explicit HashTableLoadFromHDFSOp(OpKernelConstruction* ctx)
+      : HashTableOpKernel(ctx) {
+    int64 signed_buffer_size = 0;
+    ctx->GetAttr("buffer_size", &signed_buffer_size);
+    buffer_size_ = static_cast<size_t>(signed_buffer_size);
+  }
+
+  void Compute(OpKernelContext* ctx) override {
+    LookupInterface* table;
+    OP_REQUIRES_OK(ctx, GetTable(ctx, &table));
+    core::ScopedUnref unref_me(table);
+
+    const Tensor& ftensor = ctx->input(1);
+    OP_REQUIRES(ctx, TensorShapeUtils::IsScalar(ftensor.shape()),
+                errors::InvalidArgument("filepath must be scalar."));
+    string filepath = string(ftensor.scalar<tstring>()().data());
+
+    lookup::CuckooHashTableOfTensors<K, V>* table_cuckoo =
+        (lookup::CuckooHashTableOfTensors<K, V>*)table;
+    OP_REQUIRES_OK(ctx,
+                   table_cuckoo->LoadFromHDFS(ctx, filepath, buffer_size_));
+  }
+
+ private:
+  size_t buffer_size_;
 };
 
 REGISTER_KERNEL_BUILDER(
@@ -679,7 +752,17 @@ REGISTER_KERNEL_BUILDER(
                               .Device(DEVICE_CPU)                             \
                               .TypeConstraint<key_dtype>("Tin")               \
                               .TypeConstraint<value_dtype>("Tout"),           \
-                          HashTableFindWithExistsOp<key_dtype, value_dtype>);
+                          HashTableFindWithExistsOp<key_dtype, value_dtype>); \
+  REGISTER_KERNEL_BUILDER(Name(PREFIX_OP_NAME(CuckooHashTableSaveToHDFS))     \
+                              .Device(DEVICE_CPU)                             \
+                              .TypeConstraint<key_dtype>("key_dtype")         \
+                              .TypeConstraint<value_dtype>("value_dtype"),    \
+                          HashTableSaveToHDFSOp<key_dtype, value_dtype>);     \
+  REGISTER_KERNEL_BUILDER(Name(PREFIX_OP_NAME(CuckooHashTableLoadFromHDFS))   \
+                              .Device(DEVICE_CPU)                             \
+                              .TypeConstraint<key_dtype>("key_dtype")         \
+                              .TypeConstraint<value_dtype>("value_dtype"),    \
+                          HashTableLoadFromHDFSOp<key_dtype, value_dtype>);
 
 REGISTER_KERNEL(int32, double);
 REGISTER_KERNEL(int32, float);

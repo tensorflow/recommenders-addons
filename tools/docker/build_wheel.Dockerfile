@@ -67,7 +67,7 @@ ENV TF_CUDNN_VERSION=$TF_CUDNN_VERSION
 RUN python configure.py
 
 RUN bash tools/testing/build_and_run_tests.sh && \
-    bazel build \
+    bazel build --local_ram_resources=4096 \
         --noshow_progress \
         --noshow_loading_progress \
         --verbose_failures \
