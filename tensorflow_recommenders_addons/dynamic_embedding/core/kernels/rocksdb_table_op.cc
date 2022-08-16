@@ -611,13 +611,6 @@ class RocksDBTableOfTensors final : public PersistentStorageLookupInterface {
   }
 
   /* --- LOOKUP ------------------------------------------------------------- */
-  /*
-  Status Accum(OpKernelContext *ctx, const Tensor &keys,
-               const Tensor &values_or_delta, const Tensor &exists) {
-                
-               }
-  */
-
   Status Clear(OpKernelContext *ctx) override {
     if (read_only_) {
       return errors::PermissionDenied("Cannot clear in read_only mode.");
@@ -743,7 +736,7 @@ class RocksDBTableOfTensors final : public PersistentStorageLookupInterface {
         default_value.dtype() != value_dtype()) {
       return errors::InvalidArgument("The tensor dtypes are incompatible.");
     }
-    if (keys.dims() > values->dims()) {
+    if (keys.dims() > std::min(values->dims(), exists.dims())) {
       return errors::InvalidArgument("The tensor sizes are incompatible.");
     }
     for (int i = 0; i < keys.dims(); ++i) {
