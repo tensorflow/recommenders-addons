@@ -143,6 +143,20 @@ inline void put_value<tstring>(ROCKSDB_NAMESPACE::PinnableSlice &dst_,
   dst_.PinSelf();
 }
 
+template <class T>
+inline void add_value(ROCKSDB_NAMESPACE::PinnableSlice &dst, const T *src, const size_t &n) {
+  const T *acc = reinterpret_cast<T *>(dst.data());
+  const T *const acc_end = &acc[n];
+  for (; acc != acc_end; acc++, src++) {
+    *acc += *src;
+  }
+}
+
+template <>
+inline void add_value<tstring>(ROCKSDB_NAMESPACE::PinnableSlice &dst, const tstring *src, const size_t &n) {
+  throw std::runtime_error("String vectors cannot be accumulated!");
+}
+
 }  // namespace _if
 
 namespace _io {
@@ -611,6 +625,105 @@ class RocksDBTableOfTensors final : public PersistentStorageLookupInterface {
   }
 
   /* --- LOOKUP ------------------------------------------------------------- */
+  Status Accum(OpKernelContext *ctx, const Tensor &keys, const Tensor &values_or_delta, const Tensor &exists) {
+    if (keys.dtype() != key_dtype() || values_or_delta.dtype() != value_dtype()) {
+      return errors::InvalidArgument("The tensor dtypes are incompatible.");
+    }
+    if (keys.dims() > std::min(values_or_delta.dims(), exists.dims())) {
+      return errors::InvalidArgument("The tensor sizes are incompatible.");
+    }
+    for (int i = 0; i < keys.dims(); ++i) {
+      if (keys.dim_size(i) != values_or_delta.dim_size(i) || keys.dim_size(i) != exists.dim_size(i)) {
+        return errors::InvalidArgument("The tensor sizes are incompatible.");
+      }
+    }
+    if (keys.NumElements() == 0) {
+      return Status::OK();
+    }
+
+    const size_t num_keys = keys.NumElements();
+    const size_t num_values = values_or_delta.NumElements();
+    const size_t values_per_key = num_values / std::max(num_keys, 1UL);
+   
+    const K *const k = static_cast<K *>(keys.data());
+    const V *const v = static_cast<V *>(values_or_delta.data());
+    auto exists_flat = exists.flat<bool>();
+
+    return db_->WithColumn<Status>(embedding_name_, [&](ROCKSDB_NAMESPACE::DB* const db, ROCKSDB_NAMESPACE::ColumnFamilyHandle *const column_handle)
+        -> Status {
+      if (!column_handle) {
+      } else if (num_keys < BATCH_SIZE_MIN) {
+        ROCKSDB_NAMESPACE::Slice k_slice;
+
+        rocksdb::PinnableSlice v_slice;
+        for (size_t i = 0, offset = 0; i < num_keys; ++i, offset += values_per_key) {
+          _if::put_key(k_slice, &k[i]);
+          
+          const auto &status =
+              db->Get(read_options_, column_handle, k_slice, &v_slice);
+
+          if (status.ok()) {
+            _if::add_value(v_slice, &v[offset], values_per_key);
+            ROCKSDB_OK(db->Put(write_options_, column_handle, k_slice, v_slice));
+            exists_flat(i) = true;
+          } else if (status.IsNotFound()) {
+            exists_flat(i) = false;
+          } else {
+            throw std::runtime_error(status.getState());
+          }
+        }
+      } else {
+        // There is no point in filling this vector every time as long as it is
+        // big enough.
+        if (!column_handle_cache_.empty() &&
+            column_handle_cache_.front() != column_handle) {
+          std::fill(column_handle_cache_.begin(), column_handle_cache_.end(),
+                    column_handle);
+        }
+        if (column_handle_cache_.size() < num_keys) {
+          column_handle_cache_.insert(column_handle_cache_.end(),
+                                      num_keys - column_handle_cache_.size(),
+                                      column_handle);
+        }
+        
+        // Query all keys using a single Multi-Get.
+        std::vector<ROCKSDB_NAMESPACE::Slice> k_slices{num_keys};
+        for (size_t i = 0; i < num_keys; ++i) {
+          _if::put_key(k_slices[i], &k[i]);
+        }
+        std::vector<std::string> v_slices;
+
+        const auto &s = db->MultiGet(read_options_, column_handle_cache_,
+                                         k_slices, &v_slices);
+        if (s.size() != num_keys) {
+          std::ostringstream msg;
+          msg << "Requested " << num_keys << " keys, but only got " << s.size()
+              << " responses.";
+          throw std::runtime_error(msg.str());
+        }
+
+        // Process results.
+        for (size_t i = 0, offset = 0; i < num_keys;
+             ++i, offset += values_per_key) {
+          const auto &status = s[i];
+          const auto &v_slice = v_slices[i];
+
+          if (status.ok()) {
+            _if::add_value(v_slice, &v[offset], values_per_key);
+            ROCKSDB_OK(db->Put(write_options_, column_handle, k_slices[i], v_slice));
+            exists_flat(i) = true;
+          } else if (status.IsNotFound()) {
+            exists_flat(i) = false;
+          } else {
+            throw std::runtime_error(status.getState());
+          }
+        }
+      }
+
+      return Status::OK();
+    });
+  }
+
   Status Clear(OpKernelContext *ctx) override {
     if (read_only_) {
       return errors::PermissionDenied("Cannot clear in read_only mode.");
