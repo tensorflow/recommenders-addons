@@ -611,6 +611,13 @@ class RocksDBTableOfTensors final : public PersistentStorageLookupInterface {
   }
 
   /* --- LOOKUP ------------------------------------------------------------- */
+  /*
+  Status Accum(OpKernelContext *ctx, const Tensor &keys,
+               const Tensor &values_or_delta, const Tensor &exists) {
+                
+               }
+  */
+
   Status Clear(OpKernelContext *ctx) override {
     if (read_only_) {
       return errors::PermissionDenied("Cannot clear in read_only mode.");
@@ -656,20 +663,21 @@ class RocksDBTableOfTensors final : public PersistentStorageLookupInterface {
     return db_->WithColumn<Status>(embedding_name_, [&](ROCKSDB_NAMESPACE::DB* const db, ROCKSDB_NAMESPACE::ColumnFamilyHandle *const column_handle)
         -> Status {
       if (!column_handle) {
-        const K *const kEnd = &k[num_keys];
-        for (size_t offset = 0; k != kEnd; ++k, offset += values_per_key) {
+        const K *const k_end = &k[num_keys];
+        for (size_t offset = 0; k != k_end; ++k, offset += values_per_key) {
           std::copy_n(&d[offset % default_size], values_per_key, &v[offset]);
         }
       } else if (num_keys < BATCH_SIZE_MIN) {
         ROCKSDB_NAMESPACE::Slice k_slice;
 
-        const K *const k_end = &k[num_keys];
-        for (size_t offset = 0; k != k_end; ++k, offset += values_per_key) {
-          _if::put_key(k_slice, k);
-          std::string v_slice;
+        std::string v_slice;
+        for (size_t i = 0, offset = 0; i < num_keys; ++i, offset += values_per_key) {
+          _if::put_key(k_slice, &k[i]);
 
+          v_slice.clear();
           const auto &status =
               db->Get(read_options_, column_handle, k_slice, &v_slice);
+
           if (status.ok()) {
             _if::get_value(&v[offset], v_slice, values_per_key);
           } else if (status.IsNotFound()) {
@@ -739,7 +747,7 @@ class RocksDBTableOfTensors final : public PersistentStorageLookupInterface {
       return errors::InvalidArgument("The tensor sizes are incompatible.");
     }
     for (int i = 0; i < keys.dims(); ++i) {
-      if (keys.dim_size(i) != values->dim_size(i)) {
+      if (keys.dim_size(i) != values->dim_size(i) || keys.dim_size(i) != exists.dim_size(i)) {
         return errors::InvalidArgument("The tensor sizes are incompatible.");
       }
     }
@@ -767,24 +775,27 @@ class RocksDBTableOfTensors final : public PersistentStorageLookupInterface {
     return db_->WithColumn<Status>(embedding_name_, [&](ROCKSDB_NAMESPACE::DB* const db, ROCKSDB_NAMESPACE::ColumnFamilyHandle *const column_handle)
         -> Status {
       if (!column_handle) {
-        const K *const kEnd = &k[num_keys];
-        for (size_t offset = 0; k != kEnd; ++k, offset += values_per_key) {
+        const K *const k_end = &k[num_keys];
+        for (size_t offset = 0; k != k_end; ++k, offset += values_per_key) {
           std::copy_n(&d[offset % default_size], values_per_key, &v[offset]);
         }
       } else if (num_keys < BATCH_SIZE_MIN) {
         ROCKSDB_NAMESPACE::Slice k_slice;
 
-        const K *const k_end = &k[num_keys];
-        for (size_t offset = 0; k != k_end; ++k, offset += values_per_key) {
-          _if::put_key(k_slice, k);
-          std::string v_slice;
-
+        std::string v_slice;
+        for (size_t i = 0, offset = 0; i < num_keys; ++i, offset += values_per_key) {
+          _if::put_key(k_slice, &k[i]);
+          
+          v_slice.clear();
           const auto &status =
               db->Get(read_options_, column_handle, k_slice, &v_slice);
+
           if (status.ok()) {
             _if::get_value(&v[offset], v_slice, values_per_key);
+            exists_flat(i) = true;
           } else if (status.IsNotFound()) {
             std::copy_n(&d[offset % default_size], values_per_key, &v[offset]);
+            exists_flat(i) = false;
           } else {
             throw std::runtime_error(status.getState());
           }
