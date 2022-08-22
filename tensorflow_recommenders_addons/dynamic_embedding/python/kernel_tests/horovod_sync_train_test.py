@@ -19,7 +19,7 @@ from __future__ import division
 from __future__ import print_function
 
 import itertools
-import pytest
+import os
 import tensorflow as tf
 
 from tensorflow_recommenders_addons import dynamic_embedding as de
@@ -59,46 +59,58 @@ class HorovodTest(test.TestCase):
       )
 
     tf.config.set_soft_device_placement(True)
+
     hvd.init()
+
+    # These cases need 2 GPUs at least if available.
+    logical_devices = tf.config.list_logical_devices('GPU')
+    _device = "GPU" if len(logical_devices) >= hvd.size() else "CPU"
+    _device_id = hvd.local_rank(
+    ) if _device == "GPU" and len(logical_devices) >= 2 else 0
+
+    if _device == "GPU":
+      os.environ["CUDA_VISIBLE_DEVICES"] = str(_device_id)
+
     base_opt = de.DynamicEmbeddingOptimizer(base_opt, synchronous=True)
     for dtype, run_step, dim in itertools.product([dtypes.float32], [1], [10]):
-      x = tf.random.uniform(shape=[32, dim])
-      y = tf.zeros([32, 1])
+      print("device=", "/{}:{}".format(_device, _device_id))
+      with tf.device("/{}:{}".format(_device, _device_id)):
+        x = tf.random.uniform(shape=[32, dim])
+        y = tf.zeros([32, 1])
 
-      global_step = training_util.create_global_step()
+        global_step = training_util.create_global_step()
 
-      base_weight = tf.compat.v1.get_variable(name="base_weights",
-                                              initializer=tf.ones([10, 1]))
+        base_weight = tf.compat.v1.get_variable(name="base_weights",
+                                                initializer=tf.ones([10, 1]))
 
-      base_logits = tf.nn.relu(math_ops.matmul(x, base_weight))
-      base_loss = tf.nn.sigmoid_cross_entropy_with_logits(labels=y,
-                                                          logits=base_logits)
+        base_logits = tf.nn.relu(math_ops.matmul(x, base_weight))
+        base_loss = tf.nn.sigmoid_cross_entropy_with_logits(labels=y,
+                                                            logits=base_logits)
 
-      base_opt_op = base_opt.minimize(base_loss,
-                                      global_step,
-                                      var_list=[base_weight])
+        base_opt_op = base_opt.minimize(base_loss,
+                                        global_step,
+                                        var_list=[base_weight])
 
-      test_weight = tf.compat.v1.get_variable(name="test_weights",
-                                              initializer=tf.ones([10, 1]))
+        test_weight = tf.compat.v1.get_variable(name="test_weights",
+                                                initializer=tf.ones([10, 1]))
 
-      test_logits = tf.nn.relu(math_ops.matmul(x, test_weight))
-      test_loss = tf.nn.sigmoid_cross_entropy_with_logits(labels=y,
-                                                          logits=test_logits)
+        test_logits = tf.nn.relu(math_ops.matmul(x, test_weight))
+        test_loss = tf.nn.sigmoid_cross_entropy_with_logits(labels=y,
+                                                            logits=test_logits)
 
-      grads_and_vars = test_opt.compute_gradients(test_loss,
-                                                  var_list=[test_weight])
-      var_list = []
-      aggregated_grad = []
-      for grad, var in grads_and_vars:
-        var_list.append(var)
-        aggregated_grad.append(hvd.allreduce(grad, op=hvd.Sum))
-      aggregated_grads_and_vars = zip(aggregated_grad, var_list)
-      test_opt_op = test_opt.apply_gradients(aggregated_grads_and_vars,
-                                             global_step)
+        grads_and_vars = test_opt.compute_gradients(test_loss,
+                                                    var_list=[test_weight])
+        var_list = []
+        aggregated_grad = []
+        for grad, var in grads_and_vars:
+          var_list.append(var)
+          aggregated_grad.append(hvd.allreduce(grad, op=hvd.Sum))
+        aggregated_grads_and_vars = zip(aggregated_grad, var_list)
+        test_opt_op = test_opt.apply_gradients(aggregated_grads_and_vars,
+                                               global_step)
 
       with monitored_session.MonitoredTrainingSession(
           is_chief=True, config=default_config) as sess:
-
         for _ in range(run_step):
           sess.run(base_opt_op)
           sess.run(test_opt_op)
