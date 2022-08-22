@@ -68,6 +68,9 @@ class BasicEmbeddingLayerTest(test.TestCase):
 
     dims = [1, 4]
     key_dtypes = [dtypes.int32, dtypes.int64]
+    if test_util.is_gpu_available():
+      key_dtypes = [dtypes.int64]
+
     value_dtypes = [dtypes.float32, dtypes.float64]
     initializers = [
         tf.keras.initializers.RandomNormal(),
@@ -211,6 +214,9 @@ class FieldWiseEmbeddingLayerTest(test.TestCase):
 
     dims = [1, 4]
     key_dtypes = [dtypes.int32, dtypes.int64]
+    if test_util.is_gpu_available():
+      key_dtypes = [dtypes.int64]
+
     value_dtypes = [dtypes.float32, dtypes.float64]
     initializers = [
         tf.keras.initializers.RandomNormal(),
