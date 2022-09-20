@@ -220,8 +220,10 @@ class TrainableWrapper(resource_variable_ops.ResourceVariable):
       collections = list(collections) + [ops.GraphKeys.TRAINABLE_VARIABLES]
     with ops.init_scope():
       self._in_graph_mode = not context.executing_eagerly()
-      with ops.name_scope(name, "TrainableWrapper",
-                          [] if init_from_fn else [initial_value]) as name:
+      with ops.name_scope(name,
+                          "TrainableWrapper",
+                          [] if init_from_fn else [initial_value],
+                          skip_on_eager=False) as name:
         # pylint: disable=protected-access
         handle_name = ops.name_from_scope_name(name)
         handle_name = handle_name or "TrainableWrapperHandle"
