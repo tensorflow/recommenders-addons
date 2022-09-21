@@ -23,6 +23,7 @@ import sys
 from tensorflow_recommenders_addons import dynamic_embedding as de
 
 from tensorflow.core.protobuf import config_pb2
+from tensorflow.python.framework import constant_op
 from tensorflow.python.framework import dtypes
 from tensorflow.python.framework import test_util
 from tensorflow.python.platform import test
@@ -54,6 +55,32 @@ class CuckooHashtableTest(test.TestCase):
         self.assertTrue("I" in printed.contents())
         self.assertTrue(dev_str in printed.contents())
         self.assertTrue("_size={}".format(expect_size) in printed.contents())
+
+  @test_util.run_in_graph_and_eager_modes()
+  def test_cuckoo_hashtable_import_and_export(self):
+    test_list = [["CPU", False]]
+    if test_util.is_gpu_available():
+      test_list = [["GPU", True]]
+    id = 0
+    for device, use_gpu in test_list:
+      with self.session(use_gpu=use_gpu, config=default_config):
+        with self.captureWritesToStream(sys.stderr) as printed:
+          table = de.get_variable("2021-" + str(id),
+                                  dtypes.int64,
+                                  dtypes.int32,
+                                  initializer=0,
+                                  dim=3,
+                                  init_size=128)
+          keys = constant_op.constant(list(range(168)), dtypes.int64)
+          values = constant_op.constant([[1, 1, 1] for _ in range(168)],
+                                        dtypes.int32)
+          self.evaluate(table.upsert(keys, values))
+          self.assertAllEqual(168, self.evaluate(table.size()))
+          exported_keys, exported_values = self.evaluate(table.export())
+          exported_keys = sorted(exported_keys)
+          self.assertAllEqual(keys, exported_keys)
+          self.assertEqual(168, len(exported_values))
+          id += 1
 
   @test_util.run_in_graph_and_eager_modes()
   def test_cuckoo_hashtable_save_hdfs(self):

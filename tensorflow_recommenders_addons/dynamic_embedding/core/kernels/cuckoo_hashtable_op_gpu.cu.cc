@@ -46,7 +46,8 @@ using tensorflow::lookup::LookupInterface;
 template <class K, class V>
 class CuckooHashTableOfTensorsGpu final : public LookupInterface {
  public:
-  CuckooHashTableOfTensorsGpu(OpKernelContext* ctx, OpKernel* kernel) {
+  CuckooHashTableOfTensorsGpu(OpKernelContext* ctx, OpKernel* kernel)
+      : last_size_hint_(0) {
     int64 init_size = 0;
 
     OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "init_size", &init_size));
@@ -175,20 +176,37 @@ class CuckooHashTableOfTensorsGpu final : public LookupInterface {
     return Status::OK();
   }
 
-  void RehashIfNeeded(cudaStream_t stream) {
+  void RehashIfNeeded(cudaStream_t stream, size_t num_keys = 0) {
     K* d_keys;
     gpu::ValueArrayBase<V>* d_values;
     size_t* d_dump_counter;
     size_t new_max_size = max_size_;
+    const float max_load_factor = 0.75;
+    const float min_load_factor = 0.25;
+
+    const bool should_check =
+        last_size_hint_ == 0 || num_keys == 0 ||
+        ((last_size_hint_ + num_keys) > max_load_factor * max_size_);
+    if (!should_check) {
+      last_size_hint_ += num_keys;
+      return;
+    }
 
     size_t total_size = table_->get_size(stream);
+    last_size_hint_ = total_size;
     CUDA_CHECK(cudaStreamSynchronize(stream));
-    if (total_size >= 0.75 * max_size_) {
+    if (total_size >= max_load_factor * max_size_) {
       new_max_size = max_size_ * 2;
     }
-    if (total_size < 0.25 * max_size_ && max_size_ > min_size_) {
+    if (total_size < min_load_factor * max_size_ && max_size_ > min_size_) {
       new_max_size = max_size_ / 2;
     }
+
+    // The table should be able to hold num_keys at least
+    if (new_max_size < total_size + num_keys) {
+      new_max_size = (total_size + num_keys) * 2;
+    }
+
     if (new_max_size != max_size_) {  // rehash manually.
       size_t capacity = table_->get_capacity();
       size_t h_dump_counter = 0;
@@ -227,7 +245,7 @@ class CuckooHashTableOfTensorsGpu final : public LookupInterface {
     CUDA_CHECK(cudaStreamCreate(&_stream));
     {
       mutex_lock l(mu_);
-      RehashIfNeeded(_stream);
+      RehashIfNeeded(_stream, len);
       table_->upsert((const K*)keys.tensor_data().data(),
                      (const gpu::ValueArrayBase<V>*)values.tensor_data().data(),
                      len, _stream);
@@ -245,7 +263,7 @@ class CuckooHashTableOfTensorsGpu final : public LookupInterface {
     CUDA_CHECK(cudaStreamCreate(&_stream));
     {
       mutex_lock l(mu_);
-      RehashIfNeeded(_stream);
+      RehashIfNeeded(_stream, len);
       table_->accum(
           (const K*)keys.tensor_data().data(),
           (const gpu::ValueArrayBase<V>*)values_or_deltas.tensor_data().data(),
@@ -310,6 +328,7 @@ class CuckooHashTableOfTensorsGpu final : public LookupInterface {
       {
         mutex_lock l(mu_);
         table_->clear(_stream);
+        RehashIfNeeded(_stream, len);
         table_->upsert((const K*)d_keys,
                        (const gpu::ValueArrayBase<V>*)d_values, len, _stream);
         CUDA_CHECK(cudaStreamSynchronize(_stream));
@@ -374,6 +393,7 @@ class CuckooHashTableOfTensorsGpu final : public LookupInterface {
   size_t max_size_;
   size_t min_size_;
   size_t runtime_dim_;
+  size_t last_size_hint_;
   mutable mutex mu_;
   gpu::TableWrapperBase<K, V>* table_ = nullptr GUARDED_BY(mu_);
 };

@@ -47,20 +47,18 @@ struct LaunchTensorsFind<CPUDevice, K, V> {
     int64 total = value_flat.size();
     int64 default_total = default_flat.size();
     bool is_full_default = (total == default_total);
+    int64 num_keys = key_flat.size();
 
     auto shard = [this, table, key_flat, &value_flat, &default_flat,
                   &is_full_default](int64 begin, int64 end) {
       for (int64 i = begin; i < end; ++i) {
-        if (i >= key_flat.size()) {
-          break;
-        }
         table->find(key_flat(i), value_flat, default_flat, value_dim_,
                     is_full_default, i);
       }
     };
     auto& worker_threads = *context->device()->tensorflow_cpu_worker_threads();
     int64 slices = static_cast<int64>(total / worker_threads.num_threads) + 1;
-    Shard(worker_threads.num_threads, worker_threads.workers, total, slices,
+    Shard(worker_threads.num_threads, worker_threads.workers, num_keys, slices,
           shard);
   }
 
@@ -87,20 +85,18 @@ struct LaunchTensorsFindWithExists<CPUDevice, K, V> {
     int64 total = value_flat.size();
     int64 default_total = default_flat.size();
     bool is_full_default = (total == default_total);
+    int64 num_keys = key_flat.size();
 
     auto shard = [this, table, key_flat, &value_flat, &default_flat,
                   &exists_flat, &is_full_default](int64 begin, int64 end) {
       for (int64 i = begin; i < end; ++i) {
-        if (i >= key_flat.size()) {
-          break;
-        }
         table->find(key_flat(i), value_flat, default_flat, exists_flat(i),
                     value_dim_, is_full_default, i);
       }
     };
     auto& worker_threads = *context->device()->tensorflow_cpu_worker_threads();
     int64 slices = static_cast<int64>(total / worker_threads.num_threads) + 1;
-    Shard(worker_threads.num_threads, worker_threads.workers, total, slices,
+    Shard(worker_threads.num_threads, worker_threads.workers, num_keys, slices,
           shard);
   }
 
@@ -123,9 +119,6 @@ struct LaunchTensorsInsert<CPUDevice, K, V> {
 
     auto shard = [this, &table, key_flat, &value_flat](int64 begin, int64 end) {
       for (int64 i = begin; i < end; ++i) {
-        if (i >= key_flat.size()) {
-          break;
-        }
         table->insert_or_assign(key_flat(i), value_flat, value_dim_, i);
       }
     };
@@ -173,9 +166,6 @@ struct LaunchTensorsAccum<CPUDevice, K, V> {
     auto shard = [this, &table, key_flat, &values_or_deltas_flat, &exist_flat](
                      int64 begin, int64 end) {
       for (int64 i = begin; i < end; ++i) {
-        if (i >= key_flat.size()) {
-          break;
-        }
         table->insert_or_accum(key_flat(i), values_or_deltas_flat,
                                exist_flat(i), value_dim_, i);
       }
