@@ -1043,9 +1043,9 @@ class RedisTableOfTensors final : public LookupInterface {
 
   TensorShape value_shape() const override { return value_shape_; }
 
-  int64_t MemoryUsed() const override {
-    int64_t ret = 0;
-    ret = (int64_t)(size() * (sizeof(K) + sizeof(V)));
+  tensorflow::int64 MemoryUsed() const override {
+    tensorflow::int64 ret = 0;
+    ret = (tensorflow::int64)(size() * (sizeof(K) + sizeof(V)));
     return sizeof(RedisTableOfTensors) + ret;
   }
 };

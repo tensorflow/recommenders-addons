@@ -21,7 +21,6 @@ limitations under the License.
 
 #include "hdfs/hdfs.h"
 #include "tensorflow/core/platform/env.h"
-#include "tensorflow/core/platform/error.h"
 #include "tensorflow/core/platform/file_system.h"
 #include "tensorflow/core/platform/file_system_helper.h"
 #include "tensorflow/core/platform/logging.h"
@@ -29,6 +28,12 @@ limitations under the License.
 #include "tensorflow/core/platform/path.h"
 #include "tensorflow/core/platform/status.h"
 #include "tensorflow/core/platform/strcat.h"
+#if TF_VERSION_INTEGER >= 2080  // 2.8.0
+#include "tensorflow/core/platform/errors.h"
+using tensorflow::errors::IOError;
+#else
+#include "tensorflow/core/platform/error.h"
+#endif
 
 namespace tensorflow {
 

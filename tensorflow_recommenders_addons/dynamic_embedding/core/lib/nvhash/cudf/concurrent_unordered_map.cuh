@@ -86,6 +86,11 @@ __inline__ __device__ float atomicCAS(float* address, float compare, float val)
   return __int_as_float(atomicCAS((int*)address, __float_as_int(compare), __float_as_int(val)));
 }
 
+__inline__ __device__ int64_t atomicAdd(long long* address, const long long val)
+{
+  return (int64_t) atomicAdd((unsigned long long*)address, (const unsigned long long)val);
+}
+
 __inline__ __device__ int64_t atomicAdd(int64_t* address, const int64_t val)
 {
   return (int64_t) atomicAdd((unsigned long long*)address, (const unsigned long long)val);
