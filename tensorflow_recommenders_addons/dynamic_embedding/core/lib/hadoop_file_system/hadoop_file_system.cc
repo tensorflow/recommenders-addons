@@ -13,7 +13,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#if TF_VERSION_INTEGER >= 2070  // 2.7.0
+#if TF_VERSION_INTEGER >= \
+    2060  // hdfs filesystem was migrate to tf_io in tf2.6.0
 
 #include "hadoop_file_system.h"
 
