@@ -8,9 +8,10 @@ if [ -z $HOROVOD_VERSION ] ; then
 fi
 
 python -m pip install --default-timeout=1000 wheel setuptools tensorflow==$TF_VERSION horovod==$HOROVOD_VERSION
-bash ./tools/testing/build_and_run_tests.sh
-
+python -m pip install tensorflow-io
 python -m pip install --upgrade protobuf==3.20.0
+
+bash ./tools/testing/build_and_run_tests.sh
 
 python configure.py
 

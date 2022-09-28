@@ -254,11 +254,14 @@ REGISTER_OP(PREFIX_OP_NAME(CuckooHashTableExport))
       return Status::OK();
     });
 
-REGISTER_OP(PREFIX_OP_NAME(CuckooHashTableSaveToHDFS))
+REGISTER_OP(PREFIX_OP_NAME(CuckooHashTableSaveToFileSystem))
     .Input("table_handle: resource")
-    .Input("filepath: string")
+    .Input("dirpath: string")
+    .Input("file_name: string")
     .Attr("key_dtype: type")
     .Attr("value_dtype: type")
+    .Attr("dirpath_env: string")
+    .Attr("append_to_file: bool")
     .Attr("buffer_size: int >= 1");
 
 REGISTER_OP(PREFIX_OP_NAME(CuckooHashTableImport))
@@ -277,11 +280,14 @@ REGISTER_OP(PREFIX_OP_NAME(CuckooHashTableImport))
       return Status::OK();
     });
 
-REGISTER_OP(PREFIX_OP_NAME(CuckooHashTableLoadFromHDFS))
+REGISTER_OP(PREFIX_OP_NAME(CuckooHashTableLoadFromFileSystem))
     .Input("table_handle: resource")
-    .Input("filepath: string")
+    .Input("dirpath: string")
+    .Input("file_name: string")
     .Attr("key_dtype: type")
     .Attr("value_dtype: type")
+    .Attr("dirpath_env: string")
+    .Attr("load_entire_dir: bool")
     .Attr("buffer_size: int >= 1");
 
 REGISTER_OP(PREFIX_OP_NAME(CuckooHashTableOfTensors))

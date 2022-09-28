@@ -22,6 +22,7 @@ limitations under the License.
 #include <utility>
 
 #include "tensorflow/core/kernels/lookup_table_op.h"
+#include "tensorflow/core/platform/path.h"
 #include "tensorflow/core/util/work_sharder.h"
 #include "tensorflow_recommenders_addons/dynamic_embedding/core/kernels/lookup_impl/lookup_table_op_cpu.h"
 #include "tensorflow_recommenders_addons/dynamic_embedding/core/utils/types.h"
@@ -290,20 +291,213 @@ class CuckooHashTableOfTensors final : public LookupInterface {
   }
 
   Status ExportValues(OpKernelContext* ctx) override {
-    int64 value_dim = value_shape_.dim_size(0);
-    return table_->export_values(ctx, value_dim);
+    Tensor* keys;
+    Tensor* values;
+    const auto table_size = table_->size();
+    const auto output_key_size = static_cast<int64>(table_size);
+    TF_RETURN_IF_ERROR(
+        ctx->allocate_output("keys", TensorShape({output_key_size}), &keys));
+    TF_RETURN_IF_ERROR(ctx->allocate_output(
+        "values",
+        TensorShape({output_key_size, static_cast<int64>(runtime_dim_)}),
+        &values));
+    table_->dump((K*)keys->tensor_data().data(),
+                 (V*)values->tensor_data().data(), 0, table_size);
+
+    return Status::OK();
   }
 
-  Status SaveToHDFS(OpKernelContext* ctx, const string& filepath,
-                    const size_t buffer_size) {
-    int64 value_dim = value_shape_.dim_size(0);
-    return table_->save_to_hdfs(ctx, value_dim, filepath, buffer_size);
+  Status SaveToFileSystemImpl(FileSystem* fs, const size_t value_dim,
+                              const string& filepath, const size_t buffer_size,
+                              bool append_to_file) {
+    std::unique_ptr<WritableFile> key_writer;
+    std::unique_ptr<WritableFile> value_writer;
+    const string key_filepath(filepath + "-keys");
+    const string value_filepath(filepath + "-values");
+    string key_tmpfilepath(filepath + "-keys.tmp");
+    string value_tmpfilepath(filepath + "-values.tmp");
+    bool has_atomic_move = false;
+    auto has_atomic_move_ret = fs->HasAtomicMove(filepath, &has_atomic_move);
+    bool need_tmp_file =
+        (has_atomic_move == false) || (has_atomic_move_ret != Status::OK());
+    if (!need_tmp_file) {
+      key_tmpfilepath = key_filepath;
+      value_tmpfilepath = value_filepath;
+    }
+    TF_RETURN_IF_ERROR(
+        fs->RecursivelyCreateDir(std::string(fs->Dirname(filepath))));
+    if (append_to_file) {
+      TF_RETURN_IF_ERROR(fs->NewAppendableFile(key_tmpfilepath, &key_writer));
+      TF_RETURN_IF_ERROR(
+          fs->NewAppendableFile(value_tmpfilepath, &value_writer));
+    } else {
+      TF_RETURN_IF_ERROR(fs->NewWritableFile(key_tmpfilepath, &key_writer));
+      TF_RETURN_IF_ERROR(fs->NewWritableFile(value_tmpfilepath, &value_writer));
+    }
+
+    size_t key_offset = 0;
+    size_t value_offset = 0;
+    const size_t value_len = sizeof(V) * value_dim;
+    const size_t key_buffer_byte_size = buffer_size * sizeof(K);
+    const size_t value_buffer_byte_size = buffer_size * value_len;
+    std::vector<char> key_buffer_vector(key_buffer_byte_size);
+    char* key_buffer = key_buffer_vector.data();
+    std::vector<char> value_buffer_vector(value_buffer_byte_size);
+    char* value_buffer = value_buffer_vector.data();
+
+    const size_t table_size = table_->size();
+    size_t search_offset = 0;
+    size_t total_saved = 0;
+    while (search_offset < table_size) {
+      auto dump_counter = table_->dump((K*)key_buffer, (V*)value_buffer,
+                                       search_offset, buffer_size);
+      search_offset += dump_counter;
+      key_offset += dump_counter * sizeof(K);
+      value_offset += dump_counter * value_len;
+      TF_RETURN_IF_ERROR(
+          key_writer->Append(StringPiece(key_buffer, key_offset)));
+      key_buffer = key_buffer_vector.data();
+      key_offset = 0;
+      TF_RETURN_IF_ERROR(
+          value_writer->Append(StringPiece(value_buffer, value_offset)));
+      value_buffer = value_buffer_vector.data();
+      value_offset = 0;
+      total_saved += dump_counter;
+    }
+
+    if (key_offset > 0 && value_offset > 0) {
+      TF_RETURN_IF_ERROR(
+          key_writer->Append(StringPiece(key_buffer, key_offset)));
+      TF_RETURN_IF_ERROR(
+          value_writer->Append(StringPiece(value_buffer, value_offset)));
+    }
+
+    TF_RETURN_IF_ERROR(key_writer->Flush());
+    TF_RETURN_IF_ERROR(value_writer->Flush());
+    TF_RETURN_IF_ERROR(key_writer->Sync());
+    TF_RETURN_IF_ERROR(value_writer->Sync());
+
+    LOG(INFO) << "Finish saving " << total_saved << " keys and values to "
+              << key_filepath << " and " << value_filepath << " in total.";
+
+    if (need_tmp_file) {
+      TF_RETURN_IF_ERROR(fs->FileExists(key_tmpfilepath));
+      TF_RETURN_IF_ERROR(fs->RenameFile(key_tmpfilepath, key_filepath));
+      TF_RETURN_IF_ERROR(fs->FileExists(value_tmpfilepath));
+      TF_RETURN_IF_ERROR(fs->RenameFile(value_tmpfilepath, value_filepath));
+    }
+
+    return Status::OK();
   }
 
-  Status LoadFromHDFS(OpKernelContext* ctx, const string& filepath,
-                      const size_t buffer_size) {
-    int64 value_dim = value_shape_.dim_size(0);
-    return table_->load_from_hdfs(ctx, value_dim, filepath, buffer_size);
+  Status SaveToFileSystem(OpKernelContext* ctx, const string& dirpath,
+                          const string& file_name, const size_t buffer_size,
+                          bool append_to_file) {
+    string filepath = io::JoinPath(dirpath, file_name);
+    FileSystem* fs;
+    const auto env = ctx->env();
+    TF_RETURN_WITH_CONTEXT_IF_ERROR(
+        env->GetFileSystemForFile(filepath, &fs),
+        "Please make sure you have already imported tensorflow_io before using "
+        "TFRA file system operation.");
+    const size_t value_dim = static_cast<size_t>(value_shape_.dim_size(0));
+    return SaveToFileSystemImpl(fs, value_dim, filepath, buffer_size,
+                                append_to_file);
+  }
+
+  Status LoadFromFileSystemImpl(FileSystem* fs, const size_t value_dim,
+                                const string& filepath,
+                                const size_t buffer_size) {
+    const string key_filepath = filepath + "-keys";
+    TF_RETURN_IF_ERROR(fs->FileExists(key_filepath));
+    std::unique_ptr<RandomAccessFile> key_file;
+    TF_RETURN_IF_ERROR(fs->NewRandomAccessFile(key_filepath, &key_file));
+    std::unique_ptr<io::RandomAccessInputStream> key_input_stream(
+        new io::RandomAccessInputStream(key_file.get()));
+    const size_t key_buffer_byte_size = buffer_size * sizeof(K);
+    io::BufferedInputStream key_reader(key_input_stream.get(),
+                                       key_buffer_byte_size);
+
+    const string value_filepath = filepath + "-values";
+    TF_RETURN_IF_ERROR(fs->FileExists(value_filepath));
+    std::unique_ptr<RandomAccessFile> value_file;
+    TF_RETURN_IF_ERROR(fs->NewRandomAccessFile(value_filepath, &value_file));
+    std::unique_ptr<io::RandomAccessInputStream> value_input_stream(
+        new io::RandomAccessInputStream(value_file.get()));
+    const size_t value_len = sizeof(V) * value_dim;
+    const size_t value_buffer_size = buffer_size * value_len;
+    io::BufferedInputStream value_reader(value_input_stream.get(),
+                                         value_buffer_size);
+
+    uint64 key_file_size = 0;
+    TF_RETURN_IF_ERROR(fs->GetFileSize(key_filepath, &key_file_size));
+    const size_t key_size = key_file_size / sizeof(K);
+
+    uint64 value_file_size = 0;
+    TF_RETURN_IF_ERROR(fs->GetFileSize(value_filepath, &value_file_size));
+    const size_t value_size = value_file_size / value_len;
+
+    if (key_size != value_size) {
+      return errors::Unavailable(
+          "the keys number in file " + key_filepath +
+          " is not equal to the value vectors number in file " +
+          value_filepath + ".");
+    }
+
+    tstring key_buffer;
+    key_buffer.resize(sizeof(K));
+    tstring value_buffer;
+    value_buffer.resize(value_len);
+    uint64 key_file_offset = 0;
+
+    while (key_file_offset < key_file_size) {
+      TF_RETURN_IF_ERROR(key_reader.ReadNBytes(sizeof(K), &key_buffer));
+      TF_RETURN_IF_ERROR(value_reader.ReadNBytes(value_len, &value_buffer));
+      table_->insert_or_assign_one(*((K*)key_buffer.data()),
+                                   (V*)value_buffer.data(), runtime_dim_);
+      key_file_offset += sizeof(K);
+    }
+
+    LOG(INFO) << "Finish loading " << key_size << " keys and values from "
+              << key_filepath << " and " << value_filepath << " in total.";
+
+    return Status::OK();
+  }
+
+  Status LoadFromFileSystem(OpKernelContext* ctx, const string& dirpath,
+                            const string& file_name, const size_t buffer_size,
+                            bool load_entire_dir) {
+    FileSystem* fs;
+    const auto env = ctx->env();
+    TF_RETURN_WITH_CONTEXT_IF_ERROR(env->GetFileSystemForFile(dirpath, &fs),
+                                    "Please make sure you have already "
+                                    "imported tensorflow_io before using "
+                                    "TFRA file system operation.");
+    const size_t value_dim = static_cast<size_t>(value_shape_.dim_size(0));
+    if (load_entire_dir) {
+      int separator_pos = file_name.rfind("_mht_");
+      string file_pattern =
+          io::JoinPath(dirpath, file_name.substr(0, separator_pos)) + "*";
+      std::vector<string> all_filepath;
+      TF_RETURN_IF_ERROR(fs->GetMatchingPaths(file_pattern, &all_filepath));
+      // delete -keys/-values postfix
+      for (auto it = all_filepath.begin(); it != all_filepath.end(); ++it) {
+        int kv_separator_pos = it->rfind("-");
+        *it = it->substr(0, kv_separator_pos);
+      }
+      // remove duplicate elements
+      sort(all_filepath.begin(), all_filepath.end());
+      all_filepath.erase(unique(all_filepath.begin(), all_filepath.end()),
+                         all_filepath.end());
+      for (auto& fp : all_filepath) {
+        TF_RETURN_IF_ERROR(
+            LoadFromFileSystemImpl(fs, value_dim, fp, buffer_size));
+      }
+    } else {
+      string filepath = io::JoinPath(dirpath, file_name);
+      return LoadFromFileSystemImpl(fs, value_dim, filepath, buffer_size);
+    }
+    return Status::OK();
   }
 
   DataType key_dtype() const override { return DataTypeToEnum<K>::v(); }
@@ -609,14 +803,16 @@ class HashTableExportOp : public HashTableOpKernel {
   }
 };
 
-// Op that export all keys and values to HDFS.
+// Op that save all keys and values to FileSystem.
 template <class K, class V>
-class HashTableSaveToHDFSOp : public HashTableOpKernel {
+class HashTableSaveToFileSystemOp : public HashTableOpKernel {
  public:
-  explicit HashTableSaveToHDFSOp(OpKernelConstruction* ctx)
+  explicit HashTableSaveToFileSystemOp(OpKernelConstruction* ctx)
       : HashTableOpKernel(ctx) {
+    OP_REQUIRES_OK(ctx, ctx->GetAttr("dirpath_env", &dirpath_env_));
+    OP_REQUIRES_OK(ctx, ctx->GetAttr("append_to_file", &append_to_file_));
     int64 signed_buffer_size = 0;
-    ctx->GetAttr("buffer_size", &signed_buffer_size);
+    OP_REQUIRES_OK(ctx, ctx->GetAttr("buffer_size", &signed_buffer_size));
     buffer_size_ = static_cast<size_t>(signed_buffer_size);
   }
 
@@ -625,17 +821,35 @@ class HashTableSaveToHDFSOp : public HashTableOpKernel {
     OP_REQUIRES_OK(ctx, GetTable(ctx, &table));
     core::ScopedUnref unref_me(table);
 
-    const Tensor& ftensor = ctx->input(1);
-    OP_REQUIRES(ctx, TensorShapeUtils::IsScalar(ftensor.shape()),
-                errors::InvalidArgument("filepath must be scalar."));
-    string filepath = string(ftensor.scalar<tstring>()().data());
+    string dirpath;
+    TF_CHECK_OK(ReadStringFromEnvVar(dirpath_env_, "NotFound", &dirpath));
+    if (dirpath != "NotFound") {
+      LOG(INFO) << "Read TFRA key/value file directory path from the "
+                   "environment variable "
+                << dirpath_env_ << " successfully. Saving directory path is "
+                << dirpath;
+    } else {
+      const Tensor& dir_tensor = ctx->input(1);
+      OP_REQUIRES(ctx, TensorShapeUtils::IsScalar(dir_tensor.shape()),
+                  errors::InvalidArgument("directory path must be scalar."));
+      dirpath = string(dir_tensor.scalar<tstring>()().data());
+    }
+
+    const Tensor& fname_tensor = ctx->input(2);
+    OP_REQUIRES(ctx, TensorShapeUtils::IsScalar(fname_tensor.shape()),
+                errors::InvalidArgument("file name must be scalar."));
+    string file_name = string(fname_tensor.scalar<tstring>()().data());
 
     lookup::CuckooHashTableOfTensors<K, V>* table_cuckoo =
         (lookup::CuckooHashTableOfTensors<K, V>*)table;
-    OP_REQUIRES_OK(ctx, table_cuckoo->SaveToHDFS(ctx, filepath, buffer_size_));
+    OP_REQUIRES_OK(
+        ctx, table_cuckoo->SaveToFileSystem(ctx, dirpath, file_name,
+                                            buffer_size_, append_to_file_));
   }
 
  private:
+  string dirpath_env_;
+  bool append_to_file_;
   size_t buffer_size_;
 };
 
@@ -669,14 +883,16 @@ class HashTableImportOp : public HashTableOpKernel {
   }
 };
 
-// Clear the table and insert data from HDFS.
+// Clear the table and insert data from FileSystem.
 template <class K, class V>
-class HashTableLoadFromHDFSOp : public HashTableOpKernel {
+class HashTableLoadFromFileSystemOp : public HashTableOpKernel {
  public:
-  explicit HashTableLoadFromHDFSOp(OpKernelConstruction* ctx)
+  explicit HashTableLoadFromFileSystemOp(OpKernelConstruction* ctx)
       : HashTableOpKernel(ctx) {
+    OP_REQUIRES_OK(ctx, ctx->GetAttr("dirpath_env", &dirpath_env_));
+    OP_REQUIRES_OK(ctx, ctx->GetAttr("load_entire_dir", &load_entire_dir_));
     int64 signed_buffer_size = 0;
-    ctx->GetAttr("buffer_size", &signed_buffer_size);
+    OP_REQUIRES_OK(ctx, ctx->GetAttr("buffer_size", &signed_buffer_size));
     buffer_size_ = static_cast<size_t>(signed_buffer_size);
   }
 
@@ -685,18 +901,35 @@ class HashTableLoadFromHDFSOp : public HashTableOpKernel {
     OP_REQUIRES_OK(ctx, GetTable(ctx, &table));
     core::ScopedUnref unref_me(table);
 
-    const Tensor& ftensor = ctx->input(1);
-    OP_REQUIRES(ctx, TensorShapeUtils::IsScalar(ftensor.shape()),
-                errors::InvalidArgument("filepath must be scalar."));
-    string filepath = string(ftensor.scalar<tstring>()().data());
+    string dirpath;
+    TF_CHECK_OK(ReadStringFromEnvVar(dirpath_env_, "NotFound", &dirpath));
+    if (dirpath != "NotFound") {
+      LOG(INFO) << "Read TFRA key/value file directory path from the "
+                   "environment variable "
+                << dirpath_env_ << " successfully. Saving directory path is "
+                << dirpath;
+    } else {
+      const Tensor& dir_tensor = ctx->input(1);
+      OP_REQUIRES(ctx, TensorShapeUtils::IsScalar(dir_tensor.shape()),
+                  errors::InvalidArgument("directory path must be scalar."));
+      dirpath = string(dir_tensor.scalar<tstring>()().data());
+    }
+
+    const Tensor& fname_tensor = ctx->input(2);
+    OP_REQUIRES(ctx, TensorShapeUtils::IsScalar(fname_tensor.shape()),
+                errors::InvalidArgument("file name must be scalar."));
+    string file_name = string(fname_tensor.scalar<tstring>()().data());
 
     lookup::CuckooHashTableOfTensors<K, V>* table_cuckoo =
         (lookup::CuckooHashTableOfTensors<K, V>*)table;
-    OP_REQUIRES_OK(ctx,
-                   table_cuckoo->LoadFromHDFS(ctx, filepath, buffer_size_));
+    OP_REQUIRES_OK(
+        ctx, table_cuckoo->LoadFromFileSystem(ctx, dirpath, file_name,
+                                              buffer_size_, load_entire_dir_));
   }
 
  private:
+  string dirpath_env_;
+  bool load_entire_dir_;
   size_t buffer_size_;
 };
 
@@ -743,16 +976,18 @@ REGISTER_KERNEL_BUILDER(
                               .TypeConstraint<key_dtype>("Tin")               \
                               .TypeConstraint<value_dtype>("Tout"),           \
                           HashTableFindWithExistsOp<key_dtype, value_dtype>); \
-  REGISTER_KERNEL_BUILDER(Name(PREFIX_OP_NAME(CuckooHashTableSaveToHDFS))     \
-                              .Device(DEVICE_CPU)                             \
-                              .TypeConstraint<key_dtype>("key_dtype")         \
-                              .TypeConstraint<value_dtype>("value_dtype"),    \
-                          HashTableSaveToHDFSOp<key_dtype, value_dtype>);     \
-  REGISTER_KERNEL_BUILDER(Name(PREFIX_OP_NAME(CuckooHashTableLoadFromHDFS))   \
-                              .Device(DEVICE_CPU)                             \
-                              .TypeConstraint<key_dtype>("key_dtype")         \
-                              .TypeConstraint<value_dtype>("value_dtype"),    \
-                          HashTableLoadFromHDFSOp<key_dtype, value_dtype>);
+  REGISTER_KERNEL_BUILDER(                                                    \
+      Name(PREFIX_OP_NAME(CuckooHashTableSaveToFileSystem))                   \
+          .Device(DEVICE_CPU)                                                 \
+          .TypeConstraint<key_dtype>("key_dtype")                             \
+          .TypeConstraint<value_dtype>("value_dtype"),                        \
+      HashTableSaveToFileSystemOp<key_dtype, value_dtype>);                   \
+  REGISTER_KERNEL_BUILDER(                                                    \
+      Name(PREFIX_OP_NAME(CuckooHashTableLoadFromFileSystem))                 \
+          .Device(DEVICE_CPU)                                                 \
+          .TypeConstraint<key_dtype>("key_dtype")                             \
+          .TypeConstraint<value_dtype>("value_dtype"),                        \
+      HashTableLoadFromFileSystemOp<key_dtype, value_dtype>);
 
 REGISTER_KERNEL(int32, double);
 REGISTER_KERNEL(int32, float);

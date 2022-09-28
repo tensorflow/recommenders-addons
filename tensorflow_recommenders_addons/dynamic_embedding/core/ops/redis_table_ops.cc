@@ -235,6 +235,16 @@ REGISTER_OP(PREFIX_OP_NAME(RedisTableExport))
       return Status::OK();
     });
 
+REGISTER_OP(PREFIX_OP_NAME(RedisTableSaveToFileSystem))
+    .Input("table_handle: resource")
+    .Input("dirpath: string")
+    .Input("file_name: string")
+    .Attr("key_dtype: type")
+    .Attr("value_dtype: type")
+    .Attr("dirpath_env: string")
+    .Attr("append_to_file: bool")
+    .Attr("buffer_size: int >= 1");
+
 REGISTER_OP(PREFIX_OP_NAME(RedisTableImport))
     .Input("table_handle: resource")
     .Input("keys: Tin")
@@ -250,6 +260,16 @@ REGISTER_OP(PREFIX_OP_NAME(RedisTableImport))
       TF_RETURN_IF_ERROR(c->Merge(keys, c->input(2), &keys));
       return Status::OK();
     });
+
+REGISTER_OP(PREFIX_OP_NAME(RedisTableLoadFromFileSystem))
+    .Input("table_handle: resource")
+    .Input("dirpath: string")
+    .Input("file_name: string")
+    .Attr("key_dtype: type")
+    .Attr("value_dtype: type")
+    .Attr("dirpath_env: string")
+    .Attr("load_entire_dir: bool")
+    .Attr("buffer_size: int >= 1");
 
 Status RedisTableShape(InferenceContext *c, const ShapeHandle &key,
                        const ShapeHandle &value) {

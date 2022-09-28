@@ -39,7 +39,7 @@ template <typename RedisInstance, typename K, typename V>
 class RedisWrapper<
     RedisInstance, K, V,
     typename std::enable_if<std::is_same<RedisInstance, Redis>::value>::type>
-    : public RedisVirtualWrapper {
+    : public RedisBaseWrapper<K, V> {
  private:
   SentinelOptions sentinel_opts;
   bool using_sentinel = true;
@@ -83,37 +83,39 @@ class RedisWrapper<
   }
 
   std::shared_ptr<RedisInstance> StartConn(Role role) {
-    assert(redis_connection_params.redis_host_ip.size() ==
-           redis_connection_params.redis_host_port.size());
+    assert(this->redis_connection_params.redis_host_ip.size() ==
+           this->redis_connection_params.redis_host_port.size());
 
-    SetPublicConnParams(conn_opts, pool_opts, redis_connection_params);
+    this->SetPublicConnParams(conn_opts, pool_opts,
+                              this->redis_connection_params);
 
     if (this->using_sentinel) {
       sentinel_opts.nodes.clear();
-      for (size_t i = 0; i < redis_connection_params.redis_host_ip.size();
+      for (size_t i = 0; i < this->redis_connection_params.redis_host_ip.size();
            ++i) {
         sentinel_opts.nodes.push_back(
-            {redis_connection_params.redis_host_ip[i],
-             redis_connection_params.redis_host_port[i]});
+            {this->redis_connection_params.redis_host_ip[i],
+             this->redis_connection_params.redis_host_port[i]});
       }
 
-      sentinel_opts.password = redis_connection_params.redis_sentinel_password;
+      sentinel_opts.password =
+          this->redis_connection_params.redis_sentinel_password;
       // Optional. Timeout before we successfully connect to Redis Sentinel.
       sentinel_opts.connect_timeout = std::chrono::milliseconds(
-          redis_connection_params.redis_sentinel_connect_timeout);
+          this->redis_connection_params.redis_sentinel_connect_timeout);
       // Optional. Timeout before we successfully send request to or receive
       // response from Redis Sentinel.
       sentinel_opts.socket_timeout = std::chrono::milliseconds(
-          redis_connection_params.redis_sentinel_socket_timeout);
+          this->redis_connection_params.redis_sentinel_socket_timeout);
 
       auto sentinel = std::make_shared<Sentinel>(sentinel_opts);
 
       try {
-        auto redis_client = std::make_shared<RedisInstance>(
-            RedisInstance(sentinel, redis_connection_params.redis_master_name,
-                          role, conn_opts, pool_opts));
+        auto redis_client = std::make_shared<RedisInstance>(RedisInstance(
+            sentinel, this->redis_connection_params.redis_master_name, role,
+            conn_opts, pool_opts));
         redis_client->ping();
-        if (RedisClusterEnabled(redis_client) == true) {
+        if (this->RedisClusterEnabled(redis_client) == true) {
           LOG(ERROR)
               << "Now is sentinel mode but try to connect Redis cluster nodes. "
                  "Please check redis_connection_mode in config file.";
@@ -146,16 +148,17 @@ class RedisWrapper<
 
   std::shared_ptr<RedisInstance> start_conn_without_sentinel() {
     // Redis connection options
-    conn_opts.host = redis_connection_params.redis_host_ip[0];
-    conn_opts.port = redis_connection_params.redis_host_port[0];
+    conn_opts.host = this->redis_connection_params.redis_host_ip[0];
+    conn_opts.port = this->redis_connection_params.redis_host_port[0];
 
-    SetPublicConnParams(conn_opts, pool_opts, redis_connection_params);
+    this->SetPublicConnParams(conn_opts, pool_opts,
+                              this->redis_connection_params);
 
     try {
       auto redis_client =
           std::make_shared<RedisInstance>(RedisInstance(conn_opts, pool_opts));
       redis_client->ping();
-      if (RedisClusterEnabled(redis_client) == true) {
+      if (this->RedisClusterEnabled(redis_client) == true) {
         LOG(ERROR)
             << "Now is single mode but try to connect Redis cluster nodes. "
                "Please check redis_connection_mode in config file.";
@@ -176,10 +179,10 @@ class RedisWrapper<
 
   virtual Status Conn() override {
     auto role_read = Role::MASTER;
-    if (redis_connection_params.redis_read_access_slave) {
+    if (this->redis_connection_params.redis_read_access_slave) {
       role_read = Role::SLAVE;
     }
-    if (isRedisConnect == false) {
+    if (this->isRedisConnect == false) {
       for (short i = 0; i < 10; i++) {
         if (redis_conn_read == nullptr) {
           redis_conn_read = StartConn(role_read);
@@ -188,11 +191,11 @@ class RedisWrapper<
           redis_conn_write = StartConn(Role::MASTER);
         }
         if (redis_conn_read != nullptr && redis_conn_write != nullptr) {
-          isRedisConnect = true;
+          this->isRedisConnect = true;
           return Status::OK();
         }
       }
-      if (isRedisConnect == false) {
+      if (this->isRedisConnect == false) {
         LOG(ERROR) << "Can not connect to the Redis Master servers.";
         if (redis_conn_read == nullptr && redis_conn_write != nullptr) {
           return Status(error::UNAVAILABLE,
@@ -226,7 +229,7 @@ class RedisWrapper<
     long long cursor = 0;
     const redisReply *set_reply;
     keys_prefix_name_slices_in_redis.reserve(
-        redis_connection_params.storage_slice);
+        this->redis_connection_params.storage_slice);
     while (true) {
       if (only_get_buckets) {
         redis_command = "SCAN " + std::to_string(cursor) + " MATCH " +
@@ -282,22 +285,22 @@ class RedisWrapper<
                 << " existing in Redis server";
       return 0;
     } else if (keys_prefix_name_slices_in_redis.size() ==
-               redis_connection_params.storage_slice) {
+               this->redis_connection_params.storage_slice) {
       LOG(INFO) << "There is already a corresponding table " << keys_prefix_name
                 << " existing in Redis server";
       return 1;
     } else if (keys_prefix_name_slices_in_redis.size() <=
-               redis_connection_params.storage_slice) {
-      LOG(WARNING) << "storage_slice in redis_connection_params which is "
-                   << redis_connection_params.storage_slice
+               this->redis_connection_params.storage_slice) {
+      LOG(WARNING) << "storage_slice in this->redis_connection_params which is "
+                   << this->redis_connection_params.storage_slice
                    << " is bigger than the slices number of this "
                    << keys_prefix_name
                    << " in the Redis Cluster servers which is "
                    << keys_prefix_name_slices_in_redis.size();
       return 2;
     } else {
-      LOG(WARNING) << "storage_slice in redis_connection_params which is "
-                   << redis_connection_params.storage_slice
+      LOG(WARNING) << "storage_slice in this->redis_connection_params which is "
+                   << this->redis_connection_params.storage_slice
                    << " did not equal to the slices number of this "
                    << keys_prefix_name
                    << " in the Redis Single servers which is "
@@ -377,7 +380,7 @@ class RedisWrapper<
   }
 
   virtual std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> MgetInBucket(
-      const Tensor &keys, const int64_t begin, const int64_t max_i,
+      const K *keys, const int64_t begin, const int64_t max_i,
       const std::string &keys_prefix_name_slice) override {
     std::unique_ptr<BucketContext> bucket_context_temp(new BucketContext());
     const static char *redis_command = "HMGET";
@@ -386,10 +389,8 @@ class RedisWrapper<
     bucket_context_temp->HandleClear();
     bucket_context_temp->HandleReserve(argc);
 
-    const K *const pk_raw_end =
-        reinterpret_cast<const K *>(keys.tensor_data().data()) + max_i;
-    const K *pk_raw =
-        reinterpret_cast<const K *>(keys.tensor_data().data()) + begin;
+    const K *const pk_raw_end = keys + max_i;
+    const K *pk_raw = keys + begin;
 
     bucket_context_temp->HandlePushBack(redis_command, redis_command_byte);
     bucket_context_temp->HandlePushBack(keys_prefix_name_slice.data(),
@@ -425,7 +426,7 @@ class RedisWrapper<
 
   virtual Status SetExpireBuckets(
       const std::string &keys_prefix_name) override {
-    if (redis_connection_params.expire_model_tag_in_seconds >= 0) {
+    if (this->redis_connection_params.expire_model_tag_in_seconds >= 0) {
       // std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply;
       const std::string expire_command("EXPIRE ");
       std::string redis_command;
@@ -438,7 +439,8 @@ class RedisWrapper<
         redis_command.clear();
         redis_command =
             expire_command + bucket_name + ' ' +
-            std::to_string(redis_connection_params.expire_model_tag_in_seconds);
+            std::to_string(
+                this->redis_connection_params.expire_model_tag_in_seconds);
         try {
           /*reply=*/redis_conn_write->command(cmd, redis_command.data());
         } catch (const std::exception &err) {
@@ -498,7 +500,7 @@ class RedisWrapper<
 
     size_t buf_len;
     volatile void *tem_aio_buf;
-    for (unsigned i = 0; i < redis_connection_params.storage_slice; ++i) {
+    for (unsigned i = 0; i < this->redis_connection_params.storage_slice; ++i) {
       redis_command = "DUMP " + keys_prefix_name_slices[i];
       reply.reset();
       try {
@@ -770,7 +772,8 @@ class RedisWrapper<
       const std::vector<std::string> &keys_prefix_name_slices_old,
       const std::vector<std::string> &keys_prefix_name_slices_new) override {
     try {
-      for (unsigned i = 0; i < redis_connection_params.storage_slice; ++i) {
+      for (unsigned i = 0; i < this->redis_connection_params.storage_slice;
+           ++i) {
         network_worker_pool->enqueue([this, &keys_prefix_name_slices_old,
                                       &keys_prefix_name_slices_new, i] {
           DoDuplicateInRedis(keys_prefix_name_slices_old[i],
@@ -816,7 +819,7 @@ every bucket has its own BucketContext for sending data---for locating reply-
   */
   virtual std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>>
   MgetCommand(
-      const Tensor &keys, ThreadContext *thread_context, const int64_t begin,
+      const K *keys, ThreadContext *thread_context, const int64_t begin,
       const int64_t max_i,
       const std::vector<std::string> &keys_prefix_name_slices) override {
     const int argc = (max_i - begin) + 2;
@@ -829,10 +832,8 @@ every bucket has its own BucketContext for sending data---for locating reply-
     std::vector<const char *> *ptrs_0 = thread_context->buckets[0]->ptrs.get();
     std::vector<std::size_t> *sizes_0 = thread_context->buckets[0]->sizes.get();
 
-    const K *const pk_raw_end =
-        reinterpret_cast<const K *>(keys.tensor_data().data()) + max_i;
-    const K *pk_raw =
-        reinterpret_cast<const K *>(keys.tensor_data().data()) + begin;
+    const K *const pk_raw_end = keys + max_i;
+    const K *pk_raw = keys + begin;
 
     auto ptrs_iter = ptrs_0->begin();
     *ptrs_iter = redis_command;
@@ -891,21 +892,16 @@ every bucket has its own BucketContext for sending data---for locating reply-
   }
 
   virtual Status MgetToTensor(
-      Tensor *values, const Tensor &default_value, const bool is_full_default,
+      V *values, const V *default_value, const bool is_full_default,
       ThreadContext *thread_context,
       std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>>
           &reply,
       const int64_t begin, const int64_t max_i,
       const int64_t Velems_per_dim0) override {
-    const V *pv_raw =
-        reinterpret_cast<const V *>(values->tensor_data().data()) +
-        begin * Velems_per_dim0;
+    const V *pv_raw = values + begin * Velems_per_dim0;
 
-    const V *dft_raw =
-        reinterpret_cast<const V *>(default_value.tensor_data().data()) +
-        begin * Velems_per_dim0;
-    const V *const dft_raw_begin =
-        reinterpret_cast<const V *>(default_value.tensor_data().data());
+    const V *dft_raw = default_value + begin * Velems_per_dim0;
+    const V *const dft_raw_begin = default_value;
 
     redisReply *temp_reply;
     bool print_once = false;
@@ -941,22 +937,16 @@ every bucket has its own BucketContext for sending data---for locating reply-
   }
 
   virtual Status MgetToTensorWithExist(
-      Tensor *values, const Tensor &default_value, Tensor &exists,
+      V *values, const V *default_value, bool *exists,
       const bool is_full_default, ThreadContext *thread_context,
       std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>>
           &reply,
       const int64_t begin, const int64_t max_i,
       const int64_t Velems_per_dim0) override {
-    const V *pv_raw =
-        reinterpret_cast<const V *>(values->tensor_data().data()) +
-        begin * Velems_per_dim0;
+    const V *pv_raw = values + begin * Velems_per_dim0;
 
-    const V *dft_raw =
-        reinterpret_cast<const V *>(default_value.tensor_data().data()) +
-        begin * Velems_per_dim0;
-    const V *const dft_raw_begin =
-        reinterpret_cast<const V *>(default_value.tensor_data().data());
-    auto exists_flat = exists.flat<bool>();
+    const V *dft_raw = default_value + begin * Velems_per_dim0;
+    const V *const dft_raw_begin = default_value;
 
     redisReply *temp_reply;
     bool print_once = false;
@@ -971,11 +961,11 @@ every bucket has its own BucketContext for sending data---for locating reply-
             ReplyMemcpyToValTensor<V>(
                 pv_raw, temp_reply->str,
                 Velems_per_dim0);  // Direct access to Tensor data in TensorFlow
-            exists_flat(j) = true;
+            exists[j] = true;
           } else {
             CopyDefaultToTensor(is_full_default, pv_raw, dft_raw, dft_raw_begin,
                                 Velems_per_dim0);
-            exists_flat(j) = false;
+            exists[j] = false;
           }
         }
       } else {
@@ -987,7 +977,7 @@ every bucket has its own BucketContext for sending data---for locating reply-
         }
         CopyDefaultToTensor(is_full_default, pv_raw, dft_raw, dft_raw_begin,
                             Velems_per_dim0);
-        exists_flat(j) = false;
+        exists[j] = false;
       }
     }
 
@@ -995,7 +985,7 @@ every bucket has its own BucketContext for sending data---for locating reply-
   }
 
   virtual Status MsetCommand(
-      const Tensor &keys, const Tensor &values, ThreadContext *thread_context,
+      const K *keys, const V *values, ThreadContext *thread_context,
       const int64_t begin, const int64_t max_i, const int64_t Velems_per_dim0,
       const std::vector<std::string> &keys_prefix_name_slices) override {
     const int &&total = max_i - begin;
@@ -1009,15 +999,12 @@ every bucket has its own BucketContext for sending data---for locating reply-
     std::vector<const char *> *ptrs_0 = thread_context->buckets[0]->ptrs.get();
     std::vector<std::size_t> *sizes_0 = thread_context->buckets[0]->sizes.get();
 
-    const K *const pk_raw_end =
-        reinterpret_cast<const K *>(keys.tensor_data().data()) + max_i;
-    const K *pk_raw =
-        reinterpret_cast<const K *>(keys.tensor_data().data()) + begin;
+    const K *const pk_raw_end = keys + max_i;
+    const K *pk_raw = keys + begin;
 
     const std::size_t &&V_byte_size = Velems_per_dim0 * sizeof(V);
 
-    const V *pv_raw = reinterpret_cast<const V *>(values.tensor_data().data()) +
-                      begin * Velems_per_dim0;
+    const V *pv_raw = values + begin * Velems_per_dim0;
 
     auto ptrs_iter = ptrs_0->begin();
     *ptrs_iter = redis_command;
@@ -1072,39 +1059,34 @@ every bucket has its own BucketContext for sending data---for locating reply-
   }
 
   virtual Status MaccumCommand(
-      const Tensor &keys, const Tensor &values_or_delta, const Tensor &exists,
+      const K *keys, const V *values_or_delta, const bool *exists,
       ThreadContext *thread_context, const int64_t begin, const int64_t max_i,
-      const int64_t Velems_per_dim0,
+      const int64_t Velems_per_dim0, std::string &values_dtype_str,
       const std::vector<std::string> &keys_prefix_name_slices) override {
     const int &&total = max_i - begin;
     const int &&argc = total * 2 + 4;
 
     const static char *redis_command = "HMACCUM";
     const static std::size_t redis_command_byte = 7;
-    std::string dTypestr = DataTypeString(values_or_delta.dtype());
 
     thread_context->HandleReserve(1U, argc, 0);
 
     std::vector<const char *> *ptrs_0 = thread_context->buckets[0]->ptrs.get();
     std::vector<std::size_t> *sizes_0 = thread_context->buckets[0]->sizes.get();
 
-    const K *const pk_raw_end =
-        reinterpret_cast<const K *>(keys.tensor_data().data()) + max_i;
-    const K *pk_raw =
-        reinterpret_cast<const K *>(keys.tensor_data().data()) + begin;
+    const K *const pk_raw_end = keys + max_i;
+    const K *pk_raw = keys + begin;
 
     const std::size_t &&V_byte_size = Velems_per_dim0 * sizeof(V);
 
-    const V *pv_raw =
-        reinterpret_cast<const V *>(values_or_delta.tensor_data().data()) +
-        begin * Velems_per_dim0;
+    const V *pv_raw = values_or_delta + begin * Velems_per_dim0;
 
     auto ptrs_iter = ptrs_0->begin();
     *ptrs_iter = redis_command;
     ++ptrs_iter;
     *ptrs_iter = keys_prefix_name_slices[0].data();
     ++ptrs_iter;
-    *ptrs_iter = dTypestr.c_str();
+    *ptrs_iter = values_dtype_str.c_str();
     ++ptrs_iter;
 
     auto sizes_iter = sizes_0->begin();
@@ -1112,7 +1094,7 @@ every bucket has its own BucketContext for sending data---for locating reply-
     ++sizes_iter;
     *sizes_iter = keys_prefix_name_slices[0].size();
     ++sizes_iter;
-    *sizes_iter = dTypestr.size();
+    *sizes_iter = values_dtype_str.size();
     ++sizes_iter;
 
     VContentAndTypeSizeResult VCATS_temp;
@@ -1134,8 +1116,7 @@ every bucket has its own BucketContext for sending data---for locating reply-
       ++sizes_iter;
     }
 
-    const bool *pe_raw =
-        reinterpret_cast<const bool *>(exists.tensor_data().data()) + begin;
+    const bool *pe_raw = exists + begin;
     *ptrs_iter = KContentPointer<bool>(pe_raw);
     *sizes_iter = total * KTypeSize<bool>(pe_raw);
 
@@ -1161,7 +1142,7 @@ every bucket has its own BucketContext for sending data---for locating reply-
   }
 
   virtual Status DelCommand(
-      const Tensor &keys, ThreadContext *thread_context, const int64_t begin,
+      const K *keys, ThreadContext *thread_context, const int64_t begin,
       const int64_t max_i,
       const std::vector<std::string> &keys_prefix_name_slices) override {
     const int argc = (max_i - begin) + 2;
@@ -1174,10 +1155,8 @@ every bucket has its own BucketContext for sending data---for locating reply-
     std::vector<const char *> *ptrs_0 = thread_context->buckets[0]->ptrs.get();
     std::vector<std::size_t> *sizes_0 = thread_context->buckets[0]->sizes.get();
 
-    const K *const pk_raw_end =
-        reinterpret_cast<const K *>(keys.tensor_data().data()) + max_i;
-    const K *pk_raw =
-        reinterpret_cast<const K *>(keys.tensor_data().data()) + begin;
+    const K *const pk_raw_end = keys + max_i;
+    const K *pk_raw = keys + begin;
 
     auto ptrs_iter = ptrs_0->begin();
     *ptrs_iter = redis_command;

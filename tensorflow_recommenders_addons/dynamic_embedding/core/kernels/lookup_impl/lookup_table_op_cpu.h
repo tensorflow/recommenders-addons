@@ -29,8 +29,9 @@ limitations under the License.
 #include "tensorflow/core/lib/gtl/inlined_vector.h"
 #include "tensorflow/core/lib/io/buffered_inputstream.h"
 #include "tensorflow/core/lib/io/random_inputstream.h"
+#include "tensorflow/core/platform/env.h"
+#include "tensorflow/core/platform/file_system.h"
 #include "tensorflow_recommenders_addons/dynamic_embedding/core/lib/cuckoo/cuckoohash_map.hh"
-#include "tensorflow_recommenders_addons/dynamic_embedding/core/lib/hadoop_file_system/hadoop_file_system.h"
 #include "tensorflow_recommenders_addons/dynamic_embedding/core/utils/types.h"
 
 namespace tensorflow {
@@ -118,11 +119,14 @@ class TableWrapperBase {
  public:
   virtual ~TableWrapperBase() {}
   virtual bool insert_or_assign(K key, ConstTensor2D<V>& value_flat,
-                                int64 value_dim, int64 index) {
+                                int64 value_dim, int64 index) const {
+    return false;
+  }
+  virtual bool insert_or_assign_one(K key, V* value, int64 value_dim) const {
     return false;
   }
   virtual bool insert_or_accum(K key, ConstTensor2D<V>& value_or_delta_flat,
-                               bool exist, int64 value_dim, int64 index) {
+                               bool exist, int64 value_dim, int64 index) const {
     return false;
   }
   virtual void find(const K& key, Tensor2D<V>& value_flat,
@@ -132,18 +136,13 @@ class TableWrapperBase {
                     ConstTensor2D<V>& default_flat, bool& exist,
                     int64 value_dim, bool is_full_size_default,
                     int64 index) const {}
+  virtual size_t dump(K* keys, V* values, const size_t search_offset,
+                      const size_t search_length) const {
+    return 0;
+  }
   virtual size_t size() const { return 0; }
   virtual void clear() {}
   virtual bool erase(const K& key) { return false; }
-  virtual Status export_values(OpKernelContext* ctx, int64 value_dim) {
-    return Status::OK();
-  }
-  virtual Status save_to_hdfs(OpKernelContext* ctx, int64 value_dim,
-                              const string& filepath,
-                              const size_t buffer_size) {}
-  virtual Status load_from_hdfs(OpKernelContext* ctx, int64 value_dim,
-                                const string& filepath,
-                                const size_t buffer_size) {}
 };
 
 template <class K, class V, size_t DIM>
@@ -164,7 +163,7 @@ class TableWrapperOptimized final : public TableWrapperBase<K, V> {
   ~TableWrapperOptimized() override { delete table_; }
 
   bool insert_or_assign(K key, ConstTensor2D<V>& value_flat, int64 value_dim,
-                        int64 index) override {
+                        int64 index) const override {
     ValueType value_vec;
     for (int64 j = 0; j < value_dim; j++) {
       V value = value_flat(index, j);
@@ -173,8 +172,15 @@ class TableWrapperOptimized final : public TableWrapperBase<K, V> {
     return table_->insert_or_assign(key, value_vec);
   }
 
+  bool insert_or_assign_one(K key, V* value, int64 value_dim) const override {
+    assert(value_dim == DIM);
+    ValueType value_vec;
+    std::copy_n(value, DIM, (V*)value_vec.data());
+    return table_->insert_or_assign(key, value_vec);
+  }
+
   bool insert_or_accum(K key, ConstTensor2D<V>& value_or_delta_flat, bool exist,
-                       int64 value_dim, int64 index) override {
+                       int64 value_dim, int64 index) const override {
     ValueType value_or_delta_vec;
     for (int64 j = 0; j < value_dim; j++) {
       value_or_delta_vec[j] = value_or_delta_flat(index, j);
@@ -215,110 +221,46 @@ class TableWrapperOptimized final : public TableWrapperBase<K, V> {
     }
   }
 
+  size_t dump(K* keys, V* values, const size_t search_offset,
+              const size_t search_length) const override {
+    auto lt = table_->lock_table();
+    auto lt_size = lt.size();
+    if (search_offset > lt_size || lt_size == 0) {
+      return 0;
+    }
+    auto search_begin = lt.begin();
+    for (size_t i = 0; i < search_offset; ++i) {
+      ++search_begin;
+    }
+    auto search_end = search_begin;
+    if ((search_offset + search_length) >= lt_size) {
+      search_end = lt.end();
+    } else {
+      for (size_t i = 0; i < search_length; ++i) {
+        ++search_end;
+      }
+    }
+
+    constexpr const size_t value_dim = DIM;
+    K* key_ptr = keys;
+    V* val_ptr = values;
+    size_t dump_counter = 0;
+    for (auto it = search_begin; it != search_end;
+         ++it, ++key_ptr, val_ptr += value_dim) {
+      const K& key = it->first;
+      const ValueType& value = it->second;
+      *key_ptr = key;
+      std::copy_n((V*)value.data(), value_dim, val_ptr);
+      ++dump_counter;
+    }
+    return dump_counter;
+  }
+
   size_t size() const override { return table_->size(); }
 
   void clear() override { table_->clear(); }
 
   bool erase(const K& key) override { return table_->erase(key); }
-
-  Status export_values(OpKernelContext* ctx, int64 value_dim) override {
-    auto lt = table_->lock_table();
-    int64 size = lt.size();
-
-    Tensor* keys;
-    Tensor* values;
-    TF_RETURN_IF_ERROR(
-        ctx->allocate_output("keys", TensorShape({size}), &keys));
-    TF_RETURN_IF_ERROR(ctx->allocate_output(
-        "values", TensorShape({size, value_dim}), &values));
-
-    auto keys_data = keys->flat<K>();
-    auto values_data = values->matrix<V>();
-    int64 i = 0;
-
-    for (auto it = lt.begin(); it != lt.end(); ++it, ++i) {
-      K key = it->first;
-      ValueType value = it->second;
-      keys_data(i) = key;
-      for (int64 j = 0; j < value_dim; j++) {
-        values_data(i, j) = value.at(j);
-      }
-    }
-    return Status::OK();
-  }
-
-  Status save_to_hdfs(OpKernelContext* ctx, int64 value_dim,
-                      const string& filepath,
-                      const size_t buffer_size) override {
-    size_t dim = static_cast<size_t>(value_dim);
-    auto lt = table_->lock_table();
-
-    HadoopFileSystem hdfs;
-    std::unique_ptr<WritableFile> writer;
-    const string tmp_file = filepath + ".tmp";
-    TF_RETURN_IF_ERROR(hdfs.NewWritableFile(tmp_file, &writer));
-
-    const uint32 value_len = sizeof(V) * dim;
-    const uint32 record_len = sizeof(K) + value_len;
-    uint64 pos = 0;
-    uint8 content[buffer_size + record_len];
-
-    for (auto it = lt.begin(); it != lt.end(); ++it) {
-      K k = it->first;
-      std::memcpy(content + pos, reinterpret_cast<uint8*>(&k), sizeof(K));
-
-      const auto& jt = it->second.data();
-      std::memcpy(content + pos + sizeof(K), reinterpret_cast<uint8*>(jt),
-                  value_len);
-
-      pos += record_len;
-      if (pos > buffer_size) {
-        TF_RETURN_IF_ERROR(
-            writer->Append(StringPiece(reinterpret_cast<char*>(content), pos)));
-        pos = 0;
-      }
-    }
-
-    if (pos > 0) {
-      TF_RETURN_IF_ERROR(
-          writer->Append(StringPiece(reinterpret_cast<char*>(content), pos)));
-    }
-
-    TF_RETURN_IF_ERROR(writer->Close());
-    TF_RETURN_IF_ERROR(hdfs.RenameFile(tmp_file, filepath));
-    return Status::OK();
-  }
-
-  Status load_from_hdfs(OpKernelContext* ctx, int64 value_dim,
-                        const string& filepath,
-                        const size_t buffer_size) override {
-    size_t dim = static_cast<size_t>(value_dim);
-
-    HadoopFileSystem hdfs;
-    std::unique_ptr<RandomAccessFile> file;
-    TF_RETURN_IF_ERROR(hdfs.NewRandomAccessFile(filepath, &file));
-    std::unique_ptr<io::RandomAccessInputStream> input_stream(
-        new io::RandomAccessInputStream(file.get()));
-    io::BufferedInputStream reader(input_stream.get(), buffer_size);
-
-    uint64 file_size = 0;
-    TF_RETURN_IF_ERROR(hdfs.GetFileSize(filepath, &file_size));
-
-    tstring content;
-    const uint32 value_len = sizeof(V) * dim;
-    const uint32 record_len = sizeof(K) + value_len;
-    uint64 i = 0;
-
-    while (i < file_size) {
-      TF_RETURN_IF_ERROR(reader.ReadNBytes(record_len, &content));
-      K* k = reinterpret_cast<K*>(content.data());
-      ValueType* value_vec =
-          reinterpret_cast<ValueType*>(content.data() + sizeof(K));
-      table_->insert_or_assign(*k, *value_vec);
-      i += record_len;
-    }
-    return Status::OK();
-  }
 
  private:
   size_t init_size_;
@@ -343,7 +285,7 @@ class TableWrapperDefault final : public TableWrapperBase<K, V> {
   ~TableWrapperDefault() override { delete table_; }
 
   bool insert_or_assign(K key, ConstTensor2D<V>& value_flat, int64 value_dim,
-                        int64 index) override {
+                        int64 index) const override {
     ValueType value_vec;
     for (int64 j = 0; j < value_dim; j++) {
       V value = value_flat(index, j);
@@ -353,12 +295,18 @@ class TableWrapperDefault final : public TableWrapperBase<K, V> {
   }
 
   bool insert_or_accum(K key, ConstTensor2D<V>& value_or_delta_flat, bool exist,
-                       int64 value_dim, int64 index) override {
+                       int64 value_dim, int64 index) const override {
     ValueType value_or_delta_vec;
     for (int64 j = 0; j < value_dim; j++) {
       value_or_delta_vec.push_back(value_or_delta_flat(index, j));
     }
     return table_->insert_or_accum(key, value_or_delta_vec, exist);
+  }
+
+  bool insert_or_assign_one(K key, V* value, int64 value_dim) const override {
+    ValueType value_vec;
+    std::copy_n(value, value_dim, (V*)value_vec.data());
+    return table_->insert_or_assign(key, value_vec);
   }
 
   void find(const K& key, typename tensorflow::TTypes<V, 2>::Tensor& value_flat,
@@ -394,37 +342,46 @@ class TableWrapperDefault final : public TableWrapperBase<K, V> {
     }
   }
 
+  size_t dump(K* keys, V* values, const size_t search_offset,
+              const size_t search_length) const override {
+    auto lt = table_->lock_table();
+    auto lt_size = lt.size();
+    if (search_offset > lt_size || lt_size == 0) {
+      return 0;
+    }
+    auto search_begin = lt.begin();
+    for (size_t i = 0; i < search_offset; ++i) {
+      ++search_begin;
+    }
+    auto search_end = search_begin;
+    if ((search_offset + search_length) >= lt_size) {
+      search_end = lt.end();
+    } else {
+      for (size_t i = 0; i < search_length; ++i) {
+        ++search_end;
+      }
+    }
+
+    const auto value_dim = (lt.begin()->second).size();
+    K* key_ptr = keys;
+    V* val_ptr = values;
+    size_t dump_counter = 0;
+    for (auto it = search_begin; it != search_end;
+         ++it, ++key_ptr, val_ptr += value_dim) {
+      const K& key = it->first;
+      const ValueType& value = it->second;
+      *key_ptr = key;
+      std::copy_n((V*)value.data(), value_dim, val_ptr);
+      ++dump_counter;
+    }
+    return dump_counter;
+  }
+
   size_t size() const override { return table_->size(); }
 
   void clear() override { table_->clear(); }
 
   bool erase(const K& key) override { return table_->erase(key); }
-
-  Status export_values(OpKernelContext* ctx, int64 value_dim) override {
-    auto lt = table_->lock_table();
-    int64 size = lt.size();
-
-    Tensor* keys;
-    Tensor* values;
-    TF_RETURN_IF_ERROR(
-        ctx->allocate_output("keys", TensorShape({size}), &keys));
-    TF_RETURN_IF_ERROR(ctx->allocate_output(
-        "values", TensorShape({size, value_dim}), &values));
-
-    auto keys_data = keys->flat<K>();
-    auto values_data = values->matrix<V>();
-    int64 i = 0;
-
-    for (auto it = lt.begin(); it != lt.end(); ++it, ++i) {
-      K key = it->first;
-      ValueType value = it->second;
-      keys_data(i) = key;
-      for (int64 j = 0; j < value_dim; j++) {
-        values_data(i, j) = value.at(j);
-      }
-    }
-    return Status::OK();
-  }
 
  private:
   size_t init_size_;
