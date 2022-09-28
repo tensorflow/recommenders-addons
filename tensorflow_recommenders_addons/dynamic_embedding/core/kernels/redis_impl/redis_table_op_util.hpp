@@ -59,10 +59,11 @@ size_t SelectAvailableThreadContext(
   return thread_context_id;
 }
 
-Status launchFindCore(std::shared_ptr<RedisVirtualWrapper> _table_instance,
+template <typename K, typename V>
+Status launchFindCore(std::shared_ptr<RedisBaseWrapper<K, V>> _table_instance,
                       std::vector<std::string> &keys_prefix_name_slices,
-                      const Tensor &keys, Tensor *values,
-                      const Tensor &default_value, const bool is_full_default,
+                      const K *keys, V *values, const V *default_value,
+                      const bool is_full_default,
                       const int64_t &Velems_per_flat2_dim0,
                       std::vector<ThreadContext *> &threads_Find,
                       std::mutex &threads_Find_mutex, const int64_t begin,
@@ -85,11 +86,12 @@ Status launchFindCore(std::shared_ptr<RedisVirtualWrapper> _table_instance,
   return statu;
 }
 
+template <typename K, typename V>
 Status launchFindWithExistsCore(
-    std::shared_ptr<RedisVirtualWrapper> _table_instance,
-    std::vector<std::string> &keys_prefix_name_slices, const Tensor &keys,
-    Tensor *values, const Tensor &default_value, Tensor &exists,
-    const bool is_full_default, const int64_t &Velems_per_flat2_dim0,
+    std::shared_ptr<RedisBaseWrapper<K, V>> _table_instance,
+    std::vector<std::string> &keys_prefix_name_slices, const K *keys, V *values,
+    const V *default_value, bool *exists, const bool is_full_default,
+    const int64_t &Velems_per_flat2_dim0,
     std::vector<ThreadContext *> &threads_Find, std::mutex &threads_Find_mutex,
     const int64_t begin, const int64_t end) {
   // TODO: Implement the function of not looking up the table if the key does
@@ -112,9 +114,10 @@ Status launchFindWithExistsCore(
   return statu;
 }
 
-Status launchInsertCore(std::shared_ptr<RedisVirtualWrapper> _table_instance,
+template <typename K, typename V>
+Status launchInsertCore(std::shared_ptr<RedisBaseWrapper<K, V>> _table_instance,
                         std::vector<std::string> &keys_prefix_name_slices,
-                        const Tensor &keys, const Tensor &values,
+                        const K *keys, const V *values,
                         const int64_t &Velems_per_flat2_dim0,
                         std::vector<ThreadContext *> &threads_Insert,
                         std::mutex &threads_Insert_mutex, const int64_t begin,
@@ -132,11 +135,12 @@ Status launchInsertCore(std::shared_ptr<RedisVirtualWrapper> _table_instance,
   return statu;
 }
 
-Status launchAccumCore(std::shared_ptr<RedisVirtualWrapper> _table_instance,
+template <typename K, typename V>
+Status launchAccumCore(std::shared_ptr<RedisBaseWrapper<K, V>> _table_instance,
                        std::vector<std::string> &keys_prefix_name_slices,
-                       const Tensor &keys, const Tensor &values_or_delta,
-                       const Tensor &exists,
-                       const int64_t &Velems_per_flat2_dim0,
+                       const K *keys, const V *values_or_delta,
+                       const bool *exists, const int64_t &Velems_per_flat2_dim0,
+                       std::string &values_dtype_str,
                        std::vector<ThreadContext *> &threads_Insert,
                        std::mutex &threads_Accum_mutex, const int64_t begin,
                        const int64_t end) {
@@ -145,7 +149,8 @@ Status launchAccumCore(std::shared_ptr<RedisVirtualWrapper> _table_instance,
 
   auto statu = _table_instance->MaccumCommand(
       keys, values_or_delta, exists, threads_Insert.at(thread_context_id),
-      begin, end, Velems_per_flat2_dim0, keys_prefix_name_slices);
+      begin, end, Velems_per_flat2_dim0, values_dtype_str,
+      keys_prefix_name_slices);
 
   threads_Insert[thread_context_id]->thread_occupied.store(
       false, std::memory_order_release);
@@ -153,9 +158,10 @@ Status launchAccumCore(std::shared_ptr<RedisVirtualWrapper> _table_instance,
   return statu;
 }
 
-Status launchDeleteCore(std::shared_ptr<RedisVirtualWrapper> _table_instance,
+template <typename K, typename V>
+Status launchDeleteCore(std::shared_ptr<RedisBaseWrapper<K, V>> _table_instance,
                         std::vector<std::string> &keys_prefix_name_slices,
-                        const Tensor &keys,
+                        const K *keys,
                         std::vector<ThreadContext *> &threads_Delete,
                         std::mutex &threads_Delete_mutex, const int64_t begin,
                         const int64_t end) {

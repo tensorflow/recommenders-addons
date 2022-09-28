@@ -33,6 +33,11 @@ limitations under the License.
 #include "redis_impl/redis_connection_pool.hpp"
 #include "redis_impl/redis_table_op_util.hpp"
 #include "tensorflow/core/kernels/lookup_table_op.h"
+#include "tensorflow/core/lib/io/buffered_inputstream.h"
+#include "tensorflow/core/lib/io/random_inputstream.h"
+#include "tensorflow/core/platform/env.h"
+#include "tensorflow/core/platform/file_system.h"
+#include "tensorflow/core/platform/path.h"
 #include "tensorflow/core/util/work_sharder.h"
 #include "tensorflow_recommenders_addons/dynamic_embedding/core/utils/types.h"
 #include "tensorflow_recommenders_addons/dynamic_embedding/core/utils/utils.h"
@@ -71,7 +76,7 @@ class RedisTableOfTensors final : public LookupInterface {
   std::vector<std::string> keys_prefix_name_slices;
   std::vector<std::string> keys_prefix_name_slices_import;
 
-  std::shared_ptr<RedisVirtualWrapper> _table_instance = nullptr;
+  std::shared_ptr<RedisBaseWrapper<K, V>> _table_instance = nullptr;
 
   std::vector<ThreadContext *> threads_Find;
   std::vector<ThreadContext *> threads_Insert;
@@ -93,13 +98,11 @@ class RedisTableOfTensors final : public LookupInterface {
  private:
   void launchFind_parallel(OpKernelContext *ctx,
                            std::vector<std::string> &keys_prefix_name_slices,
-                           const Tensor &keys, Tensor *values,
-                           const Tensor &default_value, const int64_t &total,
+                           const K *keys, V *values, const V *default_value,
+                           const int64_t &total,
                            const int64_t &Velems_per_flat2_dim0,
+                           const bool is_full_default,
                            std::vector<ThreadContext *> &threads_Find) {
-    const bool is_full_default =
-        (values->NumElements() == default_value.NumElements());
-
     const int64_t max_parallelism = (total / multi_redis_cmd_max_argc) + 1;
 
     auto shard = [this, &ctx, &total, &keys_prefix_name_slices, &keys, &values,
@@ -107,9 +110,9 @@ class RedisTableOfTensors final : public LookupInterface {
                   &threads_Find](int64_t begin, int64_t end) {
       const int64_t max_i = std::min(total, end);
 
-      OP_REQUIRES_OK(
-          ctx,
-          launchFindCore(_table_instance, keys_prefix_name_slices, keys, values,
+      OP_REQUIRES_OK(ctx,
+                     launchFindCore<K, V>(
+                         _table_instance, keys_prefix_name_slices, keys, values,
                          default_value, is_full_default, Velems_per_flat2_dim0,
                          threads_Find, threads_Find_mutex, begin, max_i));
     };
@@ -120,29 +123,22 @@ class RedisTableOfTensors final : public LookupInterface {
 
   void launchFind(OpKernelContext *ctx,
                   std::vector<std::string> &keys_prefix_name_slices,
-                  const Tensor &keys, Tensor *values,
-                  const Tensor &default_value, const int64_t &total,
-                  const int64_t &Velems_per_flat2_dim0,
+                  const K *keys, V *values, const V *default_value,
+                  const int64_t &total, const int64_t &Velems_per_flat2_dim0,
+                  const bool is_full_default,
                   std::vector<ThreadContext *> &threads_Find) {
-    const bool is_full_default =
-        (values->NumElements() == default_value.NumElements());
-
     OP_REQUIRES_OK(
-        ctx,
-        launchFindCore(_table_instance, keys_prefix_name_slices, keys, values,
-                       default_value, is_full_default, Velems_per_flat2_dim0,
-                       threads_Find, threads_Find_mutex, 0, total));
+        ctx, launchFindCore<K, V>(_table_instance, keys_prefix_name_slices,
+                                  keys, values, default_value, is_full_default,
+                                  Velems_per_flat2_dim0, threads_Find,
+                                  threads_Find_mutex, 0, total));
   }
 
   void launchFindWithExists_parallel(
       OpKernelContext *ctx, std::vector<std::string> &keys_prefix_name_slices,
-      const Tensor &keys, Tensor *values, const Tensor &default_value,
-      Tensor &exists, const int64_t &total,
-      const int64_t &Velems_per_flat2_dim0,
-      std::vector<ThreadContext *> &threads_Find) {
-    const bool is_full_default =
-        (values->NumElements() == default_value.NumElements());
-
+      const K *keys, V *values, const V *default_value, bool *exists,
+      const int64_t &total, const int64_t &Velems_per_flat2_dim0,
+      const bool is_full_default, std::vector<ThreadContext *> &threads_Find) {
     const int64_t max_parallelism = (total / multi_redis_cmd_max_argc) + 1;
 
     auto shard = [this, &ctx, &total, &keys_prefix_name_slices, &keys, &values,
@@ -151,7 +147,7 @@ class RedisTableOfTensors final : public LookupInterface {
                   &threads_Find](int64_t begin, int64_t end) {
       const int64_t max_i = std::min(total, end);
 
-      OP_REQUIRES_OK(ctx, launchFindWithExistsCore(
+      OP_REQUIRES_OK(ctx, launchFindWithExistsCore<K, V>(
                               _table_instance, keys_prefix_name_slices, keys,
                               values, default_value, exists, is_full_default,
                               Velems_per_flat2_dim0, threads_Find,
@@ -164,16 +160,13 @@ class RedisTableOfTensors final : public LookupInterface {
 
   void launchFindWithExists(OpKernelContext *ctx,
                             std::vector<std::string> &keys_prefix_name_slices,
-                            const Tensor &keys, Tensor *values,
-                            const Tensor &default_value, Tensor &exists,
-                            const int64_t &total,
+                            const K *keys, V *values, const V *default_value,
+                            bool *exists, const int64_t &total,
                             const int64_t &Velems_per_flat2_dim0,
+                            const bool is_full_default,
                             std::vector<ThreadContext *> &threads_Find) {
-    const bool is_full_default =
-        (values->NumElements() == default_value.NumElements());
-
     OP_REQUIRES_OK(
-        ctx, launchFindWithExistsCore(
+        ctx, launchFindWithExistsCore<K, V>(
                  _table_instance, keys_prefix_name_slices, keys, values,
                  default_value, exists, is_full_default, Velems_per_flat2_dim0,
                  threads_Find, threads_Find_mutex, 0, total));
@@ -181,7 +174,7 @@ class RedisTableOfTensors final : public LookupInterface {
 
   void launchInsert_parallel(OpKernelContext *ctx,
                              std::vector<std::string> &keys_prefix_name_slices,
-                             const Tensor &keys, const Tensor &values,
+                             const K *keys, const V *values,
                              const int64_t &total,
                              const int64_t &Velems_per_flat2_dim0,
                              std::vector<ThreadContext *> &threads_Insert) {
@@ -192,10 +185,10 @@ class RedisTableOfTensors final : public LookupInterface {
                   &threads_Insert](int64_t begin, int64_t end) {
       const int64_t max_i = std::min(total, end);
 
-      OP_REQUIRES_OK(
-          ctx, launchInsertCore(_table_instance, keys_prefix_name_slices, keys,
-                                values, Velems_per_flat2_dim0, threads_Insert,
-                                threads_Insert_mutex, begin, max_i));
+      OP_REQUIRES_OK(ctx, launchInsertCore<K, V>(
+                              _table_instance, keys_prefix_name_slices, keys,
+                              values, Velems_per_flat2_dim0, threads_Insert,
+                              threads_Insert_mutex, begin, max_i));
     };
     int64_t slices_size = std::min(total, multi_redis_cmd_max_argc - 1);
     auto &worker_threads = *ctx->device()->tensorflow_cpu_worker_threads();
@@ -204,33 +197,35 @@ class RedisTableOfTensors final : public LookupInterface {
 
   void launchInsert(OpKernelContext *ctx,
                     std::vector<std::string> &keys_prefix_name_slices,
-                    const Tensor &keys, const Tensor &values,
-                    const int64_t &total, const int64_t &Velems_per_flat2_dim0,
+                    const K *keys, const V *values, const int64_t &total,
+                    const int64_t &Velems_per_flat2_dim0,
                     std::vector<ThreadContext *> &threads_Insert) {
-    OP_REQUIRES_OK(
-        ctx, launchInsertCore(_table_instance, keys_prefix_name_slices, keys,
-                              values, Velems_per_flat2_dim0, threads_Insert,
-                              threads_Insert_mutex, 0, total));
+    OP_REQUIRES_OK(ctx, launchInsertCore<K, V>(
+                            _table_instance, keys_prefix_name_slices, keys,
+                            values, Velems_per_flat2_dim0, threads_Insert,
+                            threads_Insert_mutex, 0, total));
   }
 
   void launchAccum_parallel(OpKernelContext *ctx,
                             std::vector<std::string> &keys_prefix_name_slices,
-                            const Tensor &keys, const Tensor &values_or_delta,
-                            const Tensor &exists, const int64_t &total,
+                            const K *keys, const V *values_or_delta,
+                            const bool *exists, const int64_t &total,
                             const int64_t &Velems_per_flat2_dim0,
+                            std::string &values_dtype_str,
                             std::vector<ThreadContext *> &threads_Insert) {
     const int64_t max_parallelism = (total / multi_redis_cmd_max_argc) + 1;
 
     auto shard = [this, &ctx, &total, &keys_prefix_name_slices, &keys,
                   &values_or_delta, &exists, &Velems_per_flat2_dim0,
+                  &values_dtype_str,
                   &threads_Insert](int64_t begin, int64_t end) {
       const int64_t max_i = std::min(total, end);
 
-      OP_REQUIRES_OK(
-          ctx,
-          launchAccumCore(_table_instance, keys_prefix_name_slices, keys,
-                          values_or_delta, exists, Velems_per_flat2_dim0,
-                          threads_Insert, threads_Accum_mutex, begin, max_i));
+      OP_REQUIRES_OK(ctx, launchAccumCore<K, V>(
+                              _table_instance, keys_prefix_name_slices, keys,
+                              values_or_delta, exists, Velems_per_flat2_dim0,
+                              values_dtype_str, threads_Insert,
+                              threads_Accum_mutex, begin, max_i));
     };
     int64_t slices_size = std::min(total, multi_redis_cmd_max_argc - 1);
     auto &worker_threads = *ctx->device()->tensorflow_cpu_worker_threads();
@@ -239,19 +234,20 @@ class RedisTableOfTensors final : public LookupInterface {
 
   void launchAccum(OpKernelContext *ctx,
                    std::vector<std::string> &keys_prefix_name_slices,
-                   const Tensor &keys, const Tensor &values_or_delta,
-                   const Tensor &exists, const int64_t &total,
-                   const int64_t &Velems_per_flat2_dim0,
+                   const K *keys, const V *values_or_delta, const bool *exists,
+                   const int64_t &total, const int64_t &Velems_per_flat2_dim0,
+                   std::string &values_dtype_str,
                    std::vector<ThreadContext *> &threads_Insert) {
-    OP_REQUIRES_OK(
-        ctx, launchAccumCore(_table_instance, keys_prefix_name_slices, keys,
-                             values_or_delta, exists, Velems_per_flat2_dim0,
-                             threads_Insert, threads_Insert_mutex, 0, total));
+    OP_REQUIRES_OK(ctx, launchAccumCore<K, V>(
+                            _table_instance, keys_prefix_name_slices, keys,
+                            values_or_delta, exists, Velems_per_flat2_dim0,
+                            values_dtype_str, threads_Insert,
+                            threads_Insert_mutex, 0, total));
   }
 
   void launchDelete_parallel(OpKernelContext *ctx,
                              std::vector<std::string> &keys_prefix_name_slices,
-                             const Tensor &keys, const int64_t &total,
+                             const K *keys, const int64_t &total,
                              std::vector<ThreadContext *> &threads_Delete) {
     const int64_t max_parallelism = (total / multi_redis_cmd_max_argc) + 1;
 
@@ -260,9 +256,9 @@ class RedisTableOfTensors final : public LookupInterface {
       const int64_t max_i = std::min(total, end);
 
       OP_REQUIRES_OK(
-          ctx,
-          launchDeleteCore(_table_instance, keys_prefix_name_slices, keys,
-                           threads_Delete, threads_Delete_mutex, begin, max_i));
+          ctx, launchDeleteCore<K, V>(_table_instance, keys_prefix_name_slices,
+                                      keys, threads_Delete,
+                                      threads_Delete_mutex, begin, max_i));
     };
     int64_t slices_size = std::min(total, multi_redis_cmd_max_argc - 1);
     auto &worker_threads = *ctx->device()->tensorflow_cpu_worker_threads();
@@ -271,11 +267,11 @@ class RedisTableOfTensors final : public LookupInterface {
 
   void launchDelete(OpKernelContext *ctx,
                     std::vector<std::string> &keys_prefix_name_slices,
-                    const Tensor &keys, const int64_t &total,
+                    const K *keys, const int64_t &total,
                     std::vector<ThreadContext *> &threads_Delete) {
-    OP_REQUIRES_OK(
-        ctx, launchDeleteCore(_table_instance, keys_prefix_name_slices, keys,
-                              threads_Delete, threads_Delete_mutex, 0, total));
+    OP_REQUIRES_OK(ctx, launchDeleteCore<K, V>(
+                            _table_instance, keys_prefix_name_slices, keys,
+                            threads_Delete, threads_Delete_mutex, 0, total));
   }
 
  public:
@@ -639,7 +635,7 @@ class RedisTableOfTensors final : public LookupInterface {
       }
       try {
         // insert KV pair into new Redis with new storage_slice
-        launchInsert(ctx, keys_prefix_name_slices, keys_temp, values_temp,
+        launchInsert(ctx, keys_prefix_name_slices, pk_raw, pv_raw,
                      slice_keys_size, runtime_value_dim_, threads_Insert);
       } catch (const std::exception &err) {
         LOG(ERROR)
@@ -681,15 +677,20 @@ class RedisTableOfTensors final : public LookupInterface {
     int64_t total = keys.NumElements();
     if (total > 0) {
       const int64_t Velems_per_flat2_dim0 = values->NumElements() / total;
-
+      const bool is_full_default =
+          (values->NumElements() == default_value.NumElements());
       if (total < (multi_redis_cmd_max_argc - 1)) {
-        launchFind(ctx, keys_prefix_name_slices, keys, values, default_value,
-                   total, Velems_per_flat2_dim0, threads_Find);
+        launchFind(ctx, keys_prefix_name_slices, (K *)keys.tensor_data().data(),
+                   (V *)values->tensor_data().data(),
+                   (V *)default_value.tensor_data().data(), total,
+                   Velems_per_flat2_dim0, is_full_default, threads_Find);
       } else {
         // redis commmand args > multi_redis_cmd_max_argc
-        launchFind_parallel(ctx, keys_prefix_name_slices, keys, values,
-                            default_value, total, Velems_per_flat2_dim0,
-                            threads_Find);
+        launchFind_parallel(
+            ctx, keys_prefix_name_slices, (K *)keys.tensor_data().data(),
+            (V *)values->tensor_data().data(),
+            (V *)default_value.tensor_data().data(), total,
+            Velems_per_flat2_dim0, is_full_default, threads_Find);
       }
     }
 
@@ -702,85 +703,100 @@ class RedisTableOfTensors final : public LookupInterface {
     int64_t total = keys.NumElements();
     if (total > 0) {
       const int64_t Velems_per_flat2_dim0 = values->NumElements() / total;
-
+      const bool is_full_default =
+          (values->NumElements() == default_value.NumElements());
       if (total < (multi_redis_cmd_max_argc - 1)) {
-        launchFindWithExists(ctx, keys_prefix_name_slices, keys, values,
-                             default_value, exists, total,
-                             Velems_per_flat2_dim0, threads_Find);
+        launchFindWithExists(
+            ctx, keys_prefix_name_slices, (K *)keys.tensor_data().data(),
+            (V *)values->tensor_data().data(),
+            (V *)default_value.tensor_data().data(),
+            (bool *)exists.tensor_data().data(), total, Velems_per_flat2_dim0,
+            is_full_default, threads_Find);
       } else {
         // redis commmand args > multi_redis_cmd_max_argc
-        launchFindWithExists_parallel(ctx, keys_prefix_name_slices, keys,
-                                      values, default_value, exists, total,
-                                      Velems_per_flat2_dim0, threads_Find);
+        launchFindWithExists_parallel(
+            ctx, keys_prefix_name_slices, (K *)keys.tensor_data().data(),
+            (V *)values->tensor_data().data(),
+            (V *)default_value.tensor_data().data(),
+            (bool *)exists.tensor_data().data(), total, Velems_per_flat2_dim0,
+            is_full_default, threads_Find);
       }
     }
     return Status::OK();
   }
 
-  Status DoInsert(bool clear, OpKernelContext *ctx, const Tensor &keys,
-                  const Tensor &values) {
-    int64_t total = keys.NumElements();
-    if (total > 0) {
-      const int64_t Velems_per_flat2_dim0 = values.NumElements() / total;
-      auto statu = Status::OK();
-      if (clear) {
-        for (auto keys_prefix_name_slice : keys_prefix_name_slices) {
-          statu = _table_instance->RemoveHkeysInBuckets(keys_prefix_name_slice);
-          if (statu != Status::OK()) {
-            return statu;
-          }
+  Status DoInsert(bool clear, OpKernelContext *ctx, const K *keys,
+                  const V *values, const int64_t total,
+                  const int64_t Velems_per_flat2_dim0) {
+    auto statu = Status::OK();
+    if (clear) {
+      for (auto keys_prefix_name_slice : keys_prefix_name_slices) {
+        statu = _table_instance->RemoveHkeysInBuckets(keys_prefix_name_slice);
+        if (statu != Status::OK()) {
+          return statu;
         }
       }
-      if (total < (multi_redis_cmd_max_argc - 1)) {
-        launchInsert(ctx, keys_prefix_name_slices, keys, values, total,
-                     Velems_per_flat2_dim0, threads_Insert);
-      } else {
-        launchInsert_parallel(
-            ctx, keys_prefix_name_slices, keys, values, total,
-            Velems_per_flat2_dim0,
-            threads_Insert);  // redis commmand args > multi_redis_cmd_max_argc
-      }
+    }
+    if (total < (multi_redis_cmd_max_argc - 1)) {
+      launchInsert(ctx, keys_prefix_name_slices, keys, values, total,
+                   Velems_per_flat2_dim0, threads_Insert);
+    } else {
+      launchInsert_parallel(
+          ctx, keys_prefix_name_slices, keys, values, total,
+          Velems_per_flat2_dim0,
+          threads_Insert);  // redis commmand args > multi_redis_cmd_max_argc
     }
     return Status::OK();
   }
 
-  Status DoAccum(OpKernelContext *ctx, const Tensor &keys,
-                 const Tensor &values_or_delta, const Tensor &exists) {
+  Status Insert(OpKernelContext *ctx, const Tensor &keys,
+                const Tensor &values) override {
+    const int64_t total = keys.NumElements();
+    if (total > 0) {
+      const int64_t Velems_per_flat2_dim0 = values.NumElements() / total;
+      return DoInsert(false, ctx, (K *)keys.tensor_data().data(),
+                      (V *)values.tensor_data().data(), total,
+                      Velems_per_flat2_dim0);
+    } else {
+      LOG(INFO) << "Redis Backend Insert nothing for empty input keys tensor.";
+      return Status::OK();
+    }
+  }
+
+  Status Accum(OpKernelContext *ctx, const Tensor &keys,
+               const Tensor &values_or_delta, const Tensor &exists) {
     int64_t total = keys.NumElements();
     const int64_t Velems_per_flat2_dim0 =
         values_or_delta.NumElements() / keys.NumElements();
+    auto values_dtype_str = DataTypeString(values_or_delta.dtype());
 
     if (total < (multi_redis_cmd_max_argc - 1)) {
-      launchAccum(ctx, keys_prefix_name_slices, keys, values_or_delta, exists,
-                  total, Velems_per_flat2_dim0, threads_Insert);
+      launchAccum(ctx, keys_prefix_name_slices, (K *)keys.tensor_data().data(),
+                  (V *)values_or_delta.tensor_data().data(),
+                  (bool *)exists.tensor_data().data(), total,
+                  Velems_per_flat2_dim0, values_dtype_str, threads_Insert);
     } else {
       launchAccum_parallel(
-          ctx, keys_prefix_name_slices, keys, values_or_delta, exists, total,
-          Velems_per_flat2_dim0,
+          ctx, keys_prefix_name_slices, (K *)keys.tensor_data().data(),
+          (V *)values_or_delta.tensor_data().data(),
+          (bool *)exists.tensor_data().data(), total, Velems_per_flat2_dim0,
+          values_dtype_str,
           threads_Insert);  // redis commmand args > multi_redis_cmd_max_argc
     }
 
     return Status::OK();
   }
 
-  Status Insert(OpKernelContext *ctx, const Tensor &keys,
-                const Tensor &values) override {
-    return DoInsert(false, ctx, keys, values);
-  }
-
-  Status Accum(OpKernelContext *ctx, const Tensor &keys,
-               const Tensor &values_or_delta, const Tensor &exists) {
-    return DoAccum(ctx, keys, values_or_delta, exists);
-  }
-
   Status Remove(OpKernelContext *ctx, const Tensor &keys) override {
     int64_t total = keys.NumElements();
     if (total > 0) {
       if (total < (multi_redis_cmd_max_argc - 1)) {
-        launchDelete(ctx, keys_prefix_name_slices, keys, total, threads_Delete);
+        launchDelete(ctx, keys_prefix_name_slices,
+                     (K *)keys.tensor_data().data(), total, threads_Delete);
       } else {
         // redis commmand args > multi_redis_cmd_max_argc
-        launchDelete_parallel(ctx, keys_prefix_name_slices, keys, total,
+        launchDelete_parallel(ctx, keys_prefix_name_slices,
+                              (K *)keys.tensor_data().data(), total,
                               threads_Delete);
       }
     }
@@ -809,7 +825,7 @@ class RedisTableOfTensors final : public LookupInterface {
     } else {
       if (keys.NumElements() > 0 &&
           redis_connection_params.table_store_mode == 0) {
-        return DoInsert(true, ctx, keys, values);
+        return Insert(ctx, keys, values);
       } else {
         LOG(INFO) << "Import nothing from the TensorFlow saved model to Redis "
                      "service for "
@@ -1035,6 +1051,268 @@ class RedisTableOfTensors final : public LookupInterface {
     return Status::OK();
   }
 
+  Status SaveToFileSystemImpl(FileSystem *fs, const string &filepath,
+                              const size_t buffer_size,
+                              const bool append_to_file) {
+    int64_t total_size = 0;
+    long long cursor = 0;
+    std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> hscan_reply;
+    const redisReply *kvs_reply;
+
+    for (size_t i = 0; i < keys_prefix_name_slices.size(); ++i) {
+      total_size +=
+          _table_instance->TableSizeInBucket(keys_prefix_name_slices[i]);
+    }
+
+    // construct file system relative object
+    std::unique_ptr<WritableFile> key_writer;
+    std::unique_ptr<WritableFile> value_writer;
+    const string key_filepath(filepath + "-keys");
+    const string value_filepath(filepath + "-values");
+    string key_tmpfilepath(filepath + "-keys.tmp");
+    string value_tmpfilepath(filepath + "-values.tmp");
+    bool has_atomic_move = false;
+    auto has_atomic_move_ret = fs->HasAtomicMove(filepath, &has_atomic_move);
+    bool need_tmp_file =
+        (has_atomic_move == false) || (has_atomic_move_ret != Status::OK());
+    if (!need_tmp_file) {
+      key_tmpfilepath = key_filepath;
+      value_tmpfilepath = value_filepath;
+    }
+    TF_RETURN_IF_ERROR(
+        fs->RecursivelyCreateDir(std::string(fs->Dirname(filepath))));
+    if (append_to_file) {
+      TF_RETURN_IF_ERROR(fs->NewAppendableFile(key_tmpfilepath, &key_writer));
+      TF_RETURN_IF_ERROR(
+          fs->NewAppendableFile(value_tmpfilepath, &value_writer));
+    } else {
+      TF_RETURN_IF_ERROR(fs->NewWritableFile(key_tmpfilepath, &key_writer));
+      TF_RETURN_IF_ERROR(fs->NewWritableFile(value_tmpfilepath, &value_writer));
+    }
+
+    if (total_size == 0) {
+      LOG(WARNING) << "There is no embedding table called " << keys_prefix_name
+                   << " existing in the Redis service. "
+                   << "Saving values to file system failed.";
+      return Status::OK();
+    }
+
+    // buffer for write to file system
+    const size_t value_len = sizeof(V) * runtime_value_dim_;
+    const size_t key_buffer_byte_size = buffer_size * sizeof(K);
+    const size_t value_buffer_byte_size = buffer_size * value_len;
+    std::vector<char> key_buffer_vector(key_buffer_byte_size);
+    std::vector<char> value_buffer_vector(value_buffer_byte_size);
+
+    size_t total_saved = 0;
+
+    redisReply const *temp_reply;
+    const K *pk_raw = reinterpret_cast<const K *>(key_buffer_vector.data());
+    const V *pv_raw = reinterpret_cast<const V *>(value_buffer_vector.data());
+    for (size_t i = 0; i < keys_prefix_name_slices.size(); ++i) {
+      cursor = 0;
+      while (true) {
+        hscan_reply.reset();
+        hscan_reply = _table_instance->HscanGetKeysValsInBucket(
+            keys_prefix_name_slices[i], &cursor, multi_redis_cmd_max_argc);
+        if (hscan_reply == nullptr) {
+          return errors::Unknown(
+              "Unknown errors happen when HscanGetKeysValsInBucket in "
+              "SaveToFileSystemImpl");
+        }
+        kvs_reply = hscan_reply->element[1];
+        // fill Tensor keys and values
+        for (size_t j = 0; j < kvs_reply->elements; ++j) {
+          temp_reply = kvs_reply->element[j];
+          if (temp_reply->type ==
+              REDIS_REPLY_STRING) {  // #define REDIS_REPLY_STRING 1
+            ReplyMemcpyToKeyTensor<K>(
+                pk_raw, temp_reply->str,
+                temp_reply->len);  // Direct access to Tensor data in TensorFlow
+          }
+          ++pk_raw;
+
+          ++j;
+          temp_reply = kvs_reply->element[j];
+          if (temp_reply->type ==
+              REDIS_REPLY_STRING) {  // #define REDIS_REPLY_STRING 1
+            ReplyMemcpyToValTensor<V>(
+                pv_raw, temp_reply->str,
+                runtime_value_dim_);  // Direct access to Tensor data in
+                                      // TensorFlow
+          }
+          pv_raw += runtime_value_dim_;
+
+          if (((char *)pk_raw - key_buffer_vector.data()) >=
+              static_cast<int64_t>(key_buffer_byte_size)) {
+            pk_raw = reinterpret_cast<const K *>(key_buffer_vector.data());
+            TF_RETURN_IF_ERROR(key_writer->Append(
+                StringPiece((char *)pk_raw, key_buffer_byte_size)));
+            pv_raw = reinterpret_cast<const V *>(value_buffer_vector.data());
+            TF_RETURN_IF_ERROR(value_writer->Append(
+                StringPiece((char *)pv_raw, value_buffer_byte_size)));
+          }
+          ++total_saved;
+        }
+
+        LOG(INFO) << "The cursor of scanning " << keys_prefix_name_slices[i]
+                  << " in SaveToFileSystem is " << cursor << " now.";
+        if (cursor == 0) {
+          break;
+        }
+      }
+    }
+
+    if (((char *)pk_raw - key_buffer_vector.data()) &&
+        ((char *)pv_raw - value_buffer_vector.data())) {
+      TF_RETURN_IF_ERROR(key_writer->Append(
+          StringPiece(key_buffer_vector.data(),
+                      (char *)pk_raw - key_buffer_vector.data())));
+      TF_RETURN_IF_ERROR(value_writer->Append(
+          StringPiece(value_buffer_vector.data(),
+                      (char *)pv_raw - value_buffer_vector.data())));
+    }
+
+    TF_RETURN_IF_ERROR(key_writer->Flush());
+    TF_RETURN_IF_ERROR(value_writer->Flush());
+    TF_RETURN_IF_ERROR(key_writer->Sync());
+    TF_RETURN_IF_ERROR(value_writer->Sync());
+
+    LOG(INFO) << "Finish saving " << total_saved << " keys and values to "
+              << key_filepath << " and " << value_filepath << " in total.";
+
+    if (need_tmp_file) {
+      TF_RETURN_IF_ERROR(fs->FileExists(key_tmpfilepath));
+      TF_RETURN_IF_ERROR(fs->RenameFile(key_tmpfilepath, key_filepath));
+      TF_RETURN_IF_ERROR(fs->FileExists(value_tmpfilepath));
+      TF_RETURN_IF_ERROR(fs->RenameFile(value_tmpfilepath, value_filepath));
+    }
+
+    return Status::OK();
+  }
+
+  Status SaveToFileSystem(OpKernelContext *ctx, const string &dirpath,
+                          const string &file_name, const size_t buffer_size,
+                          bool append_to_file) {
+    string filepath = io::JoinPath(dirpath, file_name);
+    FileSystem *fs;
+    const auto env = ctx->env();
+    TF_RETURN_WITH_CONTEXT_IF_ERROR(
+        env->GetFileSystemForFile(filepath, &fs),
+        "Please make sure you have already imported tensorflow_io before using "
+        "TFRA file system operation.");
+    return SaveToFileSystemImpl(fs, filepath, buffer_size, append_to_file);
+  }
+
+  Status LoadFromFileSystemImpl(OpKernelContext *ctx, FileSystem *fs,
+                                const string &filepath,
+                                const size_t buffer_size) {
+    const string key_filepath = filepath + "-keys";
+    TF_RETURN_IF_ERROR(fs->FileExists(key_filepath));
+    std::unique_ptr<RandomAccessFile> key_file;
+    TF_RETURN_IF_ERROR(fs->NewRandomAccessFile(key_filepath, &key_file));
+    std::unique_ptr<io::RandomAccessInputStream> key_input_stream(
+        new io::RandomAccessInputStream(key_file.get()));
+    size_t key_buffer_byte_size = buffer_size * sizeof(K);
+    io::BufferedInputStream key_reader(key_input_stream.get(),
+                                       key_buffer_byte_size * 2);
+
+    const string value_filepath = filepath + "-values";
+    TF_RETURN_IF_ERROR(fs->FileExists(key_filepath));
+    std::unique_ptr<RandomAccessFile> value_file;
+    TF_RETURN_IF_ERROR(fs->NewRandomAccessFile(value_filepath, &value_file));
+    std::unique_ptr<io::RandomAccessInputStream> value_input_stream(
+        new io::RandomAccessInputStream(value_file.get()));
+    const size_t value_len = sizeof(V) * runtime_value_dim_;
+    size_t value_buffer_byte_size = buffer_size * value_len;
+    io::BufferedInputStream value_reader(value_input_stream.get(),
+                                         value_buffer_byte_size * 2);
+
+    uint64 key_file_size = 0;
+    TF_RETURN_IF_ERROR(fs->GetFileSize(key_filepath, &key_file_size));
+    const size_t key_size = key_file_size / sizeof(K);
+
+    uint64 value_file_size = 0;
+    TF_RETURN_IF_ERROR(fs->GetFileSize(value_filepath, &value_file_size));
+    const size_t value_size = value_file_size / value_len;
+
+    if (key_size != value_size) {
+      return errors::Unavailable(
+          "the keys number in file " + key_filepath +
+          " is not equal to the value vectors number in file " +
+          value_filepath + ".");
+    }
+
+    tstring key_buffer;
+    key_buffer.resize(key_buffer_byte_size);
+    tstring value_buffer;
+    value_buffer.resize(value_buffer_byte_size);
+
+    size_t key_file_offset = 0;
+    int64_t remainder = key_file_size - key_file_offset;
+    size_t nkeys = 0;
+    size_t key_read_byte = 0;
+    size_t value_read_byte = 0;
+    while (remainder > 0) {
+      if (remainder > static_cast<int64_t>(key_buffer_byte_size)) {
+        key_read_byte = key_buffer_byte_size;
+        nkeys = buffer_size;
+        value_read_byte = value_buffer_byte_size;
+      } else {
+        key_read_byte = remainder;
+        nkeys = key_read_byte / sizeof(K);
+        value_read_byte = nkeys * value_len;
+      }
+      TF_RETURN_IF_ERROR(key_reader.ReadNBytes(key_read_byte, &key_buffer));
+      TF_RETURN_IF_ERROR(
+          value_reader.ReadNBytes(value_read_byte, &value_buffer));
+      TF_RETURN_IF_ERROR(DoInsert(false, ctx, (K *)key_buffer.data(),
+                                  (V *)value_buffer.data(), nkeys,
+                                  runtime_value_dim_));
+      key_file_offset += key_read_byte;
+      remainder = key_file_size - key_file_offset;
+    }
+
+    LOG(INFO) << "Finish loading " << key_size << " keys and values from "
+              << key_filepath << " and " << value_filepath << " in total.";
+
+    return Status::OK();
+  }
+
+  Status LoadFromFileSystem(OpKernelContext *ctx, const string &dirpath,
+                            const string &file_name, const size_t buffer_size,
+                            bool load_entire_dir) {
+    string filepath = io::JoinPath(dirpath, file_name);
+    FileSystem *fs;
+    const auto env = ctx->env();
+    TF_RETURN_WITH_CONTEXT_IF_ERROR(
+        env->GetFileSystemForFile(filepath, &fs),
+        "Please make sure you have already imported tensorflow_io before using "
+        "TFRA file system operation.");
+    if (load_entire_dir) {
+      int separator_pos = file_name.rfind("_mht_");
+      string file_pattern =
+          io::JoinPath(dirpath, file_name.substr(0, separator_pos)) + "*";
+      std::vector<string> all_filepath;
+      TF_RETURN_IF_ERROR(fs->GetMatchingPaths(file_pattern, &all_filepath));
+      // delete -keys/-values postfix
+      for (auto it = all_filepath.begin(); it != all_filepath.end(); ++it) {
+        int kv_separator_pos = it->rfind("-");
+        *it = it->substr(0, kv_separator_pos);
+      }
+      // remove duplicate elements
+      sort(all_filepath.begin(), all_filepath.end());
+      all_filepath.erase(unique(all_filepath.begin(), all_filepath.end()),
+                         all_filepath.end());
+      for (auto &fp : all_filepath) {
+        TF_RETURN_IF_ERROR(LoadFromFileSystemImpl(ctx, fs, fp, buffer_size));
+      }
+    } else {
+      return LoadFromFileSystemImpl(ctx, fs, filepath, buffer_size);
+    }
+    return Status::OK();
+  }
+
   DataType key_dtype() const override { return DataTypeToEnum<K>::v(); }
 
   DataType value_dtype() const override { return DataTypeToEnum<V>::v(); }
@@ -1217,7 +1495,7 @@ class HashTableAccumOp : public HashTableOpKernel {
     OP_REQUIRES_OK(ctx, GetTable(ctx, &table));
     core::ScopedUnref unref_me(table);
 
-    RedisTableOfTensors<K, V> *redisTable = (RedisTableOfTensors<K, V> *)table;
+    RedisTableOfTensors<K, V> *redis_table = (RedisTableOfTensors<K, V> *)table;
 
     DataTypeVector expected_inputs = {expected_input_0_, table->key_dtype(),
                                       table->value_dtype(),
@@ -1237,7 +1515,8 @@ class HashTableAccumOp : public HashTableOpKernel {
     if (ctx->track_allocations()) {
       memory_used_before = table->MemoryUsed();
     }
-    OP_REQUIRES_OK(ctx, redisTable->Accum(ctx, keys, values_or_deltas, exists));
+    OP_REQUIRES_OK(ctx,
+                   redis_table->Accum(ctx, keys, values_or_deltas, exists));
     if (ctx->track_allocations()) {
       ctx->record_persistent_memory_allocation(table->MemoryUsed() -
                                                memory_used_before);
@@ -1329,7 +1608,56 @@ class HashTableExportOp : public HashTableOpKernel {
   }
 };
 
-// Clear the table and insert data.
+// Op that export all keys and values to FileSystem.
+template <class K, class V>
+class HashTableSaveToFileSystemOp : public HashTableOpKernel {
+ public:
+  explicit HashTableSaveToFileSystemOp(OpKernelConstruction *ctx)
+      : HashTableOpKernel(ctx) {
+    OP_REQUIRES_OK(ctx, ctx->GetAttr("dirpath_env", &dirpath_env_));
+    OP_REQUIRES_OK(ctx, ctx->GetAttr("append_to_file", &append_to_file_));
+    int64 signed_buffer_size = 0;
+    OP_REQUIRES_OK(ctx, ctx->GetAttr("buffer_size", &signed_buffer_size));
+    buffer_size_ = static_cast<size_t>(signed_buffer_size);
+  }
+
+  void Compute(OpKernelContext *ctx) override {
+    LookupInterface *table;
+    OP_REQUIRES_OK(ctx, GetTable(ctx, &table));
+    core::ScopedUnref unref_me(table);
+
+    string dirpath;
+    TF_CHECK_OK(ReadStringFromEnvVar(dirpath_env_, "NotFound", &dirpath));
+    if (dirpath != "NotFound") {
+      LOG(INFO) << "Read TFRA key/value file directory path from the "
+                   "environment variable "
+                << dirpath_env_ << " successfully. Saving directory path is "
+                << dirpath;
+    } else {
+      const Tensor &dir_tensor = ctx->input(1);
+      OP_REQUIRES(ctx, TensorShapeUtils::IsScalar(dir_tensor.shape()),
+                  errors::InvalidArgument("directory path must be scalar."));
+      dirpath = string(dir_tensor.scalar<tstring>()().data());
+    }
+
+    const Tensor &fname_tensor = ctx->input(2);
+    OP_REQUIRES(ctx, TensorShapeUtils::IsScalar(fname_tensor.shape()),
+                errors::InvalidArgument("file name must be scalar."));
+    string file_name = string(fname_tensor.scalar<tstring>()().data());
+
+    RedisTableOfTensors<K, V> *redis_table = (RedisTableOfTensors<K, V> *)table;
+    OP_REQUIRES_OK(
+        ctx, redis_table->SaveToFileSystem(ctx, dirpath, file_name,
+                                           buffer_size_, append_to_file_));
+  }
+
+ private:
+  string dirpath_env_;
+  bool append_to_file_;
+  size_t buffer_size_;
+};
+
+// Insert data.
 class HashTableImportOp : public HashTableOpKernel {
  public:
   using HashTableOpKernel::HashTableOpKernel;
@@ -1357,6 +1685,55 @@ class HashTableImportOp : public HashTableOpKernel {
                                                memory_used_before);
     }
   }
+};
+
+// Insert data from FileSystem.
+template <class K, class V>
+class HashTableLoadFromFileSystemOp : public HashTableOpKernel {
+ public:
+  explicit HashTableLoadFromFileSystemOp(OpKernelConstruction *ctx)
+      : HashTableOpKernel(ctx) {
+    OP_REQUIRES_OK(ctx, ctx->GetAttr("dirpath_env", &dirpath_env_));
+    OP_REQUIRES_OK(ctx, ctx->GetAttr("load_entire_dir", &load_entire_dir_));
+    int64 signed_buffer_size = 0;
+    OP_REQUIRES_OK(ctx, ctx->GetAttr("buffer_size", &signed_buffer_size));
+    buffer_size_ = static_cast<size_t>(signed_buffer_size);
+  }
+
+  void Compute(OpKernelContext *ctx) override {
+    LookupInterface *table;
+    OP_REQUIRES_OK(ctx, GetTable(ctx, &table));
+    core::ScopedUnref unref_me(table);
+
+    string dirpath;
+    TF_CHECK_OK(ReadStringFromEnvVar(dirpath_env_, "NotFound", &dirpath));
+    if (dirpath != "NotFound") {
+      LOG(INFO) << "Read TFRA key/value file directory path from the "
+                   "environment variable "
+                << dirpath_env_ << " successfully. Saving directory path is "
+                << dirpath;
+    } else {
+      const Tensor &dir_tensor = ctx->input(1);
+      OP_REQUIRES(ctx, TensorShapeUtils::IsScalar(dir_tensor.shape()),
+                  errors::InvalidArgument("directory path must be scalar."));
+      dirpath = string(dir_tensor.scalar<tstring>()().data());
+    }
+
+    const Tensor &fname_tensor = ctx->input(2);
+    OP_REQUIRES(ctx, TensorShapeUtils::IsScalar(fname_tensor.shape()),
+                errors::InvalidArgument("file name must be scalar."));
+    string file_name = string(fname_tensor.scalar<tstring>()().data());
+
+    RedisTableOfTensors<K, V> *redis_table = (RedisTableOfTensors<K, V> *)table;
+    OP_REQUIRES_OK(
+        ctx, redis_table->LoadFromFileSystem(ctx, dirpath, file_name,
+                                             buffer_size_, load_entire_dir_));
+  }
+
+ private:
+  string dirpath_env_;
+  bool load_entire_dir_;
+  size_t buffer_size_;
 };
 
 REGISTER_KERNEL_BUILDER(Name(PREFIX_OP_NAME(RedisTableFind)).Device(DEVICE_CPU),
@@ -1402,7 +1779,19 @@ REGISTER_KERNEL_BUILDER(
           .Device(DEVICE_CPU)                                               \
           .TypeConstraint<key_dtype>("Tin")                                 \
           .TypeConstraint<value_dtype>("Tout"),                             \
-      redis_table::HashTableFindWithExistsOp<key_dtype, value_dtype>);
+      redis_table::HashTableFindWithExistsOp<key_dtype, value_dtype>);      \
+  REGISTER_KERNEL_BUILDER(                                                  \
+      Name(PREFIX_OP_NAME(RedisTableSaveToFileSystem))                      \
+          .Device(DEVICE_CPU)                                               \
+          .TypeConstraint<key_dtype>("key_dtype")                           \
+          .TypeConstraint<value_dtype>("value_dtype"),                      \
+      redis_table::HashTableSaveToFileSystemOp<key_dtype, value_dtype>);    \
+  REGISTER_KERNEL_BUILDER(                                                  \
+      Name(PREFIX_OP_NAME(RedisTableLoadFromFileSystem))                    \
+          .Device(DEVICE_CPU)                                               \
+          .TypeConstraint<key_dtype>("key_dtype")                           \
+          .TypeConstraint<value_dtype>("value_dtype"),                      \
+      redis_table::HashTableLoadFromFileSystemOp<key_dtype, value_dtype>);
 
 REGISTER_KERNEL(int32, double);
 REGISTER_KERNEL(int32, float);

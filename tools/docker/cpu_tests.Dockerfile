@@ -27,6 +27,8 @@ RUN pip install -r pytest.txt pytest-cov
 COPY ./ /recommenders-addons
 WORKDIR recommenders-addons
 
+RUN python -m pip install tensorflow-io
+
 RUN python -m pip install --upgrade protobuf==3.20.0
 
 RUN python configure.py

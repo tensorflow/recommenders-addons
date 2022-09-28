@@ -57,6 +57,13 @@ from tensorflow.python.training import saver
 from tensorflow.python.training import server_lib
 from tensorflow.python.util import compat
 
+try:
+  import tensorflow_io
+except:
+  print()
+
+os.environ["CUDA_VISIBLE_DEVICES"] = '-1'
+
 
 # pylint: disable=missing-class-docstring
 # pylint: disable=missing-function-docstring
@@ -684,6 +691,190 @@ class RedisVariableTest(test.TestCase):
                           self.evaluate(output))
 
       self.evaluate(table.clear())
+      del table
+
+  def test_save_restore_file_system(self):
+    if _redis_health_check(redis_config_params["redis_host_ip"][0],
+                           redis_config_params["redis_host_port"][0]) == False:
+      self.skipTest('skip redis test when unable to access the redis service.')
+    self.skipTest('Only test for file_system export, need file_system path.')
+    if context.executing_eagerly():
+      self.skipTest('skip eager test when using legacy Saver.')
+    save_dir = os.path.join(self.get_temp_dir(), "save_restore")
+    save_path = os.path.join(tempfile.mkdtemp(prefix=save_dir), "hash")
+
+    os.environ["AWS_ACCESS_KEY_ID"] = "Q3AM3UQ867SPQQA43P2F"
+    os.environ[
+        "AWS_SECRET_ACCESS_KEY"] = "zuf+tfteSlswRu7BJ86wekitnifILbZam1KYY3TG"
+    os.environ["S3_ENDPOINT"] = "https://play.min.io"
+
+    with self.session(config=default_config, graph=ops.Graph()) as sess:
+      v0 = variables.Variable(10.0, name="v0")
+      v1 = variables.Variable(20.0, name="v1")
+
+      keys = constant_op.constant([0, 1, 2], dtypes.int64)
+      values = constant_op.constant([[0.0], [1.0], [2.0]], dtypes.float32)
+      table = de.Variable(
+          key_dtype=dtypes.int64,
+          value_dtype=dtypes.float32,
+          initializer=-1.0,
+          name="t1_test_file_system",
+          dim=1,
+          kv_creator=de.RedisTableCreator(config=redis_config),
+      )
+
+      save = saver.Saver(var_list=[v0, v1])
+      self.evaluate(variables.global_variables_initializer())
+
+      # Check that the parameter nodes have been initialized.
+      self.assertEqual(10.0, self.evaluate(v0))
+      self.assertEqual(20.0, self.evaluate(v1))
+
+      self.assertAllEqual(0, self.evaluate(table.size()))
+      self.evaluate(table.upsert(keys, values))
+      self.assertAllEqual(3, self.evaluate(table.size()))
+
+      # save table
+      for k, v in enumerate(table.tables):
+        self.evaluate(
+            v.save_to_file_system("s3://test/" + str(k), buffer_size=4096))
+
+      val = save.save(sess, save_path)
+      self.assertIsInstance(val, six.string_types)
+      self.assertEqual(save_path, val)
+
+      del table
+
+    with self.session(config=default_config, graph=ops.Graph()) as sess:
+      v0 = variables.Variable(-1.0, name="v0")
+      v1 = variables.Variable(-1.0, name="v1")
+      table = de.Variable(
+          name="t1_test_file_system",
+          key_dtype=dtypes.int64,
+          value_dtype=dtypes.float32,
+          initializer=-1.0,
+          dim=1,
+          checkpoint=True,
+          kv_creator=de.RedisTableCreator(config=redis_config),
+      )
+      self.evaluate(
+          table.upsert(
+              constant_op.constant([0, 1], dtypes.int64),
+              constant_op.constant([[12.0], [24.0]], dtypes.float32),
+          ))
+      size_op = table.size()
+      self.assertAllEqual(2, self.evaluate(size_op))
+
+      save = saver.Saver(var_list=[v0, v1])
+
+      # Restore the saved values in the parameter nodes.
+      save.restore(sess, save_path)
+      # load table
+      for k, v in enumerate(table.tables):
+        self.evaluate(
+            v.load_from_file_system("s3://test/" + str(k), buffer_size=4096))
+      # Check that the parameter nodes have been restored.
+      self.assertEqual([10.0], self.evaluate(v0))
+      self.assertEqual([20.0], self.evaluate(v1))
+
+      self.assertAllEqual(3, self.evaluate(table.size()))
+
+      remove_keys = constant_op.constant([5, 0, 1, 2, 6], dtypes.int64)
+      output = table.lookup(remove_keys)
+      self.assertAllEqual([[-1.0], [0.0], [1.0], [2.0], [-1.0]],
+                          self.evaluate(output))
+
+      del table
+
+  def test_save_restore_local_file_system(self):
+    if _redis_health_check(redis_config_params["redis_host_ip"][0],
+                           redis_config_params["redis_host_port"][0]) == False:
+      self.skipTest('skip redis test when unable to access the redis service.')
+    if context.executing_eagerly():
+      self.skipTest('skip eager test when using legacy Saver.')
+    save_dir = os.path.join(self.get_temp_dir(), "save_restore")
+    save_path = os.path.join(tempfile.mkdtemp(prefix=save_dir), "hash")
+
+    with self.session(config=default_config, graph=ops.Graph()) as sess:
+      v0 = variables.Variable(10.0, name="v0")
+      v1 = variables.Variable(20.0, name="v1")
+
+      keys = constant_op.constant([0, 1, 2], dtypes.int64)
+      values = constant_op.constant([[0.0], [1.0], [2.0]], dtypes.float32)
+      table = de.Variable(
+          key_dtype=dtypes.int64,
+          value_dtype=dtypes.float32,
+          initializer=-1.0,
+          name="t1_test_local_file_system",
+          dim=1,
+          kv_creator=de.RedisTableCreator(config=redis_config),
+      )
+
+      save = saver.Saver(var_list=[v0, v1])
+      self.evaluate(variables.global_variables_initializer())
+
+      # Check that the parameter nodes have been initialized.
+      self.assertEqual(10.0, self.evaluate(v0))
+      self.assertEqual(20.0, self.evaluate(v1))
+
+      self.assertAllEqual(0, self.evaluate(table.size()))
+      self.evaluate(table.upsert(keys, values))
+      self.assertAllEqual(3, self.evaluate(table.size()))
+
+      # save table
+      for k, v in enumerate(table.tables):
+        self.evaluate(
+            v.save_to_file_system("file:///tmp/test_local_file_system/" +
+                                  str(k),
+                                  buffer_size=4096))
+
+      val = save.save(sess, save_path)
+      self.assertIsInstance(val, six.string_types)
+      self.assertEqual(save_path, val)
+
+      del table
+
+    with self.session(config=default_config, graph=ops.Graph()) as sess:
+      v0 = variables.Variable(-1.0, name="v0")
+      v1 = variables.Variable(-1.0, name="v1")
+      table = de.Variable(
+          name="t1_test_local_file_system",
+          key_dtype=dtypes.int64,
+          value_dtype=dtypes.float32,
+          initializer=-1.0,
+          dim=1,
+          checkpoint=True,
+          kv_creator=de.RedisTableCreator(config=redis_config),
+      )
+      self.evaluate(
+          table.upsert(
+              constant_op.constant([0, 1], dtypes.int64),
+              constant_op.constant([[12.0], [24.0]], dtypes.float32),
+          ))
+      size_op = table.size()
+      self.assertAllEqual(2, self.evaluate(size_op))
+
+      save = saver.Saver(var_list=[v0, v1])
+
+      # Restore the saved values in the parameter nodes.
+      save.restore(sess, save_path)
+      # load table
+      for k, v in enumerate(table.tables):
+        self.evaluate(
+            v.load_from_file_system("file:///tmp/test_local_file_system/" +
+                                    str(k),
+                                    buffer_size=4096))
+      # Check that the parameter nodes have been restored.
+      self.assertEqual([10.0], self.evaluate(v0))
+      self.assertEqual([20.0], self.evaluate(v1))
+
+      self.assertAllEqual(3, self.evaluate(table.size()))
+
+      remove_keys = constant_op.constant([5, 0, 1, 2, 6], dtypes.int64)
+      output = table.lookup(remove_keys)
+      self.assertAllEqual([[-1.0], [0.0], [1.0], [2.0], [-1.0]],
+                          self.evaluate(output))
+
       del table
 
   def test_save_restore_only_table(self):

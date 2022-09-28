@@ -322,7 +322,8 @@ class ThreadContext {
 
 typedef unsigned (*KBucketNumHandle)(uint32_t, const uint8_t *, size_t);
 
-class RedisVirtualWrapper {
+template <typename K, typename V>
+class RedisBaseWrapper {
  protected:
   Redis_Connection_Params redis_connection_params;
   KBucketNumHandle K_bucket_num_handle;
@@ -413,7 +414,7 @@ class RedisVirtualWrapper {
                            long long *cursor, const long long count) = 0;
 
   virtual std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> MgetInBucket(
-      const Tensor &keys, const int64_t begin, const int64_t max_i,
+      const K *, const int64_t begin, const int64_t max_i,
       const std::string &keys_prefix_name_slice) = 0;
 
   virtual Status SetExpireBuckets(const std::string &keys_prefix_name) = 0;
@@ -434,12 +435,12 @@ class RedisVirtualWrapper {
       const std::vector<std::string> &keys_prefix_name_slices_new) = 0;
 
   virtual std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>>
-  MgetCommand(const Tensor &keys, ThreadContext *thread_context,
-              const int64_t begin, const int64_t max_i,
+  MgetCommand(const K *, ThreadContext *thread_context, const int64_t begin,
+              const int64_t max_i,
               const std::vector<std::string> &keys_prefix_name_slices) = 0;
 
   virtual Status MgetToTensor(
-      Tensor *values, const Tensor &default_value, const bool is_full_default,
+      V *values, const V *default_value, const bool is_full_default,
       ThreadContext *thread_context,
       std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>>
           &reply,
@@ -447,7 +448,7 @@ class RedisVirtualWrapper {
       const int64_t Velems_per_dim0) = 0;
 
   virtual Status MgetToTensorWithExist(
-      Tensor *values, const Tensor &default_value, Tensor &exists,
+      V *values, const V *default_value, bool *exists,
       const bool is_full_default, ThreadContext *thread_context,
       std::vector<std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>>
           &reply,
@@ -455,24 +456,24 @@ class RedisVirtualWrapper {
       const int64_t Velems_per_dim0) = 0;
 
   virtual Status MsetCommand(
-      const Tensor &keys, const Tensor &values, ThreadContext *thread_context,
+      const K *, const V *values, ThreadContext *thread_context,
       const int64_t begin, const int64_t max_i, const int64_t Velems_per_dim0,
       const std::vector<std::string> &keys_prefix_name_slices) = 0;
 
   virtual Status MaccumCommand(
-      const Tensor &keys, const Tensor &values, const Tensor &exists,
+      const K *, const V *values, const bool *exists,
       ThreadContext *thread_context, const int64_t begin, const int64_t max_i,
-      const int64_t Velems_per_dim0,
+      const int64_t Velems_per_dim0, std::string &values_dtype_str,
       const std::vector<std::string> &keys_prefix_name_slices) = 0;
 
   virtual Status DelCommand(
-      const Tensor &keys, ThreadContext *thread_context, const int64_t begin,
+      const K *, ThreadContext *thread_context, const int64_t begin,
       const int64_t max_i,
       const std::vector<std::string> &keys_prefix_name_slices) = 0;
 };
 
 template <typename RedisInstance, typename K, typename V, typename = void>
-class RedisWrapper : public RedisVirtualWrapper {};
+class RedisWrapper : public RedisBaseWrapper<K, V> {};
 
 struct VContentAndTypeSizeResult {
   size_t VTypeSize;

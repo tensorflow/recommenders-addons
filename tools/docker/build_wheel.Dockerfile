@@ -43,6 +43,8 @@ RUN python -m pip install -r /install_deps/pytest.txt
 COPY requirements.txt .
 RUN python -m pip install -r requirements.txt
 
+RUN python -m pip install tensorflow-io
+
 RUN python -m pip install --upgrade protobuf==3.20.0
 
 COPY ./ /recommenders-addons

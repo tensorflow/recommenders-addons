@@ -16,6 +16,7 @@ limitations under the License.
 #ifndef TFRA_CORE_KERNELS_LOOKUP_TABLE_OP_GPU_H_
 #define TFRA_CORE_KERNELS_LOOKUP_TABLE_OP_GPU_H_
 
+#include <iomanip>
 #include <typeindex>
 
 #include "tensorflow/core/framework/bounds_check.h"
@@ -27,6 +28,10 @@ limitations under the License.
 #include "tensorflow/core/kernels/lookup_util.h"
 #include "tensorflow/core/lib/core/errors.h"
 #include "tensorflow/core/lib/core/status.h"
+#include "tensorflow/core/lib/io/buffered_inputstream.h"
+#include "tensorflow/core/lib/io/random_inputstream.h"
+#include "tensorflow/core/platform/env.h"
+#include "tensorflow/core/platform/file_system.h"
 #include "tensorflow/core/platform/macros.h"
 #include "tensorflow/core/platform/thread_annotations.h"
 #include "tensorflow_recommenders_addons/dynamic_embedding/core/lib/nvhash/nv_hashtable.cuh"
@@ -60,6 +65,8 @@ class TableWrapperBase {
   virtual void dump(K* d_key, ValueType<V>* d_val, const size_t offset,
                     const size_t search_length, size_t* d_dump_counter,
                     cudaStream_t stream) const {}
+  virtual void rehash_if_needed(const size_t min_capacity, cudaStream_t stream,
+                                const size_t new_keys = 0) {}
   virtual void get(const K* d_keys, ValueType<V>* d_vals, bool* d_status,
                    size_t len, ValueType<V>* d_def_val, cudaStream_t stream,
                    bool is_full_size_default) const {}
@@ -98,6 +105,69 @@ class TableWrapper final : public TableWrapperBase<K, V> {
     table_->dump(d_key, d_val, offset, search_length, d_dump_counter, stream);
   }
 
+  void rehash_if_needed(const size_t min_capacity, cudaStream_t stream,
+                        const size_t new_keys = 0) override {
+    K* d_keys;
+    gpu::ValueArrayBase<V>* d_values;
+    constexpr auto runtime_dim = DIM;
+    size_t* d_dump_counter;
+    constexpr const float max_load_factor = 0.75;
+    constexpr const float min_load_factor = 0.25;
+
+    const size_t total_size = table_->get_size(stream);
+    const size_t capacity = table_->get_capacity();
+    size_t new_capacity = capacity;
+    const auto max_load_size = max_load_factor * capacity;
+    const bool should_rehash = ((total_size + new_keys) > max_load_size);
+    if (!should_rehash) {
+      return;
+    }
+
+    CUDA_CHECK(cudaStreamSynchronize(stream));
+    if (total_size >= max_load_size) {
+      new_capacity = capacity * 2;
+    }
+    if ((total_size < (min_load_factor * capacity)) &&
+        (capacity > min_capacity)) {
+      new_capacity = capacity / 2;
+    }
+
+    // The table should be able to hold new_keys at least
+    if (new_capacity < total_size + new_keys) {
+      new_capacity = (total_size + new_keys) * 2;
+    }
+
+    if (new_capacity != capacity) {  // rehash manually.
+      size_t h_dump_counter = 0;
+      CUDA_CHECK(cudaMallocManaged((void**)&d_dump_counter, sizeof(size_t)));
+      CUDA_CHECK(cudaMallocManaged((void**)&d_keys, sizeof(K) * capacity));
+      CUDA_CHECK(cudaMallocManaged((void**)&d_values,
+                                   sizeof(V) * runtime_dim * capacity));
+      table_->dump(d_keys, (gpu::ValueArrayBase<V>*)d_values, 0, capacity,
+                   d_dump_counter, stream);
+      CUDA_CHECK(cudaStreamSynchronize(stream));
+
+      auto tmp_table_ = table_;
+      table_ = new Table(new_capacity);
+      delete tmp_table_;
+      tmp_table_ = NULL;
+
+      CUDA_CHECK(cudaStreamSynchronize(stream));
+      CUDA_CHECK(cudaMemcpy((size_t*)&h_dump_counter, (size_t*)d_dump_counter,
+                            sizeof(size_t), cudaMemcpyDefault));
+      table_->upsert((const K*)d_keys, (const gpu::ValueArrayBase<V>*)d_values,
+                     h_dump_counter, stream);
+      CUDA_CHECK(cudaStreamSynchronize(stream));
+      CUDA_CHECK(cudaFree(d_keys));
+      CUDA_CHECK(cudaFree(d_values));
+      CUDA_CHECK(cudaFree(d_dump_counter));
+      LOG(INFO) << "HashTable on GPU changes to new status: [size="
+                << total_size << ", capacity=" << new_capacity
+                << ", load factor=" << std::setprecision(2)
+                << (float)total_size / (float)new_capacity << "].";
+    }
+  }
+
   void get(const K* d_keys, ValueType<V>* d_vals, bool* d_status, size_t len,
            ValueType<V>* d_def_val, cudaStream_t stream,
            bool is_full_size_default) const override {
@@ -120,7 +190,7 @@ class TableWrapper final : public TableWrapperBase<K, V> {
  private:
   size_t max_size_;
   Table* table_;
-};
+};  // namespace gpu
 
 #define CREATE_A_TABLE(DIM)                                   \
   do {                                                        \

@@ -31,7 +31,6 @@ custom_op_library(
     ] + glob(["kernels/lookup_impl/lookup_table_op_gpu*"])),
     deps = [
         "//tensorflow_recommenders_addons/dynamic_embedding/core/lib/cuckoo:cuckoohash",
-        "//tensorflow_recommenders_addons/dynamic_embedding/core/lib/hadoop_file_system",
     ],
 )
 
