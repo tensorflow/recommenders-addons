@@ -247,7 +247,7 @@ def embedding_lookup(
                      ' {},'.format(ids.dtype, shadow.ids.dtype))
 
   with ops.name_scope(name, "shadow_embedding_lookup"):
-    if de.ModelMode.CURRENT_SETTING == 'train':
+    if de.ModelMode.CURRENT_SETTING == de.ModelMode.TRAIN:
       with ops.control_dependencies([shadow._reset_ids(ids)]):
         return shadow.read_value(do_prefetch=True)
     else:
