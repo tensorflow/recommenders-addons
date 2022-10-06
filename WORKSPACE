@@ -55,6 +55,16 @@ http_archive(
 )
 
 http_archive(
+    name = "rocksdb",
+    build_file = "//build_deps/toolchains/rocksdb:rocksdb.BUILD",
+    sha256 = "2df8f34a44eda182e22cf84dee7a14f17f55d305ff79c06fb3cd1e5f8831e00d",
+    strip_prefix = "rocksdb-6.22.1",
+    urls = [
+        "https://github.com/facebook/rocksdb/archive/refs/tags/v6.22.1.tar.gz",
+    ],
+)
+
+http_archive(
     name = "hadoop",
     build_file = "//third_party:hadoop.BUILD",
     sha256 = "fa9d0587d06c36838e778081bcf8271a9c63060af00b3bf456423c1777a62043",

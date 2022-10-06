@@ -21,6 +21,9 @@ __all__ = [
     'RedisTable',
     'RedisTableConfig',
     'RedisTableCreator',
+    'RocksDBTable',
+    'RocksDBTableConfig',
+    'RocksDBTableCreator',
     'Variable',
     'TrainableWrapper',
     'DynamicEmbeddingOptimizer',
@@ -50,11 +53,15 @@ from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embeddi
     CuckooHashTableCreator,
     RedisTableConfig,
     RedisTableCreator,
+    RocksDBTableConfig,
+    RocksDBTableCreator,
 )
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.cuckoo_hashtable_ops import (
     CuckooHashTable,)
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.redis_table_ops import (
     RedisTable,)
+from tensorflow_recommenders_addons.dynamic_embedding.python.ops.rocksdb_table_ops import (
+    RocksDBTable,)
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_ops import (
     embedding_lookup,)
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_ops import (

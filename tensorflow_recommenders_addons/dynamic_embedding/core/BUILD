@@ -72,6 +72,30 @@ custom_op_library(
 )
 
 custom_op_library(
+    name = "_rocksdb_table_ops.so",
+    srcs = [
+        "kernels/rocksdb_table_op.cc",
+        "kernels/rocksdb_table_op.h",
+        "ops/rocksdb_table_ops.cc",
+        "utils/types.h",
+        "utils/utils.h",
+    ],
+    # Hack: To allow allow locating <rocksdb/xyz.h>.
+    includes = [
+        ".",
+    ],
+    linkopts = [
+        "-L/usr/local/lib",
+        "-lbz2",
+        "-llz4",
+        "-lzstd",
+    ],
+    deps = [
+        "@rocksdb",
+    ],
+)
+
+custom_op_library(
     name = "_math_ops.so",
     srcs = [
         "kernels/segment_reduction_ops.h",
