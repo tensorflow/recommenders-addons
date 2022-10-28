@@ -65,8 +65,12 @@ class TableWrapperBase {
   virtual void dump(K* d_key, ValueType<V>* d_val, const size_t offset,
                     const size_t search_length, size_t* d_dump_counter,
                     cudaStream_t stream) const {}
-  virtual void rehash_if_needed(const size_t min_capacity, cudaStream_t stream,
-                                const size_t new_keys = 0) {}
+  virtual size_t rehash_if_needed(const size_t min_capacity,
+                                  cudaStream_t stream,
+                                  const size_t new_keys_num = 0,
+                                  const size_t last_hint_size = 0) {
+    return 0;
+  }
   virtual void get(const K* d_keys, ValueType<V>* d_vals, bool* d_status,
                    size_t len, ValueType<V>* d_def_val, cudaStream_t stream,
                    bool is_full_size_default) const {}
@@ -105,8 +109,9 @@ class TableWrapper final : public TableWrapperBase<K, V> {
     table_->dump(d_key, d_val, offset, search_length, d_dump_counter, stream);
   }
 
-  void rehash_if_needed(const size_t min_capacity, cudaStream_t stream,
-                        const size_t new_keys = 0) override {
+  size_t rehash_if_needed(const size_t min_capacity, cudaStream_t stream,
+                          const size_t new_keys_num = 0,
+                          const size_t last_hint_size = 0) override {
     K* d_keys;
     gpu::ValueArrayBase<V>* d_values;
     constexpr auto runtime_dim = DIM;
@@ -114,15 +119,16 @@ class TableWrapper final : public TableWrapperBase<K, V> {
     constexpr const float max_load_factor = 0.75;
     constexpr const float min_load_factor = 0.25;
 
-    const size_t total_size = table_->get_size(stream);
+    size_t new_hint_size = last_hint_size + new_keys_num;
     const size_t capacity = table_->get_capacity();
     size_t new_capacity = capacity;
     const auto max_load_size = max_load_factor * capacity;
-    const bool should_rehash = ((total_size + new_keys) > max_load_size);
+    const bool should_rehash = (new_hint_size > max_load_size);
     if (!should_rehash) {
-      return;
+      return new_hint_size;
     }
 
+    const size_t total_size = table_->get_size(stream);
     CUDA_CHECK(cudaStreamSynchronize(stream));
     if (total_size >= max_load_size) {
       new_capacity = capacity * 2;
@@ -132,9 +138,9 @@ class TableWrapper final : public TableWrapperBase<K, V> {
       new_capacity = capacity / 2;
     }
 
-    // The table should be able to hold new_keys at least
-    if (new_capacity < total_size + new_keys) {
-      new_capacity = (total_size + new_keys) * 2;
+    // The table should be able to hold new_keys_num at least
+    if (new_capacity < new_hint_size) {
+      new_capacity = new_hint_size * 2;
     }
 
     if (new_capacity != capacity) {  // rehash manually.
@@ -166,6 +172,10 @@ class TableWrapper final : public TableWrapperBase<K, V> {
                 << ", load factor=" << std::setprecision(2)
                 << (float)total_size / (float)new_capacity << "].";
     }
+    CUDA_CHECK(cudaStreamSynchronize(stream));
+    new_hint_size = table_->get_size(stream);
+    CUDA_CHECK(cudaStreamSynchronize(stream));
+    return new_hint_size;
   }
 
   void get(const K* d_keys, ValueType<V>* d_vals, bool* d_status, size_t len,

@@ -46,7 +46,8 @@ using tensorflow::lookup::LookupInterface;
 template <class K, class V>
 class CuckooHashTableOfTensorsGpu final : public LookupInterface {
  public:
-  CuckooHashTableOfTensorsGpu(OpKernelContext* ctx, OpKernel* kernel) {
+  CuckooHashTableOfTensorsGpu(OpKernelContext* ctx, OpKernel* kernel)
+      : last_hint_size_(0) {
     int64 init_size = 0;
 
     OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "init_size", &init_size));
@@ -176,7 +177,8 @@ class CuckooHashTableOfTensorsGpu final : public LookupInterface {
   }
 
   void RehashIfNeeded(cudaStream_t stream, const size_t num_keys = 0) {
-    table_->rehash_if_needed(min_size_, stream, num_keys);
+    last_hint_size_ =
+        table_->rehash_if_needed(min_size_, stream, num_keys, last_hint_size_);
     max_size_ = table_->get_capacity();
   }
 
@@ -188,6 +190,7 @@ class CuckooHashTableOfTensorsGpu final : public LookupInterface {
     {
       mutex_lock l(mu_);
       RehashIfNeeded(_stream, len);
+      CUDA_CHECK(cudaDeviceSynchronize());
       table_->upsert((const K*)keys.tensor_data().data(),
                      (const gpu::ValueArrayBase<V>*)values.tensor_data().data(),
                      len, _stream);
@@ -206,6 +209,7 @@ class CuckooHashTableOfTensorsGpu final : public LookupInterface {
     {
       mutex_lock l(mu_);
       RehashIfNeeded(_stream, len);
+      CUDA_CHECK(cudaDeviceSynchronize());
       table_->accum(
           (const K*)keys.tensor_data().data(),
           (const gpu::ValueArrayBase<V>*)values_or_deltas.tensor_data().data(),
@@ -295,6 +299,7 @@ class CuckooHashTableOfTensorsGpu final : public LookupInterface {
         mutex_lock l(mu_);
         table_->clear(_stream);
         RehashIfNeeded(_stream, len);
+        CUDA_CHECK(cudaDeviceSynchronize());
         table_->upsert((const K*)d_keys,
                        (const gpu::ValueArrayBase<V>*)d_values, len, _stream);
         CUDA_CHECK(cudaStreamSynchronize(_stream));
@@ -646,6 +651,7 @@ class CuckooHashTableOfTensorsGpu final : public LookupInterface {
   TensorShape value_shape_;
   size_t max_size_;
   size_t min_size_;
+  size_t last_hint_size_;
   size_t runtime_dim_;
   mutable mutex mu_;
   gpu::TableWrapperBase<K, V>* table_ = nullptr GUARDED_BY(mu_);
