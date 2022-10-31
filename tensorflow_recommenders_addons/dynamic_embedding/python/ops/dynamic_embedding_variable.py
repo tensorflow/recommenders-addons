@@ -339,6 +339,7 @@ class Variable(base.Trackable):
                 name=self._make_name(idx),
                 checkpoint=self.checkpoint,
                 init_size=int(self.init_size / self.shard_num),
+                device=self.devices[idx],
             )
             self._tables.append(mht)
 
