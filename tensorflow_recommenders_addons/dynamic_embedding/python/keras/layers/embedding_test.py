@@ -19,6 +19,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import os
 import numpy as np
 import itertools
 import tensorflow as tf
@@ -27,6 +28,7 @@ import tempfile
 from tensorflow_recommenders_addons import dynamic_embedding as de
 
 from tensorflow.core.protobuf import config_pb2
+from tensorflow.core.protobuf.saved_model_pb2 import SavedModel
 from tensorflow.python.eager import context
 from tensorflow.python.framework import constant_op
 from tensorflow.python.framework import dtypes
@@ -72,6 +74,8 @@ class BasicEmbeddingLayerTest(test.TestCase):
       key_dtypes = [dtypes.int64]
 
     value_dtypes = [dtypes.float32, dtypes.float64]
+    if test_util.is_gpu_available():
+      value_dtypes = [dtypes.float32]
     initializers = [
         tf.keras.initializers.RandomNormal(),
         tf.keras.initializers.RandomUniform()
@@ -174,6 +178,60 @@ class BasicEmbeddingLayerTest(test.TestCase):
       model.fit(x, y, verbose=0)
       self.assertAllEqual(emb_layer.params.size(), start)
 
+  def test_keras_save_load_weights(self):
+    if not context.executing_eagerly():
+      self.skipTest('Only test in eager mode')
+    save_dir = os.path.join(self.get_temp_dir(), "save_restore")
+    save_path = os.path.join(tempfile.mkdtemp(prefix=save_dir), "hash")
+
+    def model_fn(table_device):
+      input_tensor = tf.keras.layers.Input(shape=(1,), dtype=tf.int64)
+      embedding_out = de.keras.layers.BasicEmbedding(
+          embedding_size=1,
+          key_dtype=tf.int64,
+          value_dtype=tf.float32,
+          initializer=tf.keras.initializers.RandomNormal(),
+          devices=table_device,
+          name='test_keras_save_restore',
+      )(input_tensor)
+      model = tf.keras.Model(inputs=input_tensor, outputs=embedding_out)
+      optimizer = tf.keras.optimizers.Adam(learning_rate=1E-4, amsgrad=False)
+      optimizer = de.DynamicEmbeddingOptimizer(optimizer)
+      model.compile(optimizer=optimizer)
+      return model
+
+    table_device_ = ['/device:CPU:0']
+    if test_util.is_gpu_available():
+      table_device_ = ['/device:GPU:0']
+    model = model_fn(table_device_)
+    params_ = model.get_layer('test_keras_save_restore').params
+    params_.upsert(
+        constant_op.constant([0, 1], dtypes.int64),
+        constant_op.constant([[12.0], [24.0]], dtypes.float32),
+    )
+    options = tf.saved_model.SaveOptions(namespace_whitelist=['TFRA'])
+    model.save(save_path, options=options)
+    tf.keras.backend.clear_session()
+    del model
+    model = model_fn(table_device_)
+    model.load_weights(save_path)
+    params_ = model.get_layer('test_keras_save_restore').params
+    size = params_.size()
+    self.assertEqual(2, size)
+    [keys, values] = params_.export()
+    self.assertAllEqual([0, 1], keys)
+    self.assertAllEqual([[12.0], [24.0]], values)
+
+    # Check table device was assigned correctly
+    graph_path = os.path.join(save_path, 'saved_model.pb')
+    sm = SavedModel()
+    with open(graph_path, 'rb') as f:
+      sm.ParseFromString(f.read())
+    for mg in sm.meta_graphs:
+      for node in mg.graph_def.node:
+        if node.name == 'test_keras_save_restore-parameter_mht_1of1':
+          self.assertEqual(table_device_[0], node.device)
+
 
 @test_util.run_all_in_graph_and_eager_modes
 class SquashedEmbeddingLayerTest(test.TestCase):
@@ -218,6 +276,8 @@ class FieldWiseEmbeddingLayerTest(test.TestCase):
       key_dtypes = [dtypes.int64]
 
     value_dtypes = [dtypes.float32, dtypes.float64]
+    if test_util.is_gpu_available():
+      value_dtypes = [dtypes.float32]
     initializers = [
         tf.keras.initializers.RandomNormal(),
         tf.keras.initializers.RandomUniform()

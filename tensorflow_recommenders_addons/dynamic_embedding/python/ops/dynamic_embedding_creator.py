@@ -50,7 +50,8 @@ class KVCreator(object, metaclass=ABCMeta):
              name=None,
              checkpoint=None,
              init_size=None,
-             config=None):
+             config=None,
+             device=None):
 
     raise NotImplementedError('create function must be implemented')
 
@@ -74,6 +75,7 @@ class CuckooHashTableCreator(KVCreator):
       checkpoint=None,
       init_size=None,
       config=None,
+      device=None,
   ):
     self.key_dtype = key_dtype
     self.value_dtype = value_dtype
@@ -82,15 +84,17 @@ class CuckooHashTableCreator(KVCreator):
     self.checkpoint = checkpoint
     self.init_size = init_size
     self.config = config
+    self.device = device
 
     return de.CuckooHashTable(
-        key_dtype=key_dtype,
-        value_dtype=value_dtype,
-        default_value=default_value,
-        name=name,
-        checkpoint=checkpoint,
-        init_size=init_size,
-        config=config,
+        key_dtype=self.key_dtype,
+        value_dtype=self.value_dtype,
+        default_value=self.default_value,
+        name=self.name,
+        checkpoint=self.checkpoint,
+        init_size=self.init_size,
+        config=self.config,
+        device=self.device,
     )
 
   def get_config(self):
@@ -106,6 +110,7 @@ class CuckooHashTableCreator(KVCreator):
         'checkpoint': self.checkpoint,
         'init_size': self.init_size,
         'config': self.config,
+        'device': self.device,
     }
     return config
 
@@ -181,16 +186,42 @@ class RedisTableCreator(KVCreator):
       checkpoint=None,
       init_size=None,
       config=None,
+      device=None,
   ):
-    real_config = config if config is not None else self.config
-    if not isinstance(real_config, RedisTableConfig):
+    self.key_dtype = key_dtype
+    self.value_dtype = value_dtype
+    self.default_value = default_value
+    self.name = name
+    self.checkpoint = checkpoint
+    self.init_size = init_size
+    self.config = config if config is not None else self.config
+    self.device = device
+    if not isinstance(self.config, RedisTableConfig):
       raise TypeError("config should be instance of 'config', but got ",
-                      str(type(real_config)))
+                      str(type(self.config)))
     return de.RedisTable(
-        key_dtype=key_dtype,
-        value_dtype=value_dtype,
-        default_value=default_value,
-        name=name,
-        checkpoint=checkpoint,
+        key_dtype=self.key_dtype,
+        value_dtype=self.value_dtype,
+        default_value=self.default_value,
+        name=self.name,
+        checkpoint=self.checkpoint,
         config=self.config,
+        device=self.device,
     )
+
+  def get_config(self):
+    if not context.executing_eagerly():
+      raise RuntimeError(
+          'Unsupported to serialize python object of RedisTableCreator.')
+
+    config = {
+        'key_dtype': self.key_dtype,
+        'value_dtype': self.value_dtype,
+        'default_value': self.default_value.numpy(),
+        'name': self.name,
+        'checkpoint': self.checkpoint,
+        'init_size': self.init_size,
+        'config': self.config,
+        'device': self.device,
+    }
+    return config

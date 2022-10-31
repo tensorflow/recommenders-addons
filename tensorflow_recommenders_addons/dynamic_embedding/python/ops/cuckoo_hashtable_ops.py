@@ -60,6 +60,7 @@ class CuckooHashTable(LookupInterface):
       checkpoint=True,
       init_size=0,
       config=None,
+      device='',
   ):
     """Creates an empty `CuckooHashTable` object.
 
@@ -89,6 +90,7 @@ class CuckooHashTable(LookupInterface):
     self._checkpoint = checkpoint
     self._key_dtype = key_dtype
     self._value_dtype = value_dtype
+    self._device = device
     self._init_size = init_size
     self._name = name
 
@@ -123,15 +125,16 @@ class CuckooHashTable(LookupInterface):
     # explicitly specified.
     use_node_name_sharing = self._checkpoint and self._shared_name is None
 
-    table_ref = cuckoo_ops.tfra_cuckoo_hash_table_of_tensors(
-        shared_name=self._shared_name,
-        use_node_name_sharing=use_node_name_sharing,
-        key_dtype=self._key_dtype,
-        value_dtype=self._value_dtype,
-        value_shape=self._default_value.get_shape(),
-        init_size=self._init_size,
-        name=self._name,
-    )
+    with ops.device(self._device):
+      table_ref = cuckoo_ops.tfra_cuckoo_hash_table_of_tensors(
+          shared_name=self._shared_name,
+          use_node_name_sharing=use_node_name_sharing,
+          key_dtype=self._key_dtype,
+          value_dtype=self._value_dtype,
+          value_shape=self._default_value.get_shape(),
+          init_size=self._init_size,
+          name=self._name,
+      )
 
     if context.executing_eagerly():
       self._table_name = None

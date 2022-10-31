@@ -121,6 +121,7 @@ class RedisTable(LookupInterface):
       name="RedisTable",
       checkpoint=False,
       config=None,
+      device='',
   ):
     """
       Creates an empty `RedisTable` object.
@@ -150,6 +151,7 @@ class RedisTable(LookupInterface):
     self._checkpoint = checkpoint
     self._key_dtype = key_dtype
     self._value_dtype = value_dtype
+    self._device = device
     self._name = name
     self._embedding_name = (self._name.split('_mht_', 1))[0]
     self._config = config
@@ -251,15 +253,17 @@ class RedisTable(LookupInterface):
     # training to work correctly. Use the node name if no shared_name has been
     # explicitly specified.
     use_node_name_sharing = self._checkpoint and self._shared_name is None
-    table_ref = redis_table_ops.tfra_redis_table_of_tensors(
-        shared_name=self._shared_name,
-        use_node_name_sharing=use_node_name_sharing,
-        key_dtype=self._key_dtype,
-        value_dtype=self._value_dtype,
-        value_shape=self._default_value.get_shape(),
-        embedding_name=self._embedding_name,
-        redis_config_abs_dir=self._config.redis_config_abs_dir,
-        redis_config_abs_dir_env=self._config.redis_config_abs_dir_env)
+
+    with ops.device(self._device):
+      table_ref = redis_table_ops.tfra_redis_table_of_tensors(
+          shared_name=self._shared_name,
+          use_node_name_sharing=use_node_name_sharing,
+          key_dtype=self._key_dtype,
+          value_dtype=self._value_dtype,
+          value_shape=self._default_value.get_shape(),
+          embedding_name=self._embedding_name,
+          redis_config_abs_dir=self._config.redis_config_abs_dir,
+          redis_config_abs_dir_env=self._config.redis_config_abs_dir_env)
 
     if context.executing_eagerly():
       self._table_name = None
