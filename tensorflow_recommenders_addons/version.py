@@ -17,12 +17,12 @@
 import os
 
 # Required TensorFlow version [min, max)
-MIN_TF_VERSION = os.getenv("TF_VERSION", "2.5.0")
-MAX_TF_VERSION = os.getenv("TF_VERSION", "2.7.0")
+MIN_TF_VERSION = os.getenv("TF_VERSION", "2.6.3")
+MAX_TF_VERSION = os.getenv("TF_VERSION", "2.8.3")
 
 # We follow Semantic Versioning (https://semver.org/)
 _MAJOR_VERSION = "0"
-_MINOR_VERSION = "4"
+_MINOR_VERSION = "5"
 _PATCH_VERSION = "0"
 
 # When building releases, we can update this value on the release branch to
