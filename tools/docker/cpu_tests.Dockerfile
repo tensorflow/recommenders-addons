@@ -1,7 +1,7 @@
 #syntax=docker/dockerfile:1.1.5-experimental
 FROM python:3.7 as build_wheel
 
-ARG TF_VERSION=2.5.1
+ARG TF_VERSION=2.8.3
 ARG USE_BAZEL_VERSION=5.1.1
 ARG MPI_VERSION="4.1.1"
 ARG HOROVOD_VERSION="0.23.0"
