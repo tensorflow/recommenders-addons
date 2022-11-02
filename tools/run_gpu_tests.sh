@@ -6,9 +6,9 @@ export DOCKER_BUILDKIT=1
 docker build \
        -f tools/docker/build_wheel.Dockerfile \
        --target tfra_gpu_tests \
-       --build-arg TF_VERSION=2.5.1 \
+       --build-arg TF_VERSION=2.8.3 \
        --build-arg TF_NEED_CUDA=1 \
        --build-arg TF_NAME="tensorflow-gpu" \
-       --build-arg PY_VERSION=3.7 \
+       --build-arg PY_VERSION=3.8 \
        -t tfra_gpu_tests ./
 docker run --rm -t -v cache_bazel:/root/.cache/bazel --gpus=all tfra_gpu_tests

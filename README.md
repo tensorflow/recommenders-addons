@@ -104,14 +104,16 @@ is compiled differently. A typical example of this would be `conda`-installed Te
 #### Compatibility Matrix
 *GPU is supported by version `0.2.0` and later.*
 
-| TFRA  | TensorFlow   | Compiler   | CUDA | CUDNN | Compute Capability           | CPU           |
-|:------|:-------------|:-----------|:-----|:------|:-----------------------------|:--------------|
-| 0.4.0 | 2.5.1        | GCC 7.3.1  | 11.2 | 8.1   | 6.0, 6.1, 7.0, 7.5, 8.0, 8.6 | x86 |
-| 0.4.0 | 2.5.0 | Xcode 13.1 | -    | -     | -                            | Apple M1      |
-| 0.3.1 | 2.5.1        | GCC 7.3.1  | 11.2 | 8.1   | 6.0, 6.1, 7.0, 7.5, 8.0, 8.6 | x86           |
-| 0.2.0 | 2.4.1        | GCC 7.3.1  | 11.0 | 8.0   | 6.0, 6.1, 7.0, 7.5, 8.0      | x86           |
-| 0.2.0 | 1.15.2       | GCC 7.3.1  | 10.0 | 7.6   | 6.0, 6.1, 7.0, 7.5           | x86           |
-| 0.1.0 | 2.4.1        | GCC 7.3.1  | -    | -     | -                            | x86           |
+| TFRA  | TensorFlow | Compiler   | CUDA | CUDNN | Compute Capability           | CPU           |
+|:------|:-----------|:-----------|:-----|:------|:-----------------------------|:--------------|
+| 0.5.0 | 2.8.3      | GCC 7.3.1  | 11.2 | 8.1   | 6.0, 6.1, 7.0, 7.5, 8.0, 8.6 | x86 |
+| 0.5.0 | 2.8.3      | Xcode 13.1 | -    | -     | -                            | Apple M1      |
+| 0.4.0 | 2.5.1      | GCC 7.3.1  | 11.2 | 8.1   | 6.0, 6.1, 7.0, 7.5, 8.0, 8.6 | x86 |
+| 0.4.0 | 2.5.0      | Xcode 13.1 | -    | -     | -                            | Apple M1      |
+| 0.3.1 | 2.5.1      | GCC 7.3.1  | 11.2 | 8.1   | 6.0, 6.1, 7.0, 7.5, 8.0, 8.6 | x86           |
+| 0.2.0 | 2.4.1      | GCC 7.3.1  | 11.0 | 8.0   | 6.0, 6.1, 7.0, 7.5, 8.0      | x86           |
+| 0.2.0 | 1.15.2     | GCC 7.3.1  | 10.0 | 7.6   | 6.0, 6.1, 7.0, 7.5           | x86           |
+| 0.1.0 | 2.4.1      | GCC 7.3.1  | -    | -     | -                            | x86           |
 
 Check [nvidia-support-matrix](https://docs.nvidia.com/deeplearning/cudnn/support-matrix/index.html) for more details.
 
@@ -147,7 +149,7 @@ Please install a TensorFlow on your compiling machine, The compiler needs to kno
 its headers according to the installed TensorFlow. 
 
 ```shell
-export TF_VERSION="2.5.1"  # "2.7.0", "2.5.1" are well tested.
+export TF_VERSION="2.8.3"  # "2.6.3" are well tested.
 pip install tensorflow[-gpu]==$TF_VERSION
 
 git clone https://github.com/tensorflow/recommenders-addons.git
@@ -165,7 +167,7 @@ pip install artifacts/tensorflow_recommenders_addons-*.whl
 ##### GPU Support
 Only `TF_NEED_CUDA=1` is required and other environment variables are optional:
 ```shell
-export TF_VERSION="2.5.1"  # "2.7.0", "2.5.1" are well tested.
+export TF_VERSION="2.8.3"  # "2.6.3" is well tested.
 export PY_VERSION="3.8" 
 export TF_NEED_CUDA=1
 export TF_CUDA_VERSION=11.2
@@ -186,7 +188,7 @@ Requirements:
 
 - macOS 12.0.0+
 - Python 3.8 or 3.9
-- tensorflow-macos 2.5.0
+- tensorflow-macos 2.8.0
 - bazel 4.1.0+
 
 Before installing **TFRA** from source, you need to install tensorflow-macos from Apple. To install the natively supported version of tensorflow-macos, it's required to install the [Conda environment](https://github.com/conda-forge/miniforge). 
@@ -266,12 +268,13 @@ sess_config.gpu_options.allow_growth = True
 
 #### Compatibility Matrix
 | TFRA  | TensorFlow | Serving | Compiler  | CUDA | CUDNN | Compute Capability |
-|:------|:---- |:---- |:---------| :------------ | :---- | :------------ |
-| 0.4.0 | 2.5.1  | 2.5.2  | GCC 7.3.1 | 11.2| 8.1 | 6.0, 6.1, 7.0, 7.5, 8.0, 8.6 |
-| 0.3.1 | 2.5.1  | 2.5.2  | GCC 7.3.1 | 11.2| 8.1 | 6.0, 6.1, 7.0, 7.5, 8.0, 8.6 |
-| 0.2.0 | 2.4.1  | 2.4.0  | GCC 7.3.1 | 11.0 | 8.0 | 6.0, 6.1, 7.0, 7.5, 8.0 |
-| 0.2.0 | 1.15.2  | 1.15.0  | GCC 7.3.1 | 10.0 | 7.6 | 6.0, 6.1, 7.0, 7.5 |
-| 0.1.0 | 2.4.1  | 2.4.0  | GCC 7.3.1 | - | - | - |
+|:------|:-----------|:---- |:---------| :------------ | :---- | :------------ |
+| 0.5.0 | 2.8.3      | 2.5.2  | GCC 7.3.1 | 11.2| 8.1 | 6.0, 6.1, 7.0, 7.5, 8.0, 8.6 |
+| 0.4.0 | 2.5.1      | 2.5.2  | GCC 7.3.1 | 11.2| 8.1 | 6.0, 6.1, 7.0, 7.5, 8.0, 8.6 |
+| 0.3.1 | 2.5.1      | 2.5.2  | GCC 7.3.1 | 11.2| 8.1 | 6.0, 6.1, 7.0, 7.5, 8.0, 8.6 |
+| 0.2.0 | 2.4.1      | 2.4.0  | GCC 7.3.1 | 11.0 | 8.0 | 6.0, 6.1, 7.0, 7.5, 8.0 |
+| 0.2.0 | 1.15.2     | 1.15.0  | GCC 7.3.1 | 10.0 | 7.6 | 6.0, 6.1, 7.0, 7.5 |
+| 0.1.0 | 2.4.1      | 2.4.0  | GCC 7.3.1 | - | - | - |
 
 **NOTICE**：Reference documents: https://www.tensorflow.org/tfx/serving/custom_op
 

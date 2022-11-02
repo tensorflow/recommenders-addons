@@ -91,8 +91,10 @@ RUN /install/build_and_install_python.sh "3.6.9"
 RUN /install/build_and_install_python.sh "3.7.7"
 RUN /install/build_and_install_python.sh "3.8.2"
 RUN /install/build_and_install_python.sh "3.9.7"
+RUN /install/build_and_install_python.sh "3.10.6"
 
 COPY install/install_pip_packages_by_version.sh /install/
+RUN /install/install_pip_packages_by_version.sh "/usr/local/bin/pip3.10"
 RUN /install/install_pip_packages_by_version.sh "/usr/local/bin/pip3.9"
 RUN /install/install_pip_packages_by_version.sh "/usr/local/bin/pip3.8"
 RUN /install/install_pip_packages_by_version.sh "/usr/local/bin/pip3.6"
