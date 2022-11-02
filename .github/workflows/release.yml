@@ -46,7 +46,7 @@ jobs:
         # TODO: add back 'windows-latest' when it can be compiled.
         os: ['macos-12', 'ubuntu-18.04']
         py-version: ['3.7', '3.8', '3.9']
-        tf-version: ['2.5.1', '2.7.0']
+        tf-version: ['2.6.3', '2.8.3']
         tf-need-cuda: ['1', '0']
         tf-cuda-version: ['10.0', '11.2']
         tf-cudnn-version: ['7.6', '8.1']
@@ -62,11 +62,11 @@ jobs:
           # excludes cuda on macOS
           - os: 'macos-12'
             tf-need-cuda: '1'
-          # excludes TF2.5.1 with cuda 10.0
-          - tf-version: '2.5.1'
+          # excludes TF2.6.3 with cuda 10.0
+          - tf-version: '2.6.3'
             tf-cuda-version: '10.0'
-          # excludes TF2.7.0 with cuda 10.0
-          - tf-version: '2.7.0'
+          # excludes TF2.8.3 with cuda 10.0
+          - tf-version: '2.8.3'
             tf-cuda-version: '10.0'
           # excludes cudnn 8 with cuda 10.0
           - tf-cuda-version: '11.2'
@@ -130,7 +130,7 @@ jobs:
         # TODO: add back 'Windows' when it can be compiled.
         os: ['macOS', 'Linux']
         py-version: ['3.7', '3.8', '3.9']
-        tf-version: ['2.5.1']
+        tf-version: ['2.8.3']
         tf-need-cuda: ['1', '0']
         cpu: ['x86']
 #       TODO(poinwater): add macOS CI once GitHub supports macOS 12.0.0 + 
