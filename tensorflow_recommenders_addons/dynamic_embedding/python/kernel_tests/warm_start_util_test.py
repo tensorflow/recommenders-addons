@@ -26,6 +26,7 @@ import os
 import shutil
 
 from tensorflow_recommenders_addons import dynamic_embedding as de
+from tensorflow_recommenders_addons.utils.check_platform import is_macos, is_arm64
 
 try:
   from tensorflow.python.keras.initializers import initializers_v2 as kinit2
@@ -146,6 +147,10 @@ class WarmStartUtilTest(test.TestCase):
       self.assertAllEqual(emb, val_list)
 
   def _test_warm_start_estimator(self, num_shards, use_regex):
+    if (is_macos() and is_arm64()):
+      self.skipTest(
+          "skip save restore file system test because TFIO doesn't support apple silicon."
+      )
     devices = ["/cpu:0" for _ in range(num_shards)]
     ckpt_prefix = os.path.join(self.get_temp_dir(), "ckpt")
     id_list = [x for x in range(100)]

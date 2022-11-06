@@ -17,6 +17,7 @@ set -e
 set -x
 
 PLATFORM="$(uname -s | tr 'A-Z' 'a-z')"
+ARCHITECTURE="$(uname -m)"
 
 function is_windows() {
   # On windows, the shell script is actually running in msys
@@ -25,6 +26,10 @@ function is_windows() {
 
 function is_macos() {
   [[ "${PLATFORM}" == "darwin" ]]
+}
+
+function is_arm64() {
+  [[ "${ARCHITECTURE}" == "arm64" ]]
 }
 
 if is_windows; then
@@ -77,7 +82,11 @@ function main() {
 
   BUILD_CMD="setup.py bdist_wheel --platlib-patch"
   if is_macos; then
-    BUILD_CMD="${BUILD_CMD} --plat-name macosx_10_13_x86_64"
+    if is_arm64; then
+      BUILD_CMD="${BUILD_CMD} --plat-name macosx_12_0_arm64"
+    else
+      BUILD_CMD="${BUILD_CMD} --plat-name macosx_10_13_x86_64"
+    fi
   fi
 
   if [[ -z ${NIGHTLY_FLAG} ]]; then
