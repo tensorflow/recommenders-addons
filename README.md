@@ -64,6 +64,7 @@ who have provided GPU acceleration technology support and code contribution.
   <kbd> <img src="./assets/merilin.png" height="70" /> </kbd>
 </a>
 
+
 ## Tutorials & Demos
 See [tutorials](docs/tutorials/) and [demo](demo/) for end-to-end examples of each subpackages.
 
@@ -107,7 +108,7 @@ is compiled differently. A typical example of this would be `conda`-installed Te
 | TFRA  | TensorFlow | Compiler   | CUDA | CUDNN | Compute Capability           | CPU           |
 |:------|:-----------|:-----------|:-----|:------|:-----------------------------|:--------------|
 | 0.5.0 | 2.8.3      | GCC 7.3.1  | 11.2 | 8.1   | 6.0, 6.1, 7.0, 7.5, 8.0, 8.6 | x86 |
-| 0.5.0 | 2.8.3      | Xcode 13.1 | -    | -     | -                            | Apple M1      |
+| 0.5.0 | 2.8.0      | Xcode 13.1 | -    | -     | -                            | Apple M1      |
 | 0.4.0 | 2.5.1      | GCC 7.3.1  | 11.2 | 8.1   | 6.0, 6.1, 7.0, 7.5, 8.0, 8.6 | x86 |
 | 0.4.0 | 2.5.0      | Xcode 13.1 | -    | -     | -                            | Apple M1      |
 | 0.3.1 | 2.5.1      | GCC 7.3.1  | 11.2 | 8.1   | 6.0, 6.1, 7.0, 7.5, 8.0, 8.6 | x86           |
@@ -122,7 +123,7 @@ Check [nvidia-support-matrix](https://docs.nvidia.com/deeplearning/cudnn/support
 - The release packages have a strict version binding relationship with TensorFlow. 
 - Due to the significant changes in the Tensorflow API, we can only ensure version 0.2.0 compatibility with TF1.15.2 on CPU & GPU, 
   but **there are no official releases**, you can only get it through compiling by the following:
-```shell
+```sh
 PY_VERSION="3.7" \
 TF_VERSION="1.15.2" \
 TF_NEED_CUDA=1 \
@@ -135,20 +136,20 @@ sh .github/workflows/make_wheel_Linux_x86.sh
 but maybe this doc can help you : [Extract headers from TensorFlow compiling directory](./build_deps/tf_header/README.md).
 At the same time, we find some OPs used by TRFA have better performance, so we highly recommend you update TensorFlow to 2.x.
 
-#### Installing from Source
+### Installing from Source
 
 For all developers, we recommend you use the development docker containers which are all GPU enabled:
-```shell
+```sh
 docker pull tfra/dev_container:latest-python3.8  # "3.7", "3.9" are all avaliable.
 docker run --privileged --gpus all -it --rm -v $(pwd):$(pwd) tfra/dev_container:latest-3.8
 ```
 
-##### CPU Only
+#### CPU Only
 You can also install from source. This requires the [Bazel](https://bazel.build/) build system (version == 5.1.1).
 Please install a TensorFlow on your compiling machine, The compiler needs to know the version of Tensorflow and 
 its headers according to the installed TensorFlow. 
 
-```shell
+```sh
 export TF_VERSION="2.8.3"  # "2.6.3" are well tested.
 pip install tensorflow[-gpu]==$TF_VERSION
 
@@ -163,10 +164,9 @@ bazel-bin/build_pip_pkg artifacts
 
 pip install artifacts/tensorflow_recommenders_addons-*.whl
 ```
-
-##### GPU Support
+#### GPU Support
 Only `TF_NEED_CUDA=1` is required and other environment variables are optional:
-```shell
+```sh
 export TF_VERSION="2.8.3"  # "2.6.3" is well tested.
 export PY_VERSION="3.8" 
 export TF_NEED_CUDA=1
@@ -178,55 +178,61 @@ export CUDNN_INSTALL_PATH="/usr/lib/x86_64-linux-gnu"
 python configure.py
 ```
 And then build the pip package and install:
-```shell
+```sh
 bazel build --enable_runfiles build_pip_pkg
 bazel-bin/build_pip_pkg artifacts
 pip install artifacts/tensorflow_recommenders_addons_gpu-*.whl
 ```
-##### Apple Silicon Support (Beta Release)
+
+#### Apple Silicon Support (Beta Release)
 Requirements:
 
 - macOS 12.0.0+
 - Python 3.8 or 3.9
-- tensorflow-macos 2.8.0
+- tensorflow-macos 2.6.0 or 2.8.0
 - bazel 4.1.0+
 
-Before installing **TFRA** from source, you need to install tensorflow-macos from Apple. To install the natively supported version of tensorflow-macos, it's required to install the [Conda environment](https://github.com/conda-forge/miniforge). 
+The natively supported TensorFlow is maintained by Apple. Please see the instruction [Get started with tensorflow-metal](https://developer.apple.com/metal/tensorflow-plugin/) to install the natively supported Tensorflow on apple silicon devices.
 
-After installing conda environment, run the following commands in the terminal.
+To specify the TensorFlow version, please pass the version and replace the `$TF_VERSION` in the following commands from the instruction:
 
 ```sh
-# Create a virtual environment
-conda create -n $YOUR-ENVIRONMENT-NAME Python=$PYTHON_VERSION
+export TF_VERSION="2.8.0"  # "2.6.0" is well tested.
+export PY_VERSION="3.8"    # “3.9" is well tested.
 
-# Activate your environment
-conda activate $YOUR-ENVIRONMENT-NAME
-
-# Install TensorFlow macOS dependencies via miniforge
-conda install -c apple tensorflow-deps==2.5.0
+# Install TensorFlow macOS dependencies
+conda install -c apple tensorflow-deps==$TF_VERSION
 
 # Install base TensorFlow
-python -m pip install tensorflow-macos==2.5.0
-
-# Install TensorFlow Recommenders Addons from PyPi distribution (optional)
-python -m pip install tensorflow-recommenders-addons --no-deps
+python -m pip install tensorflow-macos==$TF_VERSION
 ```
 
-There is a difference between the [tensorflow-macos installation instruction](https://developer.apple.com/metal/tensorflow-plugin/) and our instruction because this build requires Python 3.8 or 3.9 and tensorflow-macos 2.5.0.
+If you have any issues about installing `tensorflow-macos`, please contact the [Apple Developer Forums: tensorflow-metal](https://developer.apple.com/forums/tags/tensorflow-metal) for help.
 
-The building script has been tested on macOS Monterey, If you are using macOS Big Sur, you may need to customize the building script.
+**Install TFRA on Apple Silicon from Source**
 
-```shell
-# Build arm64 wheel from source
-PY_VERSION=$PYTHON_VERSION TF_VERSION="2.5.0" TF_NEED_CUDA="0" sh .github/workflows/make_wheel_macOS_arm64.sh
+```sh
+# Building TFRA wheel
+PY_VERSION=$PY_VERSION TF_VERSION=$TF_VERSION TF_NEED_CUDA="0" sh .github/workflows/make_wheel_macOS_arm64.sh
 
-# Install
+# Install the wheel
 python -m pip install --no-deps ./artifacts/*.whl
 ```
 
-**NOTICE:**
+**Known Issues:**
 
-- The Apple silicon version TFRA doesn't support data type **float16**, the issue may be fixed in the future release.
+The Apple silicon version of TFRA doesn't support: 
+
+* Data type **float16**
+* Synchronous training based on **Horovod**
+* `save_to_file_system`
+* `load_from_file_system` 
+* `warm_start_util`
+
+`save_to_file_system` and `load_from_file_system` are not supported because TFIO is not supported on apple silicon devices. Horovod and `warm_start_util` are not supported because the natively supported tensorflow-macos doesn't support V1 Tensorflow networks.
+
+These issues may be fixed in the future release.
+
 
 ##### Data Type Matrix for `tfra.dynamic_embedding.Variable` 
 
@@ -280,7 +286,7 @@ sess_config.gpu_options.allow_growth = True
 
 #### CPU or GPU Serving TensorFlow models with custom ops
 When compiling, set the environment variable:
-```
+```sh
 export FOR_TF_SERVING = "1"
 ```
 Tensorflow Serving modification(**model_servers/BUILD**):
