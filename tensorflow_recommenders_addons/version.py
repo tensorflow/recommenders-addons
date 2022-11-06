@@ -15,10 +15,24 @@
 """Define TensorFlow Recommenders Addons version information."""
 
 import os
+import platform
+
+
+def is_macos():
+  return platform.system() == "Darwin"
+
+
+def is_arm64():
+  return platform.machine() == "arm64"
+
 
 # Required TensorFlow version [min, max)
-MIN_TF_VERSION = os.getenv("TF_VERSION", "2.6.3")
-MAX_TF_VERSION = os.getenv("TF_VERSION", "2.8.3")
+if (is_macos() and is_arm64()):
+  MIN_TF_VERSION = os.getenv("TF_VERSION", "2.6.0")
+  MAX_TF_VERSION = os.getenv("TF_VERSION", "2.8.0")
+else:
+  MIN_TF_VERSION = os.getenv("TF_VERSION", "2.6.3")
+  MAX_TF_VERSION = os.getenv("TF_VERSION", "2.8.3")
 
 # We follow Semantic Versioning (https://semver.org/)
 _MAJOR_VERSION = "0"

@@ -520,12 +520,12 @@ inline const char *KContentPointer<tstring>(const tstring *in) {
 
 inline uint32_t crc32c_hash(uint32_t crc, const uint8_t *p, size_t length) {
 #if defined(__arm64__) || defined(__aarch64__)
-  int64_t_t len_int64_t = length;
-  while ((len_int64_t -= sizeof(uint64_t_t)) >= 0) {
-    CRC32CX(crc, *((uint64_t_t *)p));
-    p += sizeof(uint64_t_t);
+  int64_t len_int64_t = length;
+  while ((len_int64_t -= sizeof(uint64_t)) >= 0) {
+    CRC32CX(crc, *((uint64_t *)p));
+    p += sizeof(uint64_t);
   }
-  length &= (sizeof(uint64_t_t) - 1);
+  length &= (sizeof(uint64_t) - 1);
 #elif defined(__x86_64__)
   int32_t len_int32 = length;
   while ((len_int32 -= sizeof(uint32_t)) >= 0) {
