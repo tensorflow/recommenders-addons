@@ -29,8 +29,6 @@ _TFRA_BAZELRC = ".bazelrc"
 def _VALID_BAZEL_VERSION(tf_version):
   if is_macos() and is_arm64():
     target_bazel = "4.1.0"
-    logging.warn(
-        'Only Bazel version greater than 4.1.0 supports macOS arm64 platform.')
     return target_bazel
   elif tf_version < "2.0.0":
     target_bazel = "0.26.1"
@@ -176,21 +174,17 @@ def _get_installed_and_valid_bazel_version():
   return installed_bazel_version, valid_bazel_version
 
 
-def check_bazel_version():
-  installed_bazel_version, valid_bazel_version = _get_installed_and_valid_bazel_version(
-  )
-  if installed_bazel_version != valid_bazel_version:
-    raise ValueError('Bazel version is {}, but {} is needed.'.format(
-        installed_bazel_version, valid_bazel_version))
-
-
-def check_bazel_version_for_macOS_arm64():
+def check_bazel_version(is_macos_arm64: bool = False):
   installed_bazel_version, valid_bazel_version = _get_installed_and_valid_bazel_version(
   )
   if installed_bazel_version < valid_bazel_version:
-    raise ValueError(
-        'Bazel version is {}. For macOS arm64 platform, Bazel version must be at least {}.'
-        .format(installed_bazel_version, valid_bazel_version))
+    if is_macos_arm64:
+      raise ValueError(
+          'Bazel version is {}. For macOS arm64 platform, the Bazel version must be at least {}.'
+          .format(installed_bazel_version, valid_bazel_version))
+    else:
+      raise ValueError('Bazel version is {}, but {} is needed.'.format(
+          installed_bazel_version, valid_bazel_version))
 
 
 def extract_tf_header():
@@ -217,7 +211,7 @@ def create_build_configuration():
   if is_linux():
     check_bazel_version()
   if is_macos() and is_arm64():
-    check_bazel_version_for_macOS_arm64()
+    check_bazel_version(is_macos_arm64=True)
   extract_tf_header()
   logging.disable(logging.WARNING)
 

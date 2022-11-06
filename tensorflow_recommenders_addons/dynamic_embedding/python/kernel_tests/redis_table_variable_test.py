@@ -788,8 +788,11 @@ class RedisVariableTest(test.TestCase):
 
   def test_save_restore_local_file_system(self):
     if _redis_health_check(redis_config_params["redis_host_ip"][0],
-                           redis_config_params["redis_host_port"][0]) == False:
-      self.skipTest('skip redis test when unable to access the redis service.')
+                           redis_config_params["redis_host_port"][0]) == False \
+                           or (is_macos() and is_arm64()):
+      self.skipTest(
+          "skip save restore file system test because TFIO doesn't support apple silicon."
+      )
     if context.executing_eagerly():
       self.skipTest('skip eager test when using legacy Saver.')
     save_dir = os.path.join(self.get_temp_dir(), "save_restore")
