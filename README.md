@@ -108,7 +108,7 @@ is compiled differently. A typical example of this would be `conda`-installed Te
 | TFRA  | TensorFlow | Compiler   | CUDA | CUDNN | Compute Capability           | CPU           |
 |:------|:-----------|:-----------|:-----|:------|:-----------------------------|:--------------|
 | 0.5.0 | 2.8.3      | GCC 7.3.1  | 11.2 | 8.1   | 6.0, 6.1, 7.0, 7.5, 8.0, 8.6 | x86 |
-| 0.5.0 | 2.8.0      | Xcode 13.1 | -    | -     | -                            | Apple M1      |
+| 0.5.0 | 2.6.0      | Xcode 13.1 | -    | -     | -                            | Apple M1      |
 | 0.4.0 | 2.5.1      | GCC 7.3.1  | 11.2 | 8.1   | 6.0, 6.1, 7.0, 7.5, 8.0, 8.6 | x86 |
 | 0.4.0 | 2.5.0      | Xcode 13.1 | -    | -     | -                            | Apple M1      |
 | 0.3.1 | 2.5.1      | GCC 7.3.1  | 11.2 | 8.1   | 6.0, 6.1, 7.0, 7.5, 8.0, 8.6 | x86           |
@@ -184,34 +184,38 @@ bazel-bin/build_pip_pkg artifacts
 pip install artifacts/tensorflow_recommenders_addons_gpu-*.whl
 ```
 
-#### Apple Silicon Support (Beta Release)
+#### Apple Silicon Support
 Requirements:
 
 - macOS 12.0.0+
 - Python 3.8 or 3.9
-- tensorflow-macos 2.6.0 or 2.8.0
+- tensorflow-macos 2.6.0
 - bazel 4.1.0+
 
-The natively supported TensorFlow is maintained by Apple. Please see the instruction [Get started with tensorflow-metal](https://developer.apple.com/metal/tensorflow-plugin/) to install the natively supported Tensorflow on apple silicon devices.
+The natively supported TensorFlow is maintained by Apple. Please see the instruction [Get started with tensorflow-metal](https://developer.apple.com/metal/tensorflow-plugin/) to install the Tensorflow on apple silicon devices.
 
-To specify the TensorFlow version, please pass the version and replace the `$TF_VERSION` in the following commands from the instruction:
 
 ```sh
-export TF_VERSION="2.8.0"  # "2.6.0" is well tested.
-export PY_VERSION="3.8"    # “3.9" is well tested.
-
 # Install TensorFlow macOS dependencies
-conda install -c apple tensorflow-deps==$TF_VERSION
+conda install -c apple tensorflow-deps==2.6.0
 
 # Install base TensorFlow
-python -m pip install tensorflow-macos==$TF_VERSION
+python -m pip install tensorflow-macos==2.6.0
 ```
 
-If you have any issues about installing `tensorflow-macos`, please contact the [Apple Developer Forums: tensorflow-metal](https://developer.apple.com/forums/tags/tensorflow-metal) for help.
+If you see any issue with installing `tensorflow-macos`, please contact the [Apple Developer Forums: tensorflow-metal](https://developer.apple.com/forums/tags/tensorflow-metal) for help.
+
+**Install TFRA on Apple Silicon via PIP**
+```sh
+python -m pip install tensorflow-recommenders-addons --no-deps
+```
 
 **Install TFRA on Apple Silicon from Source**
 
 ```sh
+export TF_VERSION="2.6.0"  # Specify your Tensorflow version here, 2.8.0 is well tested.
+export PY_VERSION="3.8"    # Specify your python version here, "3.9" is well tested.
+
 # Building TFRA wheel
 PY_VERSION=$PY_VERSION TF_VERSION=$TF_VERSION TF_NEED_CUDA="0" sh .github/workflows/make_wheel_macOS_arm64.sh
 
