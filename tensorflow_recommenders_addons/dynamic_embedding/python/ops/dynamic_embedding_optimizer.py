@@ -403,8 +403,7 @@ def create_slots(primary, init, slot_name, op_name, bp_v2):
           kv_creator=params_var_.kv_creator,
           trainable=False,
           checkpoint=params_var_.checkpoint,
-          bp_v2=bp_v2 if bp_v2 is not None else params_var_.bp_v2,
-      )
+          bp_v2=bp_v2 if bp_v2 is not None else params_var_.bp_v2)
 
     scope_store._vars[full_name] = slot_variable_
     # Record the optimizer Variable into trace.
