@@ -26,6 +26,10 @@ from tensorflow_recommenders_addons import dynamic_embedding as de
 from tensorflow_recommenders_addons.utils.resource_loader import get_tf_version_triple
 
 from tensorflow.core.framework import attr_value_pb2
+try:
+  from tensorflow.python.compat import compat as forward_compat
+except:
+  forward_compat = None
 from tensorflow.python.eager import context
 from tensorflow.python.eager import tape
 from tensorflow.python.keras.optimizer_v2 import optimizer_v2
@@ -108,20 +112,20 @@ class TrainableWrapper(resource_variable_ops.ResourceVariable):
       return "<tf.Variable '%s' shape=%s dtype=%s>" % (
           self.name, self.get_shape(), self.dtype.name)
 
-  def _init_from_args(
-      self,
-      initial_value=None,
-      trainable=None,
-      collections=None,
-      caching_device=None,
-      name=None,
-      dtype=None,
-      constraint=None,
-      synchronization=None,
-      aggregation=None,
-      distribute_strategy=None,
-      shape=None,
-  ):
+  def _init_from_args(self,
+                      initial_value=None,
+                      trainable=None,
+                      collections=None,
+                      caching_device=None,
+                      name=None,
+                      dtype=None,
+                      constraint=None,
+                      synchronization=None,
+                      aggregation=None,
+                      distribute_strategy=None,
+                      shape=None,
+                      *args,
+                      **kwargs):
     """Creates a variable.
 
         Args:
@@ -377,8 +381,11 @@ class TrainableWrapper(resource_variable_ops.ResourceVariable):
   def size(self):
     return self.params.size()
 
-  def _read_variable_op(self, do_prefetch=True):
+  def _read_variable_op(self, do_prefetch=True, no_copy=False):
     resource_variable_ops.variable_accessed(self)
+    if no_copy and forward_compat:
+      if forward_compat.forward_compatible(2022, 5, 3):
+        gen_resource_variable_ops.disable_copy_on_read(self.handle)
     if self.model_mode == "train":
       if do_prefetch:
         with ops.control_dependencies([
