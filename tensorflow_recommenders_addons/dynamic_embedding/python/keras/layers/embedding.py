@@ -152,13 +152,6 @@ class BasicEmbedding(tf.keras.layers.Layer):
           'embeddnig size must be convertible to integer, but get {}'.format(
               type(embedding_size)))
 
-    try:
-      embedding_size = int(embedding_size)
-    except:
-      raise TypeError(
-          'embeddnig size must be convertible to integer, but get {}'.format(
-              type(embedding_size)))
-
     self.embedding_size = embedding_size
     self.combiner = combiner
     if initializer is None:
