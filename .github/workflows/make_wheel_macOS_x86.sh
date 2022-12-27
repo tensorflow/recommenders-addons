@@ -7,7 +7,7 @@ fi
 python --version
 
 brew install open-mpi
-
+python -m pip install numpy==1.20.0
 python -m pip install --default-timeout=1000 delocate==0.9.1 wheel==0.36.2 setuptools tensorflow==$TF_VERSION
 python -m pip install tensorflow-io
 python -m pip install --upgrade protobuf==3.20.0
