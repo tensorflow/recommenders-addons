@@ -88,17 +88,17 @@ __inline__ __device__ float atomicCAS(float* address, float compare, float val)
 
 __inline__ __device__ int64_t atomicAdd(long long* address, const long long val)
 {
-  return (int64_t) atomicAdd((unsigned long long*)address, (const unsigned long long)val);
+  return (int64_t) atomicAdd((unsigned long long int*)address, (unsigned long long int)val);
 }
 
 __inline__ __device__ int64_t atomicAdd(int64_t* address, const int64_t val)
 {
-  return (int64_t) atomicAdd((unsigned long long*)address, (const unsigned long long)val);
+  return (int64_t) atomicAdd((unsigned long long int*)address, (unsigned long long int)val);
 }
 
 __inline__ __device__ uint64_t atomicAdd(uint64_t* address,  const uint64_t val)
 {
-  return (uint64_t) atomicAdd((unsigned long long*)address, (const unsigned long long)val);
+  return (uint64_t) atomicAdd((unsigned long long int*)address, (unsigned long long int)val);
 }
 
 __inline__ __device__ signed char atomicAdd(signed char* address, const signed char val)
@@ -106,7 +106,7 @@ __inline__ __device__ signed char atomicAdd(signed char* address, const signed c
   int *base_address = (int*)((char*)address - ((size_t)address & 3));
   int int_val = (int)val << (((size_t)address & 3) * 8);
 
-  return (signed char) atomicAdd((int*)base_address, (const int)int_val);
+  return (signed char) atomicAdd(base_address, int_val);
 }
 
 typedef unsigned int uint32;
