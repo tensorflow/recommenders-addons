@@ -173,7 +173,7 @@ class TableWrapper final : public TableWrapperBase<K, V> {
                 << (float)total_size / (float)new_capacity << "].";
     }
     CUDA_CHECK(cudaStreamSynchronize(stream));
-    new_hint_size = table_->get_size(stream);
+    new_hint_size = table_->get_size(stream) + new_keys_num;
     CUDA_CHECK(cudaStreamSynchronize(stream));
     return new_hint_size;
   }
