@@ -1290,9 +1290,12 @@ class RedisTableOfTensors final : public LookupInterface {
         "Please make sure you have already imported tensorflow_io before using "
         "TFRA file system operation.");
     if (load_entire_dir) {
-      int separator_pos = file_name.rfind("_mht_");
+      string separator = "_mht_";
+      int separator_pos = file_name.rfind(separator);
       string file_pattern =
-          io::JoinPath(dirpath, file_name.substr(0, separator_pos)) + "*";
+          io::JoinPath(dirpath,
+                       file_name.substr(0, separator_pos + separator.size())) +
+          "*";
       std::vector<string> all_filepath;
       TF_RETURN_IF_ERROR(fs->GetMatchingPaths(file_pattern, &all_filepath));
       // delete -keys/-values postfix
