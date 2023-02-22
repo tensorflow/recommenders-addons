@@ -14,9 +14,6 @@
 # ==============================================================================
 """Redis Lookup operations."""
 # pylint: disable=g-bad-name
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
 
 import copy
 import fcntl
@@ -273,7 +270,9 @@ class RedisTable(LookupInterface):
           value_shape=self._default_value.get_shape(),
           embedding_name=self._embedding_name,
           redis_config_abs_dir=self._config.redis_config_abs_dir,
-          redis_config_abs_dir_env=self._config.redis_config_abs_dir_env)
+          redis_config_abs_dir_env=self._config.redis_config_abs_dir_env,
+          name=self._name,
+      )
 
     if context.executing_eagerly():
       self._table_name = None
