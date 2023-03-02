@@ -25,7 +25,7 @@ from pathlib import Path
 import sys
 
 from datetime import datetime
-from setuptools import find_packages
+from setuptools import find_namespace_packages
 from setuptools import setup
 from setuptools.dist import Distribution
 from setuptools import Extension
@@ -91,7 +91,8 @@ setup(
     long_description="\n".join(DOCLINES[2:]),
     author="Google Inc.",
     author_email="opensource@google.com",
-    packages=find_packages(),
+    packages=find_namespace_packages(
+        include=['tensorflow_recommenders_addons*']),
     ext_modules=get_ext_modules(),
     install_requires=Path("requirements.txt").read_text().splitlines() +
     ["{}=={}".format(tf_project_name, min_tf_version)],
