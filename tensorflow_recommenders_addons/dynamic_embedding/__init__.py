@@ -45,12 +45,8 @@ __all__ = [
 from tensorflow_recommenders_addons.dynamic_embedding.python import keras
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops import math_ops as math
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_creator import (
-    KVCreator,
-    CuckooHashTableConfig,
-    CuckooHashTableCreator,
-    RedisTableConfig,
-    RedisTableCreator,
-)
+    KVCreator, CuckooHashTableConfig, CuckooHashTableCreator, RedisTableConfig,
+    RedisTableCreator, FileSystemSaver)
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.cuckoo_hashtable_ops import (
     CuckooHashTable,)
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.redis_table_ops import (
@@ -92,6 +88,9 @@ from tensorflow_recommenders_addons.dynamic_embedding.python.ops.restrict_polici
 )
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.tf_patch import (
     patch_on_tf,)
+from tensorflow_recommenders_addons.dynamic_embedding.python.ops.tf_save_restore_patch import (
+    patch_on_tf_save_restore,)
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops import shadow_embedding_ops as shadow_ops
 
 patch_on_tf()
+patch_on_tf_save_restore()

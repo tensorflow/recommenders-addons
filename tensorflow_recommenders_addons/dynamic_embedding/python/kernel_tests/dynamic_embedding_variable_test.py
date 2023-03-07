@@ -30,7 +30,6 @@ from tensorflow_recommenders_addons import dynamic_embedding as de
 from tensorflow_recommenders_addons.utils.check_platform import is_macos, is_arm64
 
 from tensorflow.core.protobuf import config_pb2
-from tensorflow.keras import layers
 from tensorflow.python.client import session
 from tensorflow.python.eager import context
 from tensorflow.python.framework import constant_op
@@ -39,6 +38,7 @@ from tensorflow.python.framework import ops
 from tensorflow.python.framework import sparse_tensor
 from tensorflow.python.framework import test_util
 from tensorflow.python.keras import initializers as kinit
+from tensorflow.python.keras import layers
 from tensorflow.python.keras import optimizer_v2
 from tensorflow.python.module import module
 from tensorflow.python.ops import array_ops
@@ -639,6 +639,151 @@ class VariableTest(test.TestCase):
       del table
 
   def test_save_restore_file_system(self):
+    if context.executing_eagerly():
+      self.skipTest('skip eager test when using legacy Saver.')
+    save_dir = os.path.join(self.get_temp_dir(), "save_restore")
+    save_path = os.path.join(tempfile.mkdtemp(prefix=save_dir), "hash")
+
+    with self.session(config=default_config, graph=ops.Graph()) as sess:
+      v0 = variables.Variable(10.0, name="v0")
+      v1 = variables.Variable(20.0, name="v1")
+
+      keys = constant_op.constant([0, 1, 2], dtypes.int64)
+      values = constant_op.constant([[0.0], [1.0], [2.0]], dtypes.float32)
+
+      num_shards = 2
+      table = de.Variable(
+          key_dtype=dtypes.int64,
+          value_dtype=dtypes.float32,
+          initializer=-1.0,
+          devices=_get_devices() * num_shards,
+          name="t1",
+          dim=1,
+          kv_creator=de.CuckooHashTableCreator(saver=de.FileSystemSaver()))
+
+      save = saver.Saver(var_list=[v0, v1, table])
+      self.evaluate(variables.global_variables_initializer())
+
+      # Check that the parameter nodes have been initialized.
+      self.assertEqual(10.0, self.evaluate(v0))
+      self.assertEqual(20.0, self.evaluate(v1))
+
+      self.assertAllEqual(0, self.evaluate(table.size()))
+      self.evaluate(table.upsert(keys, values))
+      self.assertAllEqual(3, self.evaluate(table.size()))
+
+      val = save.save(sess, save_path)
+      self.assertIsInstance(val, six.string_types)
+      self.assertEqual(save_path, val)
+
+      del table
+
+    with self.session(config=default_config, graph=ops.Graph()) as sess:
+      v0 = variables.Variable(-1.0, name="v0")
+      v1 = variables.Variable(-1.0, name="v1")
+      num_shards = 2
+      table = de.Variable(
+          key_dtype=dtypes.int64,
+          value_dtype=dtypes.float32,
+          initializer=-1.0,
+          devices=_get_devices() * num_shards,
+          name="t1",
+          dim=1,
+          checkpoint=True,
+          kv_creator=de.CuckooHashTableCreator(saver=de.FileSystemSaver()))
+      self.evaluate(
+          table.upsert(
+              constant_op.constant([0, 1], dtypes.int64),
+              constant_op.constant([[12.0], [24.0]], dtypes.float32),
+          ))
+      size_op = table.size()
+      self.assertAllEqual(2, self.evaluate(size_op))
+
+      save = saver.Saver(var_list=[v0, v1, table])
+
+      # Restore the saved values in the parameter nodes.
+      save.restore(sess, save_path)
+      # Check that the parameter nodes have been restored.
+      self.assertEqual([10.0], self.evaluate(v0))
+      self.assertEqual([20.0], self.evaluate(v1))
+
+      self.assertAllEqual(3, self.evaluate(table.size()))
+
+      remove_keys = constant_op.constant([5, 0, 1, 2, 6], dtypes.int64)
+      output = table.lookup(remove_keys)
+      self.assertAllEqual([[-1.0], [0.0], [1.0], [2.0], [-1.0]],
+                          self.evaluate(output))
+
+      del table
+
+    # test expand shards number
+    with self.session(config=default_config, graph=ops.Graph()) as sess:
+      num_shards = 3
+      table = de.Variable(
+          key_dtype=dtypes.int64,
+          value_dtype=dtypes.float32,
+          initializer=-1.0,
+          devices=_get_devices() * num_shards,
+          name="t1",
+          dim=1,
+          checkpoint=True,
+          kv_creator=de.CuckooHashTableCreator(saver=de.FileSystemSaver()))
+      self.evaluate(
+          table.upsert(
+              constant_op.constant([0, 1], dtypes.int64),
+              constant_op.constant([[12.0], [24.0]], dtypes.float32),
+          ))
+      size_op = table.size()
+      self.assertAllEqual(2, self.evaluate(size_op))
+
+      save = saver.Saver(var_list=[table])
+
+      # Restore the saved values in the parameter nodes.
+      save.restore(sess, save_path)
+      self.assertAllEqual(3, self.evaluate(table.size()))
+
+      remove_keys = constant_op.constant([5, 0, 1, 2, 6], dtypes.int64)
+      output = table.lookup(remove_keys)
+      self.assertAllEqual([[-1.0], [0.0], [1.0], [2.0], [-1.0]],
+                          self.evaluate(output))
+
+      del table
+
+    # test contracte shards number
+    with self.session(config=default_config, graph=ops.Graph()) as sess:
+      num_shards = 1
+      table = de.Variable(
+          key_dtype=dtypes.int64,
+          value_dtype=dtypes.float32,
+          initializer=-1.0,
+          devices=_get_devices() * num_shards,
+          name="t1",
+          dim=1,
+          checkpoint=True,
+          kv_creator=de.CuckooHashTableCreator(saver=de.FileSystemSaver()))
+      self.evaluate(
+          table.upsert(
+              constant_op.constant([0, 1], dtypes.int64),
+              constant_op.constant([[12.0], [24.0]], dtypes.float32),
+          ))
+      size_op = table.size()
+      self.assertAllEqual(2, self.evaluate(size_op))
+
+      save = saver.Saver(var_list=[table])
+
+      # Restore the saved values in the parameter nodes.
+      save.restore(sess, save_path)
+
+      self.assertAllEqual(3, self.evaluate(table.size()))
+
+      remove_keys = constant_op.constant([5, 0, 1, 2, 6], dtypes.int64)
+      output = table.lookup(remove_keys)
+      self.assertAllEqual([[-1.0], [0.0], [1.0], [2.0], [-1.0]],
+                          self.evaluate(output))
+
+      del table
+
+  def test_table_save_load_file_system(self):
     self.skipTest('Only test for file_system export, need file_system path.')
     if context.executing_eagerly():
       self.skipTest('skip eager test when using legacy Saver.')
@@ -726,7 +871,7 @@ class VariableTest(test.TestCase):
 
       del table
 
-  def test_save_restore_local_file_system(self):
+  def test_table_save_load_local_file_system(self):
     if context.executing_eagerly():
       self.skipTest('skip eager test when using legacy Saver.')
     save_dir = os.path.join(self.get_temp_dir(), "save_restore")

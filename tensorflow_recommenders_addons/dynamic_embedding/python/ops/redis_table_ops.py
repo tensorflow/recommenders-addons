@@ -18,11 +18,11 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import copy
 import fcntl
 import functools
 import json
 import os
-from re import T
 import warnings
 
 from tensorflow.python.eager import context
@@ -122,6 +122,7 @@ class RedisTable(LookupInterface):
       checkpoint=False,
       config=None,
       device='',
+      shard_saveable_object_fn=None,
   ):
     """
       Creates an empty `RedisTable` object.
@@ -155,6 +156,7 @@ class RedisTable(LookupInterface):
     self._name = name
     self._embedding_name = (self._name.split('_mht_', 1))[0]
     self._config = config
+    self._new_obj_trackable = None  # for restore op can easily found this table
 
     self.redis_config_file_exist = False
     self.redis_config_file_create = False
@@ -239,14 +241,22 @@ class RedisTable(LookupInterface):
     if checkpoint:
       _ = RedisTable._Saveable(self, name)
       if not context.executing_eagerly():
-        self.saveable = RedisTable._Saveable(
-            self,
-            name=self._resource_handle.op.name,
-            full_name=self._resource_handle.op.name,
-        )
-        ops.add_to_collection(ops.GraphKeys.SAVEABLE_OBJECTS, self.saveable)
+        _table_name = self._resource_handle.op.name
+        _table_full_name = self._resource_handle.op.name
       else:
-        self.saveable = RedisTable._Saveable(self, name=name, full_name=name)
+        _table_name = self._name
+        _table_full_name = self._name
+      if shard_saveable_object_fn:
+        self._saveable_fn = shard_saveable_object_fn
+      else:
+        self._saveable_fn = RedisTable._Saveable
+      self.saveable = self._saveable_fn(
+          table=self,
+          name=_table_name,
+          full_name=_table_full_name,
+      )
+      if not context.executing_eagerly():
+        ops.add_to_collection(ops.GraphKeys.SAVEABLE_OBJECTS, self.saveable)
 
   def _create_resource(self):
     # The table must be shared if checkpointing is requested for multi-worker
@@ -270,6 +280,20 @@ class RedisTable(LookupInterface):
     else:
       self._table_name = table_ref.op.name.split("/")[-1]
     return table_ref
+
+  def _map_resources(self, _):
+    """For implementing `Trackable`."""
+    new_obj = copy.copy(self)
+    if self._new_obj_trackable is None:
+      self._new_obj_trackable = new_obj
+    # pylint: disable=protected-access
+    with ops.device(self._resource_device):
+      new_resource = new_obj._create_resource()
+    new_obj._resource_handle = new_resource
+    # pylint: enable=protected-access
+    obj_map = {self: new_obj}
+    resource_map = {self.resource_handle: new_resource}
+    return obj_map, resource_map
 
   @property
   def name(self):
@@ -550,10 +574,11 @@ class RedisTable(LookupInterface):
     """For object-based checkpointing."""
     # full_name helps to figure out the name-based Saver's name for this saveable.
     full_name = self._table_name
+    self._new_obj_trackable = None  # reset _new_obj_trackable when save again
     return {
         "table":
             functools.partial(
-                RedisTable._Saveable,
+                self._saveable_fn,
                 table=self,
                 name=self._name,
                 full_name=full_name,

@@ -15,8 +15,16 @@
 # lint-as: python3
 
 from abc import ABCMeta
+
 from tensorflow.python.eager import context
-from tensorflow.python.ops import gen_parsing_ops
+from tensorflow.python.framework import constant_op
+from tensorflow.python.framework import dtypes
+from tensorflow.python.framework import ops
+from tensorflow.python.ops import array_ops
+from tensorflow.python.ops import control_flow_ops
+from tensorflow.python.ops import string_ops
+from tensorflow.python.ops import variables as variables_lib
+from tensorflow.python.training.saver import BaseSaverBuilder
 from tensorflow_recommenders_addons import dynamic_embedding as de
 
 
@@ -36,12 +44,20 @@ class KVCreator(object, metaclass=ABCMeta):
     redis_config1=tfra.dynamic_embedding.RedisTableConfig(
       redis_config_abs_dir="xx/yy.json"
     )
-    redis_creator1=tfra.dynamic_embedding.RedisTableCreator(redis_config1)
+    redis_creator1=tfra.dynamic_embedding.RedisTableCreator(
+      config=redis_config1,
+      saver=FileSystemSaverConfig()
+    )
     ```
   """
 
-  def __init__(self, config=None):
+  def __init__(self, config=None, saver=None):
     self.config = config
+    self.saver = saver
+    if saver and not isinstance(saver, DynamicEmbeddingSaver):
+      raise RuntimeError(
+          'The initialization argument \'saver\' for class KVCreator must be a class inheriting DynamicEmbeddingSaver.'
+      )
 
   def create(self,
              key_dtype=None,
@@ -76,6 +92,7 @@ class CuckooHashTableCreator(KVCreator):
       init_size=None,
       config=None,
       device=None,
+      shard_saveable_object_fn=None,
   ):
     self.key_dtype = key_dtype
     self.value_dtype = value_dtype
@@ -85,6 +102,7 @@ class CuckooHashTableCreator(KVCreator):
     self.init_size = init_size
     self.config = config
     self.device = device
+    self.shard_saveable_object_fn = shard_saveable_object_fn
 
     return de.CuckooHashTable(
         key_dtype=self.key_dtype,
@@ -95,7 +113,7 @@ class CuckooHashTableCreator(KVCreator):
         init_size=self.init_size,
         config=self.config,
         device=self.device,
-    )
+        shard_saveable_object_fn=self.shard_saveable_object_fn)
 
   def get_config(self):
     if not context.executing_eagerly():
@@ -187,6 +205,7 @@ class RedisTableCreator(KVCreator):
       init_size=None,
       config=None,
       device=None,
+      shard_saveable_object_fn=None,
   ):
     self.key_dtype = key_dtype
     self.value_dtype = value_dtype
@@ -194,20 +213,26 @@ class RedisTableCreator(KVCreator):
     self.name = name
     self.checkpoint = checkpoint
     self.init_size = init_size
-    self.config = config if config is not None else self.config
+    if config:
+      if not isinstance(config, RedisTableConfig):
+        raise TypeError(
+            "config should be instance of 'RedisTableConfig', but got ",
+            str(type(config)))
+      self.config = config
+    else:
+      if self.config is None:
+        self.config = de.RedisTableConfig(None, None)
     self.device = device
-    if not isinstance(self.config, RedisTableConfig):
-      raise TypeError("config should be instance of 'config', but got ",
-                      str(type(self.config)))
-    return de.RedisTable(
-        key_dtype=self.key_dtype,
-        value_dtype=self.value_dtype,
-        default_value=self.default_value,
-        name=self.name,
-        checkpoint=self.checkpoint,
-        config=self.config,
-        device=self.device,
-    )
+    self.shard_saveable_object_fn = shard_saveable_object_fn
+
+    return de.RedisTable(key_dtype=self.key_dtype,
+                         value_dtype=self.value_dtype,
+                         default_value=self.default_value,
+                         name=self.name,
+                         checkpoint=self.checkpoint,
+                         config=self.config,
+                         device=self.device,
+                         shard_saveable_object_fn=self.shard_saveable_object_fn)
 
   def get_config(self):
     if not context.executing_eagerly():
@@ -225,3 +250,158 @@ class RedisTableCreator(KVCreator):
         'device': self.device,
     }
     return config
+
+
+# DynamicEmbeddingSaver
+class DynamicEmbeddingSaver(object, metaclass=ABCMeta):
+  """
+    Example usage:
+      ```python
+      kv_creator = tfra.dynamic_embedding.CuckooHashTableCreator(saver=FileSystemSaver())
+      ```
+  """
+  _upsert_restore = True
+
+  def __init__(self):
+    raise NotImplementedError('create function must be implemented')
+
+  def create_variable_saveable_object(self, variable, name):
+    raise NotImplementedError('create function must be implemented')
+
+  def create_shard_saveable_object(self,
+                                   variable,
+                                   table,
+                                   shard_idx,
+                                   name,
+                                   full_name=""):
+    raise NotImplementedError('create function must be implemented')
+
+  def set_upsert_restore(self, setting):
+    self._upsert_restore = setting
+
+
+class FileSystemSaverConfig(object):
+
+  def __init__(self,
+               proc_size: int = None,
+               proc_rank: int = None,
+               save_path: str = None,
+               buffer_size: int = 4194304):
+    """ FileSystemSaverConfig can be used to assign save_path of DynamicEmbeddings.
+    """
+    if type(proc_rank) != type(proc_size):
+      raise TypeError(
+          "proc_rank and proc_size in FileSystemSaverConfig must both be set to integer properly!"
+      )
+    if proc_size is None or proc_rank is None:
+      self.proc_size = 1
+      self.proc_rank = 0
+    else:
+      self.proc_size = proc_size
+      self.proc_rank = proc_rank
+    self.save_path = save_path
+    self.buffer_size = buffer_size
+
+
+class FileSystemSaver(DynamicEmbeddingSaver):
+  """
+    A saver for easily saving/restoring independent KV files for DynamicEmbedding when using TensorFlow savedmodel/checkpoint API.
+    
+    Args:
+      proc_size: A int parameter to config the size of global running TensorFlow instance(process), which usually set during MPI training.
+      proc_rank: A int parameter to config the rank of local runtime TensorFlow instance(process), which usually set during MPI training.
+      save_path: A string parameter for specific KV files saving path.
+      buffer_size: A int parameter to set writing/reading how many keys at a time when handle KV files.
+
+    Example usage:
+      ```python
+      kv_creator = tfra.dynamic_embedding.CuckooHashTableCreator(saver=FileSystemSaver())
+      ```
+  """
+
+  class _DynamicEmbeddingVariabelFileSystemSaveable(
+      BaseSaverBuilder.SaveableObject):
+    """SaveableObject implementation for dynamic embedding."""
+
+    def __init__(self, de_variable, saver_config, name):
+      self._de_variable = de_variable
+      self.device_size = len(de_variable.devices)
+      self.local_shard_num = self.device_size
+      self.proc_size = saver_config.proc_size
+      self.global_shard_num = self.device_size * self.proc_size
+      self.proc_rank = saver_config.proc_rank
+      self._saver_config = saver_config
+      specs = [
+          BaseSaverBuilder.SaveSpec(
+              constant_op.constant(self.global_shard_num, dtype=dtypes.int32),
+              "", name + "-prev_global_shard_num"),
+      ]
+      # pylint: disable=protected-access
+      super(FileSystemSaver._DynamicEmbeddingVariabelFileSystemSaveable,
+            self).__init__(de_variable, specs, name)
+      self._restore_name = de_variable.name
+
+    def restore(self, restored_tensors, restored_shapes, name=None):
+      self._de_variable.prev_global_shard_num = restored_tensors[0]
+      return control_flow_ops.no_op()
+
+  class _DynamicEmbeddingShardFileSystemSaveable(BaseSaverBuilder.SaveableObject
+                                                ):
+    """SaveableObject implementation for shards of table."""
+
+    def __init__(self,
+                 de_variable,
+                 shard,
+                 shard_idx,
+                 shard_upsert_restore,
+                 saver_config,
+                 name,
+                 full_name=''):
+      self._de_variable = de_variable
+      self.local_shard_idx = shard_idx
+      self.device_size = len(de_variable.devices)
+      self.local_shard_num = self.device_size
+      self.proc_size = saver_config.proc_size
+      self.global_shard_num = self.device_size * self.proc_size
+      self.proc_rank = saver_config.proc_rank
+      self.global_shard_idx = self.proc_rank * self.device_size + shard_idx
+      self._shard_upsert_restore = shard_upsert_restore
+      self._saver_config = saver_config
+      specs = [
+          BaseSaverBuilder.SaveSpec(
+              constant_op.constant(shard_upsert_restore, dtypes.bool), "",
+              name + "-shard_upsert_restore"),
+      ]
+      # pylint: disable=protected-access
+      super(FileSystemSaver._DynamicEmbeddingShardFileSystemSaveable,
+            self).__init__(shard, specs, name)
+      self._restore_name = shard.name
+
+    def restore(self, restored_tensors, restored_shapes, name=None):
+      return control_flow_ops.no_op()
+
+  def __init__(self,
+               proc_size: int = None,
+               proc_rank: int = None,
+               save_path: str = None,
+               buffer_size: int = 4194304):
+    self.config = FileSystemSaverConfig(proc_size=proc_size,
+                                        proc_rank=proc_rank,
+                                        save_path=save_path,
+                                        buffer_size=buffer_size)
+
+  def create_variable_saveable_object(self, variable, name):
+    _variable_saveable_obj = self._DynamicEmbeddingVariabelFileSystemSaveable(
+        variable, self.config, name)
+    return _variable_saveable_obj
+
+  def create_shard_saveable_object(self,
+                                   variable,
+                                   table,
+                                   shard_idx,
+                                   name,
+                                   full_name=""):
+    _shard_saveable_obj = self._DynamicEmbeddingShardFileSystemSaveable(
+        variable, table, shard_idx, self._upsert_restore, self.config, name,
+        full_name)
+    return _shard_saveable_obj

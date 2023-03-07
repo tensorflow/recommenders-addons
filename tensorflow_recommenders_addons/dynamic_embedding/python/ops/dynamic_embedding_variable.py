@@ -23,6 +23,8 @@ from __future__ import division
 from __future__ import print_function
 
 import functools
+import re
+import typing
 import tensorflow as tf
 
 from tensorflow_recommenders_addons import dynamic_embedding as de
@@ -44,18 +46,27 @@ except ImportError:
 
 from tensorflow.python.client import device_lib
 from tensorflow.python.eager import context
+from tensorflow.python.eager import def_function
 from tensorflow.python.framework import constant_op
 from tensorflow.python.framework import dtypes
 from tensorflow.python.framework import ops
 from tensorflow.python.keras.optimizer_v2.optimizer_v2 import OptimizerV2
+from tensorflow.python.keras.utils import tf_utils
 from tensorflow.python.ops import array_ops
 from tensorflow.python.ops import bitwise_ops
 from tensorflow.python.ops import control_flow_ops
 from tensorflow.python.ops import data_flow_ops
+from tensorflow.python.ops import gen_functional_ops
+from tensorflow.python.ops import gen_io_ops
 from tensorflow.python.ops import init_ops
 from tensorflow.python.ops import init_ops_v2
+from tensorflow.python.data.ops import readers
+from tensorflow.python.data.ops import dataset_ops
+from tensorflow.python.data.ops import iterator_ops
 from tensorflow.python.ops import math_ops
+from tensorflow.python.ops import parsing_ops
 from tensorflow.python.ops import string_ops
+from tensorflow.python.ops import tensor_array_ops
 from tensorflow.python.ops import variable_scope
 from tensorflow.python.platform import tf_logging
 from tensorflow.python.training.optimizer import Optimizer
@@ -129,6 +140,258 @@ def default_partition_fn(keys, shard_num):
     else:
       ids = math_ops.cast(math_ops.mod(keys_op, shard_num), dtype=dtypes.int32)
   return ids
+
+
+def _list_de_variable_saved_files_from_file_system(de_variable_name,
+                                                   de_variable_folder_path,
+                                                   proc_size: int = None):
+  """Lists the keys and values files saved by the corresponding DE in the file path.
+
+    de_variable_name: Name of specific DynamicEmbedding Variable.
+    de_variable_folder_path: Directory of DynamicEmbedding Variable saved files.
+    proc_size: Specify that files of a certain mpi size are filtered.
+
+  Returns:
+    shard_keys_file_list: A list of shard table saved keys files.
+    shard_values_file_list: A list of shard table saved values files.
+  """
+  if proc_size is None:
+    keys_pattern = '_mht_*of*_rank*_size*-keys'
+    values_pattern = '_mht_*of*_rank*_size*-values'
+  else:
+    keys_pattern = '_mht_*of*_rank*_size{}-keys'.format(proc_size)
+    values_pattern = '_mht_*of*_rank*_size{}-values'.format(proc_size)
+  _shard_name_base_dir = string_ops.string_join(
+      [de_variable_folder_path, de_variable_name], separator='/')
+  _shard_name_keys_pattern = string_ops.string_join(
+      [_shard_name_base_dir, keys_pattern], separator='')
+  shard_keys_file_list = gen_io_ops.matching_files(_shard_name_keys_pattern)
+  _shard_name_values_pattern = string_ops.string_join(
+      [_shard_name_base_dir, values_pattern], separator='')
+  shard_values_file_list = gen_io_ops.matching_files(_shard_name_values_pattern)
+  return shard_keys_file_list, shard_values_file_list
+
+
+def _insert_de_shard_from_file_system(
+    shard_list,
+    value_dim,
+    shard_keys_file_list,
+    shard_values_file_list,
+    partition_fn: typing.TypeVar(default_partition_fn) = default_partition_fn,
+    proc_size: int = None,
+    proc_rank: int = None,
+    buffer_size: int = 4194304):
+  """Load DE keys/values files from file system as tensor partitions which fitting number of table shards in present DE variable. 
+    Only load files and insert to DE table when shards number of files is not equal to the present DE variable table shards number.
+
+    shard_list: A list of local DynamicEmbedding Variable shard table.
+    value_dim: Embedding dim of current DE. 
+    shard_keys_file_list: A list of shard table saved keys files.
+    shard_values_file_list: A list of shard table saved values files.
+    partition_fn: Calltable partition function for insert keys to DE shards table.
+    proc_size: Total shards number of current DE in entire nodes system.
+    proc_rank: Global shards index of current DE in total nodes.
+    buffer_size: Read files buffer size for FixedLengthRecordDataset.
+  Returns:
+    traverse_files_result: A tensor from loop result, return False if success.
+  """
+  control_flow_ops.Assert(
+      math_ops.equal(array_ops.size(shard_keys_file_list),
+                     array_ops.size(shard_values_file_list)),
+      [
+          "The number of keys files and values files must be equal when loading DynamicEmbedding Variable shard table saved files."
+      ])
+
+  _local_shard_num = len(shard_list)
+  _proc_size = 1
+  if proc_size:
+    _proc_size = proc_size
+  _proc_rank = 0
+  if proc_rank:
+    _proc_rank = proc_rank
+
+  _key_dtype = shard_list[0]._key_dtype
+  _value_dtype = shard_list[0]._value_dtype
+
+  insert_num_once = int(buffer_size / _key_dtype.size * 0.5)
+  _keys_tensor_dataset = readers.FixedLengthRecordDataset(
+      shard_keys_file_list,
+      record_bytes=_key_dtype.size,
+      buffer_size=buffer_size).padded_batch(insert_num_once,
+                                            drop_remainder=False)
+
+  _values_tensor_dataset = readers.FixedLengthRecordDataset(
+      shard_values_file_list,
+      record_bytes=_value_dtype.size * value_dim,
+      buffer_size=buffer_size * value_dim).padded_batch(insert_num_once *
+                                                        value_dim,
+                                                        drop_remainder=False)
+
+  iterator_init_list = tf_utils.ListWrapper([])
+  if context.executing_eagerly():
+    keys_tensor_iterator = iter(_keys_tensor_dataset)
+    values_tensor_iterator = iter(_values_tensor_dataset)
+  else:
+    keys_tensor_iterator = dataset_ops.make_initializable_iterator(
+        _keys_tensor_dataset)
+    values_tensor_iterator = dataset_ops.make_initializable_iterator(
+        _values_tensor_dataset)
+    keys_iterator_init = keys_tensor_iterator.initializer
+    values_iterator_init = values_tensor_iterator.initializer
+    iterator_init_list.as_list().append(keys_iterator_init)
+    iterator_init_list.as_list().append(values_iterator_init)
+
+  def _traverse_files_cond(loop_continue):
+    return loop_continue
+
+  def _traverse_files_body(loop_continue):
+    with ops.device("CPU"):
+      keys_get_next = keys_tensor_iterator.get_next_as_optional()
+      values_get_next = values_tensor_iterator.get_next_as_optional()
+
+      def _insert_table():
+        keys_tensor_byte = keys_get_next.get_value()
+        keys_tensor = parsing_ops.decode_raw(keys_tensor_byte, _key_dtype)
+        keys_tensor = array_ops.reshape(keys_tensor, (-1,))
+        values_tensor_byte = values_get_next.get_value()
+        values_tensor = parsing_ops.decode_raw(values_tensor_byte, _value_dtype)
+        values_tensor = array_ops.reshape(values_tensor, (-1, value_dim))
+        if _proc_size == 1:
+          local_keys = keys_tensor
+          local_values = values_tensor
+        else:
+          mpi_partition_index = partition_fn(keys_tensor, _proc_size)
+          mpi_keys_partitions, _ = make_partition(keys_tensor,
+                                                  mpi_partition_index,
+                                                  _proc_size)
+          mpi_values_partitions, _ = make_partition(values_tensor,
+                                                    mpi_partition_index,
+                                                    _proc_size)
+          local_keys = mpi_keys_partitions[_proc_rank]
+          local_values = mpi_values_partitions[_proc_rank]
+        _insert_ops = tf_utils.ListWrapper([])
+        local_partition_index = partition_fn(local_keys, _local_shard_num)
+        local_keys_partitions, _ = make_partition(local_keys,
+                                                  local_partition_index,
+                                                  _local_shard_num)
+        local_values_partitions, _ = make_partition(local_values,
+                                                    local_partition_index,
+                                                    _local_shard_num)
+        for local_idx, shard in enumerate(shard_list):
+          with ops.name_scope("%s_table_restore" % shard._name):
+            _insert_ops.as_list().append(
+                shard.insert(local_keys_partitions[local_idx],
+                             local_values_partitions[local_idx]))
+        with ops.control_dependencies(_insert_ops.as_list()):
+          return constant_op.constant(True, dtype=dtypes.bool)
+
+      def _end_insert_loop():
+        return constant_op.constant(False, dtype=dtypes.bool)
+
+      _files_has_value = math_ops.logical_and(keys_get_next.has_value(),
+                                              values_get_next.has_value())
+      return control_flow_ops.cond(_files_has_value, _insert_table,
+                                   _end_insert_loop)
+
+  with ops.control_dependencies(iterator_init_list.as_list()):
+    traverse_files_result = control_flow_ops.while_loop(
+        _traverse_files_cond, _traverse_files_body,
+        [constant_op.constant(True, dtype=dtypes.bool)])
+  return traverse_files_result
+
+
+def load_de_variable_from_file_system(de_variable,
+                                      de_variable_folder_dir,
+                                      proc_size: int = None,
+                                      proc_rank: int = None,
+                                      buffer_size: int = 4194304):
+  """Load DE keys/values files from file system or tensor array 
+      which generated from load_de_variable_from_file_system function. 
+    Load files directly when _de_now_global_shard_num == _de_prev_global_shard_num or _de_now_global_shard_num == 1.
+    Otherwith insert tensor from files.
+
+    de_variable: A present DynamicEmbedding Variable obeject.
+    shard: A present DynamicEmbedding Variable table obeject.
+    de_variable_folder_path: A directory path which saved DynamicEmbedding table shards before.
+    proc_size: Total node size of current DE in entire nodes system.
+    proc_rank: Global node index of current DE in entire nodes.
+    buffer_size: Read files buffer size for FixedLengthRecordDataset or load_from_file_system op.
+  Returns:
+    load_op: A TF Operation contains a flow to load shard table.
+  """
+  _proc_size = 1
+  device_size = len(de_variable.devices)
+  if proc_size:
+    _proc_size = proc_size
+  _global_shard_num = _proc_size * device_size
+  _proc_rank = 0
+  if proc_rank:
+    _proc_rank = proc_rank
+  _shard_list = tf_utils.ListWrapper([])
+  for table in de_variable._tables:
+    _shard_tmp = table._new_obj_trackable
+    if _shard_tmp is None:
+      _shard_tmp = table
+    _shard_list.as_list().append(_shard_tmp)
+
+  _de_now_global_shard_num = constant_op.constant(_global_shard_num,
+                                                  dtypes.int32,
+                                                  name=de_variable.name +
+                                                  "-now_global_shard_num")
+  _test_shard_keys_file_list, _ = _list_de_variable_saved_files_from_file_system(
+      de_variable.name, de_variable_folder_dir, _proc_size)
+  _de_prev_global_shard_num = array_ops.size(_test_shard_keys_file_list)
+
+  def load_de_table_directly():
+    _insert_ops = tf_utils.ListWrapper([])
+    for idx, table in enumerate(de_variable._tables):
+      shard = table._new_obj_trackable
+      if shard is None:
+        shard = table
+      file_name = re.sub(
+          r'_mht_([^/]*)of([^/]*)',
+          '_mht_' + str(idx + 1) + 'of' + str(device_size) + '_rank' +
+          str(_proc_rank) + '_size' + str(_proc_size), shard._name)
+      with ops.name_scope(de_variable.name, "%s_table_restore" % shard._name):
+        _insert_ops.as_list().append(
+            shard.load_from_file_system(de_variable_folder_dir,
+                                        file_name=file_name,
+                                        buffer_size=buffer_size))
+    return control_flow_ops.group(_insert_ops.as_list())
+
+  def upsert_de_table():
+
+    def load_all_de_table():
+      shard = de_variable._tables[0]._new_obj_trackable
+      if shard is None:
+        shard = table
+      with ops.name_scope(de_variable.name, "%s_table_restore" % shard._name):
+        return shard.load_from_file_system(de_variable_folder_dir,
+                                           file_name=shard._name,
+                                           load_entire_dir=True,
+                                           buffer_size=buffer_size)
+
+    def insert_de_table():
+      _shard_keys_file_list, _shard_values_file_list = _list_de_variable_saved_files_from_file_system(
+          de_variable.name, de_variable_folder_dir)
+      _partition_fn = de_variable.partition_fn
+      with ops.name_scope(de_variable.name):
+        return _insert_de_shard_from_file_system(_shard_list.as_list(),
+                                                 de_variable.dim,
+                                                 _shard_keys_file_list,
+                                                 _shard_values_file_list,
+                                                 _partition_fn, _proc_size,
+                                                 _proc_rank, buffer_size)
+
+    upsert_ops = control_flow_ops.cond(
+        math_ops.equal(_de_now_global_shard_num, 1), load_all_de_table,
+        insert_de_table)
+    return upsert_ops
+
+  load_op = control_flow_ops.cond(
+      math_ops.equal(_de_now_global_shard_num, _de_prev_global_shard_num),
+      load_de_table_directly, upsert_de_table)
+  return load_op
 
 
 class GraphKeys(object):
@@ -269,6 +532,7 @@ class Variable(base.Trackable):
     self.size_ops = []
     self._trainable_store = {}
     self.kv_creator = kv_creator if kv_creator else de.CuckooHashTableCreator()
+    self._saveable_object_creator = self.kv_creator.saver
 
     self.shard_num = len(self.devices)
 
@@ -332,6 +596,13 @@ class Variable(base.Trackable):
             if not issubclass(self.kv_creator.__class__, de.KVCreator):
               raise TypeError("config should be instance of 'config', but got ",
                               str(type(self.kv_creator)))
+            if self._saveable_object_creator:
+              shard_saveable_object_fn_i = functools.partial(
+                  self._saveable_object_creator.create_shard_saveable_object,
+                  variable=self,
+                  shard_idx=idx)
+            else:
+              shard_saveable_object_fn_i = None
             mht = self.kv_creator.create(
                 key_dtype=self.key_dtype,
                 value_dtype=self.value_dtype,
@@ -340,8 +611,19 @@ class Variable(base.Trackable):
                 checkpoint=self.checkpoint,
                 init_size=int(self.init_size / self.shard_num),
                 device=self.devices[idx],
-            )
+                shard_saveable_object_fn=shard_saveable_object_fn_i)
             self._tables.append(mht)
+
+    if self._saveable_object_creator:
+      if self.checkpoint:
+        if not context.executing_eagerly():
+          self.op = control_flow_ops.no_op(name=self.name)
+          self.saveable = self._saveable_object_creator.create_variable_saveable_object(
+              self, self.op.name)
+          ops.add_to_collection(ops.GraphKeys.SAVEABLE_OBJECTS, self.saveable)
+        else:
+          self.saveable = self._saveable_object_creator.create_variable_saveable_object(
+              self, self.name)
 
   @property
   def tables(self):
@@ -412,14 +694,14 @@ class Variable(base.Trackable):
     values_partitions, _ = make_partition(values, partition_index,
                                           self.shard_num)
 
-    ops_ = []
+    ops_ = tf_utils.ListWrapper([])
     for idx in range(len(self.devices)):
       with ops.device(self.devices[idx]):
-        ops_.append(self._tables[idx].insert(keys_partitions[idx],
-                                             values_partitions[idx],
-                                             name=name))
+        ops_.as_list().append(self._tables[idx].insert(keys_partitions[idx],
+                                                       values_partitions[idx],
+                                                       name=name))
 
-    return control_flow_ops.group(ops_)
+    return control_flow_ops.group(ops_.as_list())
 
   def accum(self, keys, old_values, new_values, exists, name=None):
     """
@@ -461,15 +743,16 @@ class Variable(base.Trackable):
     exists_partitions, _ = make_partition(exists, partition_index,
                                           self.shard_num)
 
-    ops_ = []
+    ops_ = tf_utils.ListWrapper([])
     for idx in range(len(self.devices)):
       with ops.device(self.devices[idx]):
-        ops_.append(self._tables[idx].accum(keys_partitions[idx],
-                                            values_or_deltas_partitions[idx],
-                                            exists_partitions[idx],
-                                            name=name))
+        ops_.as_list().append(self._tables[idx].accum(
+            keys_partitions[idx],
+            values_or_deltas_partitions[idx],
+            exists_partitions[idx],
+            name=name))
 
-    return control_flow_ops.group(ops_)
+    return control_flow_ops.group(ops_.as_list())
 
   def restrict(self, num_reserved, **kwargs):
     """
@@ -510,12 +793,13 @@ class Variable(base.Trackable):
     partition_index = self.partition_fn(keys, self.shard_num)
     keys_partitions, _ = make_partition(keys, partition_index, self.shard_num)
 
-    ops_ = []
+    ops_ = tf_utils.ListWrapper([])
     for idx in range(len(self.devices)):
       with ops.device(self.devices[idx]):
-        ops_.append(self._tables[idx].remove(keys_partitions[idx], name=name))
+        ops_.as_list().append(self._tables[idx].remove(keys_partitions[idx],
+                                                       name=name))
 
-    return control_flow_ops.group(ops_)
+    return control_flow_ops.group(ops_.as_list())
 
   def clear(self, name=None):
     """clear all keys and values in the table.
@@ -526,11 +810,11 @@ class Variable(base.Trackable):
         Returns:
           The created Operation.
         """
-    ops_ = []
+    ops_ = tf_utils.ListWrapper([])
     for idx in range(len(self.devices)):
       with ops.device(self.devices[idx]):
-        ops_.append(self._tables[idx].clear(name=name))
-    return control_flow_ops.group(ops_)
+        ops_.as_list().append(self._tables[idx].clear(name=name))
+    return control_flow_ops.group(ops_.as_list())
 
   def _create_default_values_by_initializer(self, keys):
     if self.initializer is None:
@@ -621,6 +905,115 @@ class Variable(base.Trackable):
         full_values.append(vals_)
     return array_ops.concat(full_keys, 0), array_ops.concat(full_values, 0)
 
+  def save_to_file_system(self,
+                          dirpath,
+                          proc_size=1,
+                          proc_rank=0,
+                          file_name_list=None,
+                          dirpath_env='TFRA_SAVED_KV',
+                          append_to_file=False,
+                          buffer_size=4194304,
+                          name=None):
+    """
+    Returns an operations list to save the keys and values in tables to dirpath. 
+    The keys and values will be stored in FileSystem, rewrited or appended to the filepath.
+    Args:
+      dirpath: A directory path to save the table.
+      proc_size: Number of nodes when using distributed trainning library (e.g. Horovod). 
+      proc_rank: Rank of this node when using distributed trainning library (e.g. Horovod). 
+      file_name_list: User custom file names list for key/value prefix file name, default is table._name.
+      dirpath_env: A environment variable stored a path to save the table, which priority higher than dirpath.
+      buffer_size: Number of keys in write buffer to file.
+      append_to_file: If true, operation will append data to the file but not write a new one.
+      name: Name for the operation.
+    Returns:
+      An operation to save the tables.
+    """
+    device_size = len(self.devices)
+    ops_ = tf_utils.ListWrapper([])
+    for idx in range(len(self.devices)):
+      with ops.device(self.devices[idx]):
+        if file_name_list is not None:
+          save_file_name = file_name_list[idx]
+        else:
+          file_name = self._tables[idx]._name
+          save_file_name = re.sub(
+              r'_mht_([^/]*)of([^/]*)',
+              '_mht_' + str(idx + 1) + 'of' + str(device_size) + '_rank' +
+              str(proc_rank) + '_size' + str(proc_size), file_name)
+        ops_.as_list().append(self._tables[idx].save_to_file_system(
+            dirpath=dirpath,
+            file_name=save_file_name,
+            dirpath_env=dirpath_env,
+            append_to_file=append_to_file,
+            buffer_size=buffer_size,
+            name=name))
+    return control_flow_ops.group(ops_.as_list())
+
+  def load_from_file_system(self,
+                            dirpath,
+                            proc_size=1,
+                            proc_rank=0,
+                            file_name_list=None,
+                            dirpath_env='TFRA_SAVED_KV',
+                            load_entire_dir=False,
+                            buffer_size=4194304,
+                            name=None):
+    """
+    Returns an operations list to load keys and values to table from
+    FileSystem. The keys and values files are generated from `save_to_file_system`.
+    Args:
+      dirpath: A directory path stored the table keys and values files.
+      proc_size: Number of nodes when using distributed trainning library (e.g. Horovod). 
+      proc_rank: Rank of this node when using distributed trainning library (e.g. Horovod). 
+      file_name_list: User custom file names list for key/value prefix file name, default is table._name.
+      dirpath_env: A environment variable stored a path to load the table, which priority higher than dirpath.
+      load_entire_dir: If true, operation will load all key value files in the dirpath regardless partition.
+      buffer_size: Number of keys in read buffer from file.
+      name: Name for the operation.
+    Returns:
+      An operation to load keys and values to table from FileSystem.
+    """
+    device_size = len(self.devices)
+    ops_ = tf_utils.ListWrapper([])
+    for idx in range(len(self.devices)):
+      with ops.device(self.devices[idx]):
+        if file_name_list is not None:
+          load_file_name = file_name_list[idx]
+        else:
+          file_name = self._tables[idx]._name
+          load_file_name = re.sub(
+              r'_mht_([^/]*)of([^/]*)',
+              '_mht_' + str(idx + 1) + 'of' + str(device_size) + '_rank' +
+              str(proc_rank) + '_size' + str(proc_size), file_name)
+        ops_.as_list().append(self._tables[idx].load_from_file_system(
+            dirpath=dirpath,
+            file_name=load_file_name,
+            dirpath_env=dirpath_env,
+            load_entire_dir=load_entire_dir,
+            buffer_size=buffer_size,
+            name=name))
+    return control_flow_ops.group(ops_.as_list())
+
+  def load_from_file_system_with_restore_function(self,
+                                                  dirpath,
+                                                  proc_size=1,
+                                                  proc_rank=0,
+                                                  buffer_size=4194304):
+    """
+    Returns an operation to load the keys and values in tables from dirpath. 
+    The keys and values will be loaded in FileSystem. Compatible with table shards scaling.
+    Args:
+      dirpath: A directory path stored the table keys and values files.
+      proc_size: Number of nodes when using distributed trainning library (e.g. Horovod). 
+      proc_rank: Rank of this node when using distributed trainning library (e.g. Horovod). 
+      name: Name for the operation.
+    Returns:
+      An operation to save the tables.
+    """
+    return load_de_variable_from_file_system(self, dirpath, proc_size,
+                                             proc_rank, buffer_size)
+
   def size(self, index=None, name=None):
     """Compute the number of elements in the index-th table of this Variable.
 
@@ -707,15 +1100,29 @@ class Variable(base.Trackable):
     return self._trainable_store.get(name, None)
 
   def _gather_saveables_for_checkpoint(self):
+
+    def _get_saveable_object_creator(self, saveables):
+      if self._saveable_object_creator:
+        if context.executing_eagerly():
+          op_name = self.name
+        else:
+          self.op = control_flow_ops.no_op(name=self.name)
+          op_name = self.op.name
+        saveables[self.name] = functools.partial(
+            self._saveable_object_creator.create_variable_saveable_object,
+            variable=self,
+            name=op_name)
+
     g = ops.get_default_graph()
     if context.executing_eagerly() or g._functions:
-      return {
-          "py_state_de_var":
-              functools.partial(base.PythonStringStateSaveable,
-                                name=self.name,
-                                state_callback=lambda: self.name,
-                                restore_callback=lambda name: None)
-      }
+      saveables = dict()
+      saveables["py_state_de_var"] = functools.partial(
+          base.PythonStringStateSaveable,
+          name=self.name,
+          state_callback=lambda: self.name,
+          restore_callback=lambda name: None)
+      _get_saveable_object_creator(self, saveables)
+      return saveables
     else:
       saveables = dict()
       for table in self._tables:
@@ -723,6 +1130,7 @@ class Variable(base.Trackable):
         for (_, saveable) in saveable_dict.items():
           # merge all tables saveable to one dict with their own name.
           saveables[saveable.keywords["name"]] = saveable
+      _get_saveable_object_creator(self, saveables)
       return saveables
 
   @property

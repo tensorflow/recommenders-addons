@@ -564,6 +564,121 @@ class ShadowVariableBasicBehaviorTest(test.TestCase):
     shadow_value = new_module.shadow.read_value(False)
     self.assertAllEqual(shadow_value.shape, (0, 2))
 
+  def test_save_and_restore_with_trace_file_system(self):
+    if not context.executing_eagerly():
+      self.skipTest('Only test in eager mode.')
+
+    class TestModule(tf.Module):
+
+      def __init__(self, test_devices):
+        self.params = de.get_variable(
+            'nb910fs',
+            devices=test_devices,
+            dim=1,
+            initializer=0.0,
+            bp_v2=True,
+            kv_creator=de.CuckooHashTableCreator(saver=de.FileSystemSaver()))
+        self.shadow = de.shadow_ops.ShadowVariable(self.params)
+
+      def __call__(self, x):
+        embed = de.shadow_ops.embedding_lookup(self.shadow, x)
+        return embed
+
+      def size(self):
+        return self.params.size()
+
+    class TestNewModule(tf.Module):
+
+      def __init__(self, test_devices):
+        self.params = de.get_variable(
+            'nb910fs',
+            devices=test_devices,
+            dim=1,
+            initializer=0.0,
+            bp_v2=True,
+            kv_creator=de.CuckooHashTableCreator(saver=de.FileSystemSaver()))
+        self.shadow = de.shadow_ops.ShadowVariable(self.params)
+        self.dense = variables.Variable([[2.4, 3.1], [5.1, -0.7], [-15.2, 3.9]],
+                                        dtype=dtypes.float32,
+                                        name='test_var')
+
+      def __call__(self, x):
+        embed = de.shadow_ops.embedding_lookup(self.shadow, x)
+        return embed
+
+      def size(self):
+        return self.params.size()
+
+    test_size = 10
+    test_keys = [i for i in range(0, test_size)]
+    test_values = [[i * 1.0] for i in range(0, test_size)]
+    table_device = ['/device:CPU:0']
+    if test_util.is_gpu_available():
+      table_device = ['/device:GPU:0']
+    shard_num = 3
+    table_devices_ = table_device * shard_num
+    module = TestModule(table_devices_)
+    keys = constant_op.constant(test_keys, dtype=dtypes.int64)
+    values = constant_op.constant(test_values, dtype=dtypes.float32)
+    module.params.upsert(keys, values)
+    module(keys)
+    self.assertAllEqual(module.shadow.read_value(False), values)
+
+    model_dir = tempfile.mkdtemp(prefix=self.get_temp_dir())
+    save_ckpt_dir = os.path.join(model_dir, 'model')
+    restore_ckpt_path = os.path.join(model_dir, 'model-1')
+
+    options = tf.saved_model.SaveOptions(namespace_whitelist=['TFRA'])
+    ckpt = tf.train.Checkpoint(module)
+    ckpt.save(save_ckpt_dir)
+    shadow_value = module.shadow.read_value(False)
+    self.assertAllEqual(shadow_value.shape, (0, 1))  # clear when saving
+
+    tf.keras.backend.clear_session()
+    del module, ckpt
+    new_module = TestNewModule(table_devices_)
+    new_ckpt = tf.train.Checkpoint(new_module)
+    new_ckpt.read(restore_ckpt_path)
+    self.assertEqual(new_module.size(), test_size)
+    expected_values = new_module(keys)
+    self.assertAllEqual(np.sort(expected_values, axis=0), values)
+
+    # test expand shards number
+    tf.keras.backend.clear_session()
+    del new_module, new_ckpt
+    shard_num = 5
+    table_devices_ = table_device * shard_num
+    new_module = TestNewModule(table_devices_)
+    new_ckpt = tf.train.Checkpoint(new_module)
+    new_ckpt.read(restore_ckpt_path)
+    self.assertEqual(new_module.size(), test_size)
+    expected_values = new_module(keys)
+    self.assertAllEqual(np.sort(expected_values, axis=0), values)
+
+    # test contracte shards number
+    tf.keras.backend.clear_session()
+    del new_module, new_ckpt
+    shard_num = 2
+    table_devices_ = table_device * shard_num
+    new_module = TestNewModule(table_devices_)
+    new_ckpt = tf.train.Checkpoint(new_module)
+    new_ckpt.read(restore_ckpt_path)
+    self.assertEqual(new_module.size(), test_size)
+    expected_values = new_module(keys)
+    self.assertAllEqual(np.sort(expected_values, axis=0), values)
+
+    # test load all into one shard
+    tf.keras.backend.clear_session()
+    del new_module, new_ckpt
+    shard_num = 1
+    table_devices_ = table_device * shard_num
+    new_module = TestNewModule(table_devices_)
+    new_ckpt = tf.train.Checkpoint(new_module)
+    new_ckpt.read(restore_ckpt_path)
+    self.assertEqual(new_module.size(), test_size)
+    expected_values = new_module(keys)
+    self.assertAllEqual(np.sort(expected_values, axis=0), values)
+
 
 if __name__ == '__main__':
   test.main()
