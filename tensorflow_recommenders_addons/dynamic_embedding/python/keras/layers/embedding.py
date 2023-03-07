@@ -172,7 +172,7 @@ class BasicEmbedding(tf.keras.layers.Layer):
                                     shared_name='layer_embedding_variable',
                                     initializer=initializer,
                                     trainable=trainable,
-                                    checkpoint=True,
+                                    checkpoint=kwargs.get('checkpoint', True),
                                     init_size=kwargs.get('init_capacity', 0),
                                     kv_creator=kwargs.get('kv_creator', None),
                                     restrict_policy=kwargs.get(
