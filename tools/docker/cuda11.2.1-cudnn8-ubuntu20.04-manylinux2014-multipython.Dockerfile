@@ -4,9 +4,9 @@
 # glibc (2.12) and system libstdc++ (4.4).
 #
 # To push a new version, run:
-# $ docker build -f cuda:11.2.1-cudnn8-ubuntu20.04-manylinux2014-multipython.Dockerfile . \
-#  --tag "tfra/nosla-cuda:11.2.1-cudnn8-ubuntu20.04-manylinux2014-multipython"
-# $ docker push tfra/nosla-cuda:11.2.1-cudnn8-ubuntu20.04-manylinux2014-multipython
+# $ docker build -f cuda11.2.1-cudnn8-ubuntu20.04-manylinux2014-multipython.Dockerfile . \
+#  --tag "tfra/nosla-cuda11.2.1-cudnn8-ubuntu20.04-manylinux2014-multipython"
+# $ docker push tfra/nosla-cuda11.2.1-cudnn8-ubuntu20.04-manylinux2014-multipython
 
 FROM nvidia/cuda:11.2.1-cudnn8-devel-ubuntu20.04 as devtoolset
 
