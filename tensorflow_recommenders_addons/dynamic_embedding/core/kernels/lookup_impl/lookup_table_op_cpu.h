@@ -122,7 +122,7 @@ class TableWrapperBase {
                                 int64 value_dim, int64 index) const {
     return false;
   }
-  virtual bool insert_or_assign_one(K key, V* value, int64 value_dim) const {
+  virtual bool insert_or_assign(K* key, V* value, int64 value_dim) const {
     return false;
   }
   virtual bool insert_or_accum(K key, ConstTensor2D<V>& value_or_delta_flat,
@@ -165,26 +165,23 @@ class TableWrapperOptimized final : public TableWrapperBase<K, V> {
   bool insert_or_assign(K key, ConstTensor2D<V>& value_flat, int64 value_dim,
                         int64 index) const override {
     ValueType value_vec;
-    for (int64 j = 0; j < value_dim; j++) {
-      V value = value_flat(index, j);
-      value_vec[j] = value;
-    }
+    std::copy_n(value_flat.data() + index * value_dim, value_dim,
+                value_vec.begin());
     return table_->insert_or_assign(key, value_vec);
   }
 
-  bool insert_or_assign_one(K key, V* value, int64 value_dim) const override {
+  bool insert_or_assign(K* key, V* value, int64 value_dim) const override {
     assert(value_dim == DIM);
     ValueType value_vec;
-    std::copy_n(value, DIM, (V*)value_vec.data());
-    return table_->insert_or_assign(key, value_vec);
+    std::copy_n(value, value_dim, value_vec.begin());
+    return table_->insert_or_assign(*key, value_vec);
   }
 
   bool insert_or_accum(K key, ConstTensor2D<V>& value_or_delta_flat, bool exist,
                        int64 value_dim, int64 index) const override {
     ValueType value_or_delta_vec;
-    for (int64 j = 0; j < value_dim; j++) {
-      value_or_delta_vec[j] = value_or_delta_flat(index, j);
-    }
+    std::copy_n(value_or_delta_flat.data() + index * value_dim, value_dim,
+                value_or_delta_vec.begin());
     return table_->insert_or_accum(key, value_or_delta_vec, exist);
   }
 
@@ -193,9 +190,8 @@ class TableWrapperOptimized final : public TableWrapperBase<K, V> {
             bool is_full_size_default, int64 index) const override {
     ValueType value_vec;
     if (table_->find(key, value_vec)) {
-      for (int64 j = 0; j < value_dim; j++) {
-        value_flat(index, j) = value_vec.at(j);
-      }
+      std::copy_n(value_vec.begin(), value_dim,
+                  value_flat.data() + index * value_dim);
     } else {
       for (int64 j = 0; j < value_dim; j++) {
         value_flat(index, j) =
@@ -210,9 +206,8 @@ class TableWrapperOptimized final : public TableWrapperBase<K, V> {
     ValueType value_vec;
     exist = table_->find(key, value_vec);
     if (exist) {
-      for (int64 j = 0; j < value_dim; j++) {
-        value_flat(index, j) = value_vec.at(j);
-      }
+      std::copy_n(value_vec.begin(), value_dim,
+                  value_flat.data() + index * value_dim);
     } else {
       for (int64 j = 0; j < value_dim; j++) {
         value_flat(index, j) =
@@ -250,7 +245,7 @@ class TableWrapperOptimized final : public TableWrapperBase<K, V> {
       const K& key = it->first;
       const ValueType& value = it->second;
       *key_ptr = key;
-      std::copy_n((V*)value.data(), value_dim, val_ptr);
+      std::copy_n(value.begin(), value_dim, val_ptr);
       ++dump_counter;
     }
     return dump_counter;
@@ -287,6 +282,7 @@ class TableWrapperDefault final : public TableWrapperBase<K, V> {
   bool insert_or_assign(K key, ConstTensor2D<V>& value_flat, int64 value_dim,
                         int64 index) const override {
     ValueType value_vec;
+    value_vec.reserve(value_dim);
     for (int64 j = 0; j < value_dim; j++) {
       V value = value_flat(index, j);
       value_vec.push_back(value);
@@ -294,29 +290,33 @@ class TableWrapperDefault final : public TableWrapperBase<K, V> {
     return table_->insert_or_assign(key, value_vec);
   }
 
+  bool insert_or_assign(K* key, V* value, int64 value_dim) const override {
+    ValueType value_vec;
+    value_vec.reserve(value_dim);
+    for (int64 j = 0; j < value_dim; j++) {
+      value_vec.push_back(*value);
+    }
+    return table_->insert_or_assign(*key, value_vec);
+  }
+
   bool insert_or_accum(K key, ConstTensor2D<V>& value_or_delta_flat, bool exist,
                        int64 value_dim, int64 index) const override {
     ValueType value_or_delta_vec;
+    value_or_delta_vec.reserve(value_dim);
     for (int64 j = 0; j < value_dim; j++) {
       value_or_delta_vec.push_back(value_or_delta_flat(index, j));
     }
     return table_->insert_or_accum(key, value_or_delta_vec, exist);
   }
 
-  bool insert_or_assign_one(K key, V* value, int64 value_dim) const override {
-    ValueType value_vec;
-    std::copy_n(value, value_dim, (V*)value_vec.data());
-    return table_->insert_or_assign(key, value_vec);
-  }
-
   void find(const K& key, typename tensorflow::TTypes<V, 2>::Tensor& value_flat,
             ConstTensor2D<V>& default_flat, int64 value_dim,
             bool is_full_size_default, int64 index) const override {
     ValueType value_vec;
+    value_vec.reserve(value_dim);
     if (table_->find(key, value_vec)) {
-      for (int64 j = 0; j < value_dim; j++) {
-        value_flat(index, j) = value_vec.at(j);
-      }
+      std::copy_n(value_vec.begin(), value_dim,
+                  value_flat.data() + index * value_dim);
     } else {
       for (int64 j = 0; j < value_dim; j++) {
         value_flat(index, j) =
@@ -329,11 +329,11 @@ class TableWrapperDefault final : public TableWrapperBase<K, V> {
             ConstTensor2D<V>& default_flat, bool& exist, int64 value_dim,
             bool is_full_size_default, int64 index) const override {
     ValueType value_vec;
+    value_vec.reserve(value_dim);
     exist = table_->find(key, value_vec);
     if (exist) {
-      for (int64 j = 0; j < value_dim; j++) {
-        value_flat(index, j) = value_vec.at(j);
-      }
+      std::copy_n(value_vec.begin(), value_dim,
+                  value_flat.data() + index * value_dim);
     } else {
       for (int64 j = 0; j < value_dim; j++) {
         value_flat(index, j) =
@@ -371,7 +371,7 @@ class TableWrapperDefault final : public TableWrapperBase<K, V> {
       const K& key = it->first;
       const ValueType& value = it->second;
       *key_ptr = key;
-      std::copy_n((V*)value.data(), value_dim, val_ptr);
+      std::copy_n(value.begin(), value_dim, val_ptr);
       ++dump_counter;
     }
     return dump_counter;
