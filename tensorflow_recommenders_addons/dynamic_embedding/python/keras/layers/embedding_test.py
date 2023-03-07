@@ -232,6 +232,403 @@ class BasicEmbeddingLayerTest(test.TestCase):
         if node.name == 'test_keras_save_restore-parameter_mht_1of1':
           self.assertEqual(table_device_[0], node.device)
 
+  def test_keras_save_load_weights_file_system(self):
+    if not context.executing_eagerly():
+      self.skipTest('Only test in eager mode')
+    save_dir = os.path.join(self.get_temp_dir(), "save_restore")
+    save_path = os.path.join(tempfile.mkdtemp(prefix=save_dir), "hash")
+
+    def model_fn(table_devices):
+      input_tensor = tf.keras.layers.Input(shape=(1,), dtype=tf.int64)
+      embedding_out = de.keras.layers.BasicEmbedding(
+          embedding_size=1,
+          key_dtype=tf.int64,
+          value_dtype=tf.float32,
+          initializer=tf.keras.initializers.RandomNormal(),
+          devices=table_devices,
+          name='test_keras_save_restore',
+          kv_creator=de.CuckooHashTableCreator(
+              saver=de.FileSystemSaver()))(input_tensor)
+      normal_embedding_out = de.keras.layers.BasicEmbedding(
+          embedding_size=1,
+          key_dtype=tf.int64,
+          value_dtype=tf.float32,
+          initializer=tf.keras.initializers.RandomNormal(),
+          devices=table_devices,
+          name='test_keras_save_restore_normal')(input_tensor)
+      concat = tf.concat([embedding_out, normal_embedding_out], axis=0)
+      model = tf.keras.Model(inputs=input_tensor, outputs=concat)
+      optimizer = tf.keras.optimizers.Adam(learning_rate=1E-4, amsgrad=False)
+      optimizer = de.DynamicEmbeddingOptimizer(optimizer)
+      model.compile(optimizer=optimizer)
+      return model
+
+    test_size = 10
+    test_keys = [i for i in range(0, test_size)]
+    test_values = [[i * 1.0] for i in range(0, test_size)]
+    table_device = ['/device:CPU:0']
+    if test_util.is_gpu_available():
+      table_device = ['/device:GPU:0']
+    shard_num = 3
+    table_devices_ = table_device * shard_num
+    model = model_fn(table_devices_)
+    params_ = model.get_layer('test_keras_save_restore').params
+    params_.upsert(
+        constant_op.constant(test_keys, dtypes.int64),
+        constant_op.constant(test_values, dtypes.float32),
+    )
+    options = tf.saved_model.SaveOptions(namespace_whitelist=['TFRA'])
+    model.save(save_path, options=options)
+    tf.keras.backend.clear_session()
+    del model
+    model = model_fn(table_devices_)
+    model.load_weights(save_path)
+    params_ = model.get_layer('test_keras_save_restore').params
+    size = params_.size()
+    self.assertEqual(test_size, size)
+    [keys, values] = params_.export()
+    self.assertAllEqual(test_keys, np.sort(keys, axis=0))
+    self.assertAllEqual(test_values, np.sort(values, axis=0))
+
+    # test expand shards number
+    tf.keras.backend.clear_session()
+    del model
+    shard_num = 5
+    table_devices_ = table_device * shard_num
+    model = model_fn(table_devices_)
+    model.load_weights(save_path)
+    params_ = model.get_layer('test_keras_save_restore').params
+    size = params_.size()
+    self.assertEqual(test_size, size)
+    [keys, values] = params_.export()
+    self.assertAllEqual(test_keys, np.sort(keys, axis=0))
+    self.assertAllEqual(test_values, np.sort(values, axis=0))
+
+    # test contracte shards number
+    tf.keras.backend.clear_session()
+    del model
+    shard_num = 2
+    table_devices_ = table_device * shard_num
+    model = model_fn(table_devices_)
+    model.load_weights(save_path)
+    params_ = model.get_layer('test_keras_save_restore').params
+    size = params_.size()
+    self.assertEqual(test_size, size)
+    [keys, values] = params_.export()
+    self.assertAllEqual(test_keys, np.sort(keys, axis=0))
+    self.assertAllEqual(test_values, np.sort(values, axis=0))
+
+    # test load all into one shard
+    tf.keras.backend.clear_session()
+    del model
+    shard_num = 1
+    table_devices_ = table_device * shard_num
+    model = model_fn(table_devices_)
+    model.load_weights(save_path)
+    params_ = model.get_layer('test_keras_save_restore').params
+    size = params_.size()
+    self.assertEqual(test_size, size)
+    [keys, values] = params_.export()
+    self.assertAllEqual(test_keys, np.sort(keys, axis=0))
+    self.assertAllEqual(test_values, np.sort(values, axis=0))
+
+  def test_mpi_keras_save_load_weights_file_system(self):
+    if not context.executing_eagerly():
+      self.skipTest('Only test in eager mode')
+    save_dir = os.path.join(self.get_temp_dir(), "save_restore")
+    save_path = os.path.join(tempfile.mkdtemp(prefix=save_dir), "hash")
+    de_dir = os.path.join(save_path, "variables", "TFRADynamicEmbedding")
+
+    def model_fn(proc_size, proc_rank):
+      table_device = ['/device:CPU:0']
+      if test_util.is_gpu_available():
+        table_device = ['/device:GPU:0']
+      input_tensor = tf.keras.layers.Input(shape=(1,), dtype=tf.int64)
+      embedding_out = de.keras.layers.BasicEmbedding(
+          embedding_size=1,
+          key_dtype=tf.int64,
+          value_dtype=tf.float32,
+          initializer=tf.keras.initializers.RandomNormal(),
+          devices=table_device,
+          name='test_keras_save_restore',
+          kv_creator=de.CuckooHashTableCreator(saver=de.FileSystemSaver(
+              proc_size=proc_size, proc_rank=proc_rank)))(input_tensor)
+      normal_embedding_out = de.keras.layers.BasicEmbedding(
+          embedding_size=1,
+          key_dtype=tf.int64,
+          value_dtype=tf.float32,
+          initializer=tf.keras.initializers.RandomNormal(),
+          devices=table_device,
+          name='test_keras_save_restore_normal')(input_tensor)
+      concat = tf.concat([embedding_out, normal_embedding_out], axis=0)
+      model = tf.keras.Model(inputs=input_tensor, outputs=concat)
+      optimizer = tf.keras.optimizers.Adam(learning_rate=1E-4, amsgrad=False)
+      optimizer = de.DynamicEmbeddingOptimizer(optimizer)
+      model.compile(optimizer=optimizer)
+      return model
+
+    test_size = 30
+    test_keys = [i for i in range(0, test_size)]
+    test_values = [[i * 1.0] for i in range(0, test_size)]
+    table_device = ['/device:CPU:0']
+    if test_util.is_gpu_available():
+      table_device = ['/device:GPU:0']
+
+    # test same shards number
+    proc_size = 3
+    keys_shard_size = int(test_size / proc_size)
+    models = []
+    for i in range(proc_size):
+      tf.keras.backend.clear_session()
+      models.append(model_fn(proc_size, i))
+      params_ = models[i].get_layer('test_keras_save_restore').params
+      test_keys_i = test_keys[(i * keys_shard_size):((i + 1) * keys_shard_size)]
+      test_values_i = test_values[(i * keys_shard_size):((i + 1) *
+                                                         keys_shard_size)]
+      params_.upsert(
+          constant_op.constant(test_keys_i, dtypes.int64),
+          constant_op.constant(test_values_i, dtypes.float32),
+      )
+      options = tf.saved_model.SaveOptions(namespace_whitelist=['TFRA'])
+      if i == 0:
+        models[i].save(save_path, options=options)
+      else:
+        models[i].get_layer(
+            'test_keras_save_restore').params.save_to_file_system(
+                dirpath=de_dir, proc_size=proc_size, proc_rank=i)
+    tf.keras.backend.clear_session()
+    for i in range(proc_size):
+      del models[0]
+    total_size = 0
+    total_keys = []
+    total_values = []
+    for i in range(proc_size):
+      tf.keras.backend.clear_session()
+      models.append(model_fn(proc_size, i))
+      models[i].load_weights(save_path)
+      params_ = models[i].get_layer('test_keras_save_restore').params
+      size_i = params_.size()
+      total_size = total_size + size_i
+      keys, values = params_.export()
+      total_keys.extend(keys)
+      total_values.extend(values)
+    self.assertEqual(test_size, total_size)
+    self.assertAllEqual(test_keys, np.sort(total_keys, axis=0))
+    self.assertAllEqual(test_values, np.sort(total_values, axis=0))
+
+    # test expand shards number
+    proc_size = 3
+    keys_shard_size = int(test_size / proc_size)
+    models = []
+    for i in range(proc_size):
+      tf.keras.backend.clear_session()
+      models.append(model_fn(proc_size, i))
+      params_ = models[i].get_layer('test_keras_save_restore').params
+      test_keys_i = test_keys[(i * keys_shard_size):((i + 1) * keys_shard_size)]
+      test_values_i = test_values[(i * keys_shard_size):((i + 1) *
+                                                         keys_shard_size)]
+      params_.upsert(
+          constant_op.constant(test_keys_i, dtypes.int64),
+          constant_op.constant(test_values_i, dtypes.float32),
+      )
+      options = tf.saved_model.SaveOptions(namespace_whitelist=['TFRA'])
+      if i == 0:
+        models[i].save(save_path, options=options)
+      else:
+        models[i].get_layer(
+            'test_keras_save_restore').params.save_to_file_system(
+                dirpath=de_dir, proc_size=proc_size, proc_rank=i)
+    tf.keras.backend.clear_session()
+    for i in range(proc_size):
+      del models[0]
+    proc_size = 5
+    total_size = 0
+    total_keys = []
+    total_values = []
+    for i in range(proc_size):
+      tf.keras.backend.clear_session()
+      models.append(model_fn(proc_size, i))
+      models[i].load_weights(save_path)
+      params_ = models[i].get_layer('test_keras_save_restore').params
+      size_i = params_.size()
+      total_size = total_size + size_i
+      keys, values = params_.export()
+      total_keys.extend(keys)
+      total_values.extend(values)
+    self.assertEqual(test_size, total_size)
+    self.assertAllEqual(test_keys, np.sort(total_keys, axis=0))
+    self.assertAllEqual(test_values, np.sort(total_values, axis=0))
+
+    # test contracte shards number
+    proc_size = 3
+    keys_shard_size = int(test_size / proc_size)
+    models = []
+    for i in range(proc_size):
+      tf.keras.backend.clear_session()
+      models.append(model_fn(proc_size, i))
+      params_ = models[i].get_layer('test_keras_save_restore').params
+      test_keys_i = test_keys[(i * keys_shard_size):((i + 1) * keys_shard_size)]
+      test_values_i = test_values[(i * keys_shard_size):((i + 1) *
+                                                         keys_shard_size)]
+      params_.upsert(
+          constant_op.constant(test_keys_i, dtypes.int64),
+          constant_op.constant(test_values_i, dtypes.float32),
+      )
+      options = tf.saved_model.SaveOptions(namespace_whitelist=['TFRA'])
+      if i == 0:
+        models[i].save(save_path, options=options)
+      else:
+        models[i].get_layer(
+            'test_keras_save_restore').params.save_to_file_system(
+                dirpath=de_dir, proc_size=proc_size, proc_rank=i)
+    tf.keras.backend.clear_session()
+    for i in range(proc_size):
+      del models[0]
+    total_size = 0
+    total_keys = []
+    total_values = []
+    for i in range(proc_size):
+      tf.keras.backend.clear_session()
+      models.append(model_fn(proc_size, i))
+      models[i].load_weights(save_path)
+      params_ = models[i].get_layer('test_keras_save_restore').params
+      size_i = params_.size()
+      total_size = total_size + size_i
+      keys, values = params_.export()
+      total_keys.extend(keys)
+      total_values.extend(values)
+    self.assertEqual(test_size, total_size)
+    self.assertAllEqual(test_keys, np.sort(total_keys, axis=0))
+    self.assertAllEqual(test_values, np.sort(total_values, axis=0))
+
+    # test expand shards number
+    proc_size = 3
+    keys_shard_size = int(test_size / proc_size)
+    models = []
+    for i in range(proc_size):
+      tf.keras.backend.clear_session()
+      models.append(model_fn(proc_size, i))
+      params_ = models[i].get_layer('test_keras_save_restore').params
+      test_keys_i = test_keys[(i * keys_shard_size):((i + 1) * keys_shard_size)]
+      test_values_i = test_values[(i * keys_shard_size):((i + 1) *
+                                                         keys_shard_size)]
+      params_.upsert(
+          constant_op.constant(test_keys_i, dtypes.int64),
+          constant_op.constant(test_values_i, dtypes.float32),
+      )
+      options = tf.saved_model.SaveOptions(namespace_whitelist=['TFRA'])
+      if i == 0:
+        models[i].save(save_path, options=options)
+      else:
+        models[i].get_layer(
+            'test_keras_save_restore').params.save_to_file_system(
+                dirpath=de_dir, proc_size=proc_size, proc_rank=i)
+    tf.keras.backend.clear_session()
+    for i in range(proc_size):
+      del models[0]
+    proc_size = 2
+    total_size = 0
+    total_keys = []
+    total_values = []
+    for i in range(proc_size):
+      tf.keras.backend.clear_session()
+      models.append(model_fn(proc_size, i))
+      models[i].load_weights(save_path)
+      params_ = models[i].get_layer('test_keras_save_restore').params
+      size_i = params_.size()
+      total_size = total_size + size_i
+      keys, values = params_.export()
+      total_keys.extend(keys)
+      total_values.extend(values)
+    self.assertEqual(test_size, total_size)
+    self.assertAllEqual(test_keys, np.sort(total_keys, axis=0))
+    self.assertAllEqual(test_values, np.sort(total_values, axis=0))
+
+    # test load all into one shard
+    proc_size = 3
+    keys_shard_size = int(test_size / proc_size)
+    models = []
+    for i in range(proc_size):
+      tf.keras.backend.clear_session()
+      models.append(model_fn(proc_size, i))
+      params_ = models[i].get_layer('test_keras_save_restore').params
+      test_keys_i = test_keys[(i * keys_shard_size):((i + 1) * keys_shard_size)]
+      test_values_i = test_values[(i * keys_shard_size):((i + 1) *
+                                                         keys_shard_size)]
+      params_.upsert(
+          constant_op.constant(test_keys_i, dtypes.int64),
+          constant_op.constant(test_values_i, dtypes.float32),
+      )
+      options = tf.saved_model.SaveOptions(namespace_whitelist=['TFRA'])
+      if i == 0:
+        models[i].save(save_path, options=options)
+      else:
+        models[i].get_layer(
+            'test_keras_save_restore').params.save_to_file_system(
+                dirpath=de_dir, proc_size=proc_size, proc_rank=i)
+    tf.keras.backend.clear_session()
+    for i in range(proc_size):
+      del models[0]
+    total_size = 0
+    total_keys = []
+    total_values = []
+    for i in range(proc_size):
+      tf.keras.backend.clear_session()
+      models.append(model_fn(proc_size, i))
+      models[i].load_weights(save_path)
+      params_ = models[i].get_layer('test_keras_save_restore').params
+      size_i = params_.size()
+      total_size = total_size + size_i
+      keys, values = params_.export()
+      total_keys.extend(keys)
+      total_values.extend(values)
+    self.assertEqual(test_size, total_size)
+    self.assertAllEqual(test_keys, np.sort(total_keys, axis=0))
+    self.assertAllEqual(test_values, np.sort(total_values, axis=0))
+
+    # test expand shards number
+    proc_size = 3
+    keys_shard_size = int(test_size / proc_size)
+    models = []
+    for i in range(proc_size):
+      tf.keras.backend.clear_session()
+      models.append(model_fn(proc_size, i))
+      params_ = models[i].get_layer('test_keras_save_restore').params
+      test_keys_i = test_keys[(i * keys_shard_size):((i + 1) * keys_shard_size)]
+      test_values_i = test_values[(i * keys_shard_size):((i + 1) *
+                                                         keys_shard_size)]
+      params_.upsert(
+          constant_op.constant(test_keys_i, dtypes.int64),
+          constant_op.constant(test_values_i, dtypes.float32),
+      )
+      options = tf.saved_model.SaveOptions(namespace_whitelist=['TFRA'])
+      if i == 0:
+        models[i].save(save_path, options=options)
+      else:
+        models[i].get_layer(
+            'test_keras_save_restore').params.save_to_file_system(
+                dirpath=de_dir, proc_size=proc_size, proc_rank=i)
+    tf.keras.backend.clear_session()
+    for i in range(proc_size):
+      del models[0]
+    proc_size = 1
+    total_size = 0
+    total_keys = []
+    total_values = []
+    for i in range(proc_size):
+      tf.keras.backend.clear_session()
+      models.append(model_fn(proc_size, i))
+      models[i].load_weights(save_path)
+      params_ = models[i].get_layer('test_keras_save_restore').params
+      size_i = params_.size()
+      total_size = total_size + size_i
+      keys, values = params_.export()
+      total_keys.extend(keys)
+      total_values.extend(values)
+    self.assertEqual(test_size, total_size)
+    self.assertAllEqual(test_keys, np.sort(total_keys, axis=0))
+    self.assertAllEqual(test_values, np.sort(total_values, axis=0))
+
 
 @test_util.run_all_in_graph_and_eager_modes
 class SquashedEmbeddingLayerTest(test.TestCase):

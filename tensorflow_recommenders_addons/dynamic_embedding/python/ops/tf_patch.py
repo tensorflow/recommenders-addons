@@ -35,8 +35,8 @@ except ImportError:
   pass  # for compatible with TF >= 2.6.x
 
 try:
-  import keras as K
-  kinit_K = K.initializers
+  import keras as tmp_keras
+  kinit_K = tmp_keras.initializers
 except ImportError:
   kinit_K = None
   pass  # for compatible with standalone Keras
