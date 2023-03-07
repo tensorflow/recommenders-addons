@@ -453,8 +453,8 @@ class CuckooHashTableOfTensors final : public LookupInterface {
     while (key_file_offset < key_file_size) {
       TF_RETURN_IF_ERROR(key_reader.ReadNBytes(sizeof(K), &key_buffer));
       TF_RETURN_IF_ERROR(value_reader.ReadNBytes(value_len, &value_buffer));
-      table_->insert_or_assign_one(*((K*)key_buffer.data()),
-                                   (V*)value_buffer.data(), runtime_dim_);
+      table_->insert_or_assign((K*)key_buffer.data(), (V*)value_buffer.data(),
+                               runtime_dim_);
       key_file_offset += sizeof(K);
     }
 
