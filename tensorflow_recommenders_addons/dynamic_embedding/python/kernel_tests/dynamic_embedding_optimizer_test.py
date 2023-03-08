@@ -62,7 +62,7 @@ def _type_converter(tf_type):
   mapper = {
       dtypes.int32: np.int32,
       dtypes.int64: np.int64,
-      dtypes.float32: np.float,
+      dtypes.float32: float,
       dtypes.float64: np.float64,
   }
   return mapper[tf_type]

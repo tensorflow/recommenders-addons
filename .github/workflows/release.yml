@@ -45,7 +45,7 @@ jobs:
       matrix:
         # TODO: add back 'windows-latest' when it can be compiled.
         os: ['macos-12', 'ubuntu-20.04']
-        py-version: ['3.8']
+        py-version: ['3.7', '3.8', '3.9']
         tf-version: ['2.6.3', '2.8.3']
         tf-need-cuda: ['1', '0']
         tf-cuda-version: ['11.2']
