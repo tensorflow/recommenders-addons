@@ -66,7 +66,7 @@ def _type_converter(tf_type):
   mapper = {
       dtypes.int32: np.int32,
       dtypes.int64: np.int64,
-      dtypes.float32: np.float,
+      dtypes.float32: float,
       dtypes.float64: np.float64,
   }
   return mapper[tf_type]
@@ -385,7 +385,7 @@ class EmbeddingLookupTest(test.TestCase):
             )
             ids = np.random.randint(2**31,
                                     size=np.prod(ids_shape),
-                                    dtype=np.int).reshape(ids_shape)
+                                    dtype=int).reshape(ids_shape)
             ids = constant_op.constant(ids, dtype=dtypes.int64)
             simple = params.lookup(ids)
             self.evaluate(params.upsert(ids, simple))
@@ -416,7 +416,7 @@ class EmbeddingLookupTest(test.TestCase):
                                                     use_resource=False)
             ids = np.random.randint(2**31,
                                     size=np.prod(ids_shape),
-                                    dtype=np.int).reshape(ids_shape)
+                                    dtype=int).reshape(ids_shape)
             ids = constant_op.constant(ids, dtype=dtypes.int64)
 
             embedding_test = de.embedding_lookup(params, ids)
