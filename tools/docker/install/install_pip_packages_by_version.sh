@@ -36,7 +36,7 @@ PACKAGES=(
   "werkzeug"
   "bleach"
   "markdown"
-  "protobuf"
+  "protobuf==3.20.0"
   "numpy"
   "scipy"
   "scikit-learn"

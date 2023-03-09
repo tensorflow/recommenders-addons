@@ -19,7 +19,9 @@ def _run_format():
 
   if files_changed:
     print("Some files have changed.")
-    print("Please use 'yapf --style=google -ri ./**/*.py' before commit.")
+    print(
+        "Please use 'find . -name '*.py' -print0 | xargs -0 yapf --style=./.yapf -ir' before commit."
+    )
   else:
     print("No formatting needed.")
 
