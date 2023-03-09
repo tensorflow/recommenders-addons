@@ -23,7 +23,7 @@ env:
 jobs:
   test-with-bazel:
     name: Test with bazel
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v2
       - uses: actions/setup-python@v1
@@ -44,12 +44,12 @@ jobs:
     strategy:
       matrix:
         # TODO: add back 'windows-latest' when it can be compiled.
-        os: ['macos-12', 'ubuntu-18.04']
+        os: ['macos-12', 'ubuntu-20.04']
         py-version: ['3.7', '3.8', '3.9']
         tf-version: ['2.6.3', '2.8.3']
         tf-need-cuda: ['1', '0']
-        tf-cuda-version: ['10.0', '11.2']
-        tf-cudnn-version: ['7.6', '8.1']
+        tf-cuda-version: ['11.2']
+        tf-cudnn-version: ['8.1']
         cpu: ['x86']
 #       TODO(poinwater): add macOS CI once GitHub supports macOS 12.0.0 + 
 #        include:
@@ -62,23 +62,6 @@ jobs:
           # excludes cuda on macOS
           - os: 'macos-12'
             tf-need-cuda: '1'
-          # excludes TF2.6.3 with cuda 10.0
-          - tf-version: '2.6.3'
-            tf-cuda-version: '10.0'
-          # excludes TF2.8.3 with cuda 10.0
-          - tf-version: '2.8.3'
-            tf-cuda-version: '10.0'
-          # excludes cudnn 8 with cuda 10.0
-          - tf-cuda-version: '11.2'
-            tf-cudnn-version: '7.6'
-          # excludes cudnn 7 with cuda 11.0
-          - tf-cuda-version: '10.0'
-            tf-cudnn-version: '8.1'
-          # excludes some unnecessary step on no cuda
-          - tf-need-cuda: '0'
-            tf-cuda-version: '10.0'
-          - tf-need-cuda: '0'
-            tf-cudnn-version: '7.6'
       fail-fast: false
     steps:
       - uses: actions/github-script@0.3.0
@@ -97,7 +80,7 @@ jobs:
           python-version: ${{ matrix.py-version }}
       - name: Setup Bazel
         # Ubuntu bazel is run inside of the docker image
-        if: matrix.os != 'ubuntu-18.04'
+        if: matrix.os != 'ubuntu-20.04'
         run: bash tools/install_deps/install_bazelisk.sh ./
       - name: Build wheels
         env:
@@ -124,7 +107,7 @@ jobs:
   upload-wheels:
     name: Publish wheels to PyPi
     needs: [release-wheel, test-with-bazel]
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
     strategy:
       matrix:
         # TODO: add back 'Windows' when it can be compiled.
@@ -168,7 +151,7 @@ jobs:
   upload-dev-container:
     name: Upload dev container to DockerHub
     needs: [release-wheel, test-with-bazel]
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
     strategy:
       matrix:
         py-version: ['3.7', '3.8', '3.9']

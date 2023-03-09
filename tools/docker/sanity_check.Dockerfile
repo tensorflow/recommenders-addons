@@ -86,6 +86,7 @@ RUN touch /ok.txt
 # Bazel code format
 FROM alpine:3.11 as check-bazel-format
 
+RUN apk update && apk add bash
 COPY ./tools/install_deps/buildifier.sh ./
 RUN sh buildifier.sh
 
