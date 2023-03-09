@@ -1,5 +1,5 @@
 #!/bin/bash -eu
-# Copyright 2019 The TensorFlow Authors. All Rights Reserved.
+# Copyright 2016 The TensorFlow Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,11 +14,8 @@
 # limitations under the License.
 # ==============================================================================
 
-DIST="$(grep "DISTRIB_RELEASE" /etc/lsb-release |sed 's,.*=,,; s,\.,_,')"
-INSTALL_DIR="/clang_${CLANG_VERSION}"
-STORAGE="https://storage.googleapis.com/clang-builds-stable"
-mkdir -p "${INSTALL_DIR}"
-cd "${INSTALL_DIR}"
-wget "${STORAGE}/clang-ubuntu${DIST}/clang_${CLANG_VERSION}.tar.gz"
-tar xvzf clang_${CLANG_VERSION}.tar.gz
-rm clang_${CLANG_VERSION}.tar.gz
+DIST="$(grep "DISTRIB_CODENAME" /etc/lsb-release |sed 's,.*=,,')"
+wget -O - "https://apt.llvm.org/llvm-snapshot.gpg.key"| apt-key add -
+add-apt-repository "deb http://apt.llvm.org/${DIST}/ llvm-toolchain-${DIST}-8 main"
+apt-get update && apt-get install -y clang-8 && \
+  rm -rf /var/lib/apt/lists/*
