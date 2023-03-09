@@ -41,9 +41,9 @@ http_archive(
 
 new_git_repository(
     name = "hiredis",
-    branch = "master",
     build_file = "//build_deps/toolchains/redis:hiredis.BUILD",
     remote = "https://github.com/redis/hiredis.git",
+    tag = "v1.1.0",
 )
 
 http_archive(

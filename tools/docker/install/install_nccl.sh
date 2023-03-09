@@ -22,4 +22,4 @@ set -e
 cd /install/
 wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/cuda-keyring_1.0-1_all.deb
 dpkg -i cuda-keyring_1.0-1_all.deb
-apt-get update && apt-get install -y libnccl2=${NCCL_VERSION} libnccl-dev=${NCCL_VERSION}
+apt-get update && apt-get install -y  --allow-change-held-packages libnccl2=${NCCL_VERSION} libnccl-dev=${NCCL_VERSION}
