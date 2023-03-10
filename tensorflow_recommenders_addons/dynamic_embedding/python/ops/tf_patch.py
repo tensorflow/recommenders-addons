@@ -90,7 +90,7 @@ class _DenseDynamicEmbeddingTrainableProcessor(optimizer._OptimizableVariable):
         if isinstance(self._v, de.shadow_ops.ShadowVariable):
           v0 = self._v.read_value(do_prefetch=False)
         else:
-          v0 = self._v.read_value(do_prefetch=not self._v.params.bp_v2)
+          v0 = self._v.read_value(do_prefetch=self._v.params.bp_v2)
         s0 = [_s.read_value() for _s in _slots]
         _before = [v0] + s0
 
