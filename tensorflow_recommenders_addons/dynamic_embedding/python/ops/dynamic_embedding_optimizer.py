@@ -107,7 +107,7 @@ def DynamicEmbeddingOptimizer(self, bp_v2=False, synchronous=False):
             if isinstance(var, de.shadow_ops.ShadowVariable):
               v0 = var.read_value(do_prefetch=False)
             else:
-              v0 = var.read_value(do_prefetch=not var.params.bp_v2)
+              v0 = var.read_value(do_prefetch=var.params.bp_v2)
             s0 = [_s.read_value() for _s in _slots]
             _before = [v0] + s0
 
