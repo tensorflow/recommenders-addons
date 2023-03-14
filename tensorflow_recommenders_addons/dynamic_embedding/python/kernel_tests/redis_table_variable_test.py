@@ -835,6 +835,7 @@ class RedisVariableTest(test.TestCase):
       self.assertIsInstance(val, six.string_types)
       self.assertEqual(save_path, val)
 
+      self.evaluate(table.clear())
       del table
 
     with self.session(config=default_config, graph=ops.Graph()) as sess:
