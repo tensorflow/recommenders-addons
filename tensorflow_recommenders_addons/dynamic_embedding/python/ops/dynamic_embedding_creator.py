@@ -405,3 +405,62 @@ class FileSystemSaver(DynamicEmbeddingSaver):
         variable, table, shard_idx, self._upsert_restore, self.config, name,
         full_name)
     return _shard_saveable_obj
+
+class LookupTableCreator(KVCreator):
+  """
+      LookupTableCreator will create a object to pass itself to the others classes
+    for creating a real LookupTable instance which can interact with TF.
+  """
+
+  def create(
+      self,
+      key_dtype=None,
+      value_dtype=None,
+      default_value=None,
+      name=None,
+      checkpoint=None,
+      init_size=None,
+      config=None,
+      device=None,
+      shard_saveable_object_fn=None,
+  ):
+    self.key_dtype = key_dtype
+    self.value_dtype = value_dtype
+    self.default_value = default_value
+    self.name = name
+    self.checkpoint = checkpoint
+    self.init_size = init_size
+    self.config = config if config is not None else self.config
+    self.device = device
+    # if not isinstance(self.config, RedisTableConfig):
+    #   raise TypeError("config should be instance of 'config', but got ",
+    #                   str(type(self.config)))
+    self.shard_saveable_object_fn=shard_saveable_object_fn
+    return de.LookupTable(
+        key_dtype=self.key_dtype,
+        value_dtype=self.value_dtype,
+        default_value=self.default_value,
+        name=self.name,
+        checkpoint=self.checkpoint,
+        config=self.config,
+        device=self.device,
+        init_size=self.init_size,
+        shard_saveable_object_fn=self.shard_saveable_object_fn
+    )
+
+  def get_config(self):
+    if not context.executing_eagerly():
+      raise RuntimeError(
+          'Unsupported to serialize python object of LookupTableCreator.')
+
+    config = {
+        'key_dtype': self.key_dtype,
+        'value_dtype': self.value_dtype,
+        'default_value': self.default_value.numpy(),
+        'name': self.name,
+        'checkpoint': self.checkpoint,
+        'init_size': self.init_size,
+        'config': self.config,
+        'device': self.device,
+    }
+    return config

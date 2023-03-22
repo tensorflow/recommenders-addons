@@ -103,7 +103,7 @@ class SparseSegmentSumGpuOp : public AsyncOpKernel {
 
     if (has_num_segments) {
       const Tensor& num_segments = context->input(3);
-      output_rows_host.tensor().CopyFrom(num_segments, num_segments.shape());
+      CHECK(output_rows_host.tensor().CopyFrom(num_segments, num_segments.shape()));
     } else {
       se::DeviceMemoryBase last_segment_id_on_device(const_cast<Tindex*>(
           segment_ids.template flat<Tindex>().data() + num_indices - 1));

@@ -21,6 +21,8 @@ __all__ = [
     'RedisTable',
     'RedisTableConfig',
     'RedisTableCreator',
+    'LookupTable',
+    'LookupTableCreator',
     'Variable',
     'TrainableWrapper',
     'DynamicEmbeddingOptimizer',
@@ -46,11 +48,14 @@ from tensorflow_recommenders_addons.dynamic_embedding.python import keras
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops import math_ops as math
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_creator import (
     KVCreator, CuckooHashTableConfig, CuckooHashTableCreator, RedisTableConfig,
-    RedisTableCreator, FileSystemSaver)
+    RedisTableCreator, FileSystemSaver,LookupTableCreator)
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.cuckoo_hashtable_ops import (
     CuckooHashTable,)
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.redis_table_ops import (
     RedisTable,)
+from tensorflow_recommenders_addons.dynamic_embedding.python.ops.lookup_table_ops import (
+    LookupTable,
+)
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_ops import (
     embedding_lookup,)
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_ops import (
