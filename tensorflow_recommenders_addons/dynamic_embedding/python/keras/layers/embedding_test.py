@@ -47,7 +47,7 @@ def get_sequential_model(emb_t, *args, **kwargs):
   l1 = emb_t(*args, **kwargs)
   l2 = tf.keras.layers.Dense(8, 'relu')
   l3 = tf.keras.layers.Dense(1, 'sigmoid')
-  if emb_t == de.keras.layers.BasicEmbedding:
+  if emb_t == de.keras.layers.Embedding:
     model = tf.keras.Sequential([l0, l1, l2, l3])
   elif emb_t == de.keras.layers.FieldWiseEmbedding:
     model = tf.keras.Sequential([l0, l1, tf.keras.layers.Flatten(), l2, l3])
@@ -62,7 +62,7 @@ default_config = config_pb2.ConfigProto(
 
 
 @test_util.run_all_in_graph_and_eager_modes
-class BasicEmbeddingLayerTest(test.TestCase):
+class EmbeddingLayerTest(test.TestCase):
 
   def test_create(self):
     if not context.executing_eagerly():
@@ -94,16 +94,16 @@ class BasicEmbeddingLayerTest(test.TestCase):
                                     initializers, trainable_options, bp_options,
                                     restrict_policies):
         name = 'test_creation' + str(rnd)
-        embedding = de.keras.layers.BasicEmbedding(comb[0],
-                                                   key_dtype=comb[1],
-                                                   value_dtype=comb[2],
-                                                   initializer=comb[3](
-                                                       (1,), dtype=comb[2]),
-                                                   trainable=comb[4],
-                                                   bp_v2=comb[5],
-                                                   restrict_policy=comb[6],
-                                                   init_capacity=64,
-                                                   name=name)
+        embedding = de.keras.layers.Embedding(comb[0],
+                                              key_dtype=comb[1],
+                                              value_dtype=comb[2],
+                                              initializer=comb[3](
+                                                  (1,), dtype=comb[2]),
+                                              trainable=comb[4],
+                                              bp_v2=comb[5],
+                                              restrict_policy=comb[6],
+                                              init_capacity=64,
+                                              name=name)
         rnd += 1
         self.assertAllEqual(embedding.name, name)
         self.assertAllEqual(self.evaluate(embedding.params.size()), 0)
@@ -113,9 +113,7 @@ class BasicEmbeddingLayerTest(test.TestCase):
       self.skipTest('Only test in eager mode')
     de_init = tf.keras.initializers.RandomNormal(seed=0)
     dense_init = tf.keras.initializers.Ones()
-    de_layer = de.keras.layers.BasicEmbedding(4,
-                                              initializer=de_init,
-                                              name='ve820')
+    de_layer = de.keras.layers.Embedding(4, initializer=de_init, name='ve820')
     tf_layer = tf.keras.layers.Embedding(1000,
                                          4,
                                          embeddings_initializer=dense_init,
@@ -136,7 +134,7 @@ class BasicEmbeddingLayerTest(test.TestCase):
     if not context.executing_eagerly():
       self.skipTest('Only test in eager mode')
     init = tf.keras.initializers.RandomNormal(seed=0)
-    model = get_sequential_model(de.keras.layers.BasicEmbedding,
+    model = get_sequential_model(de.keras.layers.Embedding,
                                  4,
                                  initializer=init,
                                  bp_v2=False,
@@ -159,7 +157,7 @@ class BasicEmbeddingLayerTest(test.TestCase):
     if not context.executing_eagerly():
       self.skipTest('Only test in eager mode')
     init = tf.keras.initializers.RandomNormal(seed=0)
-    model = get_sequential_model(de.keras.layers.BasicEmbedding,
+    model = get_sequential_model(de.keras.layers.Embedding,
                                  4,
                                  initializer=init,
                                  bp_v2=False,
@@ -186,7 +184,7 @@ class BasicEmbeddingLayerTest(test.TestCase):
 
     def model_fn(table_device):
       input_tensor = tf.keras.layers.Input(shape=(1,), dtype=tf.int64)
-      embedding_out = de.keras.layers.BasicEmbedding(
+      embedding_out = de.keras.layers.Embedding(
           embedding_size=1,
           key_dtype=tf.int64,
           value_dtype=tf.float32,
@@ -240,7 +238,7 @@ class BasicEmbeddingLayerTest(test.TestCase):
 
     def model_fn(table_devices):
       input_tensor = tf.keras.layers.Input(shape=(1,), dtype=tf.int64)
-      embedding_out = de.keras.layers.BasicEmbedding(
+      embedding_out = de.keras.layers.Embedding(
           embedding_size=1,
           key_dtype=tf.int64,
           value_dtype=tf.float32,
@@ -249,7 +247,7 @@ class BasicEmbeddingLayerTest(test.TestCase):
           name='test_keras_save_restore',
           kv_creator=de.CuckooHashTableCreator(
               saver=de.FileSystemSaver()))(input_tensor)
-      normal_embedding_out = de.keras.layers.BasicEmbedding(
+      normal_embedding_out = de.keras.layers.Embedding(
           embedding_size=1,
           key_dtype=tf.int64,
           value_dtype=tf.float32,
@@ -344,7 +342,7 @@ class BasicEmbeddingLayerTest(test.TestCase):
       if test_util.is_gpu_available():
         table_device = ['/device:GPU:0']
       input_tensor = tf.keras.layers.Input(shape=(1,), dtype=tf.int64)
-      embedding_out = de.keras.layers.BasicEmbedding(
+      embedding_out = de.keras.layers.Embedding(
           embedding_size=1,
           key_dtype=tf.int64,
           value_dtype=tf.float32,
@@ -353,7 +351,7 @@ class BasicEmbeddingLayerTest(test.TestCase):
           name='test_keras_save_restore',
           kv_creator=de.CuckooHashTableCreator(saver=de.FileSystemSaver(
               proc_size=proc_size, proc_rank=proc_rank)))(input_tensor)
-      normal_embedding_out = de.keras.layers.BasicEmbedding(
+      normal_embedding_out = de.keras.layers.Embedding(
           embedding_size=1,
           key_dtype=tf.int64,
           value_dtype=tf.float32,
