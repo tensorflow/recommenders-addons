@@ -108,6 +108,7 @@ class BasicEmbedding(tf.keras.layers.Layer):
                initializer=None,
                devices=None,
                name='DynamicEmbeddingLayer',
+               with_unique=True,
                **kwargs):
     """
     Creates a BasicEmbedding layer.
@@ -123,6 +124,7 @@ class BasicEmbedding(tf.keras.layers.Layer):
       initializer: Initializer to the embedding values. Default is RandomNormal.
       devices: List of devices to place the embedding layer parameter.
       name: Name of the embedding layer.
+      with_unique: Bool. Whether if the layer does unique on `ids`. Default is True.
 
       **kwargs:
         trainable: Bool. Whether if the layer is trainable. Default is True.
@@ -160,6 +162,7 @@ class BasicEmbedding(tf.keras.layers.Layer):
     trainable = kwargs.get('trainable', True)
     self.max_norm = kwargs.get('max_norm', None)
     self.keep_distribution = kwargs.get('keep_distribution', False)
+    self.with_unique = with_unique
 
     parameter_name = name + '-parameter' if name else 'EmbeddingParameter'
     with tf.name_scope('DynamicEmbedding'):
@@ -208,10 +211,21 @@ class BasicEmbedding(tf.keras.layers.Layer):
     """
     ids = tf.convert_to_tensor(ids)
     input_shape = tf.shape(ids)
-    lookup_result = de.shadow_ops.embedding_lookup(self.shadow, ids)
-    lookup_result = tf.reshape(
-        lookup_result, tf.concat([input_shape, [self.embedding_size]], 0))
-    return lookup_result
+    if self.with_unique:
+      with tf.name_scope(self.name + "/EmbeddingWithUnique"):
+        ids_flat = tf.reshape(ids, tf.reduce_prod(input_shape, keepdims=True))
+        unique_ids, idx = tf.unique(ids_flat)
+        unique_embeddings = de.shadow_ops.embedding_lookup(
+            self.shadow, unique_ids)
+        embeddings_flat = tf.gather(unique_embeddings, idx)
+        embeddings_shape = tf.concat([tf.shape(ids), [self.embedding_size]], 0)
+        embeddings = tf.reshape(embeddings_flat, embeddings_shape)
+        return embeddings
+    else:
+      embeddings = de.shadow_ops.embedding_lookup(self.shadow, ids)
+      embeddings = tf.reshape(
+          embeddings, tf.concat([input_shape, [self.embedding_size]], 0))
+      return embeddings
 
   def get_config(self):
     _initializer = self.params.initializer
@@ -259,6 +273,12 @@ class BasicEmbedding(tf.keras.layers.Layer):
             self.distribute_strategy,
     }
     return config
+
+
+"""
+  For matching the original name space of `tf.keras.layers.Embedding`.
+"""
+Embedding = BasicEmbedding
 
 
 class SquashedEmbedding(BasicEmbedding):
