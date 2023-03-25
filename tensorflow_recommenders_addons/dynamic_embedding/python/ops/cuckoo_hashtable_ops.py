@@ -127,6 +127,11 @@ class CuckooHashTable(LookupInterface):
       )
       if not context.executing_eagerly():
         ops.add_to_collection(ops.GraphKeys.SAVEABLE_OBJECTS, self.saveable)
+    else:
+      if shard_saveable_object_fn:
+        self._saveable_fn = shard_saveable_object_fn
+      else:
+        self._saveable_fn = CuckooHashTable._Saveable
 
   def _create_resource(self):
     # The table must be shared if checkpointing is requested for multi-worker
