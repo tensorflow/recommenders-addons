@@ -211,21 +211,18 @@ class BasicEmbedding(tf.keras.layers.Layer):
     """
     ids = tf.convert_to_tensor(ids)
     input_shape = tf.shape(ids)
+    embeddings_shape = tf.concat([input_shape, [self.embedding_size]], 0)
+    ids_flat = tf.reshape(ids, (-1,))
     if self.with_unique:
       with tf.name_scope(self.name + "/EmbeddingWithUnique"):
-        ids_flat = tf.reshape(ids, tf.reduce_prod(input_shape, keepdims=True))
         unique_ids, idx = tf.unique(ids_flat)
         unique_embeddings = de.shadow_ops.embedding_lookup(
             self.shadow, unique_ids)
         embeddings_flat = tf.gather(unique_embeddings, idx)
-        embeddings_shape = tf.concat([tf.shape(ids), [self.embedding_size]], 0)
-        embeddings = tf.reshape(embeddings_flat, embeddings_shape)
-        return embeddings
     else:
-      embeddings = de.shadow_ops.embedding_lookup(self.shadow, ids)
-      embeddings = tf.reshape(
-          embeddings, tf.concat([input_shape, [self.embedding_size]], 0))
-      return embeddings
+      embeddings_flat = de.shadow_ops.embedding_lookup(self.shadow, ids_flat)
+    embeddings = tf.reshape(embeddings_flat, embeddings_shape)
+    return embeddings
 
   def get_config(self):
     _initializer = self.params.initializer
