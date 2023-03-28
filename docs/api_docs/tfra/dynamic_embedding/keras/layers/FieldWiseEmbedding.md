@@ -59,7 +59,7 @@
 
 An embedding layer, which feature ids are mapped into fields.
 
-Inherits From: [`BasicEmbedding`](../../../../tfra/dynamic_embedding/keras/layers/BasicEmbedding.md)
+Inherits From: [`Embedding`](../../../../tfra/dynamic_embedding/keras/layers/Embedding.md)
 
 <section class="expandable">
   <h4 class="showalways">View aliases</h4>
@@ -115,6 +115,7 @@ __init__(
     initializer=None,
     devices=None,
     name='SlotDynamicEmbeddingLayer',
+    with_unique=True,
     **kwargs
 )
 ```
@@ -138,6 +139,7 @@ Create a embedding layer with weights aggregated into feature related slots.
   RandomNormal.
 * <b>`devices`</b>: List of devices to place the embedding layer parameter.
 * <b>`name`</b>: Name of the embedding layer.
+* <b>`with_unique`</b>: : Bool. Whether if the layer does unique on `ids`. Default is True.
 
 * <b>`**kwargs`</b>:   trainable: Bool. Whether if the layer is trainable. Default is True.
   bp_v2: Bool. If true, the embedding layer will be updated by incremental

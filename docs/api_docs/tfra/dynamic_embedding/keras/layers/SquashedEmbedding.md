@@ -59,7 +59,7 @@
 
 The SquashedEmbedding layer allow arbirary input shape of feature ids, and get
 
-Inherits From: [`BasicEmbedding`](../../../../tfra/dynamic_embedding/keras/layers/BasicEmbedding.md)
+Inherits From: [`Embedding`](../../../../tfra/dynamic_embedding/keras/layers/Embedding.md)
 
 <section class="expandable">
   <h4 class="showalways">View aliases</h4>
@@ -97,11 +97,12 @@ __init__(
     initializer=None,
     devices=None,
     name='DynamicEmbeddingLayer',
+    with_unique=True,
     **kwargs
 )
 ```
 
-Creates a BasicEmbedding layer.
+Creates a Embedding layer.
 
 
 #### Args:
@@ -117,6 +118,7 @@ Creates a BasicEmbedding layer.
 * <b>`initializer`</b>: Initializer to the embedding values. Default is RandomNormal.
 * <b>`devices`</b>: List of devices to place the embedding layer parameter.
 * <b>`name`</b>: Name of the embedding layer.
+* <b>`with_unique`</b>: : Bool. Whether if the layer does unique on `ids`. Default is True.
 
 * <b>`**kwargs`</b>:   trainable: Bool. Whether if the layer is trainable. Default is True.
   bp_v2: Bool. If true, the embedding layer will be updated by incremental
