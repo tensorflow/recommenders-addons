@@ -31,7 +31,7 @@
 
 ## Classes
 
-[`class BasicEmbedding`](../../../tfra/dynamic_embedding/keras/layers/BasicEmbedding.md): A keras style Embedding layer. The `BasicEmbedding` layer acts same like
+[`class Embedding`](../../../tfra/dynamic_embedding/keras/layers/BasicEmbedding.md): A keras style Embedding layer. The `Embedding` layer acts same like
 
 [`class FieldWiseEmbedding`](../../../tfra/dynamic_embedding/keras/layers/FieldWiseEmbedding.md): An embedding layer, which feature ids are mapped into fields.
 
