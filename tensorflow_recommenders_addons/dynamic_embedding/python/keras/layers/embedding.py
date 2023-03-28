@@ -74,11 +74,11 @@ def reduce_pooling(x, combiner='sum'):
     return x
 
 
-class BasicEmbedding(tf.keras.layers.Layer):
+class Embedding(tf.keras.layers.Layer):
   """
-  A keras style Embedding layer. The `BasicEmbedding` layer acts same like
+  A keras style Embedding layer. The `Embedding` layer acts same like
   [tf.keras.layers.Embedding](https://www.tensorflow.org/api_docs/python/tf/keras/layers/Embedding),
-  except that the `BasicEmbedding` has dynamic embedding space so it does
+  except that the `Embedding` has dynamic embedding space so it does
   not need to set a static vocabulary size, and there will be no hash conflicts
   between features.
 
@@ -88,7 +88,7 @@ class BasicEmbedding(tf.keras.layers.Layer):
 
   ### Example
   ```python
-  embedding = dynamic_embedding.keras.layers.BasicEmbedding(8) # embedding size 8
+  embedding = dynamic_embedding.keras.layers.Embedding(8) # embedding size 8
   ids = tf.constant([[15,2], [4,92], [22,4]], dtype=tf.int64) # (3, 2)
   out = embedding(ids) # lookup result, (3, 2, 8)
   ```
@@ -96,7 +96,7 @@ class BasicEmbedding(tf.keras.layers.Layer):
   You could inherit the `Embedding` class to implement a custom embedding
   layer with other fixed shape output.
 
-  TODO(Lifann) Currently the BasicEmbedding only implemented in eager mode
+  TODO(Lifann) Currently the Embedding only implemented in eager mode
   API, need to support graph mode also.
   """
 
@@ -111,7 +111,7 @@ class BasicEmbedding(tf.keras.layers.Layer):
                with_unique=True,
                **kwargs):
     """
-    Creates a BasicEmbedding layer.
+    Creates a Embedding layer.
 
     Args:
       embedding_size: An object convertible to int. Length of embedding vector
@@ -193,9 +193,9 @@ class BasicEmbedding(tf.keras.layers.Layer):
     self._current_ids = self.shadow.ids
     self._current_exists = self.shadow.exists
     self.optimizer_vars = self.shadow._optimizer_vars
-    super(BasicEmbedding, self).__init__(name=name,
-                                         trainable=trainable,
-                                         dtype=value_dtype)
+    super(Embedding, self).__init__(name=name,
+                                    trainable=trainable,
+                                    dtype=value_dtype)
 
   def call(self, ids):
     """
@@ -273,12 +273,12 @@ class BasicEmbedding(tf.keras.layers.Layer):
 
 
 """
-  For matching the original name space of `tf.keras.layers.Embedding`.
+  For matching the original name space of `tf.keras.layers.BasicEmbedding`.
 """
-Embedding = BasicEmbedding
+BasicEmbedding = Embedding
 
 
-class SquashedEmbedding(BasicEmbedding):
+class SquashedEmbedding(Embedding):
   """
   The SquashedEmbedding layer allow arbirary input shape of feature ids, and get
   (shape(ids) + embedding_size) lookup result. Finally the output of the
@@ -297,16 +297,12 @@ class SquashedEmbedding(BasicEmbedding):
   """
 
   def call(self, ids):
-    ids = tf.convert_to_tensor(ids)
-    input_shape = tf.shape(ids)
-    lookup_result = de.shadow_ops.embedding_lookup(self.shadow, ids)
-    lookup_result = tf.reshape(
-        lookup_result, tf.concat([input_shape, [self.embedding_size]], 0))
+    lookup_result = super(SquashedEmbedding, self).call(ids)
     embedding = reduce_pooling(lookup_result, combiner=self.combiner)
     return embedding
 
 
-class FieldWiseEmbedding(BasicEmbedding):
+class FieldWiseEmbedding(Embedding):
   """
   An embedding layer, which feature ids are mapped into fields.
 
@@ -354,6 +350,7 @@ class FieldWiseEmbedding(BasicEmbedding):
                initializer=None,
                devices=None,
                name='SlotDynamicEmbeddingLayer',
+               with_unique=True,
                **kwargs):
     """
     Create a embedding layer with weights aggregated into feature related slots.
@@ -372,6 +369,7 @@ class FieldWiseEmbedding(BasicEmbedding):
         RandomNormal.
       devices: List of devices to place the embedding layer parameter.
       name: Name of the embedding layer.
+      with_unique: Bool. Whether if the layer does unique on `ids`. Default is True.
 
       **kwargs:
         trainable: Bool. Whether if the layer is trainable. Default is True.
@@ -410,6 +408,7 @@ class FieldWiseEmbedding(BasicEmbedding):
                                              initializer=initializer,
                                              devices=devices,
                                              name=name,
+                                             with_unique=with_unique,
                                              **kwargs)
 
   def call(self, ids):
@@ -418,7 +417,7 @@ class FieldWiseEmbedding(BasicEmbedding):
       raise NotImplementedError(
           'Input dimension higher than 2 is not implemented yet.')
     flat_ids = tf.reshape(ids, (-1,))
-    lookup_result = de.shadow_ops.embedding_lookup(self.shadow, flat_ids)
+    lookup_result = super(FieldWiseEmbedding, self).call(flat_ids)
     embedding = self._pooling_by_slots(lookup_result, ids)
     return embedding
 

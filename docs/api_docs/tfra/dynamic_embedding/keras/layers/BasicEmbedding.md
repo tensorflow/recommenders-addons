@@ -1,5 +1,5 @@
 <div itemscope itemtype="http://developers.google.com/ReferenceObject">
-<meta itemprop="name" content="tfra.dynamic_embedding.keras.layers.BasicEmbedding" />
+<meta itemprop="name" content="tfra.dynamic_embedding.keras.layers.Embedding" />
 <meta itemprop="path" content="Stable" />
 <meta itemprop="property" content="activity_regularizer"/>
 <meta itemprop="property" content="compute_dtype"/>
@@ -36,7 +36,7 @@
 <meta itemprop="property" content="with_name_scope"/>
 </div>
 
-# tfra.dynamic_embedding.keras.layers.BasicEmbedding
+# tfra.dynamic_embedding.keras.layers.Embedding
 
 <!-- Insert buttons and diff -->
 
@@ -55,9 +55,9 @@
 
 
 
-## Class `BasicEmbedding`
+## Class `Embedding`
 
-A keras style Embedding layer. The `BasicEmbedding` layer acts same like
+A keras style Embedding layer. The `Embedding` layer acts same like
 
 
 
@@ -65,13 +65,13 @@ A keras style Embedding layer. The `BasicEmbedding` layer acts same like
   <h4 class="showalways">View aliases</h4>
   <p>
 <b>Main aliases</b>
-<p>`tfra.dynamic_embedding.keras.layers.embedding.BasicEmbedding`</p>
+<p>`tfra.dynamic_embedding.keras.layers.embedding.Embedding`</p>
 </p>
 </section>
 
 <!-- Placeholder for "Used in" -->
 [tf.keras.layers.Embedding](https://www.tensorflow.org/api_docs/python/tf/keras/layers/Embedding),
-except that the `BasicEmbedding` has dynamic embedding space so it does
+except that the `Embedding` has dynamic embedding space so it does
 not need to set a static vocabulary size, and there will be no hash conflicts
 between features.
 
@@ -81,7 +81,7 @@ is batch_size.
 
 ### Example
 ```python
-embedding = dynamic_embedding.keras.layers.BasicEmbedding(8) # embedding size 8
+embedding = dynamic_embedding.keras.layers.Embedding(8) # embedding size 8
 ids = tf.constant([[15,2], [4,92], [22,4]], dtype=tf.int64) # (3, 2)
 out = embedding(ids) # lookup result, (3, 2, 8)
 ```
@@ -89,7 +89,7 @@ out = embedding(ids) # lookup result, (3, 2, 8)
 You could inherit the `Embedding` class to implement a custom embedding
 layer with other fixed shape output.
 
-TODO(Lifann) Currently the BasicEmbedding only implemented in eager mode
+TODO(Lifann) Currently the Embedding only implemented in eager mode
 API, need to support graph mode also.
 
 <h2 id="__init__"><code>__init__</code></h2>
@@ -105,11 +105,12 @@ __init__(
     initializer=None,
     devices=None,
     name='DynamicEmbeddingLayer',
+    with_unique=True,
     **kwargs
 )
 ```
 
-Creates a BasicEmbedding layer.
+Creates a Embedding layer.
 
 
 #### Args:
@@ -125,6 +126,7 @@ Creates a BasicEmbedding layer.
 * <b>`initializer`</b>: Initializer to the embedding values. Default is RandomNormal.
 * <b>`devices`</b>: List of devices to place the embedding layer parameter.
 * <b>`name`</b>: Name of the embedding layer.
+* <b>`with_unique`</b>: : Bool. Whether if the layer does unique on `ids`. Default is True.
 
 * <b>`**kwargs`</b>:   trainable: Bool. Whether if the layer is trainable. Default is True.
   bp_v2: Bool. If true, the embedding layer will be updated by incremental
