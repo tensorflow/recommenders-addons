@@ -101,7 +101,7 @@ def DynamicEmbeddingOptimizer(self, bp_v2=False, synchronous=False):
           var._track_optimizer_slots(_slots)
 
           with ops.control_dependencies([grad]):
-            v0 = var.read_value(do_prefetch=not var.params.bp_v2)
+            v0 = var.read_value(do_prefetch=var.params.bp_v2)
             s0 = [_s.read_value() for _s in _slots]
             _before = [v0] + s0
 

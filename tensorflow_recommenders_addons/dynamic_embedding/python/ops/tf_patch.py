@@ -84,7 +84,7 @@ class _DenseDynamicEmbeddingTrainableProcessor(optimizer._OptimizableVariable):
       self._v._track_optimizer_slots(_slots)
 
       with ops.control_dependencies([g]):
-        v0 = self._v.read_value(do_prefetch=not self._v.params.bp_v2)
+        v0 = self._v.read_value(do_prefetch=self._v.params.bp_v2)
         s0 = [_s.read_value() for _s in _slots]
         _before = [v0] + s0
 
