@@ -11,7 +11,9 @@ export TF_NEED_CUDA=0
 
 python --version
 
-RUN python -m pip install --upgrade protobuf==3.20.0
+python -m pip install --default-timeout=1000 delocate==0.9.1 wheel==0.37.0 setuptools==50.0.0 tensorflow==$TF_VERSION
+python -m pip install --upgrade protobuf==3.19.6
+
 python configure.py
 
 bazel build \
