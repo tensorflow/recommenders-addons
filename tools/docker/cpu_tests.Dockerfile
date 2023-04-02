@@ -11,6 +11,8 @@ RUN python -m pip install --upgrade protobuf==3.19.6
 COPY tools/docker/install/install_bazel.sh ./
 RUN ./install_bazel.sh $USE_BAZEL_VERSION
 
+RUN apt-get update && apt-get install -y sudo rsync cmake
+
 COPY requirements.txt ./
 RUN pip install -r requirements.txt
 
