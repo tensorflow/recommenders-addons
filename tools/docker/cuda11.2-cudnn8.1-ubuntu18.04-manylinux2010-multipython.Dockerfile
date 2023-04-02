@@ -44,19 +44,6 @@ COPY --from=devtoolset /dt8 /dt8
 
 RUN chmod 777 /tmp/
 
-# Install TensorRT.
-RUN echo \
-    deb https://developer.download.nvidia.com/compute/machine-learning/repos/ubuntu1604/x86_64 / \
-    > /etc/apt/sources.list.d/nvidia-ml.list \
-      && \
-    apt-get update && apt-get install -y \
-    libnvinfer-dev=7.1.3-1+cuda11.0 \
-    libnvinfer7=7.1.3-1+cuda11.0 \
-    libnvinfer-plugin-dev=7.1.3-1+cuda11.0 \
-    libnvinfer-plugin7=7.1.3-1+cuda11.0 \
-      && \
-    rm -rf /var/lib/apt/lists/*
-
 # Copy and run the install scripts.
 ARG DEBIAN_FRONTEND=noninteractive
 
