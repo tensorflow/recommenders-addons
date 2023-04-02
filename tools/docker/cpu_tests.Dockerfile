@@ -18,6 +18,9 @@ RUN  /install/install_bazel.sh $USE_BAZEL_VERSION
 COPY tools/docker/install/install_horovod.sh /install/
 RUN  /install/install_horovod.sh $HOROVOD_VERSION --only-cpu
 
+COPY tools/docker/install/install_bazel.sh ./
+RUN ./install_bazel.sh $USE_BAZEL_VERSION
+
 COPY requirements.txt ./
 RUN pip install -r requirements.txt
 
