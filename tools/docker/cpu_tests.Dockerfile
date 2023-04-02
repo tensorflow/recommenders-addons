@@ -8,6 +8,9 @@ RUN pip install --default-timeout=1000 tensorflow-cpu==$TF_VERSION
 
 RUN python -m pip install --upgrade protobuf==3.19.6
 
+COPY tools/docker/install/install_bazel.sh ./
+RUN ./install_bazel.sh $USE_BAZEL_VERSION
+
 COPY requirements.txt ./
 RUN pip install -r requirements.txt
 
