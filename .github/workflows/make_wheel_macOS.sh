@@ -4,6 +4,7 @@ export TF_NEED_CUDA=0
 
 python --version
 python -m pip install --default-timeout=1000 delocate==0.9.1 wheel setuptools tensorflow==$TF_VERSION
+python -m pip install --upgrade protobuf==3.19.6
 
 bash tools/testing/build_and_run_tests.sh
 
