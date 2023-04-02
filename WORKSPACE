@@ -41,8 +41,8 @@ http_archive(
 
 new_git_repository(
     name = "hiredis",
-    branch = "master",
     build_file = "//build_deps/toolchains/redis:hiredis.BUILD",
+    commit = "2d9d77518d012a54ae34f9822e4b4d19823c4b75",
     remote = "https://github.com/redis/hiredis.git",
 )
 

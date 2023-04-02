@@ -5,8 +5,8 @@
 #
 # To push a new version, run:
 # $ docker build -f cuda11.2-cudnn8.1-ubuntu18.04-manylinux2010-multipython.Dockerfile . \
-#  --tag "tfra/nosla-cuda11.2-cudnn8.1-ubuntu18.04-manylinux2010-multipython"
-# $ docker push tfra/nosla-cuda11.2-cudnn8.1-ubuntu18.04-manylinux2010-multipython
+#  --tag "tfra/nosla-cuda11.2-cudnn8.1-ubuntu18.04-manylinux2010-multipython:r0.4"
+# $ docker push tfra/nosla-cuda11.2-cudnn8.1-ubuntu18.04-manylinux2010-multipython:r0.4
 
 FROM nvidia/cuda:11.2.0-cudnn8-devel-ubuntu18.04 as devtoolset
 
