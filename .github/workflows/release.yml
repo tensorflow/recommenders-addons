@@ -61,7 +61,8 @@ jobs:
           # excludes cuda on macOS
           - os: 'macos-10.15'
             tf-need-cuda: '1'
-          # excludes TF2.5.1 with cuda 10.0
+          - os: 'macos-latest'
+            py-version: '3.6'
           - tf-version: '2.5.1'
             tf-cuda-version: '10.0'
           # excludes TF2.7.0 with cuda 10.0
@@ -143,6 +144,8 @@ jobs:
           # excludes cuda on macOS
           - os: 'macOS'
             tf-need-cuda: '1'
+          - os: 'macOS'
+            py-version: '3.6'
       fail-fast: false
     if: (github.event_name == 'push' && github.ref == 'refs/heads/master') || github.event_name == 'release'
     steps:
