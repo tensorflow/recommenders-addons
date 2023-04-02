@@ -21,8 +21,8 @@ cmake_external(
     cmake_options = [
         "-DCMAKE_BUILD_TYPE=Release",
         "-DCMAKE_CXX_FLAGS="+D_GLIBCXX_USE_CXX11_ABI,
+        "-DCMAKE_INSTALL_LIBDIR=lib",
     ],
     lib_source = "@hiredis//:all_srcs",
     static_libraries = ["libhiredis_static.a"],
 )
-
