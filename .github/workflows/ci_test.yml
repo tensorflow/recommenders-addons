@@ -91,6 +91,7 @@ jobs:
       run: |
         # Run on all notebooks to prevent upstream change.
         echo "Check formatting with nbfmt:"
+        python3 -m pip install --upgrade protobuf==3.19.6
         python3 -m tensorflow_docs.tools.nbfmt --test \
             $(find docs/tutorials/ -type f -name *.ipynb)
   nblint:
@@ -105,6 +106,7 @@ jobs:
       run: |
         # Run on all notebooks to prevent upstream change.
         echo "Lint check with nblint:"
+        python3 -m pip install --upgrade protobuf==3.19.6
         python3 -m tensorflow_docs.tools.nblint \
             --arg=repo:tensorflow/recommenders-addons \
             --exclude_lint=tensorflow::button_colab \

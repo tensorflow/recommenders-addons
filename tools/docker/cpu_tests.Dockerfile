@@ -6,9 +6,7 @@ ARG USE_BAZEL_VERSION=3.7.2
 
 RUN pip install --default-timeout=1000 tensorflow-cpu==$TF_VERSION
 
-RUN apt-get update && apt-get install -y sudo rsync cmake
-COPY tools/docker/install/install_bazel.sh ./
-RUN ./install_bazel.sh $USE_BAZEL_VERSION
+RUN python -m pip install --upgrade protobuf==3.19.6
 
 COPY requirements.txt ./
 RUN pip install -r requirements.txt
@@ -18,6 +16,9 @@ RUN pip install -r pytest.txt pytest-cov
 
 COPY ./ /recommenders-addons
 WORKDIR recommenders-addons
+
+RUN python -m pip install --upgrade protobuf==3.19.6
+
 RUN python configure.py
 RUN pip install -e ./
 RUN --mount=type=cache,id=cache_bazel,target=/root/.cache/bazel \
@@ -35,6 +36,8 @@ COPY tools/install_deps/tensorflow-cpu.txt ./
 RUN pip install --default-timeout=1000 --upgrade --force-reinstall -r tensorflow-cpu.txt
 
 COPY --from=0 /recommenders-addons/artifacts /artifacts
+
+RUN python -m pip install --upgrade protobuf==3.19.6
 
 RUN pip install /artifacts/tensorflow_recommenders_addons-*.whl
 
