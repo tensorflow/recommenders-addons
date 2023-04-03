@@ -10,6 +10,8 @@ fi
 python -m pip install --default-timeout=1000 wheel setuptools tensorflow==$TF_VERSION horovod==$HOROVOD_VERSION
 bash ./tools/testing/build_and_run_tests.sh
 
+python -m pip install --upgrade protobuf==3.19.6
+
 python configure.py
 
 bazel.exe build  --no-cache \
