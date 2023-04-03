@@ -21,6 +21,8 @@ set -x -e
 export CC_OPT_FLAGS='-mavx'
 
 python -m pip install -r tools/install_deps/pytest.txt -e ./
+python -m pip install --upgrade protobuf==3.19.6 numpy==1.19.4
+
 TF_NEED_CUDA=$TF_NEED_CUDA python ./configure.py
 bash tools/install_so_files.sh
 
