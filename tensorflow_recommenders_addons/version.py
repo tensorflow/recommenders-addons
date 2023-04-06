@@ -15,6 +15,16 @@
 """Define TensorFlow Recommenders Addons version information."""
 
 import os
+import platform
+
+
+def is_macos():
+  return platform.system() == "Darwin"
+
+
+def is_arm64():
+  return platform.machine() == "arm64"
+
 
 # Required TensorFlow version [min, max)
 MIN_TF_VERSION = os.getenv("TF_VERSION", "2.5.0")
