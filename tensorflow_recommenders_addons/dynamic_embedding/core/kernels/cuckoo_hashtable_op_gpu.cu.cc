@@ -23,6 +23,7 @@ limitations under the License.
 #include <cuda_runtime.h>
 #include <stdlib.h>
 
+#include <array>
 #include <cstdlib>
 #include <type_traits>
 #include <utility>
@@ -45,10 +46,16 @@ using tensorflow::lookup::LookupInterface;
 
 template <class K, class V>
 class CuckooHashTableOfTensorsGpu final : public LookupInterface {
+ private:
+  std::array<cudaStream_t, 11> cuda_steams;
+
  public:
   CuckooHashTableOfTensorsGpu(OpKernelContext* ctx, OpKernel* kernel)
       : last_hint_size_(0) {
     int64 init_size = 0;
+    for (auto& stream : cuda_steams) {
+      CUDA_CHECK(cudaStreamCreateWithFlags(&stream, cudaStreamDefault));
+    }
 
     OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "init_size", &init_size));
 
@@ -85,7 +92,12 @@ class CuckooHashTableOfTensorsGpu final : public LookupInterface {
               << ", max_size=" << max_size_ << ", min_size=" << min_size_;
   }
 
-  ~CuckooHashTableOfTensorsGpu() { delete table_; }
+  ~CuckooHashTableOfTensorsGpu() {
+    for (auto& stream : cuda_steams) {
+      CUDA_CHECK(cudaStreamDestroy(stream));
+    }
+    delete table_;
+  }
 
   void CreateTable(size_t max_size, gpu::TableWrapperBase<K, V>** pptable) {
     if (runtime_dim_ <= 50) {
@@ -104,11 +116,9 @@ class CuckooHashTableOfTensorsGpu final : public LookupInterface {
   size_t size() const override {
     tf_shared_lock l(mu_);
 
-    cudaStream_t _stream;
-    CUDA_CHECK(cudaStreamCreate(&_stream));
+    auto& _stream = cuda_steams[0];
     size_t retv = table_->get_size(_stream);
     CUDA_CHECK(cudaStreamSynchronize(_stream));
-    CUDA_CHECK(cudaStreamDestroy(_stream));
     return retv;
   }
 
@@ -123,12 +133,11 @@ class CuckooHashTableOfTensorsGpu final : public LookupInterface {
     int64 default_total = default_flat.size();
     bool is_full_default = (total == default_total);
 
-    cudaStream_t _stream;
+    auto& _stream = cuda_steams[1];
 
     if (len > 0) {
       size_t default_value_num =
           is_full_default ? default_value.shape().dim_size(0) : 1;
-      CUDA_CHECK(cudaStreamCreate(&_stream));
       CUDA_CHECK(cudaMallocManaged((void**)&d_status, sizeof(bool) * len));
       {
         tf_shared_lock l(mu_);
@@ -140,7 +149,6 @@ class CuckooHashTableOfTensorsGpu final : public LookupInterface {
         CUDA_CHECK(cudaStreamSynchronize(_stream));
       }
       CUDA_CHECK(cudaFree(d_status));
-      CUDA_CHECK(cudaStreamDestroy(_stream));
     }
     return Status::OK();
   }
@@ -156,12 +164,11 @@ class CuckooHashTableOfTensorsGpu final : public LookupInterface {
     int64 default_total = default_flat.size();
     bool is_full_default = (total == default_total);
 
-    cudaStream_t _stream;
+    auto& _stream = cuda_steams[2];
 
     if (len > 0) {
       size_t default_value_num =
           is_full_default ? default_value.shape().dim_size(0) : 1;
-      CUDA_CHECK(cudaStreamCreate(&_stream));
       {
         tf_shared_lock l(mu_);
         table_->get((const K*)d_keys.tensor_data().data(),
@@ -171,7 +178,6 @@ class CuckooHashTableOfTensorsGpu final : public LookupInterface {
                     _stream, is_full_default);
         CUDA_CHECK(cudaStreamSynchronize(_stream));
       }
-      CUDA_CHECK(cudaStreamDestroy(_stream));
     }
     return Status::OK();
   }
@@ -185,18 +191,15 @@ class CuckooHashTableOfTensorsGpu final : public LookupInterface {
   Status Insert(OpKernelContext* ctx, const Tensor& keys,
                 const Tensor& values) override {
     size_t len = keys.flat<K>().size();
-    cudaStream_t _stream;
-    CUDA_CHECK(cudaStreamCreate(&_stream));
+    auto& _stream = cuda_steams[3];
     {
       mutex_lock l(mu_);
       RehashIfNeeded(_stream, len);
-      CUDA_CHECK(cudaDeviceSynchronize());
       table_->upsert((const K*)keys.tensor_data().data(),
                      (const gpu::ValueArrayBase<V>*)values.tensor_data().data(),
                      len, _stream);
       CUDA_CHECK(cudaStreamSynchronize(_stream));
     };
-    CUDA_CHECK(cudaStreamDestroy(_stream));
 
     return Status::OK();
   }
@@ -204,8 +207,7 @@ class CuckooHashTableOfTensorsGpu final : public LookupInterface {
   Status Accum(OpKernelContext* ctx, const Tensor& keys,
                const Tensor& values_or_deltas, const Tensor& exists) {
     size_t len = keys.flat<K>().size();
-    cudaStream_t _stream;
-    CUDA_CHECK(cudaStreamCreate(&_stream));
+    auto& _stream = cuda_steams[4];
     {
       mutex_lock l(mu_);
       RehashIfNeeded(_stream, len);
@@ -216,7 +218,6 @@ class CuckooHashTableOfTensorsGpu final : public LookupInterface {
           (const bool*)exists.tensor_data().data(), len, _stream);
       CUDA_CHECK(cudaStreamSynchronize(_stream));
     };
-    CUDA_CHECK(cudaStreamDestroy(_stream));
 
     return Status::OK();
   }
@@ -224,9 +225,8 @@ class CuckooHashTableOfTensorsGpu final : public LookupInterface {
   Status Remove(OpKernelContext* ctx, const Tensor& keys) override {
     size_t len = keys.flat<K>().size();
     K* d_keys;
-    cudaStream_t _stream;
+    auto& _stream = cuda_steams[5];
 
-    CUDA_CHECK(cudaStreamCreate(&_stream));
     if (len > 0) {
       cudaPointerAttributes keys_attr;
       CUDA_CHECK(cudaPointerGetAttributes(&keys_attr,
@@ -244,7 +244,6 @@ class CuckooHashTableOfTensorsGpu final : public LookupInterface {
         RehashIfNeeded(_stream);
         CUDA_CHECK(cudaStreamSynchronize(_stream));
       }
-      CUDA_CHECK(cudaStreamDestroy(_stream));
       if (keys_attr.type != cudaMemoryTypeDevice) {
         CUDA_CHECK(cudaFree(d_keys));
       }
@@ -253,15 +252,13 @@ class CuckooHashTableOfTensorsGpu final : public LookupInterface {
   }
 
   Status Clear(OpKernelContext* ctx) {
-    cudaStream_t _stream;
-    CUDA_CHECK(cudaStreamCreate(&_stream));
+    auto& _stream = cuda_steams[6];
     {
       mutex_lock l(mu_);
       table_->clear(_stream);
       RehashIfNeeded(_stream);
       CUDA_CHECK(cudaStreamSynchronize(_stream));
     }
-    CUDA_CHECK(cudaStreamDestroy(_stream));
     return Status::OK();
   }
 
@@ -271,8 +268,7 @@ class CuckooHashTableOfTensorsGpu final : public LookupInterface {
     K* d_keys;
     gpu::ValueArrayBase<V>* d_values;
     if (len > 0) {
-      cudaStream_t _stream;
-      CUDA_CHECK(cudaStreamCreate(&_stream));
+      auto& _stream = cuda_steams[7];
       cudaPointerAttributes keys_attr;
       CUDA_CHECK(cudaPointerGetAttributes(&keys_attr,
                                           (void*)keys.tensor_data().data()));
@@ -304,7 +300,6 @@ class CuckooHashTableOfTensorsGpu final : public LookupInterface {
                        (const gpu::ValueArrayBase<V>*)d_values, len, _stream);
         CUDA_CHECK(cudaStreamSynchronize(_stream));
       }
-      CUDA_CHECK(cudaStreamDestroy(_stream));
       if (keys_attr.type != cudaMemoryTypeDevice) {
         CUDA_CHECK(cudaFree(d_keys));
       }
@@ -325,8 +320,7 @@ class CuckooHashTableOfTensorsGpu final : public LookupInterface {
     Tensor* values;
 
     size_t* d_dump_counter;
-    cudaStream_t _stream;
-    CUDA_CHECK(cudaStreamCreate(&_stream));
+    auto& _stream = cuda_steams[8];
 
     {
       tf_shared_lock l(mu_);
@@ -354,7 +348,6 @@ class CuckooHashTableOfTensorsGpu final : public LookupInterface {
       CUDA_CHECK(cudaStreamSynchronize(_stream));
     }
     CUDA_CHECK(cudaFree(d_dump_counter));
-    CUDA_CHECK(cudaStreamDestroy(_stream));
     return Status::OK();
   }
 
@@ -370,7 +363,7 @@ class CuckooHashTableOfTensorsGpu final : public LookupInterface {
 
   Status SaveToFileSystemImpl(FileSystem* fs, const size_t value_dim,
                               const string& filepath, const size_t buffer_size,
-                              bool append_to_file, cudaStream_t stream) {
+                              bool append_to_file, cudaStream_t& stream) {
     std::unique_ptr<WritableFile> key_writer;
     std::unique_ptr<WritableFile> value_writer;
     const string key_filepath(filepath + "-keys");
@@ -492,17 +485,19 @@ class CuckooHashTableOfTensorsGpu final : public LookupInterface {
         "Please make sure you have already imported tensorflow_io before using "
         "TFRA file system operation.");
     const size_t value_dim = static_cast<size_t>(value_shape_.dim_size(0));
-    cudaStream_t _stream;
-    CUDA_CHECK(cudaStreamCreate(&_stream));
-    auto statu = SaveToFileSystemImpl(fs, value_dim, filepath, buffer_size,
-                                      append_to_file, _stream);
-    CUDA_CHECK(cudaStreamDestroy(_stream));
-    return statu;
+    auto& _stream = cuda_steams[9];
+    {
+      mutex_lock l(mu_);
+      auto statu = SaveToFileSystemImpl(fs, value_dim, filepath, buffer_size,
+                                        append_to_file, _stream);
+      return statu;
+    }
   }
 
   Status LoadFromFileSystemImpl(FileSystem* fs, const size_t value_dim,
                                 const string& filepath,
-                                const size_t buffer_size, cudaStream_t stream) {
+                                const size_t buffer_size,
+                                cudaStream_t& stream) {
     const string key_filepath = filepath + "-keys";
     TF_RETURN_IF_ERROR(fs->FileExists(key_filepath));
     std::unique_ptr<RandomAccessFile> key_file;
@@ -605,6 +600,7 @@ class CuckooHashTableOfTensorsGpu final : public LookupInterface {
                                     "TFRA file system operation.");
     const size_t value_dim = static_cast<size_t>(value_shape_.dim_size(0));
     auto statu = Status::OK();
+    auto& _stream = cuda_steams[10];
     if (load_entire_dir) {
       string separator = "_mht_";
       int separator_pos = file_name.rfind(separator);
@@ -623,22 +619,18 @@ class CuckooHashTableOfTensorsGpu final : public LookupInterface {
       sort(all_filepath.begin(), all_filepath.end());
       all_filepath.erase(unique(all_filepath.begin(), all_filepath.end()),
                          all_filepath.end());
+      mutex_lock l(mu_);
       for (auto fp : all_filepath) {
-        cudaStream_t _stream;
-        CUDA_CHECK(cudaStreamCreate(&_stream));
         statu = LoadFromFileSystemImpl(fs, value_dim, fp, buffer_size, _stream);
-        CUDA_CHECK(cudaStreamDestroy(_stream));
         if (statu != Status::OK()) {
           return statu;
         }
       }
     } else {
       string filepath = io::JoinPath(dirpath, file_name);
-      cudaStream_t _stream;
-      CUDA_CHECK(cudaStreamCreate(&_stream));
+      mutex_lock l(mu_);
       statu =
           LoadFromFileSystemImpl(fs, value_dim, filepath, buffer_size, _stream);
-      CUDA_CHECK(cudaStreamDestroy(_stream));
     }
     return statu;
   }

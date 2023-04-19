@@ -88,10 +88,10 @@ class TableWrapper final : public TableWrapperBase<K, V> {
 
  public:
   TableWrapper(size_t max_size) : max_size_(max_size) {
-    table_ = new Table(max_size);
+    table_ = std::make_unique<Table>(max_size);  // Allocate new table
   }
 
-  ~TableWrapper() override { delete table_; }
+  ~TableWrapper() override { table_.reset(nullptr); }
 
   void upsert(const K* d_keys, const ValueType<V>* d_vals, size_t len,
               cudaStream_t stream) override {
@@ -123,7 +123,9 @@ class TableWrapper final : public TableWrapperBase<K, V> {
     const size_t capacity = table_->get_capacity();
     size_t new_capacity = capacity;
     const auto max_load_size = max_load_factor * capacity;
-    const bool should_rehash = (new_hint_size > max_load_size);
+    const auto min_load_size = min_load_factor * capacity;
+    const bool should_rehash =
+        (new_hint_size >= max_load_size) || (new_hint_size < min_load_size);
     if (!should_rehash) {
       return new_hint_size;
     }
@@ -132,6 +134,10 @@ class TableWrapper final : public TableWrapperBase<K, V> {
     CUDA_CHECK(cudaStreamSynchronize(stream));
     if (total_size >= max_load_size) {
       new_capacity = capacity * 2;
+    }
+    auto real_new_hint_size = total_size + new_keys_num;
+    if (real_new_hint_size < max_load_size) {
+      return real_new_hint_size;
     }
     if ((total_size < (min_load_factor * capacity)) &&
         (capacity > min_capacity)) {
@@ -153,10 +159,8 @@ class TableWrapper final : public TableWrapperBase<K, V> {
                    d_dump_counter, stream);
       CUDA_CHECK(cudaStreamSynchronize(stream));
 
-      auto tmp_table_ = table_;
-      table_ = new Table(new_capacity);
-      delete tmp_table_;
-      tmp_table_ = NULL;
+      table_.reset(nullptr);                           // Destruct old table
+      table_ = std::make_unique<Table>(new_capacity);  // Allocate new table
 
       CUDA_CHECK(cudaStreamSynchronize(stream));
       CUDA_CHECK(cudaMemcpy((size_t*)&h_dump_counter, (size_t*)d_dump_counter,
@@ -172,8 +176,7 @@ class TableWrapper final : public TableWrapperBase<K, V> {
                 << ", load factor=" << std::setprecision(2)
                 << (float)total_size / (float)new_capacity << "].";
     }
-    CUDA_CHECK(cudaStreamSynchronize(stream));
-    new_hint_size = table_->get_size(stream) + new_keys_num;
+    new_hint_size = total_size + new_keys_num;
     CUDA_CHECK(cudaStreamSynchronize(stream));
     return new_hint_size;
   }
@@ -199,7 +202,7 @@ class TableWrapper final : public TableWrapperBase<K, V> {
 
  private:
   size_t max_size_;
-  Table* table_;
+  std::unique_ptr<Table> table_;
 };  // namespace gpu
 
 #define CREATE_A_TABLE(DIM)                                   \
