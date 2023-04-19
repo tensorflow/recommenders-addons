@@ -485,6 +485,9 @@ class RedisWrapper<RedisInstance, K, V,
       LOG(ERROR) << "RedisHandler error in HscanGetKeysValsInBucket for slices "
                  << keys_prefix_name_slice << " -- " << err.what();
     }
+    if (!reply.get()) {
+      return nullptr;
+    }
     if (reply->element[0]->type == REDIS_REPLY_STRING) {
       // #define REDIS_REPLY_STRING 1
       *cursor = std::atoll(reply->element[0]->str);
