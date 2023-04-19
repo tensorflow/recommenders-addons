@@ -254,11 +254,6 @@ class RedisTable(LookupInterface):
       )
       if not context.executing_eagerly():
         ops.add_to_collection(ops.GraphKeys.SAVEABLE_OBJECTS, self.saveable)
-    else:
-      if shard_saveable_object_fn:
-        self._saveable_fn = shard_saveable_object_fn
-      else:
-        self._saveable_fn = RedisTable._Saveable
 
   def _create_resource(self):
     # The table must be shared if checkpointing is requested for multi-worker
@@ -579,15 +574,18 @@ class RedisTable(LookupInterface):
     # full_name helps to figure out the name-based Saver's name for this saveable.
     full_name = self._table_name
     self._new_obj_trackable = None  # reset _new_obj_trackable when save again
-    return {
-        "table":
-            functools.partial(
-                self._saveable_fn,
-                table=self,
-                name=self._name,
-                full_name=full_name,
-            )
-    }
+    if self._checkpoint:
+      return {
+          "table":
+              functools.partial(
+                  self._saveable_fn,
+                  table=self,
+                  name=self._name,
+                  full_name=full_name,
+              )
+      }
+    else:
+      return {}
 
   class _Saveable(BaseSaverBuilder.SaveableObject):
     """SaveableObject implementation for RedisTable."""
