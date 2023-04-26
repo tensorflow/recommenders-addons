@@ -33,13 +33,10 @@ The `shadow_ops` submodule is designed to support usage on `tf.function`
 and modular style development, like keras.
 """
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 import functools
 
 from tensorflow_recommenders_addons import dynamic_embedding as de
+from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_ops import DEResourceVariable
 
 from tensorflow.python.distribute import distribute_lib
 from tensorflow.python.eager import context
@@ -54,6 +51,9 @@ try:  # tf version >= 2.10.0
   from tensorflow.python.trackable import base as trackable
 except:
   from tensorflow.python.training.tracking import base as trackable
+
+from tensorflow.python.distribute import distribute_utils
+from tensorflow.python.distribute import values_util as distribute_values_util
 
 
 class ShadowVariable(de.TrainableWrapper):
@@ -111,13 +111,13 @@ class ShadowVariable(de.TrainableWrapper):
       kwargs.pop('ids')
     ids_name = self._name + '-ids'
     if ids is None:
-      self.ids = resource_variable_ops.ResourceVariable(
-          (),
-          trainable=False,
-          collections=collections,
-          name=ids_name,
-          dtype=self.params.key_dtype,
-          shape=tensor_shape.TensorShape(None))
+      self.ids = DEResourceVariable((),
+                                    trainable=False,
+                                    collections=collections,
+                                    name=ids_name,
+                                    dtype=self.params.key_dtype,
+                                    distribute_strategy=distribute_strategy,
+                                    shape=tensor_shape.TensorShape(None))
       self._track_trackable(self.ids, ids_name, overwrite=False)
     else:
       if not isinstance(ids, resource_variable_ops.ResourceVariable):
@@ -150,13 +150,13 @@ class ShadowVariable(de.TrainableWrapper):
     exists = kwargs.get('exists', None)
     exists_name = self._name + '-exists'
     if exists is None:
-      self.exists = resource_variable_ops.ResourceVariable(
-          (),
-          trainable=False,
-          collections=collections,
-          name=exists_name,
-          dtype=dtypes.bool,
-          shape=tensor_shape.TensorShape(None))
+      self.exists = DEResourceVariable((),
+                                       trainable=False,
+                                       collections=collections,
+                                       name=exists_name,
+                                       dtype=dtypes.bool,
+                                       distribute_strategy=distribute_strategy,
+                                       shape=tensor_shape.TensorShape(None))
       self._track_trackable(self.exists, exists_name, overwrite=False)
     else:
       self.exists = exists
@@ -164,11 +164,13 @@ class ShadowVariable(de.TrainableWrapper):
 
   def prefetch_values(self, update=False):
     if self.params.bp_v2:
-      r, exists = self.params.lookup(self.ids, return_exists=True)
-      self.exists.assign(exists)
-      self.prefetch_values_op = self.transform(r)
+      with ops.device(self._handle.device):
+        r, exists = self.params.lookup(self.ids, return_exists=True)
+        self.exists.assign(exists)
+        self.prefetch_values_op = self.transform(r)
     else:
-      self.prefetch_values_op = self.transform(self.params.lookup(self.ids))
+      with ops.device(self._handle.device):
+        self.prefetch_values_op = self.transform(self.params.lookup(self.ids))
     return self.prefetch_values_op
 
   def value(self, do_prefetch=False):
@@ -245,13 +247,18 @@ def embedding_lookup(
   """
   ids = ops.convert_to_tensor(ids)
 
-  if shadow.ids.dtype != ids.dtype:
+  if distribute_utils.is_distributed_variable(shadow):
+    shadow_ = shadow._get_on_device_or_primary()
+  else:
+    shadow_ = shadow
+  if shadow_.ids.dtype != ids.dtype:
     raise ValueError('{} ids is not matched with ShadowVariable with ids'
-                     ' {},'.format(ids.dtype, shadow.ids.dtype))
+                     ' {},'.format(ids.dtype, shadow_.ids.dtype))
 
   with ops.name_scope(name, "shadow_embedding_lookup"):
-    if de.ModelMode.CURRENT_SETTING == de.ModelMode.TRAIN:
-      with ops.control_dependencies([shadow._reset_ids(ids)]):
-        return shadow.read_value(do_prefetch=True)
-    else:
-      return shadow.params.lookup(ids)
+    with ops.colocate_with(None, ignore_existing=True):
+      if de.ModelMode.CURRENT_SETTING == de.ModelMode.TRAIN:
+        with ops.control_dependencies([shadow_._reset_ids(ids)]):
+          return shadow_.read_value(do_prefetch=True)
+      else:
+        return shadow_.params.lookup(ids)

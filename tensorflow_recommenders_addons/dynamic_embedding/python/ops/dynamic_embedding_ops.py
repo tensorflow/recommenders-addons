@@ -18,10 +18,6 @@ Dynamic Embedding is designed for Large-scale Sparse Weights Training.
 See [Sparse Domain Isolation](https://github.com/tensorflow/community/pull/237)
 """
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 from tensorflow_recommenders_addons import dynamic_embedding as de
 from tensorflow_recommenders_addons.utils.resource_loader import get_tf_version_triple
 
@@ -54,7 +50,47 @@ from tensorflow.python.training.tracking import data_structures
 from tensorflow.python.util import compat
 from tensorflow.python.util.tf_export import tf_export
 
+from tensorflow.python.keras.utils import tf_utils
+from tensorflow.python.distribute import distribution_strategy_context as distribute_ctx
+from tensorflow.python.distribute import values as distribute_values_lib
+from tensorflow.python.training.saving import saveable_object
+from tensorflow.python.distribute import distribute_utils
+
 _ANONYMOUS_TRAINABLE_STORE_KEY = '_anonymous_trainable_store_key'
+
+
+class TrainableWrapperDistributedPolicy(distribute_values_lib.OnWritePolicy):
+
+  def get_saveable(self, var, primary_var, name):
+    for v in var.values:
+      v._gather_saveables_for_checkpoint()
+
+    def tensor():
+      return array_ops.zeros((
+          0,
+          primary_var.params.dim,
+      ),
+                             dtype=primary_var.params.value_dtype)  # pylint: disable=protected-access
+
+    spec = saveable_object.SaveSpec(tensor=tensor,
+                                    slice_spec="",
+                                    name=name,
+                                    dtype=primary_var.params.value_dtype,
+                                    device=primary_var.device)
+    return tensor, [spec]
+
+
+class DistributedVariableWrapper(distribute_values_lib.DistributedVariable):
+
+  def __init__(self, strategy, values, aggregation, var_policy=None):
+    super(DistributedVariableWrapper, self).__init__(strategy, values,
+                                                     aggregation, var_policy)
+
+
+class DEResourceVariable(resource_variable_ops.ResourceVariable):
+
+  def __init__(self, *args, **kwargs):
+    super(DEResourceVariable, self).__init__(*args, **kwargs)
 
 
 class TrainableWrapper(resource_variable_ops.ResourceVariable):
@@ -94,7 +130,7 @@ class TrainableWrapper(resource_variable_ops.ResourceVariable):
     self.model_mode = kwargs.get("model_mode")
     kwargs.pop("model_mode")
     self._tracked_slots = []
-    self._optimizer_vars = data_structures.ListWrapper([])
+    self._optimizer_vars = data_structures.NoDependency([])
     super(TrainableWrapper, self).__init__(*args, **kwargs)
 
   def prefetch_values(self, update=False):
@@ -596,11 +632,36 @@ def embedding_lookup(
           return shadow
 
       with ops.colocate_with(ids, ignore_existing=True):
-        trainable_ = _create_or_get_trainable(name)
+        if distribute_ctx.has_strategy():
+          trainable_ = _distribute_trainable_store.get(name, None)
+          if trainable_ is None:
+            strategy_devices = distribute_ctx.get_strategy(
+            ).extended.worker_devices
+            trainable_impl = tf_utils.ListWrapper([])
+            for i, strategy_device in enumerate(strategy_devices):
+              with ops.device(strategy_device):
+                name_replica = name
+                if i > 0:
+                  name_replica = "%s/replica_%d" % (name, i)
+                with context.device_policy(context.DEVICE_PLACEMENT_SILENT):
+                  with tape.stop_recording():
+                    trainable_impl.as_list().append(
+                        _create_or_get_trainable(name_replica))
+            trainable_ = DistributedVariableWrapper(
+                distribute_ctx.get_strategy(), trainable_impl.as_list(),
+                VariableAggregation.NONE,
+                TrainableWrapperDistributedPolicy(VariableAggregation.NONE))
+            params._distribute_trainable_store[name] = trainable_
+        else:
+          trainable_ = _create_or_get_trainable(name)
 
-      if isinstance(trainable_, de.shadow_ops.ShadowVariable):
+      if distribute_utils.is_distributed_variable(trainable_):
+        trainable_device = trainable_._get_on_device_or_primary()
+      else:
+        trainable_device = trainable_
+      if isinstance(trainable_device, de.shadow_ops.ShadowVariable):
         embeddings = de.shadow_ops.embedding_lookup(
-            trainable_,
+            trainable_device,
             ids,
             partition_strategy=partition_strategy,
             name=name,
@@ -615,7 +676,7 @@ def embedding_lookup(
           return embeddings, trainable_
         return embeddings
 
-    embeddings = array_ops.identity(trainable_)
+    embeddings = trainable_
     embeddings = array_ops.reshape(embeddings, shape=embeddings_shape)
 
   return (embeddings, trainable_) if return_trainable else embeddings
@@ -819,13 +880,13 @@ def embedding_lookup_sparse(
       elif combiner == "mean":
         embeddings = math_ops.segment_sum(embeddings, segment_ids)
         weight_sum = math_ops.segment_sum(weights, segment_ids)
-        embeddings = math_ops.div(embeddings, weight_sum, name=name)
+        embeddings = math_ops.divide(embeddings, weight_sum, name=name)
       elif combiner == "sqrtn":
         embeddings = math_ops.segment_sum(embeddings, segment_ids)
         weights_squared = math_ops.pow(weights, 2)
         weight_sum = math_ops.segment_sum(weights_squared, segment_ids)
         weight_sum_sqrt = math_ops.sqrt(weight_sum)
-        embeddings = math_ops.div(embeddings, weight_sum_sqrt, name=name)
+        embeddings = math_ops.divide(embeddings, weight_sum_sqrt, name=name)
       else:
         assert False, "Unrecognized combiner"
     else:
@@ -1049,3 +1110,19 @@ def enable_inference_mode():
   """ set inference mode.
   """
   ModelMode.CURRENT_SETTING = ModelMode.INFERENCE
+
+
+def trainable_wrapper_filter(iterable_object_in,
+                             test_unaggregated_function=None):
+  dense_grads_and_vars_aggregated_out = []
+  sparse_grads_and_vars_unaggregated_out = []
+  if test_unaggregated_function is None:
+    test_unaggregated_function = lambda x: isinstance(
+        x, TrainableWrapper) or isinstance(x, DEResourceVariable)
+  for item in iterable_object_in:
+    if test_unaggregated_function(item):
+      sparse_grads_and_vars_unaggregated_out.append(item)
+    else:
+      dense_grads_and_vars_aggregated_out.append(item)
+  return tuple(dense_grads_and_vars_aggregated_out), tuple(
+      sparse_grads_and_vars_unaggregated_out)

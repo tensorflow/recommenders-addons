@@ -14,9 +14,6 @@
 # ==============================================================================
 """math operations."""
 # pylint: disable=g-bad-name
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
 
 import functools
 import numpy as np
@@ -97,8 +94,9 @@ def sparse_segment_sum(data,
                                        name=name,
                                        num_segments=num_segments)
       except errors.NotFoundError:
-        tf_logging.warn('`tfra.dynamic_embedding.sparse_segment_sum` is not'
-                        ' found. Use tf.sparse.segment_sum instead.')
+        tf_logging.warn(
+            '`tfra.dynamic_embedding.math.sparse_segment_sum` is not'
+            ' found. Use tf.sparse.segment_sum instead.')
         return tf.sparse.segment_sum(data,
                                      indices,
                                      segment_ids,
@@ -145,7 +143,7 @@ def _sparse_segment_sum_gpu(data,
                             name=None,
                             num_segments=None):
   if not hasattr(tfra_math_ops, 'tfra_sparse_segment_sum'):
-    tf_logging.warn('`tfra.dynamic_embedding.sparse_segment_sum` is not'
+    tf_logging.warn('`tfra.dynamic_embedding.math.sparse_segment_sum` is not'
                     ' found. Use tf.sparse.segment_sum instead.')
     return tf.sparse.segment_sum(data,
                                  indices,
@@ -193,8 +191,9 @@ def sparse_fill_empty_rows(sp_input, default_value, name=None):
       try:
         return _sparse_fill_empty_rows_gpu(sp_input, default_value, name=name)
       except errors.NotFoundError:
-        tf_logging.warn('`tfra.dynamic_embedding.sparse_fill_empty_rows` is not'
-                        ' found. Use tf.sparse.fill_empty_rows instead.')
+        tf_logging.warn(
+            '`tfra.dynamic_embedding.math.sparse_fill_empty_rows` is not'
+            ' found. Use tf.sparse.fill_empty_rows instead.')
         return tf.sparse.fill_empty_rows(sp_input, default_value, name=name)
 
     else:
@@ -221,8 +220,9 @@ def sparse_fill_empty_rows(sp_input, default_value, name=None):
 
 def _sparse_fill_empty_rows_gpu(sp_input, default_value, name=None):
   if not hasattr(tfra_math_ops, 'tfra_sparse_fill_empty_rows'):
-    tf_logging.warn('`tfra.dynamic_embedding.sparse_fill_empty_rows` is not'
-                    ' found. Use tf.sparse.fill_empty_rows instead.')
+    tf_logging.warn(
+        '`tfra.dynamic_embedding.math.sparse_fill_empty_rows` is not'
+        ' found. Use tf.sparse.fill_empty_rows instead.')
     return tf.sparse.fill_empty_rows(sp_input, default_value, name=name)
 
   sp_input = _convert_to_sparse_tensor(sp_input)
@@ -262,15 +262,19 @@ def sparse_reshape(sp_input, shape, name=None):
   gpu_devices = config.list_physical_devices('GPU')
   if gpu_devices:
     if context.executing_eagerly():
-      try:
-        return _sparse_reshape_gpu(sp_input, shape, name=name)
-      except errors.NotFoundError:
-        tf_logging.warn('`tfra.dynamic_embedding.sparse_reshape` is not'
-                        ' found. Use tf.sparse.reshape instead.')
-        return tf.sparse.reshape(sp_input, shape, name=name)
+      # TODO(MofHeka):tfra_sparse_reshape op cause core dump when import horovod with GPU.
+      # try:
+      #   return _sparse_reshape_gpu(sp_input, shape, name=name)
+      # except errors.NotFoundError:
+      #   tf_logging.warn('`tfra.dynamic_embedding.math.sparse_reshape` is not'
+      #                   ' found. Use tf.sparse.reshape instead.')
+      #   return tf.sparse.reshape(sp_input, shape, name=name)
+      return tf.sparse.reshape(sp_input, shape, name=name)
 
     else:
-      predef = _sparse_reshape_gpu(sp_input, shape, name=name)
+      # TODO(MofHeka):tfra_sparse_reshape op cause core dump when import horovod with GPU.
+      # predef = _sparse_reshape_gpu(sp_input, shape, name=name)
+      predef = tf.sparse.reshape(sp_input, shape, name=name)
 
       use_origin = False
       if predef.values.device == '':
@@ -293,7 +297,7 @@ def sparse_reshape(sp_input, shape, name=None):
 
 def _sparse_reshape_gpu(sp_input, shape, name=None):
   if not hasattr(tfra_math_ops, 'tfra_sparse_reshape'):
-    tf_logging.warn('`tfra.dynamic_embedding.sparse_reshape` is not'
+    tf_logging.warn('`tfra.dynamic_embedding.math.sparse_reshape` is not'
                     ' found. Use tf.sparse.reshape instead.')
     return tf.sparse.reshape(sp_input, shape, name=name)
 
