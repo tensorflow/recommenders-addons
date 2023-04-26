@@ -14,9 +14,6 @@
 
 # lint-as: python3
 """patch on tensorflow"""
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
 
 from tensorflow_recommenders_addons import dynamic_embedding as de
 from tensorflow_recommenders_addons import embedding_variable as ev

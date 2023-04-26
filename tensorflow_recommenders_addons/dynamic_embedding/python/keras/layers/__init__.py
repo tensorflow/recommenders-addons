@@ -3,3 +3,4 @@ from tensorflow_recommenders_addons.dynamic_embedding.python.keras.layers.embedd
 from tensorflow_recommenders_addons.dynamic_embedding.python.keras.layers.embedding import BasicEmbedding
 from tensorflow_recommenders_addons.dynamic_embedding.python.keras.layers.embedding import FieldWiseEmbedding
 from tensorflow_recommenders_addons.dynamic_embedding.python.keras.layers.embedding import SquashedEmbedding
+from tensorflow_recommenders_addons.dynamic_embedding.python.keras.layers.embedding import HvdAllToAllEmbedding

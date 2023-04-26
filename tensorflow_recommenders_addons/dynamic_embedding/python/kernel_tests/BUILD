@@ -51,6 +51,16 @@ py_test(
 )
 
 py_test(
+    name = "shadow_embedding_ops_test",
+    srcs = ["shadow_embedding_ops_test.py"],
+    python_version = "PY3",
+    srcs_version = "PY3",
+    deps = [
+        "//tensorflow_recommenders_addons",
+    ],
+)
+
+py_test(
     name = "cuckoo_hashtable_ops_test",
     srcs = ["cuckoo_hashtable_ops_test.py"],
     python_version = "PY3",
@@ -59,6 +69,17 @@ py_test(
         "//tensorflow_recommenders_addons",
     ],
 )
+
+# This test will be banned by GitHub and cause account violations, please run the test manually locally.
+# py_test(
+#     name = "redis_table_variable_test",
+#     srcs = ["redis_table_variable_test.py"],
+#     python_version = "PY3",
+#     srcs_version = "PY3",
+#     deps = [
+#         "//tensorflow_recommenders_addons",
+#     ],
+# )
 
 py_test(
     name = "math_ops_test",
@@ -80,12 +101,22 @@ py_test(
     ],
 )
 
-# py_test(
-#     name = "redis_table_variable_test",
-#     srcs = ["redis_table_variable_test.py"],
-#     python_version = "PY3",
-#     srcs_version = "PY3",
-#     deps = [
-#         "//tensorflow_recommenders_addons",
-#     ],
-# )
+py_test(
+    name = "dynamic_partition_op_test",
+    srcs = ["dynamic_partition_op_test.py"],
+    python_version = "PY3",
+    srcs_version = "PY3",
+    deps = [
+        "//tensorflow_recommenders_addons",
+    ],
+)
+
+py_test(
+    name = "dynamic_stitch_op_test",
+    srcs = ["dynamic_stitch_op_test.py"],
+    python_version = "PY3",
+    srcs_version = "PY3",
+    deps = [
+        "//tensorflow_recommenders_addons",
+    ],
+)
