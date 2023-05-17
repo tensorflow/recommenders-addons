@@ -175,7 +175,7 @@ class _DynamicEmbeddingSaver(saver.Saver):
   def _get_dynamic_embedding_save_ops(self):
     save_ops = tf_utils.ListWrapper([])
     if not self._var_list:
-        return save_ops
+      return control_flow_ops.group(save_ops.as_list())
 
     for var in self._var_list:
       de_var = None
@@ -202,7 +202,7 @@ class _DynamicEmbeddingSaver(saver.Saver):
   def _get_dynamic_embedding_restore_ops(self):
     restore_ops = tf_utils.ListWrapper([])
     if not self._var_list:
-      return restore_ops
+      return control_flow_ops.group(restore_ops.as_list())
 
     for var in self._var_list:
       de_var = None
