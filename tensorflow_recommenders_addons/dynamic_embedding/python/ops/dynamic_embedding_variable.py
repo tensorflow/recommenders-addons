@@ -195,7 +195,7 @@ def _insert_de_shard_from_file_system(
   Returns:
     traverse_files_result: A tensor from loop result, return False if success.
   """
-  control_flow_ops.Assert(
+  check_size_op = control_flow_ops.Assert(
       math_ops.equal(array_ops.size(shard_keys_file_list),
                      array_ops.size(shard_values_file_list)),
       [
@@ -228,6 +228,7 @@ def _insert_de_shard_from_file_system(
                                                         drop_remainder=False)
 
   iterator_init_list = tf_utils.ListWrapper([])
+  iterator_init_list.as_list().append(check_size_op)
   if context.executing_eagerly():
     keys_tensor_iterator = iter(_keys_tensor_dataset)
     values_tensor_iterator = iter(_values_tensor_dataset)

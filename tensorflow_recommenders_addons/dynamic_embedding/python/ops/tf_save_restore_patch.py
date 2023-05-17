@@ -172,6 +172,70 @@ class _DynamicEmbeddingSingleDeviceSaver(functional_saver._SingleDeviceSaver):
 
 class _DynamicEmbeddingSaver(saver.Saver):
 
+  def _get_dynamic_embedding_save_ops(self):
+    save_ops = tf_utils.ListWrapper([])
+    if not self._var_list:
+        return save_ops
+
+    for var in self._var_list:
+      de_var = None
+      if isinstance(var, (de.FileSystemSaver._DynamicEmbeddingShardFileSystemSaveable,
+                          de.FileSystemSaver._DynamicEmbeddingVariabelFileSystemSaveable)):
+        de_var = var._de_variable
+      elif isinstance(var, de.Variable) and var._saveable_object_creator:
+        de_var = var
+
+      if de_var and isinstance(de_var._saveable_object_creator, de.FileSystemSaver):
+        if de_var._saveable_object_creator.config.save_path:
+          de_variable_folder_dir = de_var._saveable_object_creator.config.save_path
+        else:
+          de_variable_folder_dir = self._de_var_fs_save_dir
+
+        save_op = de_var.save_to_file_system(
+          dirpath=de_variable_folder_dir,
+          proc_size=de_var._saveable_object_creator.config.proc_size,
+          proc_rank=de_var._saveable_object_creator.config.proc_rank,
+          buffer_size=de_var._saveable_object_creator.config.buffer_size)
+        save_ops.as_list().append(save_op)
+    return control_flow_ops.group(save_ops.as_list())
+
+  def _get_dynamic_embedding_restore_ops(self):
+    restore_ops = tf_utils.ListWrapper([])
+    if not self._var_list:
+      return restore_ops
+
+    for var in self._var_list:
+      de_var = None
+      if isinstance(var, (de.FileSystemSaver._DynamicEmbeddingShardFileSystemSaveable,
+                          de.FileSystemSaver._DynamicEmbeddingVariabelFileSystemSaveable)):
+        de_var = var._de_variable
+      elif isinstance(var, de.Variable) and var._saveable_object_creator:
+        de_var = var
+
+      if de_var and isinstance(de_var._saveable_object_creator, de.FileSystemSaver):
+        if de_var._saveable_object_creator.config.save_path:
+          de_variable_folder_dir = de_var._saveable_object_creator.config.save_path
+        else:
+          de_variable_folder_dir = self._de_var_fs_save_dir
+
+        restore_op = de_var.load_from_file_system_with_restore_function(
+          dirpath=de_variable_folder_dir,
+          proc_size=de_var._saveable_object_creator.config.proc_size,
+          proc_rank=de_var._saveable_object_creator.config.proc_rank,
+          buffer_size=de_var._saveable_object_creator.config.buffer_size)
+        restore_ops.as_list().append(restore_op)
+    return control_flow_ops.group(restore_ops.as_list())
+
+  def _build(self, checkpoint_path, build_save, build_restore):
+    super(_DynamicEmbeddingSaver, self)._build(
+      checkpoint_path, build_save, build_restore)
+
+    with ops.name_scope("FileSystemSaver", "save_to_file_system", []) as name:
+      self._de_var_fs_save_dir = array_ops.placeholder(
+        dtype=dtypes.string, shape=(), name="de_var_file_system_save_dir")
+      self._de_save_ops = self._get_dynamic_embedding_save_ops()
+      self._de_restore_ops = self._get_dynamic_embedding_restore_ops()
+
   def save(self,
            sess,
            save_path,
@@ -271,52 +335,25 @@ class _DynamicEmbeddingSaver(saver.Saver):
 
     save_path_parent = os.path.dirname(save_path)
 
-    def _get_save_ops_list():
-      save_ops = tf_utils.ListWrapper([])
-      if self._var_list:
-        for var in self._var_list:
-          if isinstance(var, de.Variable):
-            if var._saveable_object_creator:
-              if type(
-                  var._saveable_object_creator).__name__ == 'FileSystemSaver':
-                if var._saveable_object_creator.config.save_path:
-                  de_variable_folder_dir = var._saveable_object_creator.config.save_path
-                elif global_step is not None:
-                  de_variable_folder_dir = "TFRADynamicEmbedding-%d" % (
-                      save_path_parent, global_step)
-                  if self._pad_step_number:
-                    # Zero-pads the step numbers, so that they are sorted when listed.
-                    de_variable_folder_dir = "TFRADynamicEmbedding-%s" % (
-                        save_path_parent, "{:08d}".format(global_step))
-                else:
-                  de_variable_folder_dir = os.path.join(save_path_parent,
-                                                        'TFRADynamicEmbedding')
-                proc_size = var._saveable_object_creator.config.proc_size
-                proc_rank = var._saveable_object_creator.config.proc_rank
-                buffer_size = var._saveable_object_creator.config.buffer_size
-                save_ops.as_list().append(
-                    var.save_to_file_system(dirpath=de_variable_folder_dir,
-                                            proc_size=proc_size,
-                                            proc_rank=proc_rank,
-                                            buffer_size=buffer_size))
-      return save_ops
+    if global_step is not None:
+      de_variable_folder_dir = os.path.join(
+        save_path_parent, "TFRADynamicEmbedding-{}".format(global_step))
+      if self._pad_step_number:
+        # Zero-pads the step numbers, so that they are sorted when listed.
+        de_variable_folder_dir = os.path.join(
+          save_path_parent, "TFRADynamicEmbedding-{:08d}".format(global_step))
+    else:
+      de_variable_folder_dir = os.path.join(
+        save_path_parent, "TFRADynamicEmbedding")
 
     if not self._is_empty:
       try:
-        if context.executing_eagerly():
-          self._build_eager(checkpoint_file,
-                            build_save=True,
-                            build_restore=False)
-          model_checkpoint_path = self.saver_def.save_tensor_name
-          save_ops = _get_save_ops_list().as_list()
-        else:
+        if not context.executing_eagerly():
           model_checkpoint_path = sess.run(
               self.saver_def.save_tensor_name,
               {self.saver_def.filename_tensor_name: checkpoint_file})
-          save_ops_list = _get_save_ops_list()
-          if save_ops_list.as_list():
-            for save_op in save_ops_list.as_list():
-              sess.run(save_op)
+          sess.run(self._de_save_ops,
+                   {self._de_var_fs_save_dir: de_variable_folder_dir})
 
         model_checkpoint_path = compat.as_str(model_checkpoint_path)
         if write_state:
@@ -380,45 +417,21 @@ class _DynamicEmbeddingSaver(saver.Saver):
     tf_logging.info("Restoring parameters from %s", checkpoint_prefix)
     save_path_parent = os.path.dirname(save_path)
 
-    def _get_restore_ops_list():
-      restore_ops = tf_utils.ListWrapper([])
-      if self._var_list:
-        for var in self._var_list:
-          if isinstance(var, de.Variable):
-            if var._saveable_object_creator:
-              if type(
-                  var._saveable_object_creator).__name__ == 'FileSystemSaver':
-                maybe_global_step = (os.path.basename(save_path)).split('-')[-1]
-                matched_de_dir = os.path.join(
-                    save_path_parent,
-                    "TFRADynamicEmbedding-" + maybe_global_step)
-                if var._saveable_object_creator.config.save_path:
-                  de_variable_folder_dir = var._saveable_object_creator.config.save_path
-                elif os.path.exists(matched_de_dir):
-                  de_variable_folder_dir = matched_de_dir
-                else:
-                  de_variable_folder_dir = os.path.join(save_path_parent,
-                                                        'TFRADynamicEmbedding')
-                proc_rank = var._saveable_object_creator.config.proc_rank
-                proc_size = var._saveable_object_creator.config.proc_size
-                buffer_size = var._saveable_object_creator.config.buffer_size
-                restore_ops.as_list().append(
-                    var.load_from_file_system_with_restore_function(
-                        de_variable_folder_dir, proc_size, proc_rank,
-                        buffer_size))
-      return restore_ops
+    maybe_global_step = os.path.basename(save_path).split('-')[-1]
+    matched_de_dir = os.path.join(save_path_parent,
+                                  'TFRADynamicEmbedding-' + maybe_global_step)
+    if os.path.exists(matched_de_dir):
+      de_variable_folder_dir = matched_de_dir
+    else:
+      de_variable_folder_dir = os.path.join(save_path_parent,
+                                            'TFRADynamicEmbedding')
 
     try:
-      if context.executing_eagerly():
-        self._build_eager(save_path, build_save=False, build_restore=True)
-        restore_ops = _get_restore_ops_list().as_list()
-      else:
+      if not context.executing_eagerly():
         sess.run(self.saver_def.restore_op_name,
                  {self.saver_def.filename_tensor_name: save_path})
-        restore_ops_list = _get_restore_ops_list()
-        if restore_ops_list.as_list():
-          for restore_op in restore_ops_list.as_list():
-            sess.run(restore_op)
+        sess.run(self._de_restore_ops,
+                 {self._de_var_fs_save_dir: de_variable_folder_dir})
     except errors.NotFoundError as err:
       # There are three common conditions that might cause this error:
       # 0. The file is missing. We ignore here, as this is checked above.
