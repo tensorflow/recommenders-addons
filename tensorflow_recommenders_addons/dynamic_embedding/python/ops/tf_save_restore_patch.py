@@ -179,23 +179,26 @@ class _DynamicEmbeddingSaver(saver.Saver):
 
     for var in self._var_list:
       de_var = None
-      if isinstance(var, (de.FileSystemSaver._DynamicEmbeddingShardFileSystemSaveable,
-                          de.FileSystemSaver._DynamicEmbeddingVariabelFileSystemSaveable)):
+      if isinstance(
+          var,
+          (de.FileSystemSaver._DynamicEmbeddingShardFileSystemSaveable,
+           de.FileSystemSaver._DynamicEmbeddingVariabelFileSystemSaveable)):
         de_var = var._de_variable
       elif isinstance(var, de.Variable) and var._saveable_object_creator:
         de_var = var
 
-      if de_var and isinstance(de_var._saveable_object_creator, de.FileSystemSaver):
+      if de_var and isinstance(de_var._saveable_object_creator,
+                               de.FileSystemSaver):
         if de_var._saveable_object_creator.config.save_path:
           de_variable_folder_dir = de_var._saveable_object_creator.config.save_path
         else:
           de_variable_folder_dir = self._de_var_fs_save_dir
 
         save_op = de_var.save_to_file_system(
-          dirpath=de_variable_folder_dir,
-          proc_size=de_var._saveable_object_creator.config.proc_size,
-          proc_rank=de_var._saveable_object_creator.config.proc_rank,
-          buffer_size=de_var._saveable_object_creator.config.buffer_size)
+            dirpath=de_variable_folder_dir,
+            proc_size=de_var._saveable_object_creator.config.proc_size,
+            proc_rank=de_var._saveable_object_creator.config.proc_rank,
+            buffer_size=de_var._saveable_object_creator.config.buffer_size)
         save_ops.as_list().append(save_op)
     return control_flow_ops.group(save_ops.as_list())
 
@@ -206,33 +209,36 @@ class _DynamicEmbeddingSaver(saver.Saver):
 
     for var in self._var_list:
       de_var = None
-      if isinstance(var, (de.FileSystemSaver._DynamicEmbeddingShardFileSystemSaveable,
-                          de.FileSystemSaver._DynamicEmbeddingVariabelFileSystemSaveable)):
+      if isinstance(
+          var,
+          (de.FileSystemSaver._DynamicEmbeddingShardFileSystemSaveable,
+           de.FileSystemSaver._DynamicEmbeddingVariabelFileSystemSaveable)):
         de_var = var._de_variable
       elif isinstance(var, de.Variable) and var._saveable_object_creator:
         de_var = var
 
-      if de_var and isinstance(de_var._saveable_object_creator, de.FileSystemSaver):
+      if de_var and isinstance(de_var._saveable_object_creator,
+                               de.FileSystemSaver):
         if de_var._saveable_object_creator.config.save_path:
           de_variable_folder_dir = de_var._saveable_object_creator.config.save_path
         else:
           de_variable_folder_dir = self._de_var_fs_save_dir
 
         restore_op = de_var.load_from_file_system_with_restore_function(
-          dirpath=de_variable_folder_dir,
-          proc_size=de_var._saveable_object_creator.config.proc_size,
-          proc_rank=de_var._saveable_object_creator.config.proc_rank,
-          buffer_size=de_var._saveable_object_creator.config.buffer_size)
+            dirpath=de_variable_folder_dir,
+            proc_size=de_var._saveable_object_creator.config.proc_size,
+            proc_rank=de_var._saveable_object_creator.config.proc_rank,
+            buffer_size=de_var._saveable_object_creator.config.buffer_size)
         restore_ops.as_list().append(restore_op)
     return control_flow_ops.group(restore_ops.as_list())
 
   def _build(self, checkpoint_path, build_save, build_restore):
-    super(_DynamicEmbeddingSaver, self)._build(
-      checkpoint_path, build_save, build_restore)
+    super(_DynamicEmbeddingSaver, self)._build(checkpoint_path, build_save,
+                                               build_restore)
 
     with ops.name_scope("FileSystemSaver", "save_to_file_system", []) as name:
       self._de_var_fs_save_dir = array_ops.placeholder(
-        dtype=dtypes.string, shape=(), name="de_var_file_system_save_dir")
+          dtype=dtypes.string, shape=(), name="de_var_file_system_save_dir")
       self._de_save_ops = self._get_dynamic_embedding_save_ops()
       self._de_restore_ops = self._get_dynamic_embedding_restore_ops()
 
@@ -337,14 +343,14 @@ class _DynamicEmbeddingSaver(saver.Saver):
 
     if global_step is not None:
       de_variable_folder_dir = os.path.join(
-        save_path_parent, "TFRADynamicEmbedding-{}".format(global_step))
+          save_path_parent, "TFRADynamicEmbedding-{}".format(global_step))
       if self._pad_step_number:
         # Zero-pads the step numbers, so that they are sorted when listed.
         de_variable_folder_dir = os.path.join(
-          save_path_parent, "TFRADynamicEmbedding-{:08d}".format(global_step))
+            save_path_parent, "TFRADynamicEmbedding-{:08d}".format(global_step))
     else:
-      de_variable_folder_dir = os.path.join(
-        save_path_parent, "TFRADynamicEmbedding")
+      de_variable_folder_dir = os.path.join(save_path_parent,
+                                            "TFRADynamicEmbedding")
 
     if not self._is_empty:
       try:
