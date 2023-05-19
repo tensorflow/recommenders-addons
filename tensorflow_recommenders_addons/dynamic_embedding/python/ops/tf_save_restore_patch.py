@@ -438,7 +438,9 @@ class _DynamicEmbeddingSaver(saver.Saver):
                                             'TFRADynamicEmbedding')
 
     try:
-      if not context.executing_eagerly():
+      if context.executing_eagerly():
+        self._build_eager(save_path, build_save=False, build_restore=True)
+      else:
         sess.run(self.saver_def.restore_op_name,
                  {self.saver_def.filename_tensor_name: save_path})
         sess.run(self._de_restore_ops,
