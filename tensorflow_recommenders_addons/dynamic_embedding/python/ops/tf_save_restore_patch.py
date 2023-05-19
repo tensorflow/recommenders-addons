@@ -354,7 +354,12 @@ class _DynamicEmbeddingSaver(saver.Saver):
 
     if not self._is_empty:
       try:
-        if not context.executing_eagerly():
+        if context.executing_eagerly():
+          self._build_eager(checkpoint_file,
+                            build_save=True,
+                            build_restore=False)
+          model_checkpoint_path = self.saver_def.save_tensor_name
+        else:
           model_checkpoint_path = sess.run(
               self.saver_def.save_tensor_name,
               {self.saver_def.filename_tensor_name: checkpoint_file})
