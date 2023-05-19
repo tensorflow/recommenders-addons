@@ -49,12 +49,14 @@ from tensorflow.python.ops import nn
 from tensorflow.python.ops import random_ops
 from tensorflow.python.ops import resource_variable_ops
 from tensorflow.python.ops import script_ops
+from tensorflow.python.ops import state_ops
 from tensorflow.python.ops import variable_scope
 from tensorflow.python.ops import variables
 from tensorflow.python.platform import test
 from tensorflow.python.training import adam
 from tensorflow.python.training import saver
 from tensorflow.python.training import server_lib
+from tensorflow.python.training import training
 from tensorflow.python.training.tracking import data_structures
 from tensorflow.python.training.tracking import util as track_util
 from tensorflow.python.util import compat
