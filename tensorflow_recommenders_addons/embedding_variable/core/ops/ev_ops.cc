@@ -22,6 +22,14 @@ using ::tensorflow::shape_inference::InferenceContext;
 using ::tensorflow::shape_inference::ShapeAndType;
 using ::tensorflow::shape_inference::ShapeHandle;
 
+/* After TensorFlow version 2.10.0, "Status::OK()" upgraded to "OkStatus()".
+This code is for compatibility.*/
+#if TF_VERSION_INTEGER >= 2100
+#define TFOkStatus OkStatus()
+#else
+#define TFOkStatus Status::OK()
+#endif
+
 namespace tensorflow {
 namespace ev {
 namespace {
@@ -53,7 +61,7 @@ Status ValidateVariableResourceHandle(InferenceContext* c,
           DataTypeString(value_dtype));
     }
   }
-  return Status::OK();
+  return TFOkStatus;
 }
 
 Status CreateAssignShapeFn(InferenceContext* c) {
@@ -64,7 +72,7 @@ Status CreateAssignShapeFn(InferenceContext* c) {
   ShapeHandle unused;
   TF_RETURN_IF_ERROR(
       c->Merge(handle_shape_and_type.shape, value_shape, &unused));
-  return Status::OK();
+  return TFOkStatus;
 }
 
 static Status EVApplyGradientDescentShapeFn(InferenceContext* c) {
@@ -75,7 +83,7 @@ static Status EVApplyGradientDescentShapeFn(InferenceContext* c) {
   TF_RETURN_IF_ERROR(c->WithRank(c->input(3), 1, &indices));
   DimensionHandle unused2;
   TF_RETURN_IF_ERROR(c->Merge(c->Dim(indices, 0), c->Dim(grad, 0), &unused2));
-  return Status::OK();
+  return TFOkStatus;
 }
 
 static Status EVApplyAdagradShapeFn(InferenceContext* c) {
@@ -92,7 +100,7 @@ static Status EVApplyAdagradShapeFn(InferenceContext* c) {
 
   ShapeHandle grad_unknown_first;
   TF_RETURN_IF_ERROR(c->Subshape(grad, 1, &grad_unknown_first));
-  return Status::OK();
+  return TFOkStatus;
 }
 
 static Status EVApplyAdamShapeFn(InferenceContext* c) {
@@ -115,7 +123,7 @@ static Status EVApplyAdamShapeFn(InferenceContext* c) {
 
   ShapeHandle grad_unknown_first;
   TF_RETURN_IF_ERROR(c->Subshape(grad, 1, &grad_unknown_first));
-  return Status::OK();
+  return TFOkStatus;
 }
 
 Status EVShapeShapeFn(InferenceContext* c) {
@@ -124,7 +132,7 @@ Status EVShapeShapeFn(InferenceContext* c) {
     return errors::InvalidArgument("Handle doesn't have shape information.");
   }
   c->set_output(0, (*handle_data)[0].shape);
-  return Status::OK();
+  return TFOkStatus;
 }
 
 }  // namespace
@@ -148,7 +156,7 @@ REGISTER_OP("EVHandleOp")
       c->set_output_handle_shapes_and_types(0,
                                             std::vector<ShapeAndType>{{s, t}});
 
-      return Status::OK();
+      return TFOkStatus;
     })
     .Doc(R"(
 Creates a handle to a Embedding Variable resource.
@@ -212,7 +220,7 @@ REGISTER_OP("EVGather")
       ShapeHandle out;
       TF_RETURN_IF_ERROR(c->Concatenate(indices_shape, params_subshape, &out));
       c->set_output(0, out);
-      return Status::OK();
+      return TFOkStatus;
     })
     .Doc(R"doc(
 )doc");
@@ -287,3 +295,7 @@ REGISTER_OP("EVImport")
 
 }  // namespace ev
 }  // namespace tensorflow
+
+#ifdef TFOkStatus
+#undef TFOkStatus
+#endif

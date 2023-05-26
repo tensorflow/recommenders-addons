@@ -32,6 +32,13 @@ already used TFRA release 1 in product environment, and changing name to
 #define PREFIX_OP_NAME(N) CONCAT_TRIPLE_STRING(Tfr, a, N)
 #endif
 
+/* After TensorFlow version 2.10.0, "Status::OK()" upgraded to "OkStatus()".
+This code is for compatibility.*/
+#if TF_VERSION_INTEGER >= 2100
+#define TFOkStatus OkStatus()
+#else
+#define TFOkStatus Status::OK()
+#endif
 }  // namespace recommenders_addons
 }  // namespace tensorflow
 

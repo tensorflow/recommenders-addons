@@ -127,7 +127,11 @@ def warm_start(ckpt_to_initialize_from,
     else:
       prev_var_name = var_name
 
-    saveables = saveable_object_util.validate_and_slice_inputs([variable])
+    try:
+      saveables = saveable_object_util.validate_and_slice_inputs([variable])
+    except AttributeError:
+      saveables_dict = saveable_object_util.op_list_to_dict([variable])
+      saveables = saveable_object_util.validate_and_slice_inputs(saveables_dict)
     for saveable in saveables:
       restore_specs = []
       for spec in saveable.specs:

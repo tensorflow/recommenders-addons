@@ -74,7 +74,7 @@ _DEFAULT_CUDA_COMPUTE_CAPABILITIES.update(
         "7.5",
         "8.0",
         "8.6",
-    ] for v in range(1, 8)},
+    ] for v in range(0, 8)},
 )
 
 _DEFAULT_CUDA_COMPUTE_CAPABILITIES.update(
@@ -86,7 +86,21 @@ _DEFAULT_CUDA_COMPUTE_CAPABILITIES.update(
         "8.0",
         "8.6",
         "8.9",
+        "9.0",
     ] for v in range(8, 9)},
+)
+
+_DEFAULT_CUDA_COMPUTE_CAPABILITIES.update(
+    {"12.{}".format(v): [
+        "6.0",
+        "6.1",
+        "7.0",
+        "7.5",
+        "8.0",
+        "8.6",
+        "8.9",
+        "9.0",
+    ] for v in range(0, 8)},
 )
 
 def _get_python_bin(repository_ctx):
@@ -562,10 +576,17 @@ def _find_cuda_lib(
         Returns the path to the library.
       """
     file_name = lib_name(lib, cpu_value, version, static)
+    paths = ["%s/%s" % (basedir, file_name)]
+    if version:
+        # In cuda 12.1, the name of libcupti.so is no longer libcupti.so.12.1 but libcupti.so.2023.1.0.
+        # And there is still reserve a libcupti.so.12 link, so we need to find it but not "*.12.1".
+        major_version = version.split(".")[0]
+        file_name_major = lib_name(lib, cpu_value, major_version, static)
+        paths.append("%s/%s" % (basedir, file_name_major))
 
     return find_lib(
         repository_ctx,
-        ["%s/%s" % (basedir, file_name)],
+        paths,
         check_soname = version and not static,
     )
 

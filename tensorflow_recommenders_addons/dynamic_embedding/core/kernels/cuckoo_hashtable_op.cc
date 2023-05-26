@@ -219,7 +219,7 @@ class CuckooHashTableOfTensors final : public LookupInterface {
     LaunchTensorsFind<CPUDevice, K, V> launcher(value_dim);
     launcher.launch(ctx, table_, key, value, default_value);
 
-    return Status::OK();
+    return TFOkStatus;
   }
 
   Status FindWithExists(OpKernelContext* ctx, const Tensor& key, Tensor* value,
@@ -229,7 +229,7 @@ class CuckooHashTableOfTensors final : public LookupInterface {
     LaunchTensorsFindWithExists<CPUDevice, K, V> launcher(value_dim);
     launcher.launch(ctx, table_, key, value, default_value, exists);
 
-    return Status::OK();
+    return TFOkStatus;
   }
 
   Status DoInsert(bool clear, OpKernelContext* ctx, const Tensor& keys,
@@ -243,7 +243,7 @@ class CuckooHashTableOfTensors final : public LookupInterface {
     LaunchTensorsInsert<CPUDevice, K, V> launcher(value_dim);
     launcher.launch(ctx, table_, keys, values);
 
-    return Status::OK();
+    return TFOkStatus;
   }
 
   Status DoAccum(bool clear, OpKernelContext* ctx, const Tensor& keys,
@@ -257,7 +257,7 @@ class CuckooHashTableOfTensors final : public LookupInterface {
     LaunchTensorsAccum<CPUDevice, K, V> launcher(value_dim);
     launcher.launch(ctx, table_, keys, values_or_deltas, exists);
 
-    return Status::OK();
+    return TFOkStatus;
   }
 
   Status Insert(OpKernelContext* ctx, const Tensor& keys,
@@ -272,12 +272,12 @@ class CuckooHashTableOfTensors final : public LookupInterface {
     for (int64 i = 0; i < key_flat.size(); ++i) {
       table_->erase(tensorflow::lookup::SubtleMustCopyIfIntegral(key_flat(i)));
     }
-    return Status::OK();
+    return TFOkStatus;
   }
 
   Status Clear(OpKernelContext* ctx) {
     table_->clear();
-    return Status::OK();
+    return TFOkStatus;
   }
 
   Status Accum(OpKernelContext* ctx, const Tensor& keys,
@@ -304,7 +304,7 @@ class CuckooHashTableOfTensors final : public LookupInterface {
     table_->dump((K*)keys->tensor_data().data(),
                  (V*)values->tensor_data().data(), 0, table_size);
 
-    return Status::OK();
+    return TFOkStatus;
   }
 
   Status SaveToFileSystemImpl(FileSystem* fs, const size_t value_dim,
@@ -319,7 +319,7 @@ class CuckooHashTableOfTensors final : public LookupInterface {
     bool has_atomic_move = false;
     auto has_atomic_move_ret = fs->HasAtomicMove(filepath, &has_atomic_move);
     bool need_tmp_file =
-        (has_atomic_move == false) || (has_atomic_move_ret != Status::OK());
+        (has_atomic_move == false) || (has_atomic_move_ret != TFOkStatus);
     if (!need_tmp_file) {
       key_tmpfilepath = key_filepath;
       value_tmpfilepath = value_filepath;
@@ -387,7 +387,7 @@ class CuckooHashTableOfTensors final : public LookupInterface {
       TF_RETURN_IF_ERROR(fs->RenameFile(value_tmpfilepath, value_filepath));
     }
 
-    return Status::OK();
+    return TFOkStatus;
   }
 
   Status SaveToFileSystem(OpKernelContext* ctx, const string& dirpath,
@@ -461,7 +461,7 @@ class CuckooHashTableOfTensors final : public LookupInterface {
     LOG(INFO) << "Finish loading " << key_size << " keys and values from "
               << key_filepath << " and " << value_filepath << " in total.";
 
-    return Status::OK();
+    return TFOkStatus;
   }
 
   Status LoadFromFileSystem(OpKernelContext* ctx, const string& dirpath,
@@ -500,7 +500,7 @@ class CuckooHashTableOfTensors final : public LookupInterface {
       string filepath = io::JoinPath(dirpath, file_name);
       return LoadFromFileSystemImpl(fs, value_dim, filepath, buffer_size);
     }
-    return Status::OK();
+    return TFOkStatus;
   }
 
   DataType key_dtype() const override { return DataTypeToEnum<K>::v(); }
@@ -557,7 +557,7 @@ class HashTableOpKernel : public OpKernel {
       *container = h(0);
       *table_handle = h(1);
     }
-    return Status::OK();
+    return TFOkStatus;
   }
 
   Status GetResourceHashTable(StringPiece input_name, OpKernelContext* ctx,

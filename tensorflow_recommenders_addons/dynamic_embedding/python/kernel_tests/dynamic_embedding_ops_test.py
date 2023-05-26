@@ -441,7 +441,7 @@ class EmbeddingLookupTest(test.TestCase):
             params_nn = variable_scope.get_variable("n",
                                                     shape=[100, dim],
                                                     use_resource=False)
-            ids = script_ops.py_func(
+            ids = script_ops.py_func_common(
                 _create_dynamic_shape_tensor(min_val=0, max_val=100),
                 inp=[],
                 Tout=dtypes.int64,

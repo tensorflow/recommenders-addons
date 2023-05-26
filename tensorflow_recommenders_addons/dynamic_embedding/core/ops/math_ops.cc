@@ -49,7 +49,7 @@ Status SparseSegmentReductionShapeFn(InferenceContext* c) {
   TF_RETURN_IF_ERROR(
       c->Concatenate(c->Vector(InferenceContext::kUnknownDim), subshape, &out));
   c->set_output(0, out);
-  return Status::OK();
+  return TFOkStatus;
 }
 
 Status SparseSegmentReductionWithNumSegmentsShapeFn(InferenceContext* c) {
@@ -88,7 +88,7 @@ Status SparseSegmentReductionWithNumSegmentsShapeFn(InferenceContext* c) {
     TF_RETURN_IF_ERROR(c->Concatenate(c->Vector(dim0_value), subshape, &out));
   }
   c->set_output(0, out);
-  return Status::OK();
+  return TFOkStatus;
 }
 }  // namespace
 
@@ -153,7 +153,7 @@ REGISTER_OP("TfraSparseFillEmptyRows")
       c->set_output(1, output_values);
       c->set_output(2, empty_row_indicator);
       c->set_output(3, reverse_index_map);
-      return Status::OK();
+      return TFOkStatus;
     });
 
 REGISTER_OP("TfraSparseReshape")
@@ -173,7 +173,7 @@ REGISTER_OP("TfraSparseReshape")
 
       c->set_output(0, c->Matrix(c->Dim(indices, 0), c->Dim(new_shape, 0)));
       c->set_output(1, new_shape);
-      return Status::OK();
+      return TFOkStatus;
     });
 #endif  // GOOGLE_CUDA
 

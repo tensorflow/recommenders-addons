@@ -219,6 +219,18 @@ def create_build_configuration():
   write_action_env("TF_SHARED_LIBRARY_DIR", get_tf_shared_lib_dir())
   write_action_env("TF_SHARED_LIBRARY_NAME", get_shared_lib_name())
   write_action_env("TF_CXX11_ABI_FLAG", tf.sysconfig.CXX11_ABI_FLAG)
+  tf_cxx_standard_compile_flags = [
+      flag for flag in tf.sysconfig.get_compile_flags() if "-std=" in flag
+  ]
+  if len(tf_cxx_standard_compile_flags) > 0:
+    tf_cxx_standard_compile_flag = tf_cxx_standard_compile_flags[-1]
+  else:
+    tf_cxx_standard_compile_flag = None
+  if tf_cxx_standard_compile_flag is None:
+    tf_cxx_standard = "c++14"
+  else:
+    tf_cxx_standard = tf_cxx_standard_compile_flag.split("-std=")[-1]
+  write_action_env("TF_CXX_STANDARD", tf_cxx_standard)
 
   tf_version_integer = get_tf_version_integer()
   # This is used to trace the difference between Tensorflow versions.

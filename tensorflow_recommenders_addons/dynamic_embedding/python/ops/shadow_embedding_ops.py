@@ -50,7 +50,10 @@ from tensorflow.python.ops import array_ops
 from tensorflow.python.ops import control_flow_ops
 from tensorflow.python.ops import gen_resource_variable_ops
 from tensorflow.python.ops import resource_variable_ops
-from tensorflow.python.training.tracking import base as trackable
+try:  # tf version >= 2.10.0
+  from tensorflow.python.trackable import base as trackable
+except:
+  from tensorflow.python.training.tracking import base as trackable
 
 
 class ShadowVariable(de.TrainableWrapper):

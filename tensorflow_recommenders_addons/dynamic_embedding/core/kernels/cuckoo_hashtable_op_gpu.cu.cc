@@ -35,7 +35,11 @@ limitations under the License.
 #include "tensorflow/core/platform/logging.h"
 #include "tensorflow/core/platform/path.h"
 #include "tensorflow/core/util/env_var.h"
+#if TF_VERSION_INTEGER >= 2110  // 2.11.0
+#include "tensorflow/compiler/xla/stream_executor/stream.h"
+#else
 #include "tensorflow/stream_executor/stream.h"
+#endif
 
 namespace tensorflow {
 namespace recommenders_addons {
@@ -150,7 +154,7 @@ class CuckooHashTableOfTensorsGpu final : public LookupInterface {
       }
       CUDA_CHECK(cudaFree(d_status));
     }
-    return Status::OK();
+    return TFOkStatus;
   }
 
   Status FindWithExists(OpKernelContext* ctx, const Tensor& d_keys,
@@ -179,7 +183,7 @@ class CuckooHashTableOfTensorsGpu final : public LookupInterface {
         CUDA_CHECK(cudaStreamSynchronize(_stream));
       }
     }
-    return Status::OK();
+    return TFOkStatus;
   }
 
   void RehashIfNeeded(cudaStream_t stream, const size_t num_keys = 0) {
@@ -201,7 +205,7 @@ class CuckooHashTableOfTensorsGpu final : public LookupInterface {
       CUDA_CHECK(cudaStreamSynchronize(_stream));
     };
 
-    return Status::OK();
+    return TFOkStatus;
   }
 
   Status Accum(OpKernelContext* ctx, const Tensor& keys,
@@ -219,7 +223,7 @@ class CuckooHashTableOfTensorsGpu final : public LookupInterface {
       CUDA_CHECK(cudaStreamSynchronize(_stream));
     };
 
-    return Status::OK();
+    return TFOkStatus;
   }
 
   Status Remove(OpKernelContext* ctx, const Tensor& keys) override {
@@ -248,7 +252,7 @@ class CuckooHashTableOfTensorsGpu final : public LookupInterface {
         CUDA_CHECK(cudaFree(d_keys));
       }
     }
-    return Status::OK();
+    return TFOkStatus;
   }
 
   Status Clear(OpKernelContext* ctx) {
@@ -259,7 +263,7 @@ class CuckooHashTableOfTensorsGpu final : public LookupInterface {
       RehashIfNeeded(_stream);
       CUDA_CHECK(cudaStreamSynchronize(_stream));
     }
-    return Status::OK();
+    return TFOkStatus;
   }
 
   Status ImportValues(OpKernelContext* ctx, const Tensor& keys,
@@ -307,7 +311,7 @@ class CuckooHashTableOfTensorsGpu final : public LookupInterface {
         CUDA_CHECK(cudaFree(d_values));
       }
     }
-    return Status::OK();
+    return TFOkStatus;
   }
 
   Status ExportValues(OpKernelContext* ctx) override {
@@ -348,7 +352,7 @@ class CuckooHashTableOfTensorsGpu final : public LookupInterface {
       CUDA_CHECK(cudaStreamSynchronize(_stream));
     }
     CUDA_CHECK(cudaFree(d_dump_counter));
-    return Status::OK();
+    return TFOkStatus;
   }
 
 // For propagating errors when calling a function.
@@ -373,7 +377,7 @@ class CuckooHashTableOfTensorsGpu final : public LookupInterface {
     bool has_atomic_move = false;
     auto has_atomic_move_ret = fs->HasAtomicMove(filepath, &has_atomic_move);
     bool need_tmp_file =
-        (has_atomic_move == false) || (has_atomic_move_ret != Status::OK());
+        (has_atomic_move == false) || (has_atomic_move_ret != TFOkStatus);
     if (!need_tmp_file) {
       key_tmpfilepath = key_filepath;
       value_tmpfilepath = value_filepath;
@@ -471,7 +475,7 @@ class CuckooHashTableOfTensorsGpu final : public LookupInterface {
       TF_RETURN_IF_ERROR(fs->RenameFile(value_tmpfilepath, value_filepath));
     }
 
-    return Status::OK();
+    return TFOkStatus;
   }
 
   Status SaveToFileSystem(OpKernelContext* ctx, const string& dirpath,
@@ -586,7 +590,7 @@ class CuckooHashTableOfTensorsGpu final : public LookupInterface {
     LOG(INFO) << "Finish loading " << key_size << " keys and values from "
               << key_filepath << " and " << value_filepath << " in total.";
 
-    return Status::OK();
+    return TFOkStatus;
   }
 
   Status LoadFromFileSystem(OpKernelContext* ctx, const string& dirpath,
@@ -599,7 +603,7 @@ class CuckooHashTableOfTensorsGpu final : public LookupInterface {
                                     "imported tensorflow_io before using "
                                     "TFRA file system operation.");
     const size_t value_dim = static_cast<size_t>(value_shape_.dim_size(0));
-    auto statu = Status::OK();
+    auto statu = TFOkStatus;
     auto& _stream = cuda_steams[10];
     if (load_entire_dir) {
       string separator = "_mht_";
@@ -622,7 +626,7 @@ class CuckooHashTableOfTensorsGpu final : public LookupInterface {
       mutex_lock l(mu_);
       for (auto fp : all_filepath) {
         statu = LoadFromFileSystemImpl(fs, value_dim, fp, buffer_size, _stream);
-        if (statu != Status::OK()) {
+        if (statu != TFOkStatus) {
           return statu;
         }
       }
