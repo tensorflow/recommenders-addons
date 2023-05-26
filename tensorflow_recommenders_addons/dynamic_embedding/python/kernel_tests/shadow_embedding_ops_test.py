@@ -455,10 +455,15 @@ class ShadowVariableBasicBehaviorTest(test.TestCase):
     self.assertAllClose(values, dense_params)
 
     sparse_slot_params = sparse_params.get_slot_variables(sparse_optimizer)
-    dense_slot_params = [
-        dense_optimizer.get_slot(dense_params, name)
-        for name in dense_optimizer.get_slot_names()
-    ]
+    if hasattr(dense_optimizer, 'get_slot_names'):
+      dense_slot_params = [
+          dense_optimizer.get_slot(dense_params, name)
+          for name in dense_optimizer.get_slot_names()
+      ]
+    else:
+      dense_slot_params = [
+          s for s in dense_optimizer._variables if 'iteration' not in s.name
+      ]
 
     for i in range(len(sparse_slot_params)):
       sparse_values = sparse_slot_params[i].lookup(ids)
@@ -505,10 +510,15 @@ class ShadowVariableBasicBehaviorTest(test.TestCase):
     self.assertAllClose(values, dense_params, rtol, atol)
 
     sparse_slot_params = sparse_params.get_slot_variables(sparse_optimizer)
-    dense_slot_params = [
-        dense_optimizer.get_slot(dense_params, name)
-        for name in dense_optimizer.get_slot_names()
-    ]
+    if hasattr(dense_optimizer, 'get_slot_names'):
+      dense_slot_params = [
+          dense_optimizer.get_slot(dense_params, name)
+          for name in dense_optimizer.get_slot_names()
+      ]
+    else:
+      dense_slot_params = [
+          s for s in dense_optimizer._variables if 'iteration' not in s.name
+      ]
 
     for i in range(len(sparse_slot_params)):
       sparse_values = sparse_slot_params[i].lookup(ids)

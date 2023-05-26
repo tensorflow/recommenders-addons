@@ -192,7 +192,7 @@ class RedisWrapper<
         }
         if (redis_conn_read != nullptr && redis_conn_write != nullptr) {
           this->isRedisConnect = true;
-          return Status::OK();
+          return TFOkStatus;
         }
       }
       if (this->isRedisConnect == false) {
@@ -205,7 +205,7 @@ class RedisWrapper<
         return Status(error::UNAVAILABLE, "Exit without any Redis connection.");
       }
     }
-    return Status::OK();
+    return TFOkStatus;
   }
 
   static std::shared_ptr<RedisWrapper<RedisInstance, K, V>> get_instance(
@@ -351,7 +351,7 @@ class RedisWrapper<
                  << keys_prefix_name_slice << " -- " << err.what();
       return errors::Unknown(err.what());
     }
-    return Status::OK();
+    return TFOkStatus;
   }
 
   virtual std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>
@@ -453,7 +453,7 @@ class RedisWrapper<
         }
       }
     }
-    return Status::OK();
+    return TFOkStatus;
   }
 
   virtual Status SetPersistBuckets(
@@ -478,7 +478,7 @@ class RedisWrapper<
       }
     }
 
-    return Status::OK();
+    return TFOkStatus;
   }
 
   /*
@@ -488,7 +488,7 @@ class RedisWrapper<
       const std::vector<std::string> &keys_prefix_name_slices,
       std::vector<aiocb> &wrs, const std::vector<int> &fds) override {
     if (fds.size() == 0) {
-      return Status::OK();
+      return TFOkStatus;
       ;
     }
 
@@ -551,7 +551,7 @@ class RedisWrapper<
       }
     }
 
-    return Status::OK();
+    return TFOkStatus;
   }
 
   virtual Status RestoreFromDisk(
@@ -559,7 +559,7 @@ class RedisWrapper<
       std::vector<aiocb> &rds, const std::vector<int> &fds,
       const std::vector<unsigned long> &buf_sizes) override {
     if (fds.size() == 0) {
-      Status::OK();
+      return TFOkStatus;
     }
 
     // std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply;
@@ -697,7 +697,7 @@ class RedisWrapper<
     }
 
     return no_errors
-               ? Status::OK()
+               ? TFOkStatus
                : errors::Unknown("Unknown errors happen in file handles.");
   }
 
@@ -790,7 +790,7 @@ class RedisWrapper<
       error_ptr = nullptr;
       return errors::Unknown(err.what());
     }
-    return Status::OK();
+    return TFOkStatus;
   }
 
  public:
@@ -936,7 +936,7 @@ every bucket has its own BucketContext for sending data---for locating reply-
       }
     }
 
-    return Status::OK();
+    return TFOkStatus;
   }
 
   virtual Status MgetToTensorWithExist(
@@ -984,7 +984,7 @@ every bucket has its own BucketContext for sending data---for locating reply-
       }
     }
 
-    return Status::OK();
+    return TFOkStatus;
   }
 
   virtual Status MsetCommand(
@@ -1058,7 +1058,7 @@ every bucket has its own BucketContext for sending data---for locating reply-
       return errors::Unknown(err.what());
     }
 
-    return Status::OK();
+    return TFOkStatus;
   }
 
   virtual Status MaccumCommand(
@@ -1141,7 +1141,7 @@ every bucket has its own BucketContext for sending data---for locating reply-
       return errors::Unknown(err.what());
     }
 
-    return Status::OK();
+    return TFOkStatus;
   }
 
   virtual Status DelCommand(
@@ -1199,7 +1199,7 @@ every bucket has its own BucketContext for sending data---for locating reply-
       return errors::Unknown(err.what());
     }
 
-    return Status::OK();
+    return TFOkStatus;
   }
 };  // namespace redis_connection
 

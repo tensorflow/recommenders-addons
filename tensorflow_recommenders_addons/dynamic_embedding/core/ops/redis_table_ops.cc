@@ -39,7 +39,7 @@ Status ScalarAndTwoElementVectorInputsAndScalarOutputs(InferenceContext *c) {
   for (int i = 0; i < c->num_outputs(); ++i) {
     c->set_output(i, c->Scalar());
   }
-  return Status::OK();
+  return TFOkStatus;
 }
 
 }  // namespace
@@ -109,7 +109,7 @@ Status ValidateTableResourceHandle(InferenceContext *c, ShapeHandle keys,
                                         &output_shape_and_type->shape));
     }
   }
-  return Status::OK();
+  return TFOkStatus;
 }
 
 REGISTER_OP(PREFIX_OP_NAME(RedisTableFind))
@@ -132,7 +132,7 @@ REGISTER_OP(PREFIX_OP_NAME(RedisTableFind))
           /*is_lookup=*/true, &value_shape_and_type));
       c->set_output(0, value_shape_and_type.shape);
 
-      return Status::OK();
+      return TFOkStatus;
     });
 
 REGISTER_OP(PREFIX_OP_NAME(RedisTableFindWithExists))
@@ -158,7 +158,7 @@ REGISTER_OP(PREFIX_OP_NAME(RedisTableFindWithExists))
       c->set_output(0, value_shape_and_type.shape);
       c->set_output(1, keys);
 
-      return Status::OK();
+      return TFOkStatus;
     });
 
 REGISTER_OP(PREFIX_OP_NAME(RedisTableInsert))
@@ -172,7 +172,7 @@ REGISTER_OP(PREFIX_OP_NAME(RedisTableInsert))
       TF_RETURN_IF_ERROR(c->WithRank(c->input(0), 0, &handle));
 
       // TODO: Validate keys and values shape.
-      return Status::OK();
+      return TFOkStatus;
     });
 
 REGISTER_OP(PREFIX_OP_NAME(RedisTableAccum))
@@ -187,7 +187,7 @@ REGISTER_OP(PREFIX_OP_NAME(RedisTableAccum))
       TF_RETURN_IF_ERROR(c->WithRank(c->input(0), 0, &handle));
 
       // TODO: Validate keys and values shape.
-      return Status::OK();
+      return TFOkStatus;
     });
 
 REGISTER_OP(PREFIX_OP_NAME(RedisTableRemove))
@@ -200,7 +200,7 @@ REGISTER_OP(PREFIX_OP_NAME(RedisTableRemove))
       TF_RETURN_IF_ERROR(c->WithRankAtLeast(c->input(1), 1, &handle));
 
       // TODO(turboale): Validate keys shape.
-      return Status::OK();
+      return TFOkStatus;
     });
 
 REGISTER_OP(PREFIX_OP_NAME(RedisTableClear))
@@ -232,7 +232,7 @@ REGISTER_OP(PREFIX_OP_NAME(RedisTableExport))
           /*is_lookup=*/false, &value_shape_and_type));
       c->set_output(0, keys);
       c->set_output(1, value_shape_and_type.shape);
-      return Status::OK();
+      return TFOkStatus;
     });
 
 REGISTER_OP(PREFIX_OP_NAME(RedisTableSaveToFileSystem))
@@ -258,7 +258,7 @@ REGISTER_OP(PREFIX_OP_NAME(RedisTableImport))
       ShapeHandle keys;
       TF_RETURN_IF_ERROR(c->WithRank(c->input(1), 1, &keys));
       TF_RETURN_IF_ERROR(c->Merge(keys, c->input(2), &keys));
-      return Status::OK();
+      return TFOkStatus;
     });
 
 REGISTER_OP(PREFIX_OP_NAME(RedisTableLoadFromFileSystem))
@@ -287,7 +287,7 @@ Status RedisTableShape(InferenceContext *c, const ShapeHandle &key,
   c->set_output_handle_shapes_and_types(
       0, std::vector<ShapeAndType>{{key_s, key_t}, {value, value_t}});
 
-  return Status::OK();
+  return TFOkStatus;
 }
 
 REGISTER_OP(PREFIX_OP_NAME(RedisTableOfTensors))

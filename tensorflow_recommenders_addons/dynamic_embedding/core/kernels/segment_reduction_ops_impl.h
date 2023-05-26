@@ -55,9 +55,12 @@ limitations under the License.
 #include "tensorflow/core/util/cuda_solvers.h"
 #else
 #include "tensorflow/core/kernels/cuda_solvers.h"
-#endif  // TF_VERSION_INTEGER >= 2040
+#endif                          // TF_VERSION_INTEGER >= 2040
+#if TF_VERSION_INTEGER >= 2110  // 2.11.0
+#include "tensorflow/compiler/xla/stream_executor/cuda/cuda_activation.h"
+#else
 #include "tensorflow/stream_executor/cuda/cuda_activation.h"
-
+#endif
 using stream_executor::cuda::ScopedActivateExecutorContext;
 #elif TENSORFLOW_USE_ROCM
 #include "tensorflow/core/platform/rocm.h"
@@ -103,7 +106,8 @@ class SparseSegmentSumGpuOp : public AsyncOpKernel {
 
     if (has_num_segments) {
       const Tensor& num_segments = context->input(3);
-      output_rows_host.tensor().CopyFrom(num_segments, num_segments.shape());
+      CHECK(output_rows_host.tensor().CopyFrom(num_segments,
+                                               num_segments.shape()));
     } else {
       se::DeviceMemoryBase last_segment_id_on_device(const_cast<Tindex*>(
           segment_ids.template flat<Tindex>().data() + num_indices - 1));
@@ -157,8 +161,14 @@ class SparseSegmentSumGpuOp : public AsyncOpKernel {
     ScopedActivateExecutorContext scoped_activation{stream->parent()};
     executant(context, context->eigen_device<GPUDevice>());
 
+#if TF_VERSION_INTEGER >= 2090  // 2.9.0
+    context->device()
+        ->tensorflow_accelerator_device_info()
+        ->event_mgr->ThenExecute(stream, done);
+#else
     context->device()->tensorflow_gpu_device_info()->event_mgr->ThenExecute(
         stream, done);
+#endif
   }
 };
 #endif  // GOOGLE_CUDA || TENSORFLOW_USE_ROCM

@@ -394,7 +394,7 @@ Status ParseJsonConfig(const std::string *const redis_config_abs_dir,
   json_value_free(config_value);
   free(file_contents);
 
-  return Status::OK();
+  return TFOkStatus;
 }
 
 extern "C" sds sdsempty(void);

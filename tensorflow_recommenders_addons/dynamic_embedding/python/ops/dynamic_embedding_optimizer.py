@@ -28,17 +28,23 @@ from tensorflow.keras.optimizers import Optimizer as keras_optimizer
 from tensorflow.python.distribute import distribution_strategy_context as distribute_ctx
 from tensorflow.python.distribute import reduce_util as ds_reduce_util
 from tensorflow.python.eager import context
+from tensorflow.python.framework import dtypes
 from tensorflow.python.framework import ops
 from tensorflow.python.keras import backend
 from tensorflow.python.keras import initializers
 from tensorflow.python.keras.optimizer_v2 import optimizer_v2
 from tensorflow.python.keras.utils import tf_utils
+from tensorflow.python.ops import array_ops
 from tensorflow.python.ops import control_flow_ops
+from tensorflow.python.ops import script_ops
 from tensorflow.python.ops import variables
 from tensorflow.python.ops import variable_scope
 from tensorflow.python.training import optimizer
 from tensorflow.python.training import slot_creator
-from tensorflow.python.training.tracking import base as trackable
+try:  # tf version >= 2.10.0
+  from tensorflow.python.trackable import base as trackable
+except:
+  from tensorflow.python.training.tracking import base as trackable
 
 
 def DynamicEmbeddingOptimizer(self, bp_v2=False, synchronous=False):
@@ -67,6 +73,8 @@ def DynamicEmbeddingOptimizer(self, bp_v2=False, synchronous=False):
   self._hvd_sync = synchronous
 
   original_apply_gradients = self.apply_gradients
+  if hasattr(self, 'add_variable_from_reference'):
+    original_add_variable_from_reference = self.add_variable_from_reference
 
   def _distributed_apply(distribution, grads_and_vars, name, apply_state):
     """`apply_gradients` using a `DistributionStrategy`."""
@@ -223,6 +231,106 @@ def DynamicEmbeddingOptimizer(self, bp_v2=False, synchronous=False):
         self._weights.append(weight)
     return weight
 
+  def _distributed_apply_gradients_fn(distribution, grads_and_vars, **kwargs):
+    """`apply_gradients` using a `DistributionStrategy`."""
+
+    def apply_grad_to_update_var(var, grad):
+
+      def _update_step_fn(var, grad):
+        if self.jit_compile:
+          return self._update_step_xla(grad, var, id(self._var_key(var)))
+        else:
+          return script_ops.py_func_common(self._update_step, [grad, var], [])
+
+      if not isinstance(var, de.TrainableWrapper):
+        return _update_step_fn(var, grad)
+      else:
+        if not var.params.trainable:
+          return control_flow_ops.no_op()
+
+        with ops.colocate_with(None, ignore_existing=True):
+          _slots = [
+              _s for _s in self._variables
+              if isinstance(_s, de.TrainableWrapper)
+          ]
+          var._track_optimizer_slots(_slots)
+
+          with ops.control_dependencies([grad]):
+            if isinstance(var, de.shadow_ops.ShadowVariable):
+              v0 = var.read_value(do_prefetch=False)
+            else:
+              v0 = var.read_value(do_prefetch=var.params.bp_v2)
+            s0 = [_s.read_value() for _s in _slots]
+            _before = [v0] + s0
+
+          with ops.control_dependencies(_before):
+            _apply_op = _update_step_fn(var, grad)
+
+          with ops.control_dependencies([_apply_op]):
+            _after = control_flow_ops.group(
+                [var.update_op(v0=v0)] +
+                [_s.update_op(v0=s0[si]) for si, _s in enumerate(_slots)])
+            return _after
+
+    for grad, var in grads_and_vars:
+      distribution.extended.update(var,
+                                   apply_grad_to_update_var,
+                                   args=(grad,),
+                                   group=False)
+
+    if self.use_ema:
+      _, var_list = zip(*grads_and_vars)
+      self._update_model_variables_moving_average(var_list)
+      if self.ema_overwrite_frequency:
+        # Only when self.ema_overwrite_frequency is not None, we
+        # overwrite the model variables.
+        should_overwrite_model_vars = (self.iterations +
+                                       1) % self.ema_overwrite_frequency == 0
+        tf.cond(
+            tf.cast(should_overwrite_model_vars, tf.bool),
+            true_fn=lambda: self.
+            _overwrite_model_variables_with_average_value(  # noqa: E501
+                var_list),
+            false_fn=lambda: None,
+        )
+    return self.iterations.assign_add(1)
+
+  def add_variable_from_reference(model_variable,
+                                  variable_name,
+                                  shape=None,
+                                  initial_value=None):
+    """Create an optimizer variable from model variable.
+
+        Create an optimizer variable based on the information of model variable.
+        For example, in SGD optimizer momemtum, for each model variable, a
+        corresponding momemtum variable is created of the same shape and dtype.
+
+        Args:
+          model_variable: tf.Variable. The corresponding model variable to the
+            optimizer variable to be created.
+          variable_name: String. The name prefix of the optimizer variable to be
+            created. The create variables name will follow the pattern
+            `{variable_name}/{model_variable.name}`, e.g., `momemtum/dense_1`.
+          shape: List or Tuple, defaults to None. The shape of the optimizer
+            variable to be created. If None, the created variable will have the
+            same shape as `model_variable`.
+          initial_value: A Tensor, or Python object convertible to a Tensor,
+            defaults to None. The initial value of the optimizer variable, if
+            None, the initial value will be default to 0.
+
+        Returns:
+          An optimizer variable.
+        """
+    if isinstance(model_variable, de.TrainableWrapper):
+      variable = de.create_slots(model_variable, initial_value, variable_name,
+                                 model_variable._shared_name, self._bp_v2)
+      self._variables.append(variable)
+    else:
+      variable = original_add_variable_from_reference(model_variable,
+                                                      variable_name, shape,
+                                                      initial_value)
+    return variable
+
   def _get_or_make_slot(var, val, slot_name, op_name):
     """Find or create a slot for a variable.
 
@@ -375,8 +483,12 @@ def DynamicEmbeddingOptimizer(self, bp_v2=False, synchronous=False):
       raise Exception(
           "OptimizerV2 didn't support distributed sync train now, please use tf.train.XxxxOptimizer."
       )
-    self.add_slot = add_slot
-    self._distributed_apply = _distributed_apply
+    if hasattr(self, '_distributed_apply'):
+      self.add_slot = add_slot
+      self._distributed_apply = _distributed_apply
+    else:
+      self.add_variable_from_reference = add_variable_from_reference
+      self._distributed_apply_gradients_fn = _distributed_apply_gradients_fn
   else:
     raise Exception("Optimizer type is not supported! got {}".format(
         str(type(self))))

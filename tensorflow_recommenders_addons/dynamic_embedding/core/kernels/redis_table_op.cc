@@ -516,7 +516,10 @@ class RedisTableOfTensors final : public LookupInterface {
 
   ~RedisTableOfTensors() {
     if (_table_instance != nullptr && _table_instance->isRedisConnect == true) {
-      _table_instance->SetExpireBuckets(keys_prefix_name);
+      auto statu = _table_instance->SetExpireBuckets(keys_prefix_name);
+      if (statu != TFOkStatus) {
+        LOG(ERROR) << "Redis instance SetExpireBuckets failed.";
+      }
     }
 
     for (auto &in_aiocb_obj : IMPORT_content) {
@@ -653,7 +656,7 @@ class RedisTableOfTensors final : public LookupInterface {
         return errors::Unknown(err.what());
       }
     }
-    auto statu = Status::OK();
+    auto statu = TFOkStatus;
     for (auto keys_prefix_name_slice_in_redis :
          keys_prefix_name_slices_in_redis) {
       LOG(INFO) << "Now try to delet old bucket "
@@ -664,12 +667,12 @@ class RedisTableOfTensors final : public LookupInterface {
       if (iter == keys_prefix_name_slices.end()) {
         statu = _table_instance->RemoveHkeysInBuckets(
             keys_prefix_name_slice_in_redis);
-        if (statu != Status::OK()) {
+        if (statu != TFOkStatus) {
           return statu;
         }
       }
     }
-    return Status::OK();
+    return TFOkStatus;
   }
 
   size_t size() const override {
@@ -703,7 +706,7 @@ class RedisTableOfTensors final : public LookupInterface {
       }
     }
 
-    return Status::OK();
+    return TFOkStatus;
   }
 
   Status FindWithExists(OpKernelContext *ctx, const Tensor &keys,
@@ -731,17 +734,17 @@ class RedisTableOfTensors final : public LookupInterface {
             is_full_default, threads_Find);
       }
     }
-    return Status::OK();
+    return TFOkStatus;
   }
 
   Status DoInsert(bool clear, OpKernelContext *ctx, const K *keys,
                   const V *values, const int64_t total,
                   const int64_t Velems_per_flat2_dim0) {
-    auto statu = Status::OK();
+    auto statu = TFOkStatus;
     if (clear) {
       for (auto keys_prefix_name_slice : keys_prefix_name_slices) {
         statu = _table_instance->RemoveHkeysInBuckets(keys_prefix_name_slice);
-        if (statu != Status::OK()) {
+        if (statu != TFOkStatus) {
           return statu;
         }
       }
@@ -755,7 +758,7 @@ class RedisTableOfTensors final : public LookupInterface {
           Velems_per_flat2_dim0,
           threads_Insert);  // redis commmand args > multi_redis_cmd_max_argc
     }
-    return Status::OK();
+    return TFOkStatus;
   }
 
   Status Insert(OpKernelContext *ctx, const Tensor &keys,
@@ -768,7 +771,7 @@ class RedisTableOfTensors final : public LookupInterface {
                       Velems_per_flat2_dim0);
     } else {
       LOG(INFO) << "Redis Backend Insert nothing for empty input keys tensor.";
-      return Status::OK();
+      return TFOkStatus;
     }
   }
 
@@ -793,7 +796,7 @@ class RedisTableOfTensors final : public LookupInterface {
           threads_Insert);  // redis commmand args > multi_redis_cmd_max_argc
     }
 
-    return Status::OK();
+    return TFOkStatus;
   }
 
   Status Remove(OpKernelContext *ctx, const Tensor &keys) override {
@@ -809,18 +812,18 @@ class RedisTableOfTensors final : public LookupInterface {
                               threads_Delete);
       }
     }
-    return Status::OK();
+    return TFOkStatus;
   }
 
   Status Clear(OpKernelContext *ctx) {
-    auto statu = Status::OK();
+    auto statu = TFOkStatus;
     for (auto keys_prefix_name_slice : keys_prefix_name_slices) {
       statu = _table_instance->RemoveHkeysInBuckets(keys_prefix_name_slice);
-      if (statu != Status::OK()) {
+      if (statu != TFOkStatus) {
         return statu;
       }
     }
-    return Status::OK();
+    return TFOkStatus;
   }
 
   Status ImportValues(OpKernelContext *ctx, const Tensor &keys,
@@ -850,7 +853,7 @@ class RedisTableOfTensors final : public LookupInterface {
                 keys_prefix_name_slices_import, keys_prefix_name_slices);
           }
         }
-        return Status::OK();
+        return TFOkStatus;
       }
     }
   }
@@ -869,7 +872,7 @@ class RedisTableOfTensors final : public LookupInterface {
     folder_dir =
         check_dir(folder_dir + redis_connection_params.model_tag_import);
 
-    auto statu = Status::OK();
+    auto statu = TFOkStatus;
 
     for (unsigned i = 0; i < storage_slice; ++i) {
       file_path = folder_dir + keys_prefix_name_slices_import[i] + ".rdb";
@@ -892,13 +895,13 @@ class RedisTableOfTensors final : public LookupInterface {
       statu = _table_instance->RestoreFromDisk(keys_prefix_name_slices,
                                                IMPORT_content, IMPORT_fds,
                                                IMPORT_fds_sizes);
-      if (statu != Status::OK()) {
+      if (statu != TFOkStatus) {
         return statu;
       }
       for (auto &fd : IMPORT_fds) close(fd);
     }
 
-    return Status::OK();
+    return TFOkStatus;
   }
 
   Status ExportValues(OpKernelContext *ctx) override {
@@ -912,7 +915,7 @@ class RedisTableOfTensors final : public LookupInterface {
       Tensor *values;
       TF_RETURN_IF_ERROR(ctx->allocate_output(
           "values", TensorShape({1, runtime_value_dim_}), &values));
-      return Status::OK();
+      return TFOkStatus;
     }
     return Status(error::INVALID_ARGUMENT,
                   "invalid redis_connection_params.table_store_mode.");
@@ -922,7 +925,7 @@ class RedisTableOfTensors final : public LookupInterface {
     std::string file_path, folder_dir;
     const unsigned &storage_slice = redis_connection_params.storage_slice;
     int tem_fd;
-    auto statu = Status::OK();
+    auto statu = TFOkStatus;
 
     EXPORT_content.resize(storage_slice);
     EXPORT_fds.clear();
@@ -967,7 +970,7 @@ class RedisTableOfTensors final : public LookupInterface {
 
       statu = _table_instance->DumpToDisk(keys_prefix_name_slices,
                                           EXPORT_content, EXPORT_fds);
-      if (statu != Status::OK()) {
+      if (statu != TFOkStatus) {
         return statu;
       }
       // for (auto &fd : EXPORT_fds) // for now the writting may be not
@@ -982,7 +985,7 @@ class RedisTableOfTensors final : public LookupInterface {
     TF_RETURN_IF_ERROR(ctx->allocate_output(
         "values", TensorShape({1, runtime_value_dim_}), &values));
 
-    return Status::OK();
+    return TFOkStatus;
   }
 
   Status ExportValuesToTensor(OpKernelContext *ctx) {
@@ -1008,7 +1011,7 @@ class RedisTableOfTensors final : public LookupInterface {
       LOG(WARNING) << "There is no embedding table called " << keys_prefix_name
                    << " existing in the Redis service. "
                    << "Exporting values to Tensor failed.";
-      return Status::OK();
+      return TFOkStatus;
     }
 
     redisReply const *temp_reply;
@@ -1064,7 +1067,7 @@ class RedisTableOfTensors final : public LookupInterface {
       }
     }
 
-    return Status::OK();
+    return TFOkStatus;
   }
 
   Status SaveToFileSystemImpl(FileSystem *fs, const string &filepath,
@@ -1090,7 +1093,7 @@ class RedisTableOfTensors final : public LookupInterface {
     bool has_atomic_move = false;
     auto has_atomic_move_ret = fs->HasAtomicMove(filepath, &has_atomic_move);
     bool need_tmp_file =
-        (has_atomic_move == false) || (has_atomic_move_ret != Status::OK());
+        (has_atomic_move == false) || (has_atomic_move_ret != TFOkStatus);
     if (!need_tmp_file) {
       key_tmpfilepath = key_filepath;
       value_tmpfilepath = value_filepath;
@@ -1110,7 +1113,7 @@ class RedisTableOfTensors final : public LookupInterface {
       LOG(WARNING) << "There is no embedding table called " << keys_prefix_name
                    << " existing in the Redis service. "
                    << "Saving values to file system failed.";
-      return Status::OK();
+      return TFOkStatus;
     }
 
     // buffer for write to file system
@@ -1211,7 +1214,7 @@ class RedisTableOfTensors final : public LookupInterface {
       TF_RETURN_IF_ERROR(fs->RenameFile(value_tmpfilepath, value_filepath));
     }
 
-    return Status::OK();
+    return TFOkStatus;
   }
 
   Status SaveToFileSystem(OpKernelContext *ctx, const string &dirpath,
@@ -1299,7 +1302,7 @@ class RedisTableOfTensors final : public LookupInterface {
     LOG(INFO) << "Finish loading " << key_size << " keys and values from "
               << key_filepath << " and " << value_filepath << " in total.";
 
-    return Status::OK();
+    return TFOkStatus;
   }
 
   Status LoadFromFileSystem(OpKernelContext *ctx, const string &dirpath,
@@ -1336,7 +1339,7 @@ class RedisTableOfTensors final : public LookupInterface {
     } else {
       return LoadFromFileSystemImpl(ctx, fs, filepath, buffer_size);
     }
-    return Status::OK();
+    return TFOkStatus;
   }
 
   DataType key_dtype() const override { return DataTypeToEnum<K>::v(); }
@@ -1385,7 +1388,7 @@ class HashTableOpKernel : public OpKernel {
       *container = h(0);
       *table_handle = h(1);
     }
-    return Status::OK();
+    return TFOkStatus;
   }
 
   Status GetResourceHashTable(StringPiece input_name, OpKernelContext *ctx,

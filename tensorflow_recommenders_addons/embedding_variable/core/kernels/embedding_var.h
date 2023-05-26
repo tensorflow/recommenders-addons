@@ -21,6 +21,14 @@ limitations under the License.
 #include "tensorflow/core/framework/typed_allocator.h"
 #include "tensorflow/core/lib/core/status.h"
 
+/* After TensorFlow version 2.10.0, "Status::OK()" upgraded to "OkStatus()".
+This code is for compatibility.*/
+#if TF_VERSION_INTEGER >= 2100
+#define TFOkStatus OkStatus()
+#else
+#define TFOkStatus Status::OK()
+#endif
+
 namespace tensorflow {
 namespace {
 
@@ -46,7 +54,7 @@ class EmbeddingVar : public ResourceBase {
       auto default_tensor_flat = default_tensor.flat<V>();
       memcpy(default_value_, &default_tensor_flat(0),
              default_tensor.TotalBytes());
-      return Status::OK();
+      return TFOkStatus;
     }
   }
 
@@ -76,7 +84,7 @@ class EmbeddingVar : public ResourceBase {
       V* new_val = TypedAllocator::Allocate<V>(alloc_, value_len_,
                                                AllocationAttributes());
       memcpy(new_val, default_v, sizeof(V) * value_len_);
-      if (Status::OK() != DoInsert(key, new_val, &val)) {
+      if (TFOkStatus != DoInsert(key, new_val, &val)) {
         TypedAllocator::Deallocate<V>(alloc_, new_val, value_len_);
       } else {
         val = new_val;
@@ -93,7 +101,7 @@ class EmbeddingVar : public ResourceBase {
       return errors::NotFound("Unable to find Key: ", key, " in DenseHashMap.");
     } else {
       *val = iter->second;
-      return Status::OK();
+      return TFOkStatus;
     }
   }
 
@@ -108,7 +116,7 @@ class EmbeddingVar : public ResourceBase {
       return errors::AlreadyExists("already exists Key: ", key,
                                    " in DenseHashMap.");
     }
-    return Status::OK();
+    return TFOkStatus;
   }
 
   int64 GetSnapshot(std::vector<K>* key_list, std::vector<V*>* value_list) {
@@ -139,5 +147,9 @@ class EmbeddingVar : public ResourceBase {
 
 }  // namespace
 }  // namespace tensorflow
+
+#ifdef TFOkStatus
+#undef TFOkStatus
+#endif
 
 #endif  // EV_CORE_KERNELS_EMBEDDING_VAR_H_

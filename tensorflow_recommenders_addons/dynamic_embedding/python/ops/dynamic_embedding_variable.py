@@ -50,6 +50,7 @@ from tensorflow.python.eager import def_function
 from tensorflow.python.framework import constant_op
 from tensorflow.python.framework import dtypes
 from tensorflow.python.framework import ops
+from tensorflow.python.framework import versions
 from tensorflow.python.keras.optimizer_v2.optimizer_v2 import OptimizerV2
 from tensorflow.python.keras.utils import tf_utils
 from tensorflow.python.ops import array_ops
@@ -70,6 +71,14 @@ from tensorflow.python.ops import tensor_array_ops
 from tensorflow.python.ops import variable_scope
 from tensorflow.python.platform import tf_logging
 from tensorflow.python.training.optimizer import Optimizer
+try:  # tf version >= 2.10.0
+  from tensorflow.python.trackable import base
+except:
+  from tensorflow.python.training.tracking import base
+try:  # tf version >= 2.10.0
+  from tensorflow.python.training.saving.saveable_object_util import _PythonStringStateSaveable as TF_PythonStringStateSaveable
+except:
+  from tensorflow.python.training.tracking.base import PythonStringStateSaveable as TF_PythonStringStateSaveable
 from tensorflow.python.training.tracking import base
 from tensorflow.python.training.tracking import data_structures
 from tensorflow.python.training.tracking import python_state
@@ -1053,14 +1062,22 @@ class Variable(base.Trackable):
                       (Optimizer, OptimizerV2, tf.keras.optimizers.Optimizer)):
       raise TypeError('Expect an optimizer, but get {}'.format(type(optimizer)))
     slots = []
-    snames = optimizer.get_slot_names()
-    for tw in self._trainable_store.values():
-      for name in snames:
-        try:
-          s = optimizer.get_slot(tw, name)
-          slots.append(s.params)
-        except:
-          continue
+    if hasattr(optimizer, 'get_slot_names'):
+      snames = optimizer.get_slot_names()
+      for tw in self._trainable_store.values():
+        for name in snames:
+          try:
+            s = optimizer.get_slot(tw, name)
+            slots.append(s.params)
+          except:
+            continue
+    else:
+      for tw in self._trainable_store.values():
+        for s in optimizer._variables:
+          try:
+            slots.append(s.params)
+          except:
+            continue
     return slots
 
   def get_trainable_by_name(self, name):
@@ -1118,7 +1135,7 @@ class Variable(base.Trackable):
     if context.executing_eagerly() or g._functions:
       saveables = dict()
       saveables["py_state_de_var"] = functools.partial(
-          base.PythonStringStateSaveable,
+          TF_PythonStringStateSaveable,
           name=self.name,
           state_callback=lambda: self.name,
           restore_callback=lambda name: None)

@@ -37,6 +37,7 @@ limitations under the License.
 #include "tensorflow/core/platform/thread_annotations.h"
 #include "tensorflow/core/util/env_var.h"
 #include "tensorflow_recommenders_addons/dynamic_embedding/core/utils/types.h"
+#include "tensorflow_recommenders_addons/dynamic_embedding/core/utils/utils.h"
 
 namespace tensorflow {
 namespace recommenders_addons {
@@ -99,7 +100,7 @@ class HashTableOp : public OpKernel {
                                                      table_.AllocatedBytes());
           }
           *ret = container;
-          return Status::OK();
+          return TFOkStatus;
         };
 
     LookupInterface* table = nullptr;

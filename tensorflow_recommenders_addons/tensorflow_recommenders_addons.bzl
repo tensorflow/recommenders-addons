@@ -3,6 +3,7 @@ load(
     "DTF_VERSION_INTEGER",
     "D_GLIBCXX_USE_CXX11_ABI",
     "FOR_TF_SERVING",
+    "TF_CXX_STANDARD",
 )
 load(
     "@local_config_cuda//cuda:build_defs.bzl",
@@ -46,11 +47,11 @@ def custom_op_library(
         "//conditions:default": [
             "-pthread",
             "-funroll-loops",
-            "-std=c++14",
             D_GLIBCXX_USE_CXX11_ABI,
             DTF_VERSION_INTEGER,
         ],
     })
+    copts = copts + ["-std=" + TF_CXX_STANDARD]
 
     if cuda_srcs:
         copts = copts + if_cuda(["-DGOOGLE_CUDA=1"])
@@ -58,7 +59,6 @@ def custom_op_library(
             "-x cuda",
             "-nvcc_options=relaxed-constexpr",
             "-nvcc_options=ftz=true",
-            "-std=c++14",
         ])
         cuda_deps = deps + if_cuda_is_configured(cuda_deps) + if_cuda_is_configured([
             "@local_config_cuda//cuda:cuda_headers",

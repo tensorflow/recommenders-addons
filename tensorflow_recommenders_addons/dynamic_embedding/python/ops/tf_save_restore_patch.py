@@ -38,9 +38,14 @@ from tensorflow.python.ops import math_ops
 from tensorflow.python.ops import string_ops
 from tensorflow.python.platform import tf_logging
 from tensorflow.python.training import saver
-from tensorflow.python.training import checkpoint_management
-from tensorflow.python.training.saving import checkpoint_options
-from tensorflow.python.training.saving import functional_saver
+try:  # tf version >= 2.10.0
+  from tensorflow.python.checkpoint import checkpoint_management
+  from tensorflow.python.checkpoint import checkpoint_options
+  from tensorflow.python.checkpoint import functional_saver
+except:
+  from tensorflow.python.training import checkpoint_management
+  from tensorflow.python.training.saving import checkpoint_options
+  from tensorflow.python.training.saving import functional_saver
 from tensorflow.python.util import compat
 from tensorflow.python.util import nest
 
@@ -51,6 +56,49 @@ de_fs_saveable_class_names = [
 de_fs_sub_saveable_class_names = [
     '_DynamicEmbeddingShardFileSystemSaveable',
 ]
+
+
+def _de_var_fs_save_fn(trackables, file_prefix):
+  variables_folder_dir = string_ops.regex_replace(file_prefix,
+                                                  pattern='/([^/]*)$',
+                                                  rewrite='')
+  for obj_prefix, obj in trackables.items():
+    if not hasattr(obj, 'saveable'):
+      continue
+    saveable = obj.saveable
+    if type(saveable).__name__ == '_DynamicEmbeddingVariabelFileSystemSaveable':
+      if saveable._saver_config.save_path:
+        de_variable_folder_dir = saveable._saver_config.save_path
+      else:
+        de_variable_folder_dir = string_ops.string_join(
+            [variables_folder_dir, 'TFRADynamicEmbedding'], separator='/')
+
+      # Rewrite saved file name by user specified node information when use multi process distributed training such as horovod.
+      # Because table shards in different process couldn't touch each other, all origin shards name would be '_mht_1of1'.
+      obj.save_to_file_system(de_variable_folder_dir,
+                              proc_size=saveable.proc_size,
+                              proc_rank=saveable.proc_rank)
+  return []
+
+
+def _de_var_fs_restore_fn(trackables, merged_prefix):
+  variables_folder_dir = string_ops.regex_replace(merged_prefix,
+                                                  pattern='/([^/]*)$',
+                                                  rewrite='')
+  for obj_prefix, obj in trackables.items():
+    if not hasattr(obj, 'saveable'):
+      continue
+    saveable = obj.saveable
+    if type(saveable).__name__ == '_DynamicEmbeddingVariabelFileSystemSaveable':
+      with ops.name_scope(saveable._restore_name, "dynamic_embedding_restore"):
+        if saveable._saver_config.save_path:
+          de_variable_folder_dir = saveable._saver_config.save_path
+        else:
+          de_variable_folder_dir = string_ops.string_join(
+              [variables_folder_dir, 'TFRADynamicEmbedding'], separator='/')
+        return load_de_variable_from_file_system(
+            saveable.op, de_variable_folder_dir, saveable.proc_size,
+            saveable.proc_rank, saveable._saver_config.buffer_size)
 
 
 class _DynamicEmbeddingSingleDeviceSaver(functional_saver._SingleDeviceSaver):
@@ -484,5 +532,16 @@ class _DynamicEmbeddingSaver(saver.Saver):
 
 
 def patch_on_tf_save_restore():
-  functional_saver._SingleDeviceSaver = _DynamicEmbeddingSingleDeviceSaver
+  try:
+    from tensorflow.python.saved_model.registration.registration import register_checkpoint_saver
+    class_obj = de.Variable
+    predicate = lambda x: isinstance(x, class_obj)
+    register_checkpoint_saver("DECustomSaver",
+                              name=class_obj.__name__,
+                              predicate=predicate,
+                              save_fn=_de_var_fs_save_fn,
+                              restore_fn=_de_var_fs_restore_fn,
+                              strict_predicate_restore=False)
+  except:
+    functional_saver._SingleDeviceSaver = _DynamicEmbeddingSingleDeviceSaver
   saver.Saver = _DynamicEmbeddingSaver

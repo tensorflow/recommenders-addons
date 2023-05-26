@@ -560,7 +560,7 @@ class EVExportOp : public OpKernel {
                                   &val));
     auto key_flat = key->flat<TKey>();
     auto val_matrix = val->matrix<TValue>();
-    for (size_t i = 0; i < total_size; ++i) {
+    for (int64_t i = 0; i < total_size; ++i) {
       key_flat(i) = key_list[i];
       TValue* value = valueptr_list[i];
       Eigen::array<Eigen::DenseIndex, 1> dims({ev->ValueLen()});
@@ -600,7 +600,7 @@ class EVImportOp : public OpKernel {
     Tensor val = ctx->input(2);
     auto key_flat = key.flat<TKey>();
     auto val_matrix = val.matrix<TValue>();
-    for (size_t i = 0; i < key.NumElements(); ++i) {
+    for (int64_t i = 0; i < key.NumElements(); ++i) {
       auto value = &val_matrix(i, 0);
       ev->LookupOrCreate(key_flat(i), value);
     }

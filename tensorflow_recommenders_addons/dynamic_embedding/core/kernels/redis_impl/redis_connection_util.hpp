@@ -29,6 +29,7 @@ limitations under the License.
 #include "md5.h"
 #include "tensorflow/core/framework/tensor.h"
 #include "tensorflow/core/framework/types.h"
+#include "tensorflow_recommenders_addons/dynamic_embedding/core/utils/utils.h"
 
 namespace tensorflow {
 namespace recommenders_addons {
@@ -381,7 +382,7 @@ class RedisBaseWrapper {
     } catch (const std::exception &err) {
       return errors::Unknown(err.what());
     }
-    return Status::OK();
+    return TFOkStatus;
   }
 
   Status set_K_bucket_num_handle(KBucketNumHandle function) {
@@ -390,7 +391,7 @@ class RedisBaseWrapper {
     } catch (const std::exception &err) {
       return errors::Unknown(err.what());
     }
-    return Status::OK();
+    return TFOkStatus;
   }
 
   virtual Status Conn() = 0;
