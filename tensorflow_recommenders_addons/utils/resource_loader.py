@@ -26,7 +26,7 @@ SKIP_CUSTOM_OPS = False
 def get_required_tf_version():
   try:
     pkg = pkg_resources.get_distribution("tensorflow-recommenders-addons")
-  except pkg_resources.DistributionNotFound:
+  except:
     try:
       pkg = pkg_resources.get_distribution("tensorflow-recommenders-addons-gpu")
     except pkg_resources.DistributionNotFound:
