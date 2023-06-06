@@ -7,12 +7,14 @@ namespace tensorflow {
 namespace recommenders_addons {
 namespace lookup_table {
 
+using namespace tensorflow::lookup;
+
 class LookupTableOpKernel : public OpKernel {
  public:
   explicit LookupTableOpKernel(OpKernelConstruction *ctx)
       : OpKernel(ctx),
-        expected_input_0_(ctx->input_type(0) == DT_RESOURCE ? DT_RESOURCE
-                                                            : DT_STRING_REF) {}
+        expected_input_0_(ctx->input_type(0) == tensorflow::DataType::DT_RESOURCE ? tensorflow::DataType::DT_RESOURCE
+                                                            : tensorflow::DataType::DT_STRING_REF) {}
 
  protected:
   Status LookupResource(OpKernelContext *ctx, const ResourceHandle &p,
@@ -59,7 +61,7 @@ class LookupTableOpKernel : public OpKernel {
   }
 
   Status GetTable(OpKernelContext *ctx, LookupInterface **table) {
-    if (expected_input_0_ == DT_RESOURCE) {
+    if (expected_input_0_ == tensorflow::DataType::DT_RESOURCE) {
       return this->GetResourceLookupTable("table_handle", ctx, table);
     } else {
       return this->GetReferenceLookupTable("table_handle", ctx, table);
@@ -88,6 +90,9 @@ class LookupTableFindOp : public LookupTableOpKernel {
     const Tensor &key = ctx->input(1);
     const Tensor &default_value = ctx->input(2);
 
+    LOG(INFO) << "Find key: " << key.DebugString();
+    LOG(INFO) << "Find default value: " << default_value.DebugString();
+
     TensorShape output_shape = key.shape();
     output_shape.RemoveLastDims(table->key_shape().dims());
     output_shape.AppendShape(table->value_shape());
@@ -114,7 +119,7 @@ class LookupTableFindWithExistsOp : public LookupTableOpKernel {
 
     DataTypeVector expected_inputs = {expected_input_0_, table->key_dtype(),
                                       table->value_dtype()};
-    DataTypeVector expected_outputs = {table->value_dtype(), DT_BOOL};
+    DataTypeVector expected_outputs = {table->value_dtype(), tensorflow::DataType::DT_BOOL};
     OP_REQUIRES_OK(ctx, ctx->MatchSignature(expected_inputs, expected_outputs));
 
     const Tensor &key = ctx->input(1);
@@ -150,6 +155,13 @@ class LookupTableInsertOp : public LookupTableOpKernel {
 
     const Tensor &keys = ctx->input(1);
     const Tensor &values = ctx->input(2);
+
+    LOG(INFO) << "insert Compute keys shape string: " << keys.shape().DebugString();
+    LOG(INFO) << "insert Compute keys debug string: " << keys.DebugString();
+    LOG(INFO) << "insert Compute values debug string: " << values.DebugString();
+    LOG(INFO) << "insert Compute values shape string: " << values.shape().DebugString();
+
+
     OP_REQUIRES_OK(ctx, table->CheckKeyAndValueTensorsForInsert(keys, values));
 
     int64_t memory_used_before = 0;
@@ -179,13 +191,28 @@ class LookupTableAccumOp : public LookupTableOpKernel {
 
     DataTypeVector expected_inputs = {expected_input_0_, table->key_dtype(),
                                       table->value_dtype(),
-                                      DataTypeToEnum<bool>::v()};
+                                      tensorflow::DataTypeToEnum<bool>::v()};
     OP_REQUIRES_OK(ctx, ctx->MatchSignature(expected_inputs, {}));
 
     const Tensor &keys = ctx->input(1);
     const Tensor &values_or_deltas = ctx->input(2);
     const Tensor &exists = ctx->input(3);
-    OP_REQUIRES(ctx, (values_or_deltas.dtype() != DataTypeToEnum<tstring>::v()),
+
+    LOG(INFO) << "Accum keys: " << keys.DebugString();
+    LOG(INFO) << "Accum values or deltas: " << values_or_deltas.DebugString();
+    LOG(INFO) << "Accum  exists: " << exists.DebugString();
+
+    auto akeys = keys.flat<K>();
+    for (auto i =0; i<akeys.size(); i++) {
+      LOG(INFO) << "akeys i: " << i << " " << akeys(i);
+    }
+
+    auto avalues_or_deltas = values_or_deltas.flat<V>();
+    for (auto i =0; i<avalues_or_deltas.size(); i++) {
+      LOG(INFO) << "avalues_or_deltas i: " << i << " " << avalues_or_deltas(i);
+    }
+
+    OP_REQUIRES(ctx, (values_or_deltas.dtype() != tensorflow::DataTypeToEnum<tstring>::v()),
                 errors::InvalidArgument(
                     "AccumOP is not supporting tstring value type!"));
     OP_REQUIRES_OK(
@@ -219,6 +246,8 @@ class LookupTableRemoveOp : public LookupTableOpKernel {
 
     const Tensor &key = ctx->input(1);
     OP_REQUIRES_OK(ctx, table->CheckKeyTensorForRemove(key));
+
+    LOG(INFO) << "remove key: " << key.DebugString();
 
     int64_t memory_used_before = 0;
     if (ctx->track_allocations()) {
@@ -307,7 +336,7 @@ class LookupTableSaveToFileSystemOp : public LookupTableOpKernel {
     core::ScopedUnref unref_me(table);
 
     string dirpath;
-    TF_CHECK_OK(ReadStringFromEnvVar(dirpath_env_, "NotFound", &dirpath));
+    TF_CHECK_OK(tensorflow::ReadStringFromEnvVar(dirpath_env_, "NotFound", &dirpath));
     if (dirpath != "NotFound") {
       LOG(INFO) << "Read TFRA key/value file directory path from the "
                    "environment variable "
@@ -386,7 +415,7 @@ class LookupTableLoadFromFileSystemOp : public LookupTableOpKernel {
     core::ScopedUnref unref_me(table);
 
     string dirpath;
-    TF_CHECK_OK(ReadStringFromEnvVar(dirpath_env_, "NotFound", &dirpath));
+    TF_CHECK_OK(tensorflow::ReadStringFromEnvVar(dirpath_env_, "NotFound", &dirpath));
     if (dirpath != "NotFound") {
       LOG(INFO) << "Read TFRA key/value file directory path from the "
                    "environment variable "
@@ -481,16 +510,18 @@ REGISTER_LOOKUP_TABLE_KERNEL(int64_t, double);
 REGISTER_LOOKUP_TABLE_KERNEL(int64_t, float);
 REGISTER_LOOKUP_TABLE_KERNEL(int64_t, int32);
 REGISTER_LOOKUP_TABLE_KERNEL(int64_t, int64_t);
-REGISTER_LOOKUP_TABLE_KERNEL(int64_t, tstring);
+// REGISTER_LOOKUP_TABLE_KERNEL(int64_t, tstring);
+
+// REGISTER_LOOKUP_TABLE_KERNEL(int64_t, tstring);
 REGISTER_LOOKUP_TABLE_KERNEL(int64_t, int8);
-REGISTER_LOOKUP_TABLE_KERNEL(int64_t, Eigen::half);
-REGISTER_LOOKUP_TABLE_KERNEL(tstring, bool);
-REGISTER_LOOKUP_TABLE_KERNEL(tstring, double);
-REGISTER_LOOKUP_TABLE_KERNEL(tstring, float);
-REGISTER_LOOKUP_TABLE_KERNEL(tstring, int32);
-REGISTER_LOOKUP_TABLE_KERNEL(tstring, int64_t);
-REGISTER_LOOKUP_TABLE_KERNEL(tstring, int8);
-REGISTER_LOOKUP_TABLE_KERNEL(tstring, Eigen::half);
+// REGISTER_LOOKUP_TABLE_KERNEL(int64_t, Eigen::half);
+// REGISTER_LOOKUP_TABLE_KERNEL(tstring, bool);
+// REGISTER_LOOKUP_TABLE_KERNEL(tstring, double);
+// REGISTER_LOOKUP_TABLE_KERNEL(tstring, float);
+// REGISTER_LOOKUP_TABLE_KERNEL(tstring, int32);
+// REGISTER_LOOKUP_TABLE_KERNEL(tstring, int64_t);
+// REGISTER_LOOKUP_TABLE_KERNEL(tstring, int8);
+// REGISTER_LOOKUP_TABLE_KERNEL(tstring, Eigen::half);
 
 #undef REGISTER_LOOKUP_TABLE_KERNEL
 

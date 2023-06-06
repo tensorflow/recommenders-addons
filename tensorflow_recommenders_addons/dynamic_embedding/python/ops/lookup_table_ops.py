@@ -170,8 +170,8 @@ class LookupTable(LookupInterface):
 
     lookup_table_dict = {
       'STAND_REDIS'           : 'dynamic_embedding/core/_std_redis_table_ops.so',
-      'CUCKOO_HASHTABLE'      : 'dynamic_embedding/core/_std_cuckoo_hashtable_ops.so',
-      'CUCKOO_HASHTABLE_GPU'  : 'dynamic_embedding/core/_std_cuckoo_hashtable_ops_gpu.so'
+      # 'CUCKOO_HASHTABLE'      : 'dynamic_embedding/core/_std_cuckoo_hashtable_ops.so',
+      # 'CUCKOO_HASHTABLE_GPU'  : 'dynamic_embedding/core/_std_cuckoo_hashtable_ops_gpu.so'
     }
 
     # load library due to environment variable LOOKUP_TABLE_NAME

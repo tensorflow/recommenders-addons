@@ -30,6 +30,7 @@ def build_lookup_table_library(
         "//conditions:default": [
             "-pthread",
             "-funroll-loops",
+            # "-std=c++17",
             "-std=c++14",
             "-fPIC",
             D_GLIBCXX_USE_CXX11_ABI,

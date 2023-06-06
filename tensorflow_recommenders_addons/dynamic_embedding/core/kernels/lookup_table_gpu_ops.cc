@@ -87,8 +87,8 @@ class LookupTableGpuOp : public OpKernel {
     core::ScopedUnref unref_me(table);
 
     OP_REQUIRES_OK(ctx, lookup::CheckTableDataTypes(
-                            *table, DataTypeToEnum<key_dtype>::v(),
-                            DataTypeToEnum<value_dtype>::v(), cinfo_.name()));
+                            *table, tensorflow::DataTypeToEnum<key_dtype>::v(),
+                            tensorflow::DataTypeToEnum<value_dtype>::v(), cinfo_.name()));
 
     if (ctx->expected_output_dtype(0) == DT_RESOURCE) {
       Tensor* handle;
@@ -260,7 +260,7 @@ class LookupTableAccumGpuOp : public OpKernel {
     DataType expected_input_0 = DT_RESOURCE;
     DataTypeVector expected_inputs = {expected_input_0, table->key_dtype(),
                                       table->value_dtype(),
-                                      DataTypeToEnum<bool>::v()};
+                                      tensorflow::DataTypeToEnum<bool>::v()};
     OP_REQUIRES_OK(ctx, ctx->MatchSignature(expected_inputs, {}));
 
     const Tensor& keys = ctx->input(1);
@@ -524,7 +524,7 @@ class LookupTableLoadFromFileSystemGpuOp : public OpKernel {
       LookupTableLoadFromFileSystemGpuOp<key_dtype, value_dtype>);
 
 REGISTER_LOOKUP_TABLE_KERNEL(int64, float);
-REGISTER_LOOKUP_TABLE_KERNEL(int64, Eigen::half);
+// REGISTER_LOOKUP_TABLE_KERNEL(int64, Eigen::half);
 REGISTER_LOOKUP_TABLE_KERNEL(int64, int64);
 REGISTER_LOOKUP_TABLE_KERNEL(int64, int32);
 REGISTER_LOOKUP_TABLE_KERNEL(int64, int8);

@@ -18,8 +18,8 @@ py_library(
         "//tensorflow_recommenders_addons/dynamic_embedding/core:tfra_register",
         "//tensorflow_recommenders_addons/dynamic_embedding/core:_lookup_table_ops.so",
         "//tensorflow_recommenders_addons/dynamic_embedding/core:_std_redis_table_ops.so",
-        "//tensorflow_recommenders_addons/dynamic_embedding/core:_std_cuckoo_hashtable_ops.so",
-        "//tensorflow_recommenders_addons/dynamic_embedding/core:_std_cuckoo_hashtable_ops_gpu.so",
+        # "//tensorflow_recommenders_addons/dynamic_embedding/core:_std_cuckoo_hashtable_ops.so",
+        # "//tensorflow_recommenders_addons/dynamic_embedding/core:_std_cuckoo_hashtable_ops_gpu.so",
     ],
     srcs_version = "PY2AND3",
 )
