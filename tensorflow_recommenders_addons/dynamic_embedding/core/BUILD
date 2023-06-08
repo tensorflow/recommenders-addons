@@ -143,6 +143,7 @@ custom_op_library(
         "//conditions:default": [],
     }),
     deps = [
+        "//build_deps/toolchains/eigen",
         ":tfra_register"
     ]
 )
@@ -178,6 +179,7 @@ custom_table_library(
     deps = [
         "@hiredis",
         "@redis-plus-plus//:redis-plus-plus",
+        "//build_deps/toolchains/eigen",
         ":tfra_register"
     ],
 )

@@ -30,6 +30,7 @@ limitations under the License.
 #include <atomic>
 
 // #include "lookup_table_interface.h"
+#include <Eigen/Core>
 #include "lookup_table_op_registry.h"
 
 #include "uniform_redis_impl/json.h"
@@ -601,8 +602,6 @@ class RedisLookupTable final : public TFRALookupTableInterface<K, V> {
       default_value_total += value_with;
     }
     // const int64_t &&default_value_total = value_shape_.size();
-    std::cerr << "default_value_width: " << default_value_width << std::endl;
-    std::cerr << "default_value_total: " << default_value_total << std::endl;
     if (default_value_width == default_value_total) {
       runtime_value_dim_ = default_value_width;
     } else {
@@ -1024,18 +1023,6 @@ class RedisLookupTable final : public TFRALookupTableInterface<K, V> {
     // const int64_t Velems_per_flat2_dim0 =
     //     values_or_delta_num_elements / keys_num_elements;
     const int64_t Velems_per_flat2_dim0 = vod_num / key_num;
-
-    std::cerr << "std_redis keys: " << std::endl;
-    for (int i=0; i<key_num; i++) {
-      std::cerr << *(keys+i) << " ";
-    }
-    std::cerr << std::endl;
-
-    std::cerr << "std_redis values_or_delta: " << std::endl;
-    for (int i=0; i<vod_num; i++) {
-      std::cerr << *(values_or_delta+i) << " ";
-    }
-    std::cerr << std::endl;
 
     auto values_dtype_str = TFRA_DataTypeString(value_dtype());
 
@@ -1502,7 +1489,7 @@ REGISTER_REDIS_KERNEL(int64_t, int8);
 
 
 // REGISTER_REDIS_KERNEL(int64_t, tstring);
-// REGISTER_REDIS_KERNEL(int64_t, Eigen::half);
+REGISTER_REDIS_KERNEL(int64_t, Eigen::half);
 // REGISTER_REDIS_KERNEL(tstring, bool);
 // REGISTER_REDIS_KERNEL(tstring, double);
 // REGISTER_REDIS_KERNEL(tstring, float);

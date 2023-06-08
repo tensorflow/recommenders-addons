@@ -3,6 +3,7 @@
 #include <string>
 #include <cstdint>
 // #include <string_view>
+#include <Eigen/Core>
 
 namespace tensorflow {
 namespace recommenders_addons {
@@ -176,7 +177,7 @@ MATCH_TYPE_AND_ENUM(bool, DT_BOOL);
 // MATCH_TYPE_AND_ENUM(quint16, DT_QUINT16);
 // MATCH_TYPE_AND_ENUM(qint32, DT_QINT32);
 // MATCH_TYPE_AND_ENUM(bfloat16, DT_BFLOAT16);
-// MATCH_TYPE_AND_ENUM(Eigen::half, DT_HALF);
+MATCH_TYPE_AND_ENUM(Eigen::half, DT_HALF);
 // MATCH_TYPE_AND_ENUM(float8_e5m2, DT_FLOAT8_E5M2);
 // MATCH_TYPE_AND_ENUM(float8_e4m3fn, DT_FLOAT8_E4M3FN);
 // MATCH_TYPE_AND_ENUM(ResourceHandle, DT_RESOURCE);

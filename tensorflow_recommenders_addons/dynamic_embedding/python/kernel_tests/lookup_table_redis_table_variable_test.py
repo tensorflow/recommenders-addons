@@ -338,7 +338,7 @@ else:
             [dtypes.int32, dtypes.int32], [dtypes.int64, dtypes.double],
             [dtypes.int64, dtypes.float32], [dtypes.int64, dtypes.int32],
             [dtypes.int64, dtypes.int64],
-            [dtypes.int64, dtypes.int8]]
+            [dtypes.int64, dtypes.int8], [dtypes.int64, dtypes.half]]
 
 
 @test_util.run_all_in_graph_and_eager_modes

@@ -54,6 +54,20 @@ http_archive(
     url = "https://github.com/sewenew/redis-plus-plus/archive/refs/tags/1.2.3.zip",
 )
 
+EIGEN_COMMIT = "90ee821c563fa20db4d64d6991ddca256d5c52f2"
+EIGEN_SHA256 = "d76992f1972e4ff270221c7ee8125610a8e02bb46708a7295ee646e99287083b"
+
+http_archive(
+    name = "eigen_archive",
+    build_file = "//build_deps/toolchains/eigen:eigen_archive.BUILD",
+    sha256 = EIGEN_SHA256,
+    strip_prefix = "eigen-{commit}".format(commit = EIGEN_COMMIT),
+    urls = [
+        "https://storage.googleapis.com/mirror.tensorflow.org/gitlab.com/libeigen/eigen/-/archive/{commit}/eigen-{commit}.tar.gz".format(commit = EIGEN_COMMIT),
+        "https://gitlab.com/libeigen/eigen/-/archive/{commit}/eigen-{commit}.tar.gz".format(commit = EIGEN_COMMIT),
+    ],
+)
+
 tf_configure(
     name = "local_config_tf",
 )

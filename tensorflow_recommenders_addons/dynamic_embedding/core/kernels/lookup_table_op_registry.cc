@@ -82,7 +82,7 @@ PRE_DECLARATION(int64_t, int32);
 PRE_DECLARATION(int64_t, int64_t);
 // PRE_DECLARATION(int64_t, std::string_view);
 PRE_DECLARATION(int64_t, int8);
-// PRE_DECLARATION(int64_t, Eigen::half);
+PRE_DECLARATION(int64_t, Eigen::half);
 // PRE_DECLARATION(int64_t, bfloat16)
 // PRE_DECLARATION(int64_t, tstring);
 
