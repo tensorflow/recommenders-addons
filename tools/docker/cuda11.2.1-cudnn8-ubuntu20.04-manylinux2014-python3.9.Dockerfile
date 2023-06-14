@@ -4,9 +4,9 @@
 # glibc (2.12) and system libstdc++ (4.4).
 #
 # To push a new version, run:
-# $ docker build -f cuda11.2.1-cudnn8-ubuntu20.04-manylinux2014-multipython.Dockerfile . \
-#  --tag "tfra/nosla-cuda11.2.1-cudnn8-ubuntu20.04-manylinux2014-multipython"
-# $ docker push tfra/nosla-cuda11.2.1-cudnn8-ubuntu20.04-manylinux2014-multipython
+# $ docker build -f cuda11.2.1-cudnn8-ubuntu20.04-manylinux2014-python3.9.Dockerfile . \
+#  --tag "tfra/nosla-cuda11.2.1-cudnn8-ubuntu20.04-manylinux2014-python3.9"
+# $ docker push tfra/nosla-cuda11.2.1-cudnn8-ubuntu20.04-manylinux2014-python3.9
 
 FROM nvidia/cuda:11.2.1-cudnn8-devel-ubuntu20.04 as devtoolset
 
@@ -91,14 +91,10 @@ COPY install/install_bazel.sh /install/
 RUN /install/install_bazel.sh "5.1.1"
 
 COPY install/build_and_install_python.sh /install/
-RUN /install/build_and_install_python.sh "3.7.7"
-RUN /install/build_and_install_python.sh "3.8.2"
 RUN /install/build_and_install_python.sh "3.9.7"
 
 COPY install/install_pip_packages_by_version.sh /install/
 RUN /install/install_pip_packages_by_version.sh "/usr/local/bin/pip3.9"
-RUN /install/install_pip_packages_by_version.sh "/usr/local/bin/pip3.8"
-RUN /install/install_pip_packages_by_version.sh "/usr/local/bin/pip3.7"
 
 COPY install/use_devtoolset_7.sh /install/
 RUN /install/use_devtoolset_7.sh
