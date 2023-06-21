@@ -1,0 +1,9 @@
+build --action_env TF_NEED_CUDA="1"
+build --action_env CUDA_TOOLKIT_PATH="/usr/local/cuda"
+build --action_env CUDNN_INSTALL_PATH="/usr/lib/x86_64-linux-gnu"
+build --action_env TF_CUDA_VERSION="11.2"
+build --action_env TF_CUDNN_VERSION="8.1"
+test --config=cuda
+build --config=cuda
+build:cuda --define=using_cuda=true --define=using_cuda_nvcc=true
+build:cuda --crosstool_top=@local_config_cuda//crosstool:toolchain
