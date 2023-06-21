@@ -1,0 +1,11 @@
+build --action_env TF_HEADER_DIR="/usr/local/lib/python3.7/dist-packages/tensorflow/include"
+build --action_env TF_SHARED_LIBRARY_DIR="/usr/local/lib/python3.7/dist-packages/tensorflow"
+build --action_env TF_SHARED_LIBRARY_NAME="libtensorflow_framework.so.2"
+build --action_env TF_CXX11_ABI_FLAG="0"
+build --action_env TF_CXX_STANDARD="c++14"
+build --action_env TF_VERSION_INTEGER="2083"
+build --action_env FOR_TF_SERVING="1"
+build --spawn_strategy=standalone
+build --strategy=Genrule=standalone
+build -c opt
+build --copt=-mavx

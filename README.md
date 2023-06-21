@@ -278,41 +278,56 @@ de = tfra.dynamic_embedding.get_variable("VariableOnGpu",
 sess_config.gpu_options.allow_growth = True
 ```
 
-## Inference with TensorFlow Serving
+## Inference 
+
+### With TensorFlow Serving
 
 #### Compatibility Matrix
-| TFRA  | TensorFlow | Serving | Compiler  | CUDA | CUDNN | Compute Capability |
-|:------|:-----------|:---- |:---------| :------------ | :---- | :------------ |
-| 0.6.0 | 2.8.3      | 2.5.2  | GCC 7.3.1 | 11.2| 8.1 | 6.0, 6.1, 7.0, 7.5, 8.0, 8.6 |
-| 0.5.1 | 2.8.3      | 2.5.2  | GCC 7.3.1 | 11.2| 8.1 | 6.0, 6.1, 7.0, 7.5, 8.0, 8.6 |
-| 0.5.0 | 2.8.3      | 2.5.2  | GCC 7.3.1 | 11.2| 8.1 | 6.0, 6.1, 7.0, 7.5, 8.0, 8.6 |
-| 0.4.0 | 2.5.1      | 2.5.2  | GCC 7.3.1 | 11.2| 8.1 | 6.0, 6.1, 7.0, 7.5, 8.0, 8.6 |
-| 0.3.1 | 2.5.1      | 2.5.2  | GCC 7.3.1 | 11.2| 8.1 | 6.0, 6.1, 7.0, 7.5, 8.0, 8.6 |
-| 0.2.0 | 2.4.1      | 2.4.0  | GCC 7.3.1 | 11.0 | 8.0 | 6.0, 6.1, 7.0, 7.5, 8.0 |
-| 0.2.0 | 1.15.2     | 1.15.0  | GCC 7.3.1 | 10.0 | 7.6 | 6.0, 6.1, 7.0, 7.5 |
-| 0.1.0 | 2.4.1      | 2.4.0  | GCC 7.3.1 | - | - | - |
+| TFRA  | TensorFlow | Serving branch | Compiler  | CUDA | CUDNN | Compute Capability |
+|:------|:-----------|:---------------|:---------| :------------ | :---- | :------------ |
+| 0.6.0 | 2.8.3      | r2.8           | GCC 7.3.1 | 11.2| 8.1 | 6.0, 6.1, 7.0, 7.5, 8.0, 8.6 |
+| 0.5.1 | 2.8.3      | r2.8           | GCC 7.3.1 | 11.2| 8.1 | 6.0, 6.1, 7.0, 7.5, 8.0, 8.6 |
+| 0.5.0 | 2.8.3      | r2.8           | GCC 7.3.1 | 11.2| 8.1 | 6.0, 6.1, 7.0, 7.5, 8.0, 8.6 |
+| 0.4.0 | 2.5.1      | r2.5           | GCC 7.3.1 | 11.2| 8.1 | 6.0, 6.1, 7.0, 7.5, 8.0, 8.6 |
+| 0.3.1 | 2.5.1      | r2.5           | GCC 7.3.1 | 11.2| 8.1 | 6.0, 6.1, 7.0, 7.5, 8.0, 8.6 |
+| 0.2.0 | 2.4.1      | r2.4           | GCC 7.3.1 | 11.0 | 8.0 | 6.0, 6.1, 7.0, 7.5, 8.0 |
+| 0.2.0 | 1.15.2     | r1.15          | GCC 7.3.1 | 10.0 | 7.6 | 6.0, 6.1, 7.0, 7.5 |
+| 0.1.0 | 2.4.1      | r2.4           | GCC 7.3.1 | - | - | - |
 
-**NOTICE**：Reference documents: https://www.tensorflow.org/tfx/serving/custom_op
+Serving TFRA-enable models by custom ops in TensorFlow Serving. 
 
-#### CPU or GPU Serving TensorFlow models with custom ops
-When compiling, set the environment variable:
 ```sh
-export FOR_TF_SERVING = "1"
+## If enable GPU OPs
+export SERVING_WITH_GPU=1 
+
+## Specifiy the branch of TFRA
+export TFRA_BRANCH="master" # The `master` and `r0.6` are available.
+
+## Create workspace, modify the directory as you prefer to.
+export TFRA_SERVING_WORKSPACE=~/tfra_serving_workspace/
+mkdir -p $TFRA_SERVING_WORKSPACE && cd $TFRA_SERVING_WORKSPACE
+
+## Clone the release branches of serving and TFRA according to `Compatibility Matrix`.
+git clone -b r2.8 https://github.com/tensorflow/serving.git
+git clone -b $TFRA_BRANCH https://github.com/tensorflow/recommenders-addons.git
+
+## Run config shell script
+cd $TFRA_SERVING_WORKSPACE/recommenders-addons/tools
+bash config_tfserving.sh $TFRA_BRANCH $TFRA_SERVING_WORKSPACE/serving $SERVING_WITH_GPU
+
+## Build serving with TFRA OPs.
+cd $TFRA_SERVING_WORKSPACE/serving
+./tools/run_in_docker.sh bazel build tensorflow_serving/model_servers:tensorflow_model_server
+
 ```
-Tensorflow Serving modification(**model_servers/BUILD**):
-```
-SUPPORTED_TENSORFLOW_OPS = if_v2([]) + if_not_v2([
-    "@org_tensorflow//tensorflow/contrib:contrib_kernels",
-    "@org_tensorflow//tensorflow/contrib:contrib_ops_op_lib",
-]) + [
-    "@org_tensorflow_text//tensorflow_text:ops_lib",
-    "//tensorflow_recommenders_addons/dynamic_embedding/core:_cuckoo_hashtable_ops.so",
-    "//tensorflow_recommenders_addons/dynamic_embedding/core:_math_ops.so",
-]
-```
+
+For more detail, please refer to the shell script `./tools/config_tfserving.sh`.
+
 **NOTICE**
 - Distributed inference is only supported when using Redis as Key-Value storage. 
+- Reference documents: https://www.tensorflow.org/tfx/serving/custom_op
 
+### With Triton(W.I.P)
 
 ## Community
 

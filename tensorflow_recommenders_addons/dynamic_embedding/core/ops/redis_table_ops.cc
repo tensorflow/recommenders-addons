@@ -44,11 +44,11 @@ Status ScalarAndTwoElementVectorInputsAndScalarOutputs(InferenceContext *c) {
 
 }  // namespace
 
-Status ValidateTableResourceHandle(InferenceContext *c, ShapeHandle keys,
-                                   const string &key_dtype_attr,
-                                   const string &value_dtype_attr,
-                                   bool is_lookup,
-                                   ShapeAndType *output_shape_and_type) {
+Status ValidateTableResourceHandleRedis(InferenceContext *c, ShapeHandle keys,
+                                        const string &key_dtype_attr,
+                                        const string &value_dtype_attr,
+                                        bool is_lookup,
+                                        ShapeAndType *output_shape_and_type) {
   auto *handle_data = c->input_handle_shapes_and_types(0);
   if (handle_data == nullptr || handle_data->size() != 2) {
     output_shape_and_type->shape = c->UnknownShape();
@@ -124,7 +124,7 @@ REGISTER_OP(PREFIX_OP_NAME(RedisTableFind))
       TF_RETURN_IF_ERROR(c->WithRank(c->input(0), 0, &handle));
 
       ShapeAndType value_shape_and_type;
-      TF_RETURN_IF_ERROR(ValidateTableResourceHandle(
+      TF_RETURN_IF_ERROR(ValidateTableResourceHandleRedis(
           c,
           /*keys=*/c->input(1),
           /*key_dtype_attr=*/"Tin",
@@ -149,7 +149,7 @@ REGISTER_OP(PREFIX_OP_NAME(RedisTableFindWithExists))
 
       ShapeHandle keys = c->UnknownShapeOfRank(1);
       ShapeAndType value_shape_and_type;
-      TF_RETURN_IF_ERROR(ValidateTableResourceHandle(
+      TF_RETURN_IF_ERROR(ValidateTableResourceHandleRedis(
           c,
           /*keys=*/c->input(1),
           /*key_dtype_attr=*/"Tin",
@@ -224,7 +224,7 @@ REGISTER_OP(PREFIX_OP_NAME(RedisTableExport))
       TF_RETURN_IF_ERROR(c->WithRank(c->input(0), 0, &handle));
       ShapeHandle keys = c->UnknownShapeOfRank(1);
       ShapeAndType value_shape_and_type;
-      TF_RETURN_IF_ERROR(ValidateTableResourceHandle(
+      TF_RETURN_IF_ERROR(ValidateTableResourceHandleRedis(
           c,
           /*keys=*/keys,
           /*key_dtype_attr=*/"Tkeys",
