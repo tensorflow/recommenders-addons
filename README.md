@@ -327,7 +327,7 @@ For more detail, please refer to the shell script `./tools/config_tfserving.sh`.
 - Distributed inference is only supported when using Redis as Key-Value storage. 
 - Reference documents: https://www.tensorflow.org/tfx/serving/custom_op
 
-### With Triton(W.I.P)
+### With Triton
 When building the custom operations shared library it is important to
 use the same version of TensorFlow as is being used in Triton. You can
 find the TensorFlow version in the [Triton Release
