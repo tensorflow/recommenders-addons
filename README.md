@@ -347,12 +347,18 @@ cd recommenders-addons
 
 python configure.py
 bazel build //tensorflow_recommenders_addons/dynamic_embedding/core:_cuckoo_hashtable_ops.so ##bazel 5.1.1 is well tested
-cp bazel-bin/tensorflow_recommenders_addons/dynamic_embedding/core/_cuckoo_hashtable_ops.so /lib
+mkdir /tmp/so
+#you can also use the so file from pip install package file from "(PYTHONPATH)/site-packages/tensorflow_recommenders_addons/dynamic_embedding/core/_cuckoo_hashtable_ops.so"
+cp bazel-bin/tensorflow_recommenders_addons/dynamic_embedding/core/_cuckoo_hashtable_ops.so /tmp/so
 
 #tfra saved_model directory "/models/model_repository"
 docker run --net=host -v /models/model_repository:/models nvcr.io/nvidia/tritonserver:22.05-py3 bash -c \
-  "export LD_LIBRARY_PATH=/opt/tritonserver/backends/tensorflow2:$LD_LIBRARY_PATH && export LD_PRELOAD="/lib/_cuckoo_hashtable_ops.so:${LD_PRELOAD}" && tritonserver --model-repository=/models/ --backend-config=tensorflow,version=2"
+  "export LD_LIBRARY_PATH=/opt/tritonserver/backends/tensorflow2:$LD_LIBRARY_PATH && export LD_PRELOAD="/tmp/so/_cuckoo_hashtable_ops.so:${LD_PRELOAD}" && tritonserver --model-repository=/models/ --backend-config=tensorflow,version=2"
 ```
+
+**NOTICE**
+- The above LD_LIBRARY_PATH and backend-config must be set Because the default bakend is tf1.
+
 
 ## Community
 
