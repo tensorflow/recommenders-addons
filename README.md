@@ -357,7 +357,7 @@ docker run --net=host -v /models/model_repository:/models nvcr.io/nvidia/tritons
 ```
 
 **NOTICE**
-- The above LD_LIBRARY_PATH and backend-config must be set Because the default bakend is tf1.
+- The above LD_LIBRARY_PATH and backend-config must be set Because the default backend is tf1.
 
 
 ## Community
