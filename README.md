@@ -327,7 +327,32 @@ For more detail, please refer to the shell script `./tools/config_tfserving.sh`.
 - Distributed inference is only supported when using Redis as Key-Value storage. 
 - Reference documents: https://www.tensorflow.org/tfx/serving/custom_op
 
-### With Triton(W.I.P)
+### With Triton
+When building the custom operations shared library it is important to
+use the same version of TensorFlow as is being used in Triton. You can
+find the TensorFlow version in the [Triton Release
+Notes](https://docs.nvidia.com/deeplearning/triton-inference-server/release-notes/index.html). A
+simple way to ensure you are using the correct version of TensorFlow
+is to use the [NGC TensorFlow
+container](https://ngc.nvidia.com/catalog/containers/nvidia:tensorflow)
+corresponding to the Triton container. For example, if you are using
+the 23.05 version of Triton, use the 23.05 version of the TensorFlow
+container.
+```
+docker pull nvcr.io/nvidia/tritonserver:22.05-py3
+
+export TFRA_BRANCH="master"
+git clone -b $TFRA_BRANCH https://github.com/tensorflow/recommenders-addons.git
+cd recommenders-addons
+
+python configure.py
+bazel build //tensorflow_recommenders_addons/dynamic_embedding/core:_cuckoo_hashtable_ops.so ##bazel 5.1.1 is well tested
+cp bazel-bin/tensorflow_recommenders_addons/dynamic_embedding/core/_cuckoo_hashtable_ops.so /lib
+
+#tfra saved_model directory "/models/model_repository"
+docker run --net=host -v /models/model_repository:/models nvcr.io/nvidia/tritonserver:22.05-py3 bash -c \
+  "export LD_LIBRARY_PATH=/opt/tritonserver/backends/tensorflow2:$LD_LIBRARY_PATH && export LD_PRELOAD="/lib/_cuckoo_hashtable_ops.so:${LD_PRELOAD}" && tritonserver --model-repository=/models/ --backend-config=tensorflow,version=2"
+```
 
 ## Community
 
@@ -340,4 +365,5 @@ We also want to extend a thank you to the Google team members who have helped wi
 
 ## License
 Apache License 2.0
+
 
