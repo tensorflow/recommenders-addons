@@ -338,7 +338,7 @@ container](https://ngc.nvidia.com/catalog/containers/nvidia:tensorflow)
 corresponding to the Triton container. For example, if you are using
 the 23.05 version of Triton, use the 23.05 version of the TensorFlow
 container.
-```
+```bash
 docker pull nvcr.io/nvidia/tritonserver:22.05-py3
 
 export TFRA_BRANCH="master"
@@ -353,7 +353,7 @@ cp bazel-bin/tensorflow_recommenders_addons/dynamic_embedding/core/_cuckoo_hasht
 
 #tfra saved_model directory "/models/model_repository"
 docker run --net=host -v /models/model_repository:/models nvcr.io/nvidia/tritonserver:22.05-py3 bash -c \
-  "export LD_LIBRARY_PATH=/opt/tritonserver/backends/tensorflow2:$LD_LIBRARY_PATH && export LD_PRELOAD="/tmp/so/_cuckoo_hashtable_ops.so:${LD_PRELOAD}" && tritonserver --model-repository=/models/ --backend-config=tensorflow,version=2"
+  "export LD_PRELOAD="/tmp/so/_cuckoo_hashtable_ops.so:${LD_PRELOAD}" && tritonserver --model-repository=/models/ --backend-config=tensorflow,version=2 --strict-model-config=false"
 ```
 
 **NOTICE**
