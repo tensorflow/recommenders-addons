@@ -24,7 +24,7 @@ RUN --mount=type=cache,id=cache_pip,target=/root/.cache/pip \
 
 RUN apt-get update && apt-get install -y sudo rsync cmake
 COPY tools/install_deps/install_bazelisk.sh .bazelversion ./
-RUN ./install_bazelisk.sh
+RUN bash install_bazelisk.sh
 
 COPY ./ /recommenders-addons
 RUN pip install -e /recommenders-addons
@@ -50,7 +50,7 @@ RUN pip install --default-timeout=1000 -r tensorflow-cpu.txt
 
 RUN apt-get update && apt-get install sudo
 COPY tools/install_deps/install_bazelisk.sh .bazelversion ./
-RUN ./install_bazelisk.sh
+RUN bash install_bazelisk.sh
 
 COPY ./ /recommenders-addons
 WORKDIR /recommenders-addons
@@ -104,7 +104,7 @@ RUN pip install -r doc_requirements.txt
 
 RUN apt-get update && apt-get install -y sudo rsync cmake
 COPY tools/install_deps/install_bazelisk.sh .bazelversion ./
-RUN ./install_bazelisk.sh
+RUN bash install_bazelisk.sh
 
 COPY ./ /recommenders-addons
 WORKDIR /recommenders-addons
@@ -132,7 +132,7 @@ RUN pip install -r pytest.txt
 
 RUN apt-get update && apt-get install -y sudo rsync cmake
 COPY tools/install_deps/install_bazelisk.sh .bazelversion ./
-RUN ./install_bazelisk.sh
+RUN bash install_bazelisk.sh
 
 COPY ./ /recommenders-addons
 WORKDIR /recommenders-addons

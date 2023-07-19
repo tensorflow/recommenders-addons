@@ -12,7 +12,7 @@ RUN python -m pip install --upgrade protobuf==3.20.0
 RUN apt-get update && apt-get install -y sudo rsync cmake openmpi-bin libopenmpi-dev
 
 COPY tools/install_deps/install_bazelisk.sh /install/
-RUN  /install/install_bazelisk.sh
+RUN bash /install/install_bazelisk.sh
 
 COPY tools/docker/install/install_horovod.sh /install/
 RUN  /install/install_horovod.sh $HOROVOD_VERSION --only-cpu
