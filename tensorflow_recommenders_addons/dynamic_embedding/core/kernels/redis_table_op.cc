@@ -911,10 +911,10 @@ class RedisTableOfTensors final : public LookupInterface {
       return ExportValuesToFiles(ctx);
     } else if (redis_connection_params.table_store_mode == 2) {
       Tensor *keys;
-      TF_RETURN_IF_ERROR(ctx->allocate_output("keys", TensorShape({1}), &keys));
+      TF_RETURN_IF_ERROR(ctx->allocate_output("keys", TensorShape({0}), &keys));
       Tensor *values;
       TF_RETURN_IF_ERROR(ctx->allocate_output(
-          "values", TensorShape({1, runtime_value_dim_}), &values));
+          "values", TensorShape({0, runtime_value_dim_}), &values));
       return TFOkStatus;
     }
     return Status(error::INVALID_ARGUMENT,
