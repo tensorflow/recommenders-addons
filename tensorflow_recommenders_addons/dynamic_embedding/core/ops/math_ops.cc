@@ -156,25 +156,6 @@ REGISTER_OP("TfraSparseFillEmptyRows")
       return TFOkStatus;
     });
 
-REGISTER_OP("TfraSparseReshape")
-    .Input("input_indices: int64")
-    .Input("input_shape: int64")
-    .Input("new_shape: int64")
-    .Output("output_indices: int64")
-    .Output("output_shape: int64")
-    .SetShapeFn([](InferenceContext* c) {
-      ShapeHandle indices;
-      ShapeHandle unused;
-      ShapeHandle new_shape;
-
-      TF_RETURN_IF_ERROR(c->WithRank(c->input(0), 2, &indices));
-      TF_RETURN_IF_ERROR(c->WithRank(c->input(1), 1, &unused));
-      TF_RETURN_IF_ERROR(c->WithRank(c->input(2), 1, &new_shape));
-
-      c->set_output(0, c->Matrix(c->Dim(indices, 0), c->Dim(new_shape, 0)));
-      c->set_output(1, new_shape);
-      return TFOkStatus;
-    });
 #endif  // GOOGLE_CUDA
 
 }  // namespace tensorflow
