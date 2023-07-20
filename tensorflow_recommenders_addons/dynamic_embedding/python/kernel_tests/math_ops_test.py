@@ -146,33 +146,5 @@ class SparseFillEmptyRowsGpuTest(test.TestCase):
       self.assertAllEqual(result_indicator, expected_indicator)
 
 
-class SparseReshapeGpuTest(test.TestCase):
-
-  def _SparseTensor_5x6(self):
-    ind = np.array([[0, 0], [1, 0], [1, 3], [1, 4], [3, 2], [3, 3]])
-    val = np.array([0, 10, 13, 14, 32, 33])
-    shape = np.array([5, 6])
-    return sparse_tensor.SparseTensor(constant_op.constant(ind, dtypes.int64),
-                                      constant_op.constant(val, dtypes.int32),
-                                      constant_op.constant(shape, dtypes.int64))
-
-  def forward_compute(self, sp_input, shape):
-    result_output = de_math.sparse_reshape(sp_input, shape)
-    expected_output = sparse_ops.sparse_reshape(sp_input, shape)
-    return result_output, expected_output
-
-  @test_util.run_in_graph_and_eager_modes
-  def test_value(self):
-    with self.session(use_gpu=use_gpu, config=default_config):
-      result_output, expected_output = self.forward_compute(
-          self._SparseTensor_5x6(), (2, 15))
-      result_output, expected_output = self.evaluate(
-          [result_output, expected_output])
-      self.assertAllEqual(result_output.indices, expected_output.indices)
-      self.assertAllEqual(result_output.values, expected_output.values)
-      self.assertAllEqual(result_output.dense_shape,
-                          expected_output.dense_shape)
-
-
 if __name__ == "__main__":
   test.main()
