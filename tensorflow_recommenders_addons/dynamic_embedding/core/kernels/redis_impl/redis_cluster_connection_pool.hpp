@@ -194,6 +194,7 @@ class RedisWrapper<RedisInstance, K, V,
       } catch (const std::exception &err) {
         LOG(ERROR) << "RedisHandler error in PipeExecWrite for slices "
                    << hkey.data() << " -- " << err.what();
+        error_ptr = std::current_exception();
       }
     } else {
       return nullptr;
