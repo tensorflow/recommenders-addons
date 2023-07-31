@@ -43,3 +43,6 @@ fi
 
 python -m pytest -v -s --functions-durations=20 --modules-durations=5 $EXTRA_ARGS ./tensorflow_recommenders_addons/dynamic_embedding/python/kernel_tests/
 
+rm -rf ./tensorflow_recommenders_addons/dynamic_embedding/core/_*_ops.so
+rm -rf ./tensorflow_recommenders_addons/embedding_variable/core/_*_ops.so
+rm -rf /root/.cache/bazel/_bazel_root

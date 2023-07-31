@@ -1,6 +1,10 @@
 set -e -x
 
 df -h
+free -g
+pip3 list
+pip3 cache purge
+df -h
 docker info
 # to get more disk space
 rm -rf /usr/share/dotnet &
