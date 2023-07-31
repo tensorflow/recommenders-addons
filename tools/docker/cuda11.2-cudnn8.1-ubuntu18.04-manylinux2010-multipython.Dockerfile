@@ -80,8 +80,9 @@ WORKDIR /tmp/
 COPY install/install_nccl.sh /install/
 RUN /install/install_nccl.sh "2.8.4-1+cuda11.2"
 
-COPY install/install_rocksdb.sh /install/
-RUN /install/install_rocksdb.sh "6.22.1"
+# TODO(MoFHeka): GitHub CI container does not have enough disk space to install Rocksdb
+# COPY install/install_rocksdb.sh /install/
+# RUN /install/install_rocksdb.sh "6.22.1"
 
 COPY install/install_bazel.sh /install/
 RUN /install/install_bazel.sh "5.1.1"
@@ -107,8 +108,9 @@ RUN /install/install_latest_clang.sh
 COPY install/use_devtoolset_7.sh /install/
 RUN /install/use_devtoolset_7.sh
 
-COPY install/install_rocksdb.sh /install/
-RUN /install/install_rocksdb.sh "6.22.1"
+# TODO(MoFHeka): GitHub CI container does not have enough disk space to install Rocksdb
+# COPY install/install_rocksdb.sh /install/
+# RUN /install/install_rocksdb.sh "6.22.1"
 
 COPY install/install_openmpi.sh /install/
 RUN /install/install_openmpi.sh "4.1.1"
