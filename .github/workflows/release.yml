@@ -66,8 +66,6 @@ jobs:
     steps:
       - name: clear cache folder
         run: rm -rf /usr/share/dotnet /opt/ghc "/usr/local/share/boost"
-      - name: show disk space
-        run: df
       - uses: actions/github-script@0.3.0
         id: author-date
         with:

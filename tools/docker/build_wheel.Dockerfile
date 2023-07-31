@@ -66,15 +66,7 @@ ENV TF_NEED_CUDA=$TF_NEED_CUDA
 ENV TF_CUDA_VERSION=$TF_CUDA_VERSION
 ENV TF_CUDNN_VERSION=$TF_CUDNN_VERSION
 
-ARG PY_VERSION
-RUN ln -sf /usr/local/bin/python$PY_VERSION /usr/bin/python
-
 RUN python configure.py
-
-RUN df -h
-RUN pip$PY_VERSION list
-RUN pip$PY_VERSION cache purge
-RUN df -h
 
 RUN bash tools/testing/build_and_run_tests.sh && \
     bazel build --local_ram_resources=4096 \
