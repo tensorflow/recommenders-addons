@@ -528,7 +528,8 @@ class RedisWrapper<RedisInstance, K, V,
                   const std::vector<std::size_t> *sizes_i) {
       assert(strcmp(ptrs_i->front(), "HMGET") == 0);
       assert(sizes_i->front() == 5);
-      assert(std::string(hkey.data()).compare(ptrs_i[1]) == 0);
+      assert(std::string(hkey.data(), hkey.size())
+                 .compare(0, sizes_i->at(1), ptrs_i->at(1)) == 0);
 
       connection.send(static_cast<int>(ptrs_i->size()),
                       const_cast<const char **>(ptrs_i->data()),
@@ -986,7 +987,8 @@ every bucket has its own BucketContext for sending data---for locating reply-
                   const std::vector<std::size_t> *sizes_i) {
       assert(strcmp(ptrs_i->front(), "HMGET") == 0);
       assert(sizes_i->front() == 5);
-      assert(std::string(hkey.data()).compare(ptrs_i[1]) == 0);
+      assert(std::string(hkey.data(), hkey.size())
+                 .compare(0, sizes_i->at(1), ptrs_i->at(1)) == 0);
 
       connection.send(static_cast<int>(ptrs_i->size()),
                       const_cast<const char **>(ptrs_i->data()),
@@ -1201,7 +1203,8 @@ every bucket has its own BucketContext for sending data---for locating reply-
                   const std::vector<std::size_t> *sizes_i) {
       assert(strcmp(ptrs_i->front(), "HMSET") == 0);
       assert(sizes_i->front() == 5);
-      assert(std::string(hkey.data()).compare(ptrs_i[1]) == 0);
+      assert(std::string(hkey.data(), hkey.size())
+                 .compare(0, sizes_i->at(1), ptrs_i->at(1)) == 0);
 
       connection.send(static_cast<int>(ptrs_i->size()),
                       const_cast<const char **>(ptrs_i->data()),
@@ -1298,7 +1301,8 @@ every bucket has its own BucketContext for sending data---for locating reply-
                   const std::vector<std::size_t> *sizes_i) {
       assert(strcmp(ptrs_i->front(), "HMACCUM") == 0);
       assert(sizes_i->front() == redis_command_byte);
-      assert(std::string(hkey.data()).compare(ptrs_i[1]) == 0);
+      assert(std::string(hkey.data(), hkey.size())
+                 .compare(0, sizes_i->at(1), ptrs_i->at(1)) == 0);
 
       connection.send(static_cast<int>(ptrs_i->size()),
                       const_cast<const char **>(ptrs_i->data()),
@@ -1377,7 +1381,8 @@ every bucket has its own BucketContext for sending data---for locating reply-
                   const std::vector<std::size_t> *sizes_i) {
       assert(strcmp(ptrs_i->front(), "HDEL") == 0);
       assert(sizes_i->front() == 4);
-      assert(std::string(hkey.data()).compare(ptrs_i[1]) == 0);
+      assert(std::string(hkey.data(), hkey.size())
+                 .compare(0, sizes_i->at(1), ptrs_i->at(1)) == 0);
 
       connection.send(static_cast<int>(ptrs_i->size()),
                       const_cast<const char **>(ptrs_i->data()),
