@@ -92,7 +92,7 @@ class Embedding(tf.keras.layers.Layer):
   not need to set a static vocabulary size, and there will be no hash conflicts
   between features.
 
-  The embedding layer allow arbirary input shape of feature ids, and get
+  The embedding layer allows arbitrary input shape of feature ids, and get
   (shape(ids) + embedding_size) lookup result. Normally the first dimension
   is batch_size.
 
@@ -121,14 +121,14 @@ class Embedding(tf.keras.layers.Layer):
                with_unique=True,
                **kwargs):
     """
-    Creates a Embedding layer.
+    Creates an Embedding layer.
 
     Args:
       embedding_size: An object convertible to int. Length of embedding vector
         to every feature id.
       key_dtype: Dtype of the embedding keys to weights. Default is int64.
       value_dtype: Dtype of the embedding weight values. Default is float32
-      combiner: A string or a function to combine the lookup result. It's value
+      combiner: A string or a function to combine the lookup result. Its value
         could be 'sum', 'mean', 'min', 'max', 'prod', 'std', etc. whose are
         one of tf.math.reduce_xxx.
       initializer: Initializer to the embedding values. Default is RandomNormal.
@@ -145,13 +145,13 @@ class Embedding(tf.keras.layers.Layer):
           embedding layer parameter since the dynamic embedding supports
           nearly infinite embedding space capacity.
         init_capacity: Integer. Initial number of kv-pairs in an embedding
-          layer. The capacity will growth if the used space exceeded current
+          layer. The capacity will grow if the used space exceeded current
           capacity.
         partitioner: A function to route the keys to specific devices for
           distributed embedding parameter.
         kv_creator: A KVCreator object to create external KV storage as
           embedding parameter.
-        max_norm: If not `None`, each values is clipped if its l2-norm is larger
+        max_norm: If not `None`, each value is clipped if its l2-norm is larger
         distribute_strategy: Used when creating ShadowVariable.
         keep_distribution: Bool. If true, save and restore python object with
           devices information. Default is false.
