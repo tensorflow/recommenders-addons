@@ -1,4 +1,4 @@
-/* Copyright 2021 The TensorFlow Authors. All Rights Reserved.
+/* Copyright 2023 The TensorFlow Authors. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -13,23 +13,24 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#include "tensorflow_recommenders_addons/dynamic_embedding/core/kernels/lookup_impl/lookup_table_op_gpu.h"
+#include "tensorflow_recommenders_addons/dynamic_embedding/core/kernels/lookup_impl/lookup_table_op_hkv.h"
+
 namespace tensorflow {
 namespace recommenders_addons {
 namespace lookup {
 namespace gpu {
 
 #define DEFINE_PURE_GPU_HASHTABLE(key_type, value_type) \
-    template<> class TableWrapper<key_type, value_type>
-
+  template <>                                           \
+  class TableWrapper<key_type, value_type>
 
 DEFINE_PURE_GPU_HASHTABLE(int64, float);
+DEFINE_PURE_GPU_HASHTABLE(int64, int8);
 DEFINE_PURE_GPU_HASHTABLE(int64, int32);
 DEFINE_PURE_GPU_HASHTABLE(int64, int64);
-DEFINE_PURE_GPU_HASHTABLE(int64, int64);
+DEFINE_PURE_GPU_HASHTABLE(int64, Eigen::half);
 
 #undef DEFINE_PURE_GPU_HASHTABLE
-
 
 }  // namespace gpu
 }  // namespace lookup

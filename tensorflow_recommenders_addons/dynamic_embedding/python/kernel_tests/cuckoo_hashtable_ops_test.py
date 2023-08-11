@@ -62,7 +62,15 @@ class CuckooHashtableTest(test.TestCase):
         id += 1
         self.assertTrue("I" in printed.contents())
         self.assertTrue(dev_str in printed.contents())
-        self.assertTrue("_size={}".format(expect_size) in printed.contents())
+        if not use_gpu:
+          self.assertTrue("_size={}".format(expect_size) in printed.contents())
+        else:
+          if init_size == 0:
+            self.assertTrue(
+                "init capacity: {}".format(1024 * 1024) in printed.contents())
+          else:
+            self.assertTrue(
+                "init capacity: {}".format(init_size) in printed.contents())
 
   @test_util.run_in_graph_and_eager_modes()
   def test_cuckoo_hashtable_import_and_export(self):
@@ -78,7 +86,7 @@ class CuckooHashtableTest(test.TestCase):
                                   dtypes.int32,
                                   initializer=0,
                                   dim=3,
-                                  init_size=128)
+                                  init_size=168)
           keys = constant_op.constant(list(range(168)), dtypes.int64)
           values = constant_op.constant([[1, 1, 1] for _ in range(168)],
                                         dtypes.int32)

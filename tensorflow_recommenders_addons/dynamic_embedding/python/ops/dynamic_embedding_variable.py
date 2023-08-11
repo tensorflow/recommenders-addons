@@ -581,14 +581,14 @@ class Variable(base.Trackable):
                         [dtypes.string, dtypes.int64],
                         [dtypes.string, dtypes.float64],
                         [dtypes.string, dtypes.bool]]
-    if "GPU" in self.devices[0].upper():
+    if "GPU" in self.devices[0].upper() or isinstance(self.kv_creator,
+                                                      de.HkvHashTableCreator):
       valid_dtype_list = [
           [dtypes.int64, dtypes.float32],
-          [dtypes.int64, dtypes.half],
-          [dtypes.int64, dtypes.int32],
           [dtypes.int64, dtypes.int8],
+          [dtypes.int64, dtypes.int32],
           [dtypes.int64, dtypes.int64],
-          [dtypes.int32, dtypes.float32],
+          [dtypes.int64, dtypes.half],
       ]
     if is_macos() and is_arm64():
       if value_dtype == dtypes.half or value_dtype == dtypes.bfloat16:

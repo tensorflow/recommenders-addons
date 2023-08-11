@@ -47,6 +47,12 @@ Export dynamic_embedding APIs.
 
 [`class ModelMode`](../tfra/dynamic_embedding/ModelMode.md): The global config of model modes.
 
+[`class HkvHashTable`](../tfra/dynamic_embedding/HkvHashTable.md): A generic mutable hash table implementation.
+
+[`class HkvHashTableConfig`](../tfra/dynamic_embedding/HkvHashTableConfig.md): HkvHashTableConfig config init_capacity, max_capacity, max_hbm_for_values of HkvHashTable
+
+[`class HkvHashTableCreator`](../tfra/dynamic_embedding/HkvHashTableCreator.md):   A generic KV table creator.
+
 [`class RedisTable`](../tfra/dynamic_embedding/RedisTable.md): A generic mutable hash table implementation.
 
 [`class RedisTableConfig`](../tfra/dynamic_embedding/RedisTableConfig.md): RedisTableConfig config json file for connecting Redis service and 
