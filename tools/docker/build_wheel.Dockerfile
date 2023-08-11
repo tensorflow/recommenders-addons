@@ -82,7 +82,7 @@ RUN bash tools/testing/build_and_run_tests.sh $SKIP_CUSTOM_OP_TESTS && \
     bazel-bin/build_pip_pkg artifacts $NIGHTLY_FLAG
 
 RUN bash tools/releases/tf_auditwheel_patch.sh
-RUN python -m auditwheel repair --plat manylinux2010_x86_64 artifacts/*.whl
+RUN python -m auditwheel repair --plat manylinux2014_x86_64 artifacts/*.whl
 RUN ls -al wheelhouse/
 
 # -------------------------------------------------------------------

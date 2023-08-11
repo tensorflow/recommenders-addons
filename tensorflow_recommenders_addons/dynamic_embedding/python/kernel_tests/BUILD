@@ -1,5 +1,7 @@
 # Placeholder for internal Python library.
 # Placeholder for internal Python test library.
+load("@local_config_cuda//cuda:build_defs.bzl", "cuda_is_configured")
+load("//tensorflow_recommenders_addons:tensorflow_recommenders_addons.bzl", "custom_cuda_op_library", "if_cuda_for_tf_serving")
 
 package(
     default_visibility = [

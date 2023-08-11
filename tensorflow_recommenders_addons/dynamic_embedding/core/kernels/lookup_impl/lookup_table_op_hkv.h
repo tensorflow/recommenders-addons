@@ -1,4 +1,4 @@
-/* Copyright 2021 The TensorFlow Authors. All Rights Reserved.
+/* Copyright 2023 The TensorFlow Authors. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -13,17 +13,23 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#ifndef TFRA_CORE_KERNELS_LOOKUP_TABLE_OP_GPU_H_
-#define TFRA_CORE_KERNELS_LOOKUP_TABLE_OP_GPU_H_
+#ifndef TFRA_CORE_KERNELS_LOOKUP_TABLE_OP_HKV_H_
+#define TFRA_CORE_KERNELS_LOOKUP_TABLE_OP_HKV_H_
 
-#include <typeindex>
 #include <stddef.h>
 #include <stdio.h>
-#include <string>
-#include <vector>
 #include <time.h>
-#include <limits>
 
+#include <limits>
+#include <string>
+#include <typeindex>
+#include <vector>
+
+#include "merlin/allocator.cuh"
+#include "merlin/types.cuh"
+#include "merlin/utils.cuh"
+#include "merlin_hashtable.cuh"
+#include "merlin_localfile.hpp"
 #include "tensorflow/core/framework/bounds_check.h"
 #include "tensorflow/core/framework/lookup_interface.h"
 #include "tensorflow/core/framework/op_kernel.h"
@@ -33,26 +39,22 @@ limitations under the License.
 #include "tensorflow/core/kernels/lookup_util.h"
 #include "tensorflow/core/lib/core/errors.h"
 #include "tensorflow/core/lib/core/status.h"
+#include "tensorflow/core/lib/io/buffered_inputstream.h"
+#include "tensorflow/core/lib/io/random_inputstream.h"
 #include "tensorflow/core/platform/macros.h"
 #include "tensorflow/core/platform/thread_annotations.h"
-#include "tensorflow_recommenders_addons/dynamic_embedding/core/lib/merlin_inc/merlin_hashtable.cuh"
-#include "tensorflow_recommenders_addons/dynamic_embedding/core/lib/merlin_inc/merlin_localfile.hpp"
-#include "tensorflow_recommenders_addons/dynamic_embedding/core/lib/merlin_inc/merlin/types.cuh"
-#include "tensorflow_recommenders_addons/dynamic_embedding/core/lib/merlin_inc/merlin/utils.cuh"
 
 namespace tensorflow {
 namespace recommenders_addons {
 namespace lookup {
 namespace gpu {
 
-template <typename K, typename V, typename M>
-class KVOnlyFile : public nv::merlin::BaseKVFile<K, V, M> {
+template <typename K, typename V, typename S>
+class KVOnlyFile : public nv::merlin::BaseKVFile<K, V, S> {
  public:
   KVOnlyFile() : keys_fp_(nullptr), values_fp_(nullptr) {}
 
-  ~KVOnlyFile() {
-    close();
-  }
+  ~KVOnlyFile() { close(); }
 
   bool open(const std::string& keys_path, const std::string& values_path,
             const char* mode) {
@@ -80,21 +82,23 @@ class KVOnlyFile : public nv::merlin::BaseKVFile<K, V, M> {
     }
   }
 
-  size_t read(const size_t n, const size_t dim, K* keys, V* vectors, M* metas) override {
+  size_t read(const size_t n, const size_t dim, K* keys, V* vectors,
+              S* scores) override {
     size_t nread_keys =
         fread(keys, sizeof(K), static_cast<size_t>(n), keys_fp_);
     size_t nread_vecs =
         fread(vectors, sizeof(V) * dim, static_cast<size_t>(n), values_fp_);
     if (nread_keys != nread_vecs) {
-      LOG(INFO) << "Partially read failed. " << nread_keys << " kv pairs by KVOnlyFile.";
+      LOG(INFO) << "Partially read failed. " << nread_keys
+                << " kv pairs by KVOnlyFile.";
       return 0;
     }
     LOG(INFO) << "Partially read " << nread_keys << " kv pairs by KVOnlyFile.";
     return nread_keys;
   }
 
-  size_t write(const size_t n, const size_t dim, const K* keys, const V* vectors,
-               const M* metas) override {
+  size_t write(const size_t n, const size_t dim, const K* keys,
+               const V* vectors, const S* scores) override {
     size_t nwritten_keys =
         fwrite(keys, sizeof(K), static_cast<size_t>(n), keys_fp_);
     size_t nwritten_vecs =
@@ -102,7 +106,8 @@ class KVOnlyFile : public nv::merlin::BaseKVFile<K, V, M> {
     if (nwritten_keys != nwritten_vecs) {
       return 0;
     }
-    LOG(INFO) << "Partially write " << nwritten_keys << " kv pairs by KVOnlyFile.";
+    LOG(INFO) << "Partially write " << nwritten_keys
+              << " kv pairs by KVOnlyFile.";
     return nwritten_keys;
   }
 
@@ -111,9 +116,157 @@ class KVOnlyFile : public nv::merlin::BaseKVFile<K, V, M> {
   FILE* values_fp_;
 };
 
+template <typename K, typename V, typename S>
+class RandomKVFile : public nv::merlin::BaseKVFile<K, V, S> {
+ public:
+  RandomKVFile(FileSystem* fs, const std::string& filepath, size_t value_dim,
+               size_t buffer_size, bool append_to_file = false)
+      : fs_(fs),
+        filepath_(filepath),
+        value_dim_(value_dim),
+        buffer_size_(buffer_size),
+        append_to_file_(append_to_file) {}
+
+  ~RandomKVFile() {}
+
+  Status open(const std::string& key_filepath,
+              const std::string& value_filepath, const std::string& mode) {
+    key_buffer_byte_size_ = buffer_size_ * sizeof(K);
+    const size_t value_len = sizeof(V) * value_dim_;
+    value_buffer_byte_size_ = buffer_size_ * value_len;
+
+    if ("rb" == mode) {
+      TF_RETURN_IF_ERROR(fs_->FileExists(key_filepath));
+      TF_RETURN_IF_ERROR(fs_->NewRandomAccessFile(key_filepath, &key_file_));
+      key_input_stream_ =
+          std::make_unique<io::RandomAccessInputStream>(key_file_.get());
+      key_reader_ = std::make_unique<io::BufferedInputStream>(
+          key_input_stream_.get(), key_buffer_byte_size_ * 2);
+
+      TF_RETURN_IF_ERROR(fs_->FileExists(value_filepath));
+      TF_RETURN_IF_ERROR(
+          fs_->NewRandomAccessFile(value_filepath, &value_file_));
+      value_input_stream_ =
+          std::make_unique<io::RandomAccessInputStream>(value_file_.get());
+      value_reader_ = std::make_unique<io::BufferedInputStream>(
+          value_input_stream_.get(), value_buffer_byte_size_ * 2);
+
+      uint64 key_file_size = 0;
+      TF_RETURN_IF_ERROR(fs_->GetFileSize(key_filepath, &key_file_size));
+      size_t key_size = key_file_size / sizeof(K);
+
+      uint64 value_file_size = 0;
+      TF_RETURN_IF_ERROR(fs_->GetFileSize(value_filepath, &value_file_size));
+      size_t value_size = value_file_size / value_len;
+
+      if (key_size != value_size) {
+        return errors::Unavailable(
+            "the keys number in file " + key_filepath +
+            " is not equal to the value vectors number in file " +
+            value_filepath + ".");
+      }
+    } else if ("wb" == mode) {
+      std::string key_tmpfilepath(key_filepath + ".tmp");
+      std::string value_tmpfilepath(value_filepath + ".tmp");
+
+      bool has_atomic_move = false;
+      auto has_atomic_move_ret =
+          fs_->HasAtomicMove(filepath_, &has_atomic_move);
+      bool need_tmp_file =
+          (has_atomic_move == false) || (has_atomic_move_ret != Status::OK());
+
+      if (!need_tmp_file) {
+        key_tmpfilepath = key_filepath;
+        value_tmpfilepath = value_filepath;
+      }
+      TF_RETURN_IF_ERROR(
+          fs_->RecursivelyCreateDir(std::string(fs_->Dirname(filepath_))));
+
+      if (append_to_file_) {
+        TF_RETURN_IF_ERROR(
+            fs_->NewAppendableFile(key_tmpfilepath, &key_writer_));
+        TF_RETURN_IF_ERROR(
+            fs_->NewAppendableFile(value_tmpfilepath, &value_writer_));
+      } else {
+        TF_RETURN_IF_ERROR(fs_->NewWritableFile(key_tmpfilepath, &key_writer_));
+        TF_RETURN_IF_ERROR(
+            fs_->NewWritableFile(value_tmpfilepath, &value_writer_));
+      }
+    }
+    return Status::OK();
+  }
+
+  void close() {
+    if (key_writer_) {
+      key_writer_->Flush();
+    }
+    if (value_writer_) {
+      value_writer_->Flush();
+    }
+  }
+
+  size_t read(const size_t n, const size_t dim, K* keys, V* vectors,
+              S* scores) override {
+    size_t key_read_byte = n * sizeof(K);
+    size_t value_read_byte = n * sizeof(V) * dim;
+
+    key_buffer_.resize(key_read_byte);
+    value_buffer_.resize(value_read_byte);
+
+    key_reader_->ReadNBytes(key_read_byte, &key_buffer_);
+    value_reader_->ReadNBytes(value_read_byte, &value_buffer_);
+
+    memcpy((char*)keys, key_buffer_.data(), key_buffer_.size());
+    memcpy((char*)vectors, value_buffer_.data(), value_buffer_.size());
+
+    size_t nread_keys = key_buffer_.size() / sizeof(K);
+    return nread_keys;
+  }
+
+  size_t write(const size_t n, const size_t dim, const K* keys,
+               const V* vectors, const S* scores) override {
+    size_t key_write_byte = n * sizeof(K);
+    size_t value_write_byte = n * sizeof(V) * value_dim_;
+    std::vector<char> key_buffer_vector(key_buffer_byte_size_);
+    char* key_buffer = key_buffer_vector.data();
+    std::vector<char> value_buffer_vector(value_buffer_byte_size_);
+    char* value_buffer = value_buffer_vector.data();
+
+    memcpy(key_buffer, (void*)keys, key_write_byte);
+    memcpy(value_buffer, (void*)vectors, value_write_byte);
+
+    key_writer_->Append(StringPiece(key_buffer, key_write_byte));
+    value_writer_->Append(StringPiece(value_buffer, value_write_byte));
+
+    return n;
+  }
+
+ private:
+  size_t value_dim_;
+  FileSystem* fs_ = nullptr;
+  std::string filepath_;
+  size_t buffer_size_;
+  size_t key_buffer_byte_size_;
+  size_t value_buffer_byte_size_;
+  tstring key_buffer_;
+  tstring value_buffer_;
+  bool append_to_file_ = false;
+
+  std::unique_ptr<WritableFile> key_writer_ = nullptr;
+  std::unique_ptr<WritableFile> value_writer_ = nullptr;
+
+  std::unique_ptr<RandomAccessFile> key_file_ = nullptr;
+  std::unique_ptr<RandomAccessFile> value_file_ = nullptr;
+  std::unique_ptr<io::RandomAccessInputStream> key_input_stream_ = nullptr;
+  std::unique_ptr<io::RandomAccessInputStream> value_input_stream_ = nullptr;
+  std::unique_ptr<io::BufferedInputStream> key_reader_ = nullptr;
+  std::unique_ptr<io::BufferedInputStream> value_reader_ = nullptr;
+};
+
 // template to avoid multidef in compile time only.
 template <typename K, typename V>
-__global__ void gpu_u64_to_i64_kernel(const uint64_t* u64, int64* i64, size_t len) {
+__global__ void gpu_u64_to_i64_kernel(const uint64_t* u64, int64* i64,
+                                      size_t len) {
   size_t tid = (blockIdx.x * blockDim.x) + threadIdx.x;
   if (tid < len) {
     i64[tid] = static_cast<int64>(u64[tid]);
@@ -129,10 +282,12 @@ __global__ void broadcast_kernel(T* data, T val, size_t n) {
 }
 
 template <typename K, typename V>
-void gpu_cast_u64_to_i64(const uint64_t* u64, int64* i64, size_t len, cudaStream_t stream) {
+void gpu_cast_u64_to_i64(const uint64_t* u64, int64* i64, size_t len,
+                         cudaStream_t stream) {
   size_t block_size = nv::merlin::SAFE_GET_BLOCK_SIZE(1024);
   size_t grid_size = nv::merlin::SAFE_GET_GRID_SIZE(len, block_size);
-  gpu_u64_to_i64_kernel<K, V><<<grid_size, block_size, 0, stream>>>(u64, i64, len);
+  gpu_u64_to_i64_kernel<K, V>
+      <<<grid_size, block_size, 0, stream>>>(u64, i64, len);
 }
 
 using GPUDevice = Eigen::ThreadPoolDevice;
@@ -140,32 +295,159 @@ using GPUDevice = Eigen::ThreadPoolDevice;
 struct TableWrapperInitOptions {
   size_t max_capacity;
   size_t init_capacity;
+  size_t max_hbm_for_vectors;
+  size_t max_bucket_size;
+  float max_load_factor;
+  int block_size;
+  int io_block_size;
+};
+
+template <typename V>
+__global__ void gpu_fill_default_values(V* d_vals, V* d_def_val, size_t len,
+                                        size_t dim) {
+  int threadId = blockIdx.x * blockDim.x + threadIdx.x;
+  if (threadId < len) {
+#pragma unroll
+    for (int i = 0; i < dim; i++) {
+      d_vals[threadId * dim + i] = d_def_val[i];
+    }
+  }
+}
+
+class TFOrDefaultAllocator : public nv::merlin::BaseAllocator {
+ private:
+  using NMMemType = nv::merlin::MemoryType;
+  // tensorflow::Allocator* tf_host_allocator_ = nullptr;
+  tensorflow::Allocator* tf_device_allocator_ = nullptr;
+  std::unique_ptr<nv::merlin::DefaultAllocator> default_allocator_ = nullptr;
+  bool use_default_allocator_ = false;
+  // bool tf_async_allocator_stream_set_ = false;
+  static constexpr size_t kAllocatorAlignment = 8;
+
+ public:
+  TFOrDefaultAllocator() : use_default_allocator_(true) {
+    default_allocator_ = std::make_unique<nv::merlin::DefaultAllocator>();
+  }
+
+  TFOrDefaultAllocator(OpKernelContext* ctx) {
+    if (ctx) {
+      tensorflow::AllocatorAttributes tf_alloc_attrs;
+      tf_device_allocator_ = ctx->get_allocator(tf_alloc_attrs);
+    } else {
+      use_default_allocator_ = true;
+      default_allocator_ = std::make_unique<nv::merlin::DefaultAllocator>();
+    }
+  }
+
+  ~TFOrDefaultAllocator() override {}
+
+  void alloc(const NMMemType type, void** ptr, size_t size,
+             unsigned int pinned_flags = cudaHostAllocDefault) override {
+    if (!use_default_allocator_) {
+      switch (type) {
+        case NMMemType::Device:
+          *ptr = tf_device_allocator_->AllocateRaw(kAllocatorAlignment, size);
+          if (nullptr == *ptr) {
+            throw std::runtime_error(
+                "Failed to allocator gpu memory, please adjust param 'max_hbm' "
+                "smaller.");
+          }
+          break;
+        case NMMemType::Pinned:
+          CUDA_CHECK(cudaMallocHost(ptr, size, pinned_flags));
+          break;
+        case NMMemType::Host:
+          *ptr = std::malloc(size);
+          break;
+      }
+    } else {
+      default_allocator_->alloc(type, ptr, size, pinned_flags);
+    }
+  }
+
+  void alloc_async(const NMMemType type, void** ptr, size_t size,
+                   cudaStream_t stream) override {
+    if (!use_default_allocator_) {
+      if (NMMemType::Device == type) {
+        *ptr = tf_device_allocator_->AllocateRaw(kAllocatorAlignment, size);
+        if (nullptr == *ptr) {
+          throw std::runtime_error(
+              "Failed to allocator gpu memory, please adjust param 'max_hbm' "
+              "smaller.");
+        }
+      }
+    } else {
+      default_allocator_->alloc_async(type, ptr, size, stream);
+    }
+  }
+
+  void free(const NMMemType type, void* ptr) override {
+    if (!use_default_allocator_) {
+      switch (type) {
+        case NMMemType::Device:
+          tf_device_allocator_->DeallocateRaw(ptr);
+          break;
+        case NMMemType::Pinned:
+          CUDA_CHECK(cudaFreeHost(ptr));
+          break;
+        case NMMemType::Host:
+          std::free(ptr);
+          break;
+      }
+    } else {
+      default_allocator_->free(type, ptr);
+    }
+  }
+
+  void free_async(const NMMemType type, void* ptr,
+                  cudaStream_t stream) override {
+    if (!use_default_allocator_) {
+      if (NMMemType::Device == type) {
+        tf_device_allocator_->DeallocateRaw(ptr);
+      }
+    } else {
+      default_allocator_->free_async(type, ptr, stream);
+    }
+  }
 };
 
 template <class K, class V>
 class TableWrapper {
  private:
-  //using M = uint64_t;
+  // using S = uint64_t;
   using Table = nv::merlin::HashTable<K, V, uint64_t>;
+  nv::merlin::HashTableOptions mkv_options_;
 
  public:
   TableWrapper(TableWrapperInitOptions& init_options, size_t dim) {
     max_capacity_ = init_options.max_capacity;
     dim_ = dim;
-    nv::merlin::HashTableOptions mkv_options;
-    mkv_options.init_capacity = std::min(init_options.init_capacity, max_capacity_);
-    mkv_options.max_capacity = max_capacity_;
+    // nv::merlin::HashTableOptions mkv_options_;
+    mkv_options_.init_capacity =
+        std::min(init_options.init_capacity, max_capacity_);
+    mkv_options_.max_capacity = max_capacity_;
     // Since currently GPU nodes are not compatible to fast
     // pcie connections for D2H non-continous wirte, so just
     // use pure hbm mode now.
-    mkv_options.max_hbm_for_vectors = std::numeric_limits<size_t>::max();
-    mkv_options.max_load_factor = 0.63;
-    mkv_options.block_size = nv::merlin::SAFE_GET_BLOCK_SIZE(1024);
-    mkv_options.dim = dim;
-    mkv_options.evict_strategy = nv::merlin::EvictStrategy::kCustomized;
-    block_size_ = mkv_options.block_size;
+    // mkv_options_.max_hbm_for_vectors = std::numeric_limits<size_t>::max();
+    mkv_options_.max_hbm_for_vectors = init_options.max_hbm_for_vectors;
+    mkv_options_.max_load_factor = 0.5;
+    mkv_options_.block_size = nv::merlin::SAFE_GET_BLOCK_SIZE(128);
+    mkv_options_.dim = dim;
+    // mkv_options_.evict_strategy = nv::merlin::EvictStrategy::kCustomized;
+    mkv_options_.evict_strategy = nv::merlin::EvictStrategy::kLru;
+
+    block_size_ = mkv_options_.block_size;
     table_ = new Table();
-    table_->init(mkv_options);
+  }
+
+  Status init(nv::merlin::BaseAllocator* allocator) {
+    try {
+      table_->init(mkv_options_, allocator);
+    } catch (std::runtime_error& e) {
+      return Status(tensorflow::error::INTERNAL, e.what());
+    }
+    return Status::OK();
   }
 
   ~TableWrapper() { delete table_; }
@@ -173,61 +455,58 @@ class TableWrapper {
   void upsert(const K* d_keys, const V* d_vals, size_t len,
               cudaStream_t stream) {
     uint64_t t0 = (uint64_t)time(NULL);
-    uint64_t* timestamp_metas = nullptr;
-    CUDA_CHECK(cudaMallocAsync(&timestamp_metas, len * sizeof(uint64_t), stream));
-    CUDA_CHECK(cudaMemsetAsync(timestamp_metas, 0, len * sizeof(uint64_t), stream));
     size_t grid_size = nv::merlin::SAFE_GET_GRID_SIZE(len, block_size_);
-    broadcast_kernel<uint64_t><<<grid_size, block_size_, 0, stream>>>(timestamp_metas, t0, len);
-
-    table_->insert_or_assign(len, d_keys, d_vals, /*d_metas=*/timestamp_metas, stream);
-    CUDA_CHECK(cudaFreeAsync(timestamp_metas, stream));
+    table_->insert_or_assign(len, d_keys, d_vals, /*d_scores=*/nullptr, stream);
+    CUDA_CHECK(cudaStreamSynchronize(stream));
   }
 
-  void accum(const K* d_keys, const V* d_vals_or_deltas,
-             const bool* d_exists, size_t len, cudaStream_t stream) {
+  void accum(const K* d_keys, const V* d_vals_or_deltas, const bool* d_exists,
+             size_t len, cudaStream_t stream) {
     uint64_t t0 = (uint64_t)time(NULL);
-    uint64_t* timestamp_metas = nullptr;
-    CUDA_CHECK(cudaMallocAsync(&timestamp_metas, len * sizeof(uint64_t), stream));
-    CUDA_CHECK(cudaMemsetAsync(timestamp_metas, 0, len * sizeof(uint64_t), stream));
     size_t grid_size = nv::merlin::SAFE_GET_GRID_SIZE(len, block_size_);
-    broadcast_kernel<uint64_t><<<grid_size, block_size_, 0, stream>>>(timestamp_metas, t0, len);
-    table_->accum_or_assign(len, d_keys, d_vals_or_deltas, d_exists, /*d_metas=*/timestamp_metas, stream);
-    CUDA_CHECK(cudaFreeAsync(timestamp_metas, stream));
-    CUDA_CHECK(cudaStreamSynchronize(stream))
+    table_->accum_or_assign(len, d_keys, d_vals_or_deltas, d_exists,
+                            /*d_scores=*/nullptr, stream);
+    CUDA_CHECK(cudaStreamSynchronize(stream));
   }
 
-  void dump(K* d_key, V* d_val, const size_t offset,
-            const size_t search_length, size_t* d_dump_counter,
-            cudaStream_t stream) const {
-    table_->export_batch(search_length, offset, d_dump_counter, d_key, d_val, /*d_metas=*/nullptr, stream);
+  void dump(K* d_key, V* d_val, const size_t offset, const size_t search_length,
+            size_t* d_dump_counter, cudaStream_t stream) const {
+    table_->export_batch(search_length, offset, d_dump_counter, d_key, d_val,
+                         /*d_scores=*/nullptr, stream);
   }
 
-  void dump_with_metas(K* d_key, V* d_val, uint64_t* d_metas, const size_t offset,
-                       const size_t search_length, size_t* d_dump_counter,
-                       cudaStream_t stream) const {
-    table_->export_batch(search_length, offset, d_dump_counter, d_key, d_val, d_metas, stream);
+  void dump_with_scores(K* d_key, V* d_val, uint64_t* d_scores,
+                        const size_t offset, const size_t search_length,
+                        size_t* d_dump_counter, cudaStream_t stream) const {
+    table_->export_batch(search_length, offset, d_dump_counter, d_key, d_val,
+                         d_scores, stream);
   }
 
-  void dump_keys_and_metas(K* keys, int64* metas, size_t len,
-                           size_t split_len, cudaStream_t stream) const {
+  void dump_keys_and_scores(K* keys, int64* scores, size_t len,
+                            size_t split_len, cudaStream_t stream) const {
     V* values_buf = nullptr;
     size_t offset = 0;
     size_t real_offset = 0;
     size_t skip = split_len;
-    uint64_t* metas_u64 = reinterpret_cast<uint64_t*>(metas);
+    uint64_t* scores_u64 = reinterpret_cast<uint64_t*>(scores);
     size_t span_len = table_->capacity();
-    CUDA_CHECK(cudaMallocAsync(&values_buf, sizeof(V) * dim_ * split_len, stream));
-    CUDA_CHECK(cudaMemsetAsync(values_buf, 0, sizeof(V) * dim_ * split_len, stream));
+    CUDA_CHECK(
+        cudaMallocAsync(&values_buf, sizeof(V) * dim_ * split_len, stream));
+    CUDA_CHECK(
+        cudaMemsetAsync(values_buf, 0, sizeof(V) * dim_ * split_len, stream));
     for (; offset < span_len; offset += split_len) {
       if (offset + skip > span_len) {
         skip = span_len - offset;
       }
       // TODO: overlap the loop
-      size_t h_dump_counter = table_->export_batch(skip, offset, keys + real_offset, values_buf, metas_u64 + real_offset, stream);
+      size_t h_dump_counter =
+          table_->export_batch(skip, offset, keys + real_offset, values_buf,
+                               scores_u64 + real_offset, stream);
       CudaCheckError();
 
       if (h_dump_counter > 0) {
-        gpu_cast_u64_to_i64<K, V>(metas_u64 + real_offset, metas + real_offset, h_dump_counter, stream);
+        gpu_cast_u64_to_i64<K, V>(scores_u64 + real_offset,
+                                  scores + real_offset, h_dump_counter, stream);
         real_offset += h_dump_counter;
       }
       CUDA_CHECK(cudaStreamSynchronize(stream));
@@ -237,98 +516,147 @@ class TableWrapper {
     CUDA_CHECK(cudaStreamSynchronize(stream));
   }
 
-  void dump_to_file(const string filepath, size_t dim,
-                    cudaStream_t stream,
-                    const size_t buffer_size) const {
+  // TODO (LinGeLin) support scores
+  bool is_valid_scores(const std::string& keyfile,
+                       const std::string& scorefile) const {
+    return false;
+  }
+
+  void dump_to_file(FileSystem* fs, const string filepath, size_t dim,
+                    cudaStream_t stream, const size_t buffer_size,
+                    bool append_to_file) const {
     LOG(INFO) << "dump_to_file, filepath: " << filepath << ", dim: " << dim
               << ", stream: " << stream << ", buffer_size: " << buffer_size;
-    std::unique_ptr<TimestampV1CompatFile<K, V, uint64_t>> wfile;
-    string keyfile = ;
-    string valuefile = ;
-    string metafile = ;
 
-    wfile.reset(new TimestampV1CompatFile<K, V, uint64_t>);
-    bool open_ok = wfile->open(keyfile, valuefile, metafile, "wb");
-    if (!open_ok) {
-      std::string error_msg = "Failed to dump to file to " + keyfile + ", " + valuefile + ", " + metafile;
+    std::unique_ptr<nv::merlin::BaseKVFile<K, V, uint64_t>> wfile;
+
+    string keyfile = filepath + "-keys";
+    string valuefile = filepath + "-values";
+    string scorefile = filepath + "-scores";
+    bool has_scores = false;
+    Status status = Status::OK();
+
+    if (is_valid_scores(keyfile, scorefile)) {
+      wfile.reset(new nv::merlin::LocalKVFile<K, V, uint64_t>);
+      bool open_ok = reinterpret_cast<nv::merlin::LocalKVFile<K, V, uint64_t>*>(
+                         wfile.get())
+                         ->open(keyfile, valuefile, scorefile, "wb");
+      has_scores = true;
+      if (!open_ok) {
+        std::string error_msg = "Failed to dump to file to " + keyfile + ", " +
+                                valuefile + ", " + scorefile;
+        throw std::runtime_error(error_msg);
+      }
+    } else {
+      wfile.reset(new RandomKVFile<K, V, uint64_t>(
+          fs, filepath, dim, buffer_size, append_to_file));
+      status = reinterpret_cast<RandomKVFile<K, V, uint64_t>*>(wfile.get())
+                   ->open(keyfile, valuefile, "wb");
+    }
+    if (!status.ok()) {
+      std::string error_msg = "Failed to dump to file to " + keyfile + ", " +
+                              valuefile + ", " + scorefile + " " +
+                              status.ToString();
       throw std::runtime_error(error_msg);
     }
 
     size_t n_saved = table_->save(wfile.get(), buffer_size, stream);
-    LOG(INFO) << "[op] Save " << n_saved << " pairs into keyfile: "
-              << keyfile << ", and valuefile: " << valuefile
-              << ", and metafile: " << metafile;
+    if (has_scores) {
+      LOG(INFO) << "[op] Save " << n_saved << " pairs from keyfile: " << keyfile
+                << ", and valuefile: " << valuefile << ", and scorefile"
+                << scorefile;
+    } else {
+      LOG(INFO) << "[op] Save " << n_saved << " pairs from keyfile: " << keyfile
+                << ", and valuefile: " << valuefile;
+    }
     CUDA_CHECK(cudaStreamSynchronize(stream));
-    wfile->close();
+    if (has_scores) {
+      reinterpret_cast<nv::merlin::LocalKVFile<K, V, uint64_t>*>(wfile.get())
+          ->close();
+    } else {
+      reinterpret_cast<RandomKVFile<K, V, uint64_t>*>(wfile.get())->close();
+    }
   }
 
-  void load_from_file(const string filepath,
-                      size_t key_num, size_t dim, cudaStream_t stream,
-                      const size_t buffer_size) {
+  void load_from_file(FileSystem* fs, const string filepath, size_t dim,
+                      cudaStream_t stream, const size_t buffer_size) {
     std::unique_ptr<nv::merlin::BaseKVFile<K, V, uint64_t>> rfile;
-    string keyfile = ;
-    string valuefile = ;
-    string metafile = ;
-    //rfile.reset(new TimestampV1CompatFile<K, V, uint64_t>);
-    bool has_metas = false;
-    bool open_ok = false;
+    string keyfile = filepath + "-keys";
+    string valuefile = filepath + "-values";
+    string scorefile = filepath + "-scores";
+    bool has_scores = false;
+    Status status = Status::OK();
 
-    if (is_valid_metas(keyfile, metafile)) {
-      rfile.reset(new TimestampV1CompatFile<K, V, uint64_t>);
-      open_ok = reinterpret_cast<TimestampV1CompatFile<K, V, uint64_t>*>(rfile.get())->open(keyfile, valuefile, metafile, "rb");
-      has_metas = true;
+    if (is_valid_scores(keyfile, scorefile)) {
+      rfile.reset(new nv::merlin::LocalKVFile<K, V, uint64_t>);
+      bool open_ok = reinterpret_cast<nv::merlin::LocalKVFile<K, V, uint64_t>*>(
+                         rfile.get())
+                         ->open(keyfile, valuefile, scorefile, "rb");
+      has_scores = true;
+      if (!open_ok) {
+        std::string error_msg = "Failed to load from file " + keyfile + ", " +
+                                valuefile + ", " + scorefile;
+        throw std::runtime_error(error_msg);
+      }
     } else {
-      rfile.reset(new KVOnlyFile<K, V, uint64_t>);
-      open_ok = reinterpret_cast<KVOnlyFile<K, V, uint64_t>*>(rfile.get())->open(keyfile, valuefile, "rb");
+      rfile.reset(
+          new RandomKVFile<K, V, uint64_t>(fs, filepath, dim, buffer_size));
+      status = reinterpret_cast<RandomKVFile<K, V, uint64_t>*>(rfile.get())
+                   ->open(keyfile, valuefile, "rb");
     }
-    if (!open_ok) {
-      std::string error_msg = "Failed to load from file to " + keyfile + ", " + valuefile + ", " + metafile;
-      throw std::runtime_error("Failed to ");
+    if (!status.ok()) {
+      std::string error_msg = "Failed to load from file " + keyfile + ", " +
+                              valuefile + ", " + scorefile + " " +
+                              status.ToString();
+      throw std::runtime_error(error_msg);
     }
 
     size_t n_loaded = table_->load(rfile.get(), buffer_size, stream);
-    if (has_metas) {
-      LOG(INFO) << "[op] Load " << n_loaded << " pairs into keyfile: "
-                << keyfile << ", and valuefile: " << valuefile
-                << ", and metafile" << metafile;
+    if (has_scores) {
+      LOG(INFO) << "[op] Load " << n_loaded
+                << " pairs from keyfile: " << keyfile
+                << ", and valuefile: " << valuefile << ", and scorefile"
+                << scorefile;
     } else {
-      LOG(INFO) << "[op] Load " << n_loaded << " pairs into keyfile: "
-                << keyfile << ", and valuefile: " << valuefile;
+      LOG(INFO) << "[op] Load " << n_loaded
+                << " pairs from keyfile: " << keyfile
+                << ", and valuefile: " << valuefile;
     }
     CUDA_CHECK(cudaStreamSynchronize(stream));
-    if (has_metas) {
-      reinterpret_cast<TimestampV1CompatFile<K, V, uint64_t>*>(rfile.get())->close();
+    if (has_scores) {
+      reinterpret_cast<nv::merlin::LocalKVFile<K, V, uint64_t>*>(rfile.get())
+          ->close();
     } else {
-      reinterpret_cast<KVOnlyFile<K, V, uint64_t>*>(rfile.get())->close();
+      reinterpret_cast<RandomKVFile<K, V, uint64_t>*>(rfile.get())->close();
     }
   }
 
-  void get(const K* d_keys, V* d_vals, bool* d_status, size_t len,
-           V* d_def_val, cudaStream_t stream,
-           bool is_full_size_default) const {
+  void get(const K* d_keys, V* d_vals, bool* d_status, size_t len, V* d_def_val,
+           cudaStream_t stream, bool is_full_size_default) const {
     if (is_full_size_default) {
-      CUDA_CHECK(cudaMemcpyAsync(d_vals, d_def_val, sizeof(V) * dim_ * len, cudaMemcpyDeviceToDevice, stream));
+      CUDA_CHECK(cudaMemcpyAsync(d_vals, d_def_val, sizeof(V) * dim_ * len,
+                                 cudaMemcpyDeviceToDevice, stream));
     } else {
       size_t grid_size = nv::merlin::SAFE_GET_GRID_SIZE(len, block_size_);
-      gpu_fill_default_values<V><<<grid_size, block_size_, dim_ * sizeof(V), stream>>>(d_vals, d_def_val, len, dim_);
+      gpu_fill_default_values<V>
+          <<<grid_size, block_size_, dim_ * sizeof(V), stream>>>(
+              d_vals, d_def_val, len, dim_);
     }
-    table_->find(len, d_keys, d_vals, d_status, /*d_metas=*/nullptr, stream);
+    table_->find(len, d_keys, d_vals, d_status, /*d_scores=*/nullptr, stream);
   }
 
-  // TODO: Implement a contain kernel instead of find.
+  // TODO(LinGeLin): Implemented using the HKV contains API
   void contains(const K* d_keys, V* d_status, size_t len, cudaStream_t stream) {
     // pass
     V* tmp_vals = nullptr;
     CUDA_CHECK(cudaMallocAsync(&tmp_vals, sizeof(V) * len * dim_, stream));
     CUDA_CHECK(cudaMemsetAsync(&tmp_vals, 0, sizeof(V) * len * dim_, stream));
-    table_->find(len, d_keys, tmp_vals, d_status, /*d_metas=*/nullptr, stream);
+    table_->find(len, d_keys, tmp_vals, d_status, /*d_scores=*/nullptr, stream);
     CUDA_CHECK(cudaFreeAsync(tmp_vals, stream));
     CUDA_CHECK(cudaStreamSynchronize(stream));
   }
 
-  size_t get_size(cudaStream_t stream) const {
-    return table_->size(stream);
-  }
+  size_t get_size(cudaStream_t stream) const { return table_->size(stream); }
 
   size_t get_capacity() const { return table_->capacity(); }
 
@@ -347,9 +675,12 @@ class TableWrapper {
 };
 
 template <class K, class V>
-void CreateTableImpl(TableWrapper<K, V>** pptable, TableWrapperInitOptions& options,
-                     size_t runtime_dim) {
+Status CreateTableImpl(TableWrapper<K, V>** pptable,
+                       TableWrapperInitOptions& options,
+                       nv::merlin::BaseAllocator* allocator,
+                       size_t runtime_dim) {
   *pptable = new TableWrapper<K, V>(options, runtime_dim);
+  return (*pptable)->init(allocator);
 }
 
 }  // namespace gpu
@@ -357,4 +688,4 @@ void CreateTableImpl(TableWrapper<K, V>** pptable, TableWrapperInitOptions& opti
 }  // namespace recommenders_addons
 }  // namespace tensorflow
 
-#endif  // TFRA_CORE_KERNELS_LOOKUP_TABLE_OP_GPU_H_
+#endif  // TFRA_CORE_KERNELS_LOOKUP_TABLE_OP_HKV_H_

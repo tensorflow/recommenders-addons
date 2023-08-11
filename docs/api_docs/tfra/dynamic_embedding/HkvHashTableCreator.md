@@ -1,12 +1,12 @@
 <div itemscope itemtype="http://developers.google.com/ReferenceObject">
-<meta itemprop="name" content="tfra.dynamic_embedding.CuckooHashTableCreator" />
+<meta itemprop="name" content="tfra.dynamic_embedding.HkvTableCreator" />
 <meta itemprop="path" content="Stable" />
 <meta itemprop="property" content="__init__"/>
 <meta itemprop="property" content="create"/>
 <meta itemprop="property" content="get_config"/>
 </div>
 
-# tfra.dynamic_embedding.CuckooHashTableCreator
+# tfra.dynamic_embedding.HkvHashTableCreator
 
 <!-- Insert buttons and diff -->
 
@@ -25,7 +25,7 @@
 
 
 
-## Class `CuckooHashTableCreator`
+## Class `HkvHashTableCreator`
 
   A generic KV table creator.
 
@@ -41,10 +41,15 @@ class for creating the real KV table backend(TF resource).
 
 #### Example usage:
 
-Due to CuckooHashTableConfig include nothing for parameter default satisfied. Just setting the parameter saver is enough.
+
 
 ```python
-cuckoo_creator=tfra.dynamic_embedding.CuckooHashTableCreator(saver=de.FileSystemSaver())
+hkv_config=tfra.dynamic_embedding.HkvHashTableConfig(
+  init_capacity=1024 * 1024,
+  max_capacity=1024 * 1024,
+  max_hbm_for_values=0,
+)
+hkv_creator=tfra.dynamic_embedding.HkvHashTableCreator(config=hkv_config)
 ```
 
 <h2 id="__init__"><code>__init__</code></h2>
@@ -73,8 +78,10 @@ create(
     default_value=None,
     name=None,
     checkpoint=None,
-    init_size=None,
-    config=None
+    init_size=KHkvHashTableInitCapacity,
+    config=None,
+    device=None,
+    shard_saveable_object_fn=None,
 )
 ```
 
@@ -87,6 +94,21 @@ create(
 
 ``` python
 get_config()
+
+#return as follow
+
+config = {
+    'key_dtype': self.key_dtype,
+    'value_dtype': self.value_dtype,
+    'default_value': self.default_value.numpy(),
+    'name': self.name,
+    'checkpoint': self.checkpoint,
+    'init_capacity': self.init_capacity,
+    'max_capacity': self.max_capacity,
+    'max_hbm_for_values': self.max_hbm_for_values
+    'config': self.config,
+    'device': self.device,
+}
 ```
 
 

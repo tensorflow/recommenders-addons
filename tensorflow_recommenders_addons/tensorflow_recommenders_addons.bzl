@@ -7,9 +7,21 @@ load(
 )
 load(
     "@local_config_cuda//cuda:build_defs.bzl",
+    "cuda_is_configured",
     "if_cuda",
     "if_cuda_is_configured",
 )
+
+def custom_cuda_op_library(
+        name,
+        srcs = [],
+        cuda_srcs = [],
+        deps = [],
+        cuda_deps = [],
+        copts = [],
+        **kwargs):
+    if cuda_is_configured():
+        custom_op_library(name, srcs, cuda_srcs, deps, cuda_deps, copts, **kwargs)
 
 def custom_op_library(
         name,
