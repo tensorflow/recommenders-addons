@@ -1,5 +1,5 @@
 <div itemscope itemtype="http://developers.google.com/ReferenceObject">
-<meta itemprop="name" content="tfra.dynamic_embedding.CuckooHashTable" />
+<meta itemprop="name" content="tfra.dynamic_embedding.HkvHashTable" />
 <meta itemprop="path" content="Stable" />
 <meta itemprop="property" content="key_dtype"/>
 <meta itemprop="property" content="name"/>
@@ -16,14 +16,14 @@
 <meta itemprop="property" content="size"/>
 </div>
 
-# tfra.dynamic_embedding.CuckooHashTable
+# tfra.dynamic_embedding.HkvHashTable
 
 <!-- Insert buttons and diff -->
 
 <table class="tfo-notebook-buttons tfo-api" align="left">
 
 <td>
-  <a target="_blank" href="https://github.com/tensorflow/recommenders-addons/tree/master/tensorflow_recommenders_addons/dynamic_embedding/python/ops/cuckoo_hashtable_ops.py">
+  <a target="_blank" href="https://github.com/tensorflow/recommenders-addons/tree/master/tensorflow_recommenders_addons/dynamic_embedding/python/ops/hkv_hashtable_ops.py">
     <img src="https://www.tensorflow.org/images/GitHub-Mark-32px.png" />
     View source on GitHub
   </a>
@@ -35,26 +35,29 @@
 
 
 
-## Class `CuckooHashTable`
+## Class `HkvHashTable`
 
 A generic mutable hash table implementation.
 
+HkvHashTable is a multi-level cache hash table that allows storing values simultaneously in both GPU and CPU. It enables efficient utilization of training resources while ensuring high-performance queries, insert. This greatly expands the capacity of the hash table, making it suitable for more complex training tasks. For more detailed information about HierarchicalKV, please refer to [HierarchicalKV
+](https://github.com/NVIDIA-Merlin/HierarchicalKV).
 
 
-<!-- Placeholder for "Used in" -->
+#### Environment request
 
-Data can be inserted by calling the insert method and removed by calling the
-remove method. It does not support initialization via the init method.
+* CUDA version >= 11.2
+* NVIDIA GPU with compute capability 8.0, 8.6, 8.7 or 9.0
+* GCC supports `C++17' standard or later.
+
 
 #### Example usage:
 
 
 
 ```python
-table = tfra.dynamic_embedding.CuckooHashTable(key_dtype=tf.string,
+table = tfra.dynamic_embedding.HkvHashTable(key_dtype=tf.string,
                                                value_dtype=tf.int64,
-                                               default_value=-1,
-                                               device=['/GPU:0'])
+                                               default_value=-1)
 sess.run(table.insert(keys, values))
 out = table.lookup(query_keys)
 print(out.eval())
@@ -62,21 +65,29 @@ print(out.eval())
 
 <h2 id="__init__"><code>__init__</code></h2>
 
-<a target="_blank" href="https://github.com/tensorflow/recommenders-addons/tree/master/tensorflow_recommenders_addons/dynamic_embedding/python/ops/cuckoo_hashtable_ops.py">View source</a>
+<a target="_blank" href="https://github.com/tensorflow/recommenders-addons/tree/master/tensorflow_recommenders_addons/dynamic_embedding/python/ops/hkv_hashtable_ops.py">View source</a>
 
 ``` python
+KHkvHashTableInitCapacity = 1024 * 1024
+KHkvHashTableMaxCapacity = 1024 * 1024
+KHkvHashTableMaxHbmForValuesByBytes = 1024 * 1024 * 1024
+
+
 __init__(
     key_dtype,
     value_dtype,
     default_value,
-    name='CuckooHashTable',
+    name='HkvHashTable',
     checkpoint=(True),
-    init_size=0,
-    config=None
+    init_capacity=KHkvHashTableInitCapacity,
+    max_capacity=KHkvHashTableMaxCapacity,
+    max_hbm_for_values=KHkvHashTableMaxHbmForValuesByBytes,
+    config=None,
+    device='',
 )
 ```
 
-Creates an empty `CuckooHashTable` object.
+Creates an empty `HkvHashTable` object.
 
 Creates a table, the type of its keys and values are specified by key_dtype
 and value_dtype, respectively.
@@ -91,13 +102,17 @@ and value_dtype, respectively.
 * <b>`checkpoint`</b>: if True, the contents of the table are saved to and restored
   from checkpoints. If `shared_name` is empty for a checkpointed table, it
   is shared using the table node name.
-* <b>`init_size`</b>: initial size for the Variable and initial size of each hash
+* <b>`init_capacity`</b>: initial size for the Variable and initial size of each hash
+* <b>`max_capacity`</b>: max capacity for the Variable and max capacity of each hash
+* <b>`max_hbm_for_values`</b>: The maximum HBM capacity occupied by the values of the hash table, measured in bytes.
+* <b>`config`</b>: a HkvHashTableConfig object
+* <b>`device`</b>: initial size for the Variable and initial size of each hash
   tables will be int(init_size / N), N is the number of the devices.
 
 
 #### Returns:
 
-A `CuckooHashTable` object.
+A `HkvHashTable` object.
 
 
 
@@ -106,10 +121,6 @@ A `CuckooHashTable` object.
 
 * <b>`ValueError`</b>: If checkpoint is True and no name was specified.
 
-
-## <b>`Important update！！`</b>
-
-We have made updates to the underlying implementation of the CuckooHashTable. The original CPU table remains unchanged, but the GPU table now uses the HKV implementation instead of nvhash. To ensure interface consistency, the init_capacity and max_capacity of HKV will be set to the init_size value you pass in. It is important to note that after this setting, the GPU hash table will not automatically resize, and the final capacity will be the same as the init_size. The max_hbm_for_values parameter of hkv will be set to a sufficiently large number to ensure that all your data is stored in the GPU table. Additionally, hkv has requirements for GPU compute capability, which needs to be 8.0 or above. For more detailed information about HKV, please refer to the documentation of HKV.
 
 
 ## Properties
@@ -149,7 +160,7 @@ Looks up `keys` in a table, outputs the corresponding values.
 
 <h3 id="accum"><code>accum</code></h3>
 
-<a target="_blank" href="https://github.com/tensorflow/recommenders-addons/tree/master/tensorflow_recommenders_addons/dynamic_embedding/python/ops/cuckoo_hashtable_ops.py">View source</a>
+<a target="_blank" href="https://github.com/tensorflow/recommenders-addons/tree/master/tensorflow_recommenders_addons/dynamic_embedding/python/ops/hkv_hashtable_ops.py">View source</a>
 
 ``` python
 accum(
@@ -189,7 +200,7 @@ The created Operation.
 
 <h3 id="clear"><code>clear</code></h3>
 
-<a target="_blank" href="https://github.com/tensorflow/recommenders-addons/tree/master/tensorflow_recommenders_addons/dynamic_embedding/python/ops/cuckoo_hashtable_ops.py">View source</a>
+<a target="_blank" href="https://github.com/tensorflow/recommenders-addons/tree/master/tensorflow_recommenders_addons/dynamic_embedding/python/ops/hkv_hashtable_ops.py">View source</a>
 
 ``` python
 clear(name=None)
@@ -211,7 +222,7 @@ The created Operation.
 
 <h3 id="export"><code>export</code></h3>
 
-<a target="_blank" href="https://github.com/tensorflow/recommenders-addons/tree/master/tensorflow_recommenders_addons/dynamic_embedding/python/ops/cuckoo_hashtable_ops.py">View source</a>
+<a target="_blank" href="https://github.com/tensorflow/recommenders-addons/tree/master/tensorflow_recommenders_addons/dynamic_embedding/python/ops/hkv_hashtable_ops.py">View source</a>
 
 ``` python
 export(name=None)
@@ -234,7 +245,7 @@ A pair of tensors with the first tensor containing all keys and the
 
 <h3 id="insert"><code>insert</code></h3>
 
-<a target="_blank" href="https://github.com/tensorflow/recommenders-addons/tree/master/tensorflow_recommenders_addons/dynamic_embedding/python/ops/cuckoo_hashtable_ops.py">View source</a>
+<a target="_blank" href="https://github.com/tensorflow/recommenders-addons/tree/master/tensorflow_recommenders_addons/dynamic_embedding/python/ops/hkv_hashtable_ops.py">View source</a>
 
 ``` python
 insert(
@@ -271,7 +282,7 @@ The created Operation.
 
 <h3 id="lookup"><code>lookup</code></h3>
 
-<a target="_blank" href="https://github.com/tensorflow/recommenders-addons/tree/master/tensorflow_recommenders_addons/dynamic_embedding/python/ops/cuckoo_hashtable_ops.py">View source</a>
+<a target="_blank" href="https://github.com/tensorflow/recommenders-addons/tree/master/tensorflow_recommenders_addons/dynamic_embedding/python/ops/hkv_hashtable_ops.py">View source</a>
 
 ``` python
 lookup(
@@ -316,7 +327,7 @@ A tensor containing the values in the same shape as `keys` using the
 
 <h3 id="remove"><code>remove</code></h3>
 
-<a target="_blank" href="https://github.com/tensorflow/recommenders-addons/tree/master/tensorflow_recommenders_addons/dynamic_embedding/python/ops/cuckoo_hashtable_ops.py">View source</a>
+<a target="_blank" href="https://github.com/tensorflow/recommenders-addons/tree/master/tensorflow_recommenders_addons/dynamic_embedding/python/ops/hkv_hashtable_ops.py">View source</a>
 
 ``` python
 remove(
@@ -350,7 +361,7 @@ The created Operation.
 
 <h3 id="size"><code>size</code></h3>
 
-<a target="_blank" href="https://github.com/tensorflow/recommenders-addons/tree/master/tensorflow_recommenders_addons/dynamic_embedding/python/ops/cuckoo_hashtable_ops.py">View source</a>
+<a target="_blank" href="https://github.com/tensorflow/recommenders-addons/tree/master/tensorflow_recommenders_addons/dynamic_embedding/python/ops/hkv_hashtable_ops.py">View source</a>
 
 ``` python
 size(name=None)
@@ -368,7 +379,3 @@ Compute the number of elements in this table.
 #### Returns:
 
 A scalar tensor containing the number of elements in this table.
-
-
-
-

@@ -27,6 +27,10 @@ from tensorflow.python.ops import variables as variables_lib
 from tensorflow.python.training.saver import BaseSaverBuilder
 from tensorflow_recommenders_addons import dynamic_embedding as de
 
+KHkvHashTableInitCapacity = 1024 * 1024
+KHkvHashTableMaxCapacity = 1024 * 1024
+KHkvHashTableMaxHbmForValuesByBytes = 1024 * 1024 * 1024
+
 
 class KVCreator(object, metaclass=ABCMeta):
   """
@@ -89,7 +93,7 @@ class CuckooHashTableCreator(KVCreator):
       default_value=None,
       name=None,
       checkpoint=None,
-      init_size=None,
+      init_size=0,
       config=None,
       device=None,
       shard_saveable_object_fn=None,
@@ -103,7 +107,6 @@ class CuckooHashTableCreator(KVCreator):
     self.config = config
     self.device = device
     self.shard_saveable_object_fn = shard_saveable_object_fn
-
     return de.CuckooHashTable(
         key_dtype=self.key_dtype,
         value_dtype=self.value_dtype,
@@ -127,6 +130,80 @@ class CuckooHashTableCreator(KVCreator):
         'name': self.name,
         'checkpoint': self.checkpoint,
         'init_size': self.init_size,
+        'config': self.config,
+        'device': self.device,
+    }
+    return config
+
+
+class HkvHashTableConfig(object):
+
+  def __init__(self,
+               init_capacity=KHkvHashTableInitCapacity,
+               max_capacity=KHkvHashTableMaxCapacity,
+               max_hbm_for_values=KHkvHashTableMaxHbmForValuesByBytes):
+    """ CuckooHashTableConfig include nothing for parameter default satisfied.
+    """
+    self.init_capacity = init_capacity
+    self.max_capacity = max_capacity
+    self.max_hbm_for_values = max_hbm_for_values
+
+
+class HkvHashTableCreator(KVCreator):
+
+  def create(
+      self,
+      key_dtype=None,
+      value_dtype=None,
+      default_value=None,
+      name=None,
+      checkpoint=None,
+      init_size=KHkvHashTableInitCapacity,
+      config=None,
+      device=None,
+      shard_saveable_object_fn=None,
+  ):
+    self.key_dtype = key_dtype
+    self.value_dtype = value_dtype
+    self.default_value = default_value
+    self.name = name
+    self.checkpoint = checkpoint
+    self.init_capacity = init_size
+    self.max_capacity = KHkvHashTableMaxCapacity
+    self.max_hbm_for_values = KHkvHashTableMaxHbmForValuesByBytes
+    if self.config and isinstance(self.config, de.HkvHashTableConfig):
+      self.init_capacity = self.config.init_capacity
+      self.max_capacity = self.config.max_capacity
+      self.max_hbm_for_values = self.config.max_hbm_for_values
+    self.device = device
+    self.shard_saveable_object_fn = shard_saveable_object_fn
+
+    return de.HkvHashTable(
+        key_dtype=self.key_dtype,
+        value_dtype=self.value_dtype,
+        default_value=self.default_value,
+        name=self.name,
+        checkpoint=self.checkpoint,
+        init_capacity=self.init_capacity,
+        max_capacity=self.max_capacity,
+        max_hbm_for_values=self.max_hbm_for_values,
+        config=self.config,
+        device=self.device,
+        shard_saveable_object_fn=self.shard_saveable_object_fn)
+
+  def get_config(self):
+    if not context.executing_eagerly():
+      raise RuntimeError(
+          'Unsupported to serialize python object of HkvHashTableCreator.')
+
+    config = {
+        'key_dtype': self.key_dtype,
+        'value_dtype': self.value_dtype,
+        'default_value': self.default_value.numpy(),
+        'name': self.name,
+        'checkpoint': self.checkpoint,
+        'init_capacity': self.init_capacity,
+        'max_capacity': self.max_capacity,
         'config': self.config,
         'device': self.device,
     }

@@ -1,4 +1,4 @@
-/* Copyright 2017 The TensorFlow Authors. All Rights Reserved.
+/* Copyright 2023 The TensorFlow Authors. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -113,7 +113,7 @@ Status ValidateTableResourceHandle(InferenceContext* c, ShapeHandle keys,
 }
 
 Status HkvHashTableShape(InferenceContext* c, const ShapeHandle& key,
-                            const ShapeHandle& value) {
+                         const ShapeHandle& value) {
   c->set_output(0, c->Scalar());
 
   ShapeHandle key_s;
@@ -131,7 +131,7 @@ Status HkvHashTableShape(InferenceContext* c, const ShapeHandle& key,
   return Status::OK();
 }
 
-REGISTER_OP("TfraHkvHashTableFind")
+REGISTER_OP(PREFIX_OP_NAME(HkvHashTableFind))
     .Input("table_handle: resource")
     .Input("keys: Tin")
     .Input("default_value: Tout")
@@ -154,7 +154,7 @@ REGISTER_OP("TfraHkvHashTableFind")
       return Status::OK();
     });
 
-REGISTER_OP("TfraHkvHashTableFindWithExists")
+REGISTER_OP(PREFIX_OP_NAME(HkvHashTableFindWithExists))
     .Input("table_handle: resource")
     .Input("keys: Tin")
     .Input("default_value: Tout")
@@ -180,7 +180,7 @@ REGISTER_OP("TfraHkvHashTableFindWithExists")
       return Status::OK();
     });
 
-REGISTER_OP("TfraHkvHashTableInsert")
+REGISTER_OP(PREFIX_OP_NAME(HkvHashTableInsert))
     .Input("table_handle: resource")
     .Input("keys: Tin")
     .Input("values: Tout")
@@ -194,7 +194,7 @@ REGISTER_OP("TfraHkvHashTableInsert")
       return Status::OK();
     });
 
-REGISTER_OP("TfraHkvHashTableAccum")
+REGISTER_OP(PREFIX_OP_NAME(HkvHashTableAccum))
     .Input("table_handle: resource")
     .Input("keys: key_dtype")
     .Input("values_or_deltas: value_dtype")
@@ -209,7 +209,7 @@ REGISTER_OP("TfraHkvHashTableAccum")
       return Status::OK();
     });
 
-REGISTER_OP("TfraHkvHashTableRemove")
+REGISTER_OP(PREFIX_OP_NAME(HkvHashTableRemove))
     .Input("table_handle: resource")
     .Input("keys: Tin")
     .Attr("Tin: type")
@@ -222,17 +222,19 @@ REGISTER_OP("TfraHkvHashTableRemove")
       return Status::OK();
     });
 
-REGISTER_OP("TfraHkvHashTableClear")
+REGISTER_OP(PREFIX_OP_NAME(HkvHashTableClear))
     .Input("table_handle: resource")
     .Attr("key_dtype: type")
     .Attr("value_dtype: type");
 
-REGISTER_OP("TfraHkvHashTableSize")
+REGISTER_OP(PREFIX_OP_NAME(HkvHashTableSize))
     .Input("table_handle: resource")
     .Output("size: int64")
+    .Attr("key_dtype: type")
+    .Attr("value_dtype: type")
     .SetShapeFn(ScalarAndTwoElementVectorInputsAndScalarOutputs);
 
-REGISTER_OP("TfraHkvHashTableExport")
+REGISTER_OP(PREFIX_OP_NAME(HkvHashTableExport))
     .Input("table_handle: resource")
     .Output("keys: Tkeys")
     .Output("values: Tvalues")
@@ -254,7 +256,7 @@ REGISTER_OP("TfraHkvHashTableExport")
       return Status::OK();
     });
 
-REGISTER_OP("TfraHkvHashTableSaveToFileSystem")
+REGISTER_OP(PREFIX_OP_NAME(HkvHashTableSaveToFileSystem))
     .Input("table_handle: resource")
     .Input("dirpath: string")
     .Input("file_name: string")
@@ -264,23 +266,23 @@ REGISTER_OP("TfraHkvHashTableSaveToFileSystem")
     .Attr("append_to_file: bool")
     .Attr("buffer_size: int >= 1");
 
-REGISTER_OP("TfraHkvHashTableExportKeysAndMetas")
+REGISTER_OP(PREFIX_OP_NAME(HkvHashTableExportKeysAndScores))
     .Input("table_handle: resource")
     .Output("keys: Tkeys")
-    .Output("metas: int64")
+    .Output("scores: int64")
     .Attr("Tkeys: type")
     .Attr("split_size: int")
     .SetShapeFn([](InferenceContext* c) {
       ShapeHandle handle;
       TF_RETURN_IF_ERROR(c->WithRank(c->input(0), 0, &handle));
       ShapeHandle keys = c->UnknownShapeOfRank(1);
-      ShapeHandle metas = c->UnknownShapeOfRank(1);
+      ShapeHandle scores = c->UnknownShapeOfRank(1);
       c->set_output(0, keys);
-      c->set_output(1, metas);
+      c->set_output(1, scores);
       return Status::OK();
     });
 
-REGISTER_OP("TfraHkvHashTableImport")
+REGISTER_OP(PREFIX_OP_NAME(HkvHashTableImport))
     .Input("table_handle: resource")
     .Input("keys: Tin")
     .Input("values: Tout")
@@ -296,7 +298,7 @@ REGISTER_OP("TfraHkvHashTableImport")
       return Status::OK();
     });
 
-REGISTER_OP("TfraHkvHashTableLoadFromFileSystem")
+REGISTER_OP(PREFIX_OP_NAME(HkvHashTableLoadFromFileSystem))
     .Input("table_handle: resource")
     .Input("dirpath: string")
     .Input("file_name: string")
@@ -306,7 +308,7 @@ REGISTER_OP("TfraHkvHashTableLoadFromFileSystem")
     .Attr("load_entire_dir: bool")
     .Attr("buffer_size: int >= 1");
 
-REGISTER_OP("TfraHkvHashTableOfTensors")
+REGISTER_OP(PREFIX_OP_NAME(HkvHashTableOfTensors))
     .Output("table_handle: resource")
     .Attr("container: string = ''")
     .Attr("shared_name: string = ''")
@@ -316,6 +318,7 @@ REGISTER_OP("TfraHkvHashTableOfTensors")
     .Attr("value_shape: shape = {}")
     .Attr("init_capacity: int = 0")
     .Attr("max_capacity: int = 0")
+    .Attr("max_hbm_for_vectors: int = 0")
     .SetIsStateful()
     .SetShapeFn([](InferenceContext* c) {
       PartialTensorShape value_p;
