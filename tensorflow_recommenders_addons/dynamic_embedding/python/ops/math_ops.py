@@ -208,7 +208,7 @@ def sparse_reshape(sp_input, shape, name=None):
     by the new dense shape.
   """
   gpu_devices = config.list_physical_devices('GPU')
-  if gpu_devices:
+  if gpu_devices and hasattr(sp_input, 'device'):
     # Deprecated(MoFHeka): tfra_sparse_reshape op cause core dump when import horovod with GPU.
     if context.executing_eagerly():
       with ops.colocate_with(sp_input, ignore_existing=True):

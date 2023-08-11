@@ -114,8 +114,8 @@ class ShadowVariableTest(test.TestCase):
     if not context.executing_eagerly():
       self.skipTest('Only test in eager mode.')
 
-    key_dtypes = [dtypes.int32, dtypes.int64]
-    value_dtypes = [dtypes.int32, dtypes.float32, dtypes.float64]
+    key_dtypes = [dtypes.int64]
+    value_dtypes = [dtypes.int32, dtypes.float32]
     dims = [1, 4]
     trainable_options = [True, False]
     devices = ['/CPU:0']

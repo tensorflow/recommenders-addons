@@ -54,6 +54,46 @@ http_archive(
     url = "https://github.com/sewenew/redis-plus-plus/archive/refs/tags/1.2.3.zip",
 )
 
+http_archive(
+    name = "hkv",
+    build_file = "//build_deps/toolchains/hkv:hkv.BUILD",
+    patch_cmds = [
+        """sed -i.bak '1772i\\'$'\\n    ThrustAllocator<uint8_t> thrust_allocator_;\\n' include/merlin_hashtable.cuh""",
+        """sed -i.bak '225i\\'$'\\n    thrust_allocator_.set_allocator(allocator_);\\n' include/merlin_hashtable.cuh""",
+        "sed -i.bak 's/thrust::sort_by_key(thrust_par.on(stream)/thrust::sort_by_key(thrust_par(thrust_allocator_).on(stream)/' include/merlin_hashtable.cuh",
+        "sed -i.bak 's/reduce(thrust_par.on(stream)/reduce(thrust_par(thrust_allocator_).on(stream)/' include/merlin_hashtable.cuh",
+        """sed -i.bak '125i\\'$'\\n    template <typename T>\\n' include/merlin/allocator.cuh""",
+        """sed -i.bak '126i\\'$'\\n    struct ThrustAllocator : thrust::device_malloc_allocator<T> {\\n' include/merlin/allocator.cuh""",
+        """sed -i.bak '127i\\'$'\\n     public:\\n' include/merlin/allocator.cuh""",
+        """sed -i.bak '128i\\'$'\\n      typedef thrust::device_malloc_allocator<T> super_t;\\n' include/merlin/allocator.cuh""",
+        """sed -i.bak '129i\\'$'\\n      typedef typename super_t::pointer pointer;\\n' include/merlin/allocator.cuh""",
+        """sed -i.bak '130i\\'$'\\n      typedef typename super_t::size_type size_type;\\n' include/merlin/allocator.cuh""",
+        """sed -i.bak '131i\\'$'\\n     public:\\n' include/merlin/allocator.cuh""",
+        """sed -i.bak '132i\\'$'\\n      pointer allocate(size_type n) {\\n' include/merlin/allocator.cuh""",
+        """sed -i.bak '133i\\'$'\\n        void* ptr = nullptr;\\n' include/merlin/allocator.cuh""",
+        """sed -i.bak '134i\\'$'\\n        MERLIN_CHECK(\\n' include/merlin/allocator.cuh""",
+        """sed -i.bak '135i\\'$'\\n            allocator_ != nullptr,\\n' include/merlin/allocator.cuh""",
+        """sed -i.bak '136i\\'$'\\n            "[ThrustAllocator] set_allocator should be called in advance!");\\n' include/merlin/allocator.cuh""",
+        """sed -i.bak '137i\\'$'\\n        allocator_->alloc(MemoryType::Device, &ptr, sizeof(T) * n);\\n' include/merlin/allocator.cuh""",
+        """sed -i.bak '138i\\'$'\\n        return pointer(reinterpret_cast<T*>(ptr));\\n' include/merlin/allocator.cuh""",
+        """sed -i.bak '139i\\'$'\\n      }\\n' include/merlin/allocator.cuh""",
+        """sed -i.bak '140i\\'$'\\n      void deallocate(pointer p, size_type n) {\\n' include/merlin/allocator.cuh""",
+        """sed -i.bak '141i\\'$'\\n        MERLIN_CHECK(\\n' include/merlin/allocator.cuh""",
+        """sed -i.bak '142i\\'$'\\n            allocator_ != nullptr,\\n' include/merlin/allocator.cuh""",
+        """sed -i.bak '143i\\'$'\\n            "[ThrustAllocator] set_allocator should be called in advance!");\\n' include/merlin/allocator.cuh""",
+        """sed -i.bak '144i\\'$'\\n        allocator_->free(MemoryType::Device, reinterpret_cast<void*>(p.get()));\\n' include/merlin/allocator.cuh""",
+        """sed -i.bak '145i\\'$'\\n      }\\n' include/merlin/allocator.cuh""",
+        """sed -i.bak '146i\\'$'\\n      void set_allocator(BaseAllocator* allocator) { allocator_ = allocator; }\\n' include/merlin/allocator.cuh""",
+        """sed -i.bak '147i\\'$'\\n     public:\\n' include/merlin/allocator.cuh""",
+        """sed -i.bak '148i\\'$'\\n      BaseAllocator* allocator_ = nullptr;\\n' include/merlin/allocator.cuh""",
+        """sed -i.bak '149i\\'$'\\n     };\\n' include/merlin/allocator.cuh""",
+        """sed -i.bak '20i\\'$'\\n     #include <thrust/device_malloc_allocator.h>\\n' include/merlin/allocator.cuh""",
+    ],
+    sha256 = "f8179c445a06a558262946cda4d8ae7252d313e73f792586be9b1bc0c993b1cf",
+    strip_prefix = "HierarchicalKV-0.1.0-beta.6",
+    url = "https://github.com/NVIDIA-Merlin/HierarchicalKV/archive/refs/tags/v0.1.0-beta.6.tar.gz",
+)
+
 tf_configure(
     name = "local_config_tf",
 )
