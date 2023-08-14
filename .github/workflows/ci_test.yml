@@ -9,8 +9,6 @@ on:
     branches:
       - master
       - r*
-env:
-  USE_BAZEL_VERSION: "5.1.1"
 
 jobs:
   yapf-test:
