@@ -2,7 +2,6 @@
 FROM python:3.7 as build_wheel
 
 ARG TF_VERSION=2.8.3
-ARG USE_BAZEL_VERSION=5.1.1
 ARG MPI_VERSION="4.1.1"
 ARG HOROVOD_VERSION="0.23.0"
 
@@ -12,8 +11,8 @@ RUN python -m pip install --upgrade protobuf==3.20.0
 
 RUN apt-get update && apt-get install -y sudo rsync cmake openmpi-bin libopenmpi-dev
 
-COPY tools/docker/install/install_bazel.sh /install/
-RUN  /install/install_bazel.sh $USE_BAZEL_VERSION
+COPY tools/install_deps/install_bazelisk.sh /install/
+RUN bash /install/install_bazelisk.sh
 
 COPY tools/docker/install/install_horovod.sh /install/
 RUN  /install/install_horovod.sh $HOROVOD_VERSION --only-cpu
