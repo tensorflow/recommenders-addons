@@ -218,7 +218,7 @@ def _tf_pip_impl(repository_ctx):
         repository_ctx,
         None,
         "",
-        tf_shared_library_name,
+        "libtensorflow_framework.so",
         [tf_shared_library_path],
         [tf_shared_library_name],
     )
