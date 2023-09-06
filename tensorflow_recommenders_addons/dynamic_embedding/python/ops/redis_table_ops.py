@@ -210,19 +210,6 @@ class RedisTable(LookupInterface):
         f0.write(
             json.dumps(self.default_redis_params, indent=2, ensure_ascii=True))
         fcntl.flock(f0, fcntl.LOCK_UN)
-    else:
-      with open(self._config.redis_config_abs_dir, 'r', encoding='utf-8') as f0:
-        fcntl.flock(f0, fcntl.LOCK_EX)
-        params_load = json.load(f0)
-        fcntl.flock(f0, fcntl.LOCK_UN)
-        self._redis_params = self.default_redis_params.copy()
-        for k in self._redis_params.keys():
-          if k in params_load:
-            self._redis_params[k] = params_load[k]
-      with open(self._config.redis_config_abs_dir, 'w', encoding='utf-8') as f1:
-        fcntl.flock(f1, fcntl.LOCK_EX)
-        f1.write(json.dumps(self._redis_params, indent=2, ensure_ascii=True))
-        fcntl.flock(f1, fcntl.LOCK_UN)
 
     self._shared_name = None
     if context.executing_eagerly():
