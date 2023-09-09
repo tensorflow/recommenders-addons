@@ -16,15 +16,3 @@ py_library(
     ],
     srcs_version = "PY2AND3",
 )
-
-py_test(
-    name = "embedding_variable_ops_test",
-    srcs = ["embedding_variable_ops_test.py"],
-    data = [
-        "//tensorflow_recommenders_addons/embedding_variable/core:_ev_ops.so",
-    ],
-    srcs_version = "PY2AND3",
-    deps = [
-        "//tensorflow_recommenders_addons",
-    ],
-)

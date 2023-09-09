@@ -16,7 +16,6 @@
 """patch on tensorflow"""
 
 from tensorflow_recommenders_addons import dynamic_embedding as de
-from tensorflow_recommenders_addons import embedding_variable as ev
 
 try:
   from tensorflow.python.keras.initializers import initializers_v2 as kinit2
@@ -133,8 +132,6 @@ def _get_processor(v):
   if (rvo.is_resource_variable(v) and not v._in_graph_mode):  # pylint: disable=protected-access
     # True if and only if `v` was initialized eagerly.
     return optimizer._DenseResourceVariableProcessor(v)
-  if isinstance(v, ev.EmbeddingVariable):
-    return optimizer._DenseResourceVariableProcessor(v)
   if v.op.type == "VarHandleOp":
     return optimizer._DenseResourceVariableProcessor(v)
   if isinstance(v, variables.Variable):
@@ -167,21 +164,13 @@ def _create_slot_var(primary,
     use_resource = False
   else:
     use_resource = None
-  if isinstance(primary, ev.EmbeddingVariable):
-    slot = ev.get_variable(scope,
-                           embedding_dim=shape[1:],
-                           initializer=val,
-                           trainable=False,
-                           key_dtype=primary._ktype,
-                           value_dtype=primary.dtype)
-  else:
-    slot = variable_scope.get_variable(scope,
-                                       initializer=val,
-                                       trainable=False,
-                                       use_resource=use_resource,
-                                       shape=shape,
-                                       dtype=dtype,
-                                       validate_shape=validate_shape)
+  slot = variable_scope.get_variable(scope,
+                                     initializer=val,
+                                     trainable=False,
+                                     use_resource=use_resource,
+                                     shape=shape,
+                                     dtype=dtype,
+                                     validate_shape=validate_shape)
   variable_scope.get_variable_scope().set_partitioner(current_partitioner)
 
   # pylint: disable=protected-access
