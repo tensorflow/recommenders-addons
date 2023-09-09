@@ -32,6 +32,7 @@ ARG TF_VERSION
 ARG TF_NAME
 ARG HOROVOD_VERSION
 
+RUN python -m pip install --upgrade pip
 RUN python -m pip install --default-timeout=1000 $TF_NAME==$TF_VERSION
 
 COPY tools/docker/install/install_horovod.sh /install/
