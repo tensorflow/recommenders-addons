@@ -20,6 +20,8 @@ from __future__ import print_function
 
 import itertools
 import os
+import shutil
+
 import tensorflow as tf
 
 from tensorflow_recommenders_addons import dynamic_embedding as de
@@ -259,6 +261,8 @@ class HorovodTest(test.TestCase):
     base_opt = de.DynamicEmbeddingOptimizer(base_opt, synchronous=True)
     test_opt = hvd.DistributedOptimizer(test_opt)
     init = tf.keras.initializers.Zeros()
+    kv_creator = de.CuckooHashTableCreator(
+        saver=de.FileSystemSaver(proc_size=hvd.size(), proc_rank=hvd.rank()))
     batch_size = 8
     start = 0
     for dtype, run_step, dim in itertools.product([dtypes.float32], [10], [10]):
@@ -276,6 +280,7 @@ class HorovodTest(test.TestCase):
               embedding_size=dim,
               initializer=init,
               bp_v2=False,
+              kv_creator=kv_creator,
               name='all2all_emb')
           test_model = get_emb_sequential_model(tf.keras.layers.Embedding,
                                                 test_opt,
@@ -299,6 +304,34 @@ class HorovodTest(test.TestCase):
             test_model.layers[2].weights[0],
             msg="Cond:{},{},{}".format(dtype, run_step, dim),
         )
+
+        a2aemb_size = base_model.layers[0].params.size()
+        save_dir = "/tmp/hvd_save_restore" + str(
+            hvd.size()) + str(run_step) + str(
+                dim)  # All ranks should share same save directory
+        save_options = tf.saved_model.SaveOptions(namespace_whitelist=['TFRA'])
+        if hvd.rank() == 0:
+          if os.path.exists(save_dir):
+            shutil.rmtree(save_dir)
+        hvd.broadcast(tensor=tf.constant(1),
+                      root_rank=0)  # Sync for avoiding files conflict
+        base_model.save(save_dir, options=save_options)
+        del base_model
+        new_base_model = get_emb_sequential_model(
+            de.keras.layers.HvdAllToAllEmbedding,
+            base_opt,
+            embedding_size=dim,
+            initializer=init,
+            bp_v2=False,
+            kv_creator=kv_creator,
+            name='all2all_emb')
+        hvd.broadcast(tensor=tf.constant(1),
+                      root_rank=0)  # Sync for avoiding files conflict
+        new_base_model.load_weights(save_dir + '/variables/variables')
+        new_a2aemb_size = new_base_model.layers[0].params.size()
+        self.assertEqual(a2aemb_size, new_a2aemb_size)
+        hvd.broadcast(tensor=tf.constant(1),
+                      root_rank=0)  # Sync for avoiding files conflict
 
 
 if __name__ == "__main__":
