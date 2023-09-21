@@ -23,7 +23,9 @@ from tensorflow.python.keras import callbacks
 from tensorflow.python.keras.utils import tf_utils
 from tensorflow.python.ops import variables
 from tensorflow.python.platform import tf_logging as logging
+from tensorflow.python.util.deprecation import deprecated
 
+from tensorflow_recommenders_addons.dynamic_embedding.python.keras.layers import HvdAllToAllEmbedding
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_ops import TrainableWrapper, DEResourceVariable
 from tensorflow_recommenders_addons.utils.check_platform import is_macos, is_arm64
 
@@ -106,6 +108,10 @@ class DEHvdBroadcastGlobalVariablesCallback(
       self.register_local_var(var)
 
 
+@deprecated(
+    None, "\n!!!! Using this callback will cause a save twice error. !!!!\n"
+    "The callbacks.ModelCheckpoint for HvdAllToAllEmbedding has been deprecated, use original ModelCheckpoint instead.\n"
+    "!!!! Using this callback will cause a save twice error. !!!!\n")
 class DEHvdModelCheckpoint(callbacks.ModelCheckpoint):
 
   def __init__(self, *args, **kwargs):
@@ -124,8 +130,12 @@ class DEHvdModelCheckpoint(callbacks.ModelCheckpoint):
     else:
       de_dir = os.path.join(filepath, "variables", "TFRADynamicEmbedding")
       for layer in self.model.layers:
-        if hasattr(layer, "params"):
+        if hasattr(layer, "params") and isinstance(layer, HvdAllToAllEmbedding):
           # save Dynamic Embedding Parameters
+          logging.warning(
+              "!!!! Using this callback will cause a save twice error. !!!!\n"
+              "The callbacks.ModelCheckpoint for HvdAllToAllEmbedding has been deprecated, use original ModelCheckpoint instead.\n"
+              "!!!! Using this callback will cause a save twice error. !!!!\n")
           layer.params.save_to_file_system(dirpath=de_dir,
                                            proc_size=hvd.size(),
                                            proc_rank=hvd.rank())
