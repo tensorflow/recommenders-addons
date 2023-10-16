@@ -236,8 +236,7 @@ def _insert_de_shard_from_file_system(
   _values_tensor_dataset = readers.FixedLengthRecordDataset(
       shard_values_file_list,
       record_bytes=_value_dtype.size * value_dim,
-      buffer_size=buffer_size * value_dim).padded_batch(insert_num_once *
-                                                        value_dim,
+      buffer_size=buffer_size * value_dim).padded_batch(insert_num_once,
                                                         drop_remainder=False)
 
   iterator_init_list = tf_utils.ListWrapper([])
