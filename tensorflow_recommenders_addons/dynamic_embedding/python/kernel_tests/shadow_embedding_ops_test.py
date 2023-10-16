@@ -42,6 +42,10 @@ from tensorflow.python.ops import variables
 from tensorflow.python.platform import test
 from tensorflow.python.training import adam
 from tensorflow.python.training import server_lib
+try:
+  from tensorflow.keras.legacy.optimizers import Adam
+except:
+  from tensorflow.keras.optimizers import Adam
 
 
 def _get_sparse_variable(name,
@@ -431,9 +435,9 @@ class ShadowVariableBasicBehaviorTest(test.TestCase):
     dense_params = variables.Variable([[1., 1.], [2., 2.], [3., 3.]],
                                       dtype=dtypes.float32)
 
-    sparse_optimizer = tf.keras.optimizers.Adam(1E-3)
+    sparse_optimizer = Adam(1E-3)
     sparse_optimizer = de.DynamicEmbeddingOptimizer(sparse_optimizer)
-    dense_optimizer = tf.keras.optimizers.Adam(1E-3)
+    dense_optimizer = Adam(1E-3)
     dense_optimizer = de.DynamicEmbeddingOptimizer(dense_optimizer)
 
     def sparse_loss():
@@ -483,9 +487,9 @@ class ShadowVariableBasicBehaviorTest(test.TestCase):
     dense_params = variables.Variable([[2.4, 3.1], [5.1, -0.7], [-15.2, 3.9]],
                                       dtype=dtypes.float32)
 
-    sparse_optimizer = tf.keras.optimizers.Adam(1E-4)
+    sparse_optimizer = Adam(1E-4)
     sparse_optimizer = de.DynamicEmbeddingOptimizer(sparse_optimizer)
-    dense_optimizer = tf.keras.optimizers.Adam(1E-4)
+    dense_optimizer = Adam(1E-4)
     dense_optimizer = de.DynamicEmbeddingOptimizer(dense_optimizer)
 
     rtol = 2e-4

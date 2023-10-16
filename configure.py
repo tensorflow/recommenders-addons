@@ -21,23 +21,24 @@ import platform
 import logging
 
 import tensorflow as tf
+try:
+  from packaging.version import Version
+except:  # make it compatible for python 3.7
+  from distutils.version import LooseVersion as Version
 
 _TFRA_BAZELRC = ".bazelrc"
 
 
 # Maping TensorFlow version to valid Bazel version.
 def _VALID_BAZEL_VERSION(tf_version):
-  if is_macos() and is_arm64():
-    target_bazel = "4.1.0"
-    return target_bazel
-  elif tf_version < "2.0.0":
+  if Version(tf_version) < Version("2.0.0"):
     target_bazel = "0.26.1"
     logging.warn(
         'There is only limited support for TensorFlow under version 2.0.0 '
         'because its Bazel version, and requiring users to make some Bazel script changes '
         'refering to the previous COMMIT to compile properly by themselves.')
     return target_bazel
-  elif tf_version >= "2.0.0":
+  elif Version(tf_version) >= Version("2.0.0"):
     target_bazel = "5.1.1"
     logging.info(
         'To ensure code compatibility with Bazel rules_foreign_cc component, '
@@ -78,6 +79,13 @@ def is_raspi_arm():
   return os.uname()[4] == "armv7l"
 
 
+def get_cpp_version():
+  cpp_version = "c++14"
+  if Version(tf.__version__) >= Version("2.10"):
+    cpp_version = "c++17"
+  return cpp_version
+
+
 def get_tf_header_dir():
   if get_tf_version_integer() >= 2000:
     tf_header_dir = tf.sysconfig.get_compile_flags()[0][2:]
@@ -104,7 +112,10 @@ def get_tf_shared_lib_dir():
 # Converts the linkflag namespec to the full shared library name
 def get_shared_lib_name():
   namespec = tf.sysconfig.get_link_flags()
-  if is_macos():
+  if is_macos() and is_arm64():
+    # MacOS arm64
+    return "libtensorflow_framework.2.dylib"
+  elif is_macos():
     # MacOS
     return "libtensorflow_framework.dylib"
   elif is_windows():
@@ -177,14 +188,9 @@ def _get_installed_and_valid_bazel_version():
 def check_bazel_version(is_macos_arm64: bool = False):
   installed_bazel_version, valid_bazel_version = _get_installed_and_valid_bazel_version(
   )
-  if installed_bazel_version < valid_bazel_version:
-    if is_macos_arm64:
-      raise ValueError(
-          'Bazel version is {}. For macOS arm64 platform, the Bazel version must be at least {}.'
-          .format(installed_bazel_version, valid_bazel_version))
-    else:
-      raise ValueError('Bazel version is {}, but {} is needed.'.format(
-          installed_bazel_version, valid_bazel_version))
+  if Version(installed_bazel_version) < Version(valid_bazel_version):
+    raise ValueError('Bazel version is {}, but {} is needed.'.format(
+        installed_bazel_version, valid_bazel_version))
 
 
 def extract_tf_header():
@@ -227,7 +233,7 @@ def create_build_configuration():
   else:
     tf_cxx_standard_compile_flag = None
   if tf_cxx_standard_compile_flag is None:
-    tf_cxx_standard = "c++14"
+    tf_cxx_standard = get_cpp_version()
   else:
     tf_cxx_standard = tf_cxx_standard_compile_flag.split("-std=")[-1]
   write_action_env("TF_CXX_STANDARD", tf_cxx_standard)

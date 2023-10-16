@@ -46,7 +46,10 @@ try:  # tf version >= 2.10.0
   from tensorflow.python.trackable import base as trackable
 except:
   from tensorflow.python.training.tracking import base as trackable
-from tensorflow.python.training.tracking import data_structures
+try:  # The data_structures has been moved to the new package in tf 2.11
+  from tensorflow.python.trackable import data_structures
+except:
+  from tensorflow.python.training.tracking import data_structures
 from tensorflow.python.util import compat
 from tensorflow.python.util.tf_export import tf_export
 

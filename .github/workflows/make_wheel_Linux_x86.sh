@@ -11,7 +11,8 @@ else
   export TF_NAME='tensorflow'
 fi
 
-if [ $TF_VERSION == "2.6.3" ]  || [ $TF_VERSION == "2.8.3" ] ; then
+# if tensorflow version >= 2.6.0 and <= 2.11.9
+if [[ "$TF_VERSION" =~ ^2\.([6-9]|10|11)\.[0-9]$ ]] ; then
   export BUILD_IMAGE="tfra/nosla-cuda11.2.1-cudnn8-ubuntu20.04-manylinux2014-python$PY_VERSION"
   export TF_CUDA_VERSION="11.2"
   export TF_CUDNN_VERSION="8.1"

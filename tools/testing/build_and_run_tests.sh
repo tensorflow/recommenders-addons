@@ -18,11 +18,24 @@
 
 set -x -e
 
+SKIP_CUSTOM_OP_TESTS_FLAG=${1}
+
 export CC_OPT_FLAGS='-mavx'
 
-python -m pip install -r tools/install_deps/pytest.txt -e ./
+python -m pip install --upgrade pip
+cp tools/install_deps/pytest*.txt ./
+bash tools/docker/install/install_pytest.sh
+
+# Fix incorrect numpy installation
+if [ "$TF_VERSION" = "2.6.3" ] ; then
+  python -m pip install numpy==1.19.5 --force-reinstall
+fi
+
 TF_NEED_CUDA=$TF_NEED_CUDA python ./configure.py
 bash tools/install_so_files.sh
+
+# clean pip cache
+python -m pip cache purge
 
 # use 10 workers if a gpu is available, otherwise,
 # one worker per cpu core. Kokoro has 38 cores, that'd be too much
@@ -41,8 +54,11 @@ if [ -x "$(command -v nvidia-smi)" ]; then
   export CUDA_VISIBLE_DEVICES=0
 fi
 
-python -m pytest -v -s --functions-durations=20 --modules-durations=5 $EXTRA_ARGS ./tensorflow_recommenders_addons/dynamic_embedding/python/kernel_tests/
+python -m pytest -v -s --functions-durations=20 --modules-durations=5 $SKIP_CUSTOM_OP_TESTS_FLAG $EXTRA_ARGS ./tensorflow_recommenders_addons/dynamic_embedding/python/kernel_tests/
+
+
 
 # Release disk space
 bazel clean --expunge
 rm -f ./tensorflow_recommenders_addons/dynamic_embedding/core/_*_ops.so
+rm -f ./tensorflow_recommenders_addons/embedding_variable/core/_*_ops.so

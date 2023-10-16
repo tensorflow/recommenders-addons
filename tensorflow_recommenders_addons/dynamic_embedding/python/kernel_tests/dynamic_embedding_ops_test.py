@@ -58,6 +58,10 @@ from tensorflow.python.platform import test
 from tensorflow.python.training import device_setter
 from tensorflow.python.training import server_lib
 from tensorflow.python.util import compat
+try:
+  from tensorflow.keras.legacy.optimizers import Adam
+except:
+  from tensorflow.keras.optimizers import Adam
 
 
 # pylint: disable=missing-class-docstring
@@ -1346,7 +1350,7 @@ class EmbeddingLookupEagerTest(test.TestCase):
 
     def sorted_dynamic_embedding_value():
       embedding_var = devar
-      optimizer = tf.keras.optimizers.Adam(1E-3)
+      optimizer = Adam(1E-3)
       optimizer = de.DynamicEmbeddingOptimizer(optimizer)
 
       def var_fn():
@@ -1361,7 +1365,7 @@ class EmbeddingLookupEagerTest(test.TestCase):
 
     def sorted_static_embedding_value():
       embedding_var = tfvar
-      optimizer = tf.keras.optimizers.Adam(1E-3)
+      optimizer = Adam(1E-3)
       optimizer = de.DynamicEmbeddingOptimizer(optimizer)
 
       def var_fn():

@@ -3,6 +3,10 @@ import video_game_model
 import tensorflow as tf
 
 from tensorflow_recommenders_addons import dynamic_embedding as de
+try:
+  from tensorflow.keras.optimizers.legacy import Adam
+except:
+  from tensorflow.keras.optimizers import Adam
 
 from absl import flags
 from absl import app
@@ -29,7 +33,7 @@ def train(num_steps):
   # Create a model
   model = video_game_model.VideoGameDnn(batch_size=FLAGS.batch_size,
                                         embedding_size=FLAGS.embedding_size)
-  optimizer = tf.keras.optimizers.Adam(1E-3, clipnorm=None)
+  optimizer = Adam(1E-3, clipnorm=None)
   optimizer = de.DynamicEmbeddingOptimizer(optimizer)
   auc = tf.keras.metrics.AUC(num_thresholds=1000)
   accuracy = tf.keras.metrics.BinaryAccuracy(dtype=tf.float32)

@@ -1,13 +1,15 @@
 #syntax=docker/dockerfile:1.1.5-experimental
 FROM python:3.7 as build_wheel
 
-ARG TF_VERSION=2.8.3
+ARG TF_VERSION="2.8.3"
+ARG PY_VERSION="3.7"
 ARG MPI_VERSION="4.1.1"
 ARG HOROVOD_VERSION="0.23.0"
 
-RUN pip install --default-timeout=1000 tensorflow-cpu==$TF_VERSION
+RUN pip install --upgrade pip
+RUN pip install --default-timeout=1000 tensorflow==$TF_VERSION
 
-RUN python -m pip install --upgrade protobuf==3.20.0
+RUN python -m pip install --upgrade protobuf==3.19.6
 
 RUN apt-get update && apt-get install -y sudo rsync cmake openmpi-bin libopenmpi-dev
 
@@ -20,15 +22,18 @@ RUN  /install/install_horovod.sh $HOROVOD_VERSION --only-cpu
 COPY requirements.txt ./
 RUN pip install -r requirements.txt
 
-COPY tools/install_deps/pytest.txt ./
-RUN pip install -r pytest.txt pytest-cov
+COPY tools/install_deps/ ./
+COPY tools/docker/install/install_pytest.sh /install/
+RUN bash /install/install_pytest.sh
+RUN pip install pytest-cov
 
 COPY ./ /recommenders-addons
 WORKDIR recommenders-addons
 
 RUN python -m pip install tensorflow-io
 
-RUN python -m pip install --upgrade protobuf==3.20.0
+RUN python -m pip install --upgrade protobuf==3.19.6
+RUN python -m pip install numpy==1.20.0 --force-reinstall
 
 RUN python configure.py
 RUN pip install -e ./
@@ -43,12 +48,13 @@ RUN bazel-bin/build_pip_pkg artifacts
 
 FROM python:3.7
 
-COPY tools/install_deps/tensorflow-cpu.txt ./
-RUN pip install --default-timeout=1000 --upgrade --force-reinstall -r tensorflow-cpu.txt
+ARG TF_VERSION="2.8.3"
+
+RUN pip install --default-timeout=1000 tensorflow==$TF_VERSION
 
 COPY --from=0 /recommenders-addons/artifacts /artifacts
 
-RUN python -m pip install --upgrade protobuf==3.20.0
+RUN python -m pip install --upgrade protobuf==3.19.6
 
 RUN pip install /artifacts/tensorflow_recommenders_addons-*.whl
 

@@ -5,6 +5,10 @@ import tensorflow_datasets as tfds
 from absl import flags
 from absl import app
 from tensorflow_recommenders_addons import dynamic_embedding as de
+try:
+  from tensorflow.keras.legacy.optimizers import Adam
+except:
+  from tensorflow.keras.optimizers import Adam
 
 flags.DEFINE_string('mode', 'train', 'Select the running mode: train or test.')
 flags.DEFINE_string('model_dir', 'model_dir',
@@ -115,7 +119,7 @@ def train():
   dataset = get_dataset(batch_size=32)
   model = DualChannelsDeepModel(FLAGS.embedding_size, FLAGS.embedding_size,
                                 tf.keras.initializers.RandomNormal(0.0, 0.5))
-  optimizer = tf.keras.optimizers.Adam(1E-3)
+  optimizer = Adam(1E-3)
   optimizer = de.DynamicEmbeddingOptimizer(optimizer)
 
   auc = tf.keras.metrics.AUC(num_thresholds=1000)
