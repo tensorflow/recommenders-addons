@@ -38,6 +38,10 @@ from tensorflow.python.ops import math_ops
 from tensorflow.python.ops import variables
 from tensorflow.python.platform import test
 from tensorflow.python.training import adam
+try:
+  from tensorflow.keras.optimizers.legacy import Adam
+except:
+  from tensorflow.keras.optimizers import Adam
 
 tf.config.set_soft_device_placement(True)
 
@@ -162,7 +166,7 @@ class EmbeddingLayerTest(test.TestCase):
                                  initializer=init,
                                  bp_v2=False,
                                  name='iu702')
-    optmz = tf.keras.optimizers.Adam(learning_rate=1E-4, amsgrad=True)
+    optmz = Adam(learning_rate=1E-4, amsgrad=True)
     optmz = de.DynamicEmbeddingOptimizer(optmz)
     emb_layer = model.layers[0]
     model.compile(optimizer=optmz, loss='binary_crossentropy')
@@ -193,7 +197,7 @@ class EmbeddingLayerTest(test.TestCase):
           name='test_keras_save_restore',
       )(input_tensor)
       model = tf.keras.Model(inputs=input_tensor, outputs=embedding_out)
-      optimizer = tf.keras.optimizers.Adam(learning_rate=1E-4, amsgrad=False)
+      optimizer = Adam(learning_rate=1E-4, amsgrad=False)
       optimizer = de.DynamicEmbeddingOptimizer(optimizer)
       model.compile(optimizer=optimizer)
       return model
@@ -256,7 +260,7 @@ class EmbeddingLayerTest(test.TestCase):
           name='test_keras_save_restore_normal')(input_tensor)
       concat = tf.concat([embedding_out, normal_embedding_out], axis=0)
       model = tf.keras.Model(inputs=input_tensor, outputs=concat)
-      optimizer = tf.keras.optimizers.Adam(learning_rate=1E-4, amsgrad=False)
+      optimizer = Adam(learning_rate=1E-4, amsgrad=False)
       optimizer = de.DynamicEmbeddingOptimizer(optimizer)
       model.compile(optimizer=optimizer)
       return model
@@ -360,7 +364,7 @@ class EmbeddingLayerTest(test.TestCase):
           name='test_keras_save_restore_normal')(input_tensor)
       concat = tf.concat([embedding_out, normal_embedding_out], axis=0)
       model = tf.keras.Model(inputs=input_tensor, outputs=concat)
-      optimizer = tf.keras.optimizers.Adam(learning_rate=1E-4, amsgrad=False)
+      optimizer = Adam(learning_rate=1E-4, amsgrad=False)
       optimizer = de.DynamicEmbeddingOptimizer(optimizer)
       model.compile(optimizer=optimizer)
       return model
@@ -756,7 +760,7 @@ class FieldWiseEmbeddingLayerTest(test.TestCase):
                                  bp_v2=True,
                                  initializer=init,
                                  name='oe423')
-    optmz = tf.keras.optimizers.Adam(learning_rate=1E-4, amsgrad=True)
+    optmz = Adam(learning_rate=1E-4, amsgrad=True)
     optmz = de.DynamicEmbeddingOptimizer(optmz)
     emb_layer = model.layers[0]
     model.compile(optimizer=optmz, loss='binary_crossentropy')
@@ -786,7 +790,7 @@ class FieldWiseEmbeddingLayerTest(test.TestCase):
                                  bp_v2=False,
                                  initializer=init,
                                  name='pc053')
-    optmz = tf.keras.optimizers.Adam(learning_rate=1E-2, amsgrad=True)
+    optmz = Adam(learning_rate=1E-2, amsgrad=True)
     optmz = de.DynamicEmbeddingOptimizer(optmz)
     emb_layer = model.layers[0]
     model.compile(optimizer=optmz, loss='binary_crossentropy')
@@ -863,7 +867,7 @@ class FieldWiseEmbeddingLayerTest(test.TestCase):
 
     model = MyModel()
 
-    optmz = tf.keras.optimizers.Adam(1E-3)
+    optmz = Adam(1E-3)
     optmz = de.DynamicEmbeddingOptimizer(optmz)
     model.compile(optimizer=optmz, loss='binary_crossentropy')
 

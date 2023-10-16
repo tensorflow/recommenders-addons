@@ -6,6 +6,10 @@ import tensorflow_datasets as tfds
 from absl import flags
 from absl import app
 from tensorflow_recommenders_addons import dynamic_embedding as de
+try:
+  from tensorflow.keras.legacy.optimizers import Adam
+except:
+  from tensorflow.keras.optimizers import Adam
 
 os.environ["TF_FORCE_GPU_ALLOW_GROWTH"] = "true"  #VERY IMPORTANT!
 
@@ -537,7 +541,7 @@ def train():
   model = DualChannelsDeepModel(FLAGS.embedding_size, FLAGS.embedding_size,
                                 tf.keras.initializers.RandomNormal(0.0, 0.5),
                                 hvd.size(), hvd.rank())
-  optimizer = tf.keras.optimizers.Adam(1E-3)
+  optimizer = Adam(1E-3)
   optimizer = de.DynamicEmbeddingOptimizer(optimizer)
 
   auc = tf.keras.metrics.AUC(num_thresholds=1000)

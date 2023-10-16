@@ -17,7 +17,10 @@
 # needs to happen before anything else, since the imports below will try to
 # import TensorFlow, too.
 
-from distutils.version import LooseVersion
+try:
+  from packaging.version import Version
+except:  # make it compatible for python 3.7
+  from distutils.version import LooseVersion as Version
 import warnings
 
 import tensorflow as tf
@@ -44,10 +47,10 @@ def _check_tf_version():
     )
     return
 
-  min_version = LooseVersion(MIN_TF_VERSION)
-  max_version = LooseVersion(MAX_TF_VERSION)
+  min_version = Version(MIN_TF_VERSION)
+  max_version = Version(MAX_TF_VERSION)
 
-  if min_version <= LooseVersion(tf.__version__) <= max_version:
+  if min_version <= Version(tf.__version__) <= max_version:
     return
 
   warnings.warn(

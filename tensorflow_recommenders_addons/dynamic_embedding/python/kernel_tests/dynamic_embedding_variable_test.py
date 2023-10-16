@@ -57,11 +57,15 @@ from tensorflow.python.training import adam
 from tensorflow.python.training import saver
 from tensorflow.python.training import server_lib
 from tensorflow.python.training import training
-from tensorflow.python.training.tracking import data_structures
 from tensorflow.python.training.tracking import util as track_util
 from tensorflow.python.util import compat
 from tensorflow_estimator.python.estimator import estimator
 from tensorflow_estimator.python.estimator import estimator_lib
+
+try:  # The data_structures has been moved to the new package in tf 2.11
+  from tensorflow.python.trackable import data_structures
+except:
+  from tensorflow.python.training.tracking import data_structures
 
 try:
   import tensorflow_io

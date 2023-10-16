@@ -5,6 +5,10 @@ import tensorflow_datasets as tfds
 from absl import flags
 from absl import app
 from tensorflow_recommenders_addons import dynamic_embedding as de
+try:
+  from tensorflow.keras.optimizers.legacy import Adam
+except:
+  from tensorflow.keras.optimizers import Adam
 
 flags = tf.compat.v1.app.flags
 FLAGS = flags.FLAGS
@@ -141,7 +145,7 @@ class Runner():
       model = DualChannelsDeepModel(
           self.ps_devices, self.embedding_size, self.embedding_size,
           tf.keras.initializers.RandomNormal(0.0, 0.5))
-      optimizer = tf.keras.optimizers.Adam(1E-3)
+      optimizer = Adam(1E-3)
       optimizer = de.DynamicEmbeddingOptimizer(optimizer)
 
       auc = tf.keras.metrics.AUC(num_thresholds=1000)

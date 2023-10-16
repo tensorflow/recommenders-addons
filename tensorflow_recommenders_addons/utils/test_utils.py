@@ -22,8 +22,10 @@ import numpy as np
 import pytest
 import tensorflow as tf
 
-from distutils.version import LooseVersion
-
+try:
+  from packaging.version import Version
+except:  # make it compatible for python 3.7
+  from distutils.version import LooseVersion as Version
 from tensorflow_recommenders_addons.utils import resource_loader
 
 NUMBER_OF_WORKERS = int(os.environ.get("PYTEST_XDIST_WORKER_COUNT", "1"))
@@ -102,7 +104,7 @@ def only_run_functions_eagerly(request):
 
 @pytest.fixture(scope="function", params=["float32", "mixed_float16"])
 def run_with_mixed_precision_policy(request):
-  if is_gpu_available() and LooseVersion(tf.__version__) <= "2.4.1":
+  if is_gpu_available() and Version(tf.__version__) <= "2.4.1":
     pytest.xfail("See https://github.com/tensorflow/tensorflow/issues/39775")
   tf.keras.mixed_precision.experimental.set_policy(request.param)
   yield

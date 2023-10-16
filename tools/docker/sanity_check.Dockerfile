@@ -1,6 +1,6 @@
 #syntax=docker/dockerfile:1.1.5-experimental
 # -------------------------------
-FROM python:3.7 as yapf-test
+FROM python:3.9 as yapf-test
 
 COPY tools/install_deps/yapf.txt ./
 RUN pip install -r yapf.txt
@@ -12,15 +12,17 @@ RUN python tools/check_python_format.py
 RUN touch /ok.txt
 
 # -------------------------------
-FROM python:3.7 as source_code_test
+FROM python:3.9 as source_code_test
 
 COPY tools/install_deps /install_deps
+COPY tools/install_deps/pytest.txt ./
+COPY tools/docker/install/install_pytest.sh /install/
+RUN bash /install/install_pytest.sh
 RUN --mount=type=cache,id=cache_pip,target=/root/.cache/pip \
     cd /install_deps && pip install \
     --default-timeout=1000 \
     -r tensorflow-cpu.txt \
-    -r typedapi.txt \
-    -r pytest.txt
+    -r typedapi.txt
 
 RUN apt-get update && apt-get install -y sudo rsync cmake
 COPY tools/install_deps/install_bazelisk.sh .bazelversion ./
@@ -43,10 +45,10 @@ RUN pytest -v -s /recommenders-addons/tools/testing/
 RUN touch /ok.txt
 
 # -------------------------------
-FROM python:3.7 as valid_build_files
+FROM python:3.9 as valid_build_files
 
-COPY tools/install_deps/tensorflow-cpu.txt ./
-RUN pip install --default-timeout=1000 -r tensorflow-cpu.txt
+COPY tools/install_deps/tensorflow.txt ./
+RUN pip install --default-timeout=1000 -r tensorflow.txt
 
 RUN apt-get update && apt-get install sudo
 COPY tools/install_deps/install_bazelisk.sh .bazelversion ./
@@ -63,7 +65,7 @@ RUN --mount=type=cache,id=cache_bazel,target=/root/.cache/bazel \
 RUN touch /ok.txt
 
 # -------------------------------
-FROM python:3.7-alpine as clang-format
+FROM python:3.9-alpine as clang-format
 
 RUN apk add --no-cache git
 RUN git clone https://github.com/gabrieldemarmiesse/clang-format-lint-action.git
@@ -92,10 +94,10 @@ RUN touch /ok.txt
 
 # -------------------------------
 # docs tests
-FROM python:3.7 as docs_tests
+FROM python:3.9 as docs_tests
 
-COPY tools/install_deps/tensorflow-cpu.txt ./
-RUN pip install --default-timeout=1000 -r tensorflow-cpu.txt
+COPY tools/install_deps/tensorflow.txt ./
+RUN pip install --default-timeout=1000 -r tensorflow.txt
 COPY requirements.txt ./
 RUN pip install -r requirements.txt
 
@@ -121,10 +123,10 @@ RUN touch /ok.txt
 
 # -------------------------------
 # test the editable mode
-FROM python:3.7 as test_editable_mode
+FROM python:3.9 as test_editable_mode
 
-COPY tools/install_deps/tensorflow-cpu.txt ./
-RUN pip install --default-timeout=1000 -r tensorflow-cpu.txt
+COPY tools/install_deps/tensorflow.txt ./
+RUN pip install --default-timeout=1000 -r tensorflow.txt
 COPY requirements.txt ./
 RUN pip install -r requirements.txt
 COPY tools/install_deps/pytest.txt ./

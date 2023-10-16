@@ -38,8 +38,9 @@ RUN python -m pip install --default-timeout=1000 $TF_NAME==$TF_VERSION
 COPY tools/docker/install/install_horovod.sh /install/
 RUN /install/install_horovod.sh $HOROVOD_VERSION
 
-COPY tools/install_deps/ /install_deps
-RUN python -m pip install -r /install_deps/pytest.txt
+COPY tools/install_deps/ ./
+COPY tools/docker/install/install_pytest.sh /install/
+RUN bash /install/install_pytest.sh
 
 COPY requirements.txt .
 RUN python -m pip install -r requirements.txt
@@ -53,7 +54,7 @@ WORKDIR /recommenders-addons
 
 # -------------------------------------------------------------------
 FROM base_install as tfra_gpu_tests
-CMD ["bash", "tools/testing/build_and_run_tests.sh"]
+CMD ["bash", "tools/testing/build_and_run_tests.sh $SKIP_CUSTOM_OP_TESTS"]
 
 # -------------------------------------------------------------------
 FROM base_install as make_wheel
@@ -67,9 +68,10 @@ ENV TF_NEED_CUDA=$TF_NEED_CUDA
 ENV TF_CUDA_VERSION=$TF_CUDA_VERSION
 ENV TF_CUDNN_VERSION=$TF_CUDNN_VERSION
 
+RUN python -m pip install --upgrade pip
 RUN python configure.py
 
-RUN bash tools/testing/build_and_run_tests.sh && \
+RUN bash tools/testing/build_and_run_tests.sh $SKIP_CUSTOM_OP_TESTS && \
     bazel build --local_ram_resources=4096 \
         --noshow_progress \
         --noshow_loading_progress \
@@ -89,8 +91,9 @@ FROM python:$PY_VERSION as test_wheel_in_fresh_environment
 
 ARG TF_VERSION
 ARG TF_NAME
-RUN python -m pip install --default-timeout=1000 $TF_NAME==$TF_VERSION
 
+RUN python -m pip install --upgrade pip
+RUN python -m pip install --default-timeout=1000 $TF_NAME==$TF_VERSION
 RUN python -m pip install --upgrade protobuf==3.20.0
 
 COPY --from=make_wheel /recommenders-addons/wheelhouse/ /recommenders-addons/wheelhouse/

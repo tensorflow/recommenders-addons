@@ -34,7 +34,10 @@ from tensorflow.python.distribute import values_util
 from tensorflow.python.framework import ops
 from tensorflow.python.eager import tape
 from tensorflow.python.ops.variables import VariableAggregation
-from tensorflow.python.training.tracking import data_structures
+try:  # The data_structures has been moved to the new package in tf 2.11
+  from tensorflow.python.trackable import data_structures
+except:
+  from tensorflow.python.training.tracking import data_structures
 
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_ops import DistributedVariableWrapper, TrainableWrapperDistributedPolicy
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_variable import make_partition

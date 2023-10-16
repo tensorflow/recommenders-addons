@@ -1,6 +1,7 @@
 #syntax=docker/dockerfile:1.1.5-experimental
 ARG IMAGE_TYPE
 ARG PY_VERSION
+ARG HOROVOD_VERSION
 
 # Currenly all of our dev images are GPU capable but at a cost of being quite large.
 # See https://github.com/tensorflow/build/pull/47
@@ -22,7 +23,6 @@ RUN python -m pip install --upgrade pip
 COPY tools/install_deps /install_deps
 COPY requirements.txt /tmp/requirements.txt
 RUN pip install -r /install_deps/yapf.txt \
-    -r /install_deps/pytest.txt \
     -r /install_deps/typedapi.txt \
     -r /tmp/requirements.txt
 
@@ -50,7 +50,7 @@ COPY tools/docker/install/install_nccl.sh /install/
 RUN /install/install_nccl.sh "2.8.4-1+cuda11.2"
 
 COPY tools/docker/install/install_horovod.sh /install/
-RUN /install/install_horovod.sh "0.23.0"
+RUN /install/install_horovod.sh $HOROVOD_VERSION
 
 # write default env for user
 RUN echo "export TF_VERSION=$TF_VERSION" >> ~/.bashrc

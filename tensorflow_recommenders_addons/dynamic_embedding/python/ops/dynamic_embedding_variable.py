@@ -76,7 +76,10 @@ try:  # tf version >= 2.10.0
 except:
   from tensorflow.python.training.tracking.base import PythonStringStateSaveable as TF_PythonStringStateSaveable
 from tensorflow.python.training.tracking import base
-from tensorflow.python.training.tracking import data_structures
+try:  # The data_structures has been moved to the new package in tf 2.11
+  from tensorflow.python.trackable import data_structures
+except:
+  from tensorflow.python.training.tracking import data_structures
 from tensorflow.python.training.tracking import python_state
 from tensorflow.python.util.tf_export import tf_export
 
