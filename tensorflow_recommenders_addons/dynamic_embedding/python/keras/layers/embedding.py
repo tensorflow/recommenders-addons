@@ -550,6 +550,7 @@ class HvdAllToAllEmbedding(BasicEmbedding):
     else:
       self._mpi_size = mpi_size
     super(HvdAllToAllEmbedding, self).__init__(*args, **kwargs)
+    self.params._created_in_class = self
 
   def __relocate_dense_feature__(self, ids, batch_size=None):
     """
