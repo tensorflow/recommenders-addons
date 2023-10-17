@@ -321,9 +321,11 @@ class HorovodTest(test.TestCase):
         if hvd.rank() == 0:
           if os.path.exists(save_dir):
             shutil.rmtree(save_dir)
-        hvd.broadcast(tensor=tf.constant(1),
-                      root_rank=0)  # Sync for avoiding files conflict
-        base_model.save(save_dir, options=save_options)
+        hvd.join()  # Sync for avoiding files conflict
+        # base_model.save(save_dir, options=save_options)
+        de.keras.models.de_hvd_save_model(base_model,
+                                          save_dir,
+                                          options=save_options)
         del base_model
         new_base_model = get_emb_sequential_model(
             de.keras.layers.HvdAllToAllEmbedding,
@@ -333,13 +335,11 @@ class HorovodTest(test.TestCase):
             bp_v2=False,
             kv_creator=kv_creator,
             name='all2all_emb')
-        hvd.broadcast(tensor=tf.constant(1),
-                      root_rank=0)  # Sync for avoiding files conflict
+        hvd.join()  # Sync for avoiding files conflict
         new_base_model.load_weights(save_dir + '/variables/variables')
         new_a2aemb_size = new_base_model.layers[0].params.size()
         self.assertEqual(a2aemb_size, new_a2aemb_size)
-        hvd.broadcast(tensor=tf.constant(1),
-                      root_rank=0)  # Sync for avoiding files conflict
+        hvd.join()  # Sync for avoiding files conflict
 
 
 if __name__ == "__main__":

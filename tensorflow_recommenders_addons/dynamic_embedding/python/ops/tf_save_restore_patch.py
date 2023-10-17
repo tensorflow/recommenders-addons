@@ -543,100 +543,6 @@ class _DynamicEmbeddingSaver(saver.Saver):
           err, "a mismatch between the current graph and the graph")
 
 
-def _de_keras_save_func(original_save_func,
-                        model,
-                        filepath,
-                        overwrite,
-                        include_optimizer,
-                        signatures=None,
-                        options=None,
-                        save_traces=True,
-                        *args,
-                        **kwargs):
-  """Overwrite TF Keras save function
-    Calling the TF save API for all ranks causes file conflicts, 
-    so KV files other than rank0 need to be saved by calling the underlying API separately.
-    This is a convenience function for saving HvdAllToAllEmbedding to KV files in different rank.
-
-  Args:
-    original_save_func: A handle for original save function. It could be from Keras or Tensorflow.
-    model: Keras model instance to be saved.
-    filepath: String path to save the model.
-    overwrite: whether to overwrite the existing filepath.
-    include_optimizer: If True, save the model's optimizer state.
-    signatures: Signatures to save with the SavedModel. Applicable to the 'tf'
-      format only. Please see the `signatures` argument in `tf.saved_model.save`
-      for details.
-    options: (only applies to SavedModel format) `tf.saved_model.SaveOptions`
-      object that specifies options for saving to SavedModel.
-    save_traces: (only applies to SavedModel format) When enabled, the
-      SavedModel will store the function traces for each layer. This
-      can be disabled, so that only the configs of each layer are stored.
-      Defaults to `True`. Disabling this will decrease serialization time
-      and reduce file size, but it requires that all custom layers/models
-      implement a `get_config()` method.
-
-  Raises:
-    ValueError: if the model's inputs have not been defined.
-  """
-  try:
-    import horovod.tensorflow as hvd
-    hvd.rank()
-  except:
-    hvd = None
-
-  call_original_save_func = functools.partial(
-      original_save_func,
-      model=model,
-      filepath=filepath,
-      overwrite=overwrite,
-      include_optimizer=include_optimizer,
-      signatures=signatures,
-      options=options,
-      save_traces=save_traces,
-      *args,
-      **kwargs)
-
-  def _traverse_emb_layers_and_save(hvd_rank):
-    de_dir = os.path.join(filepath, "variables", "TFRADynamicEmbedding")
-    for layer in model.layers:
-      if hasattr(layer, "params") and isinstance(
-          layer, de.keras.layers.HvdAllToAllEmbedding):
-        if layer.params._saveable_object_creator is None:
-          if hvd_rank == 0:
-            tf_logging.warning(
-                "Please use FileSystemSaver when use HvdAllToAllEmbedding. "
-                "It will allow TFRA load KV files when Embedding tensor parallel. "
-                f"The embedding shards at each horovod rank are now temporarily stored in {de_dir}"
-            )
-        else:
-          if not isinstance(layer.params.kv_creator.saver, de.FileSystemSaver):
-            # This function only serves FileSystemSaver.
-            continue
-          if hvd_rank == 0:
-            # FileSystemSaver works well at rank 0.
-            continue
-        # Save embedding parameters
-        layer.params.save_to_file_system(dirpath=de_dir,
-                                         proc_size=hvd.size(),
-                                         proc_rank=hvd.rank())
-        # Save the optimizer parameters
-        if include_optimizer is True:
-          opt_de_vars = layer.optimizer_vars.as_list() if hasattr(
-              layer.optimizer_vars, "as_list") else layer.optimizer_vars
-          for opt_de_var in opt_de_vars:
-            opt_de_var.save_to_file_system(dirpath=de_dir,
-                                           proc_size=hvd.size(),
-                                           proc_rank=hvd.rank())
-
-  if hvd is None:
-    call_original_save_func()
-  else:
-    if hvd.rank() == 0:
-      call_original_save_func()
-    _traverse_emb_layers_and_save(hvd.rank())
-
-
 def patch_on_tf_save_restore():
   try:
     from tensorflow.python.saved_model.registration.registration import register_checkpoint_saver
@@ -651,8 +557,9 @@ def patch_on_tf_save_restore():
   except:
     functional_saver._SingleDeviceSaver = _DynamicEmbeddingSingleDeviceSaver
   saver.Saver = _DynamicEmbeddingSaver
-  tf_saved_model_save.save = functools.partial(_de_keras_save_func,
-                                               tf_original_save_func)
-  if keras_saved_model_save is not None:
-    keras_saved_model_save.save = functools.partial(_de_keras_save_func,
-                                                    keras_original_save_func)
+  # # Replace origin saving function is too dangerous.
+  # tf_saved_model_save.save = functools.partial(de.keras.models._de_keras_save_func,
+  #                                              tf_original_save_func)
+  # if keras_saved_model_save is not None:
+  #   keras_saved_model_save.save = functools.partial(de.keras.models._de_keras_save_func,
+  #                                                   keras_original_save_func)

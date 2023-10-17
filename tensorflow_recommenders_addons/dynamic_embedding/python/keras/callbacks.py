@@ -21,6 +21,7 @@ from tensorflow.python.framework import versions
 from tensorflow.python.keras import backend as K
 from tensorflow.python.keras import callbacks
 from tensorflow.python.keras.utils import tf_utils
+from tensorflow.python.ops import array_ops
 from tensorflow.python.ops import variables
 from tensorflow.python.platform import tf_logging as logging
 from tensorflow.python.util.deprecation import deprecated
@@ -108,10 +109,6 @@ class DEHvdBroadcastGlobalVariablesCallback(
       self.register_local_var(var)
 
 
-@deprecated(
-    None, "\n!!!! Using this callback will cause a save twice error. !!!!\n"
-    "The callbacks.ModelCheckpoint for HvdAllToAllEmbedding has been deprecated, use original ModelCheckpoint instead.\n"
-    "!!!! Using this callback will cause a save twice error. !!!!\n")
 class DEHvdModelCheckpoint(callbacks.ModelCheckpoint):
 
   def __init__(self, *args, **kwargs):
@@ -129,23 +126,26 @@ class DEHvdModelCheckpoint(callbacks.ModelCheckpoint):
                         options=self._options)
     else:
       de_dir = os.path.join(filepath, "variables", "TFRADynamicEmbedding")
-      for layer in self.model.layers:
-        if hasattr(layer, "params") and isinstance(layer, HvdAllToAllEmbedding):
+      for var in self.model.variables:
+        if not hasattr(var, "params") or not isinstance(var, TrainableWrapper):
+          continue
+        if not hasattr(var.params, "_created_in_class"):
+          continue
+        de_var = var.params
+        a2a_emb = de_var._created_in_class
+        if issubclass(a2a_emb.__class__, HvdAllToAllEmbedding):
           # save Dynamic Embedding Parameters
-          logging.warning(
-              "!!!! Using this callback will cause a save twice error. !!!!\n"
-              "The callbacks.ModelCheckpoint for HvdAllToAllEmbedding has been deprecated, use original ModelCheckpoint instead.\n"
-              "!!!! Using this callback will cause a save twice error. !!!!\n")
-          layer.params.save_to_file_system(dirpath=de_dir,
-                                           proc_size=hvd.size(),
-                                           proc_rank=hvd.rank())
+          de_var.save_to_file_system(dirpath=de_dir,
+                                     proc_size=hvd.size(),
+                                     proc_rank=hvd.rank())
           # save optimizer parameters of Dynamic Embedding
-          opt_de_vars = layer.optimizer_vars.as_list() if hasattr(
-              layer.optimizer_vars, "as_list") else layer.optimizer_vars
-          for opt_de_var in opt_de_vars:
-            opt_de_var.save_to_file_system(dirpath=de_dir,
+          de_opt_vars = a2a_emb.optimizer_vars.as_list() if hasattr(
+              a2a_emb.optimizer_vars, "as_list") else a2a_emb.optimizer_vars
+          for de_opt_var in de_opt_vars:
+            de_opt_var.save_to_file_system(dirpath=de_dir,
                                            proc_size=hvd.size(),
                                            proc_rank=hvd.rank())
+    hvd.join()  # Sync for avoiding data conflict or missing rank
 
   def _save_model(self, epoch, logs):
     """Saves the model.
