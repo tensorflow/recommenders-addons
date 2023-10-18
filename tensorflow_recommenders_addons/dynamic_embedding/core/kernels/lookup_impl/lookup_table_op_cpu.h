@@ -294,7 +294,7 @@ class TableWrapperDefault final : public TableWrapperBase<K, V> {
     ValueType value_vec;
     value_vec.reserve(value_dim);
     for (int64 j = 0; j < value_dim; j++) {
-      value_vec.push_back(*value);
+      value_vec.push_back(*(value + j));
     }
     return table_->insert_or_assign(*key, value_vec);
   }
