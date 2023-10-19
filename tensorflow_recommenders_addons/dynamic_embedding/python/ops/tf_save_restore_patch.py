@@ -20,6 +20,7 @@ import os.path
 import re
 
 from tensorflow_recommenders_addons import dynamic_embedding as de
+from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_ops import TrainableWrapper, DEResourceVariable
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_variable \
   import load_de_variable_from_file_system
 
@@ -293,6 +294,20 @@ class _DynamicEmbeddingSaver(saver.Saver):
     return control_flow_ops.group(restore_ops.as_list())
 
   def _build(self, checkpoint_path, build_save, build_restore):
+    # TrainableWrapper and DEResourceVariable should not be save or restore parameter.
+    filter_lambda = lambda x: (isinstance(x, TrainableWrapper)) or (isinstance(
+        x, DEResourceVariable))
+    if isinstance(self._var_list, dict):
+      for key, value in self._var_list.items():
+        if filter_lambda(value):
+          self._var_list.pop(key)
+    elif isinstance(self._var_list, list):
+      _tmp_var_list = []
+      for value in self._var_list:
+        if not filter_lambda(value):
+          _tmp_var_list.append(value)
+      self._var_list = _tmp_var_list
+
     super(_DynamicEmbeddingSaver, self)._build(checkpoint_path, build_save,
                                                build_restore)
 
