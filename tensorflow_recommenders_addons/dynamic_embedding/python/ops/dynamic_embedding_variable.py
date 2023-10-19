@@ -190,7 +190,8 @@ def _insert_de_shard_from_file_system(
     value_dim,
     shard_keys_file_list,
     shard_values_file_list,
-    partition_fn: typing.TypeVar(default_partition_fn) = default_partition_fn,
+    partition_fn: typing.Callable[[typing.Any, typing.Any],
+                                  typing.Any] = default_partition_fn,
     proc_size: int = None,
     proc_rank: int = None,
     buffer_size: int = 4194304):
