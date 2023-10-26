@@ -326,16 +326,26 @@ class HorovodTest(test.TestCase):
         de.keras.models.de_hvd_save_model(base_model,
                                           save_dir,
                                           options=save_options)
+        ckpt = de.train.DEHvdCheckpoint(base_model)
+        ckpt.save(save_dir + '/ckpt/test')
+        tf.keras.backend.clear_session()
         del base_model
         new_base_model = get_emb_sequential_model(
             de.keras.layers.HvdAllToAllEmbedding,
             base_opt,
+            dense_init='ones',
             embedding_size=dim,
             initializer=init,
             bp_v2=False,
             kv_creator=kv_creator,
             name='all2all_emb')
+        ckpt = de.train.DEHvdCheckpoint(new_base_model)
         hvd.join()  # Sync for avoiding files conflict
+        ckpt.restore(tf.train.latest_checkpoint(save_dir + '/ckpt/'))
+        new_a2aemb_size = new_base_model.layers[0].params.size()
+        self.assertEqual(a2aemb_size, new_a2aemb_size)
+        hvd.join()  # Sync for avoiding files conflict
+        tf.keras.backend.clear_session()
         new_base_model.load_weights(save_dir + '/variables/variables')
         new_a2aemb_size = new_base_model.layers[0].params.size()
         self.assertEqual(a2aemb_size, new_a2aemb_size)

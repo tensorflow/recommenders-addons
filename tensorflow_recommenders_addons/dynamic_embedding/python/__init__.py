@@ -1,1 +1,2 @@
 from tensorflow_recommenders_addons.dynamic_embedding.python import keras
+from tensorflow_recommenders_addons.dynamic_embedding.python import train
