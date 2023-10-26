@@ -39,12 +39,14 @@ __all__ = [
     'enable_train_mode',
     'get_model_mode',
     'trainable_wrapper_filter',
+    'train',
     'keras',
     'math',
     'data_flow',
     'shadow_ops',
 ]
 
+from tensorflow_recommenders_addons.dynamic_embedding.python import train
 from tensorflow_recommenders_addons.dynamic_embedding.python import keras
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops import math_ops as math
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops import data_flow_ops as data_flow
