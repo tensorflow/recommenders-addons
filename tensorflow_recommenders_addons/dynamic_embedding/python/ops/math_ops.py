@@ -186,59 +186,7 @@ def sparse_fill_empty_rows(sp_input, default_value, name=None):
       input row was empty.
   """
   gpu_devices = config.list_physical_devices('GPU')
-  if gpu_devices:
-    if context.executing_eagerly():
-      try:
-        return _sparse_fill_empty_rows_gpu(sp_input, default_value, name=name)
-      except errors.NotFoundError:
-        tf_logging.warn(
-            '`tfra.dynamic_embedding.math.sparse_fill_empty_rows` is not'
-            ' found. Use tf.sparse.fill_empty_rows instead.')
-        return tf.sparse.fill_empty_rows(sp_input, default_value, name=name)
-
-    else:
-      predef = _sparse_fill_empty_rows_gpu(sp_input, default_value, name=name)
-
-      use_origin = False
-      if predef[0].values.device == '':
-        tf_logging.warn(
-            'SparseFillEmptyRows({}) has not been assigned device, '
-            'while GPU are available: {}, so use GPU by default.'.format(
-                predef[0].values.name, gpu_devices))
-      else:
-        device_type = predef[0].values.device.split(':')[-2][-3:].lower()
-        if 'gpu' in device_type:
-          use_origin = True
-
-      if use_origin:
-        return tf.sparse.fill_empty_rows(sp_input, default_value, name=name)
-      return predef
-
-  else:
-    return tf.sparse.fill_empty_rows(sp_input, default_value, name=name)
-
-
-def _sparse_fill_empty_rows_gpu(sp_input, default_value, name=None):
-  if not hasattr(tfra_math_ops, 'tfra_sparse_fill_empty_rows'):
-    tf_logging.warn(
-        '`tfra.dynamic_embedding.math.sparse_fill_empty_rows` is not'
-        ' found. Use tf.sparse.fill_empty_rows instead.')
-    return tf.sparse.fill_empty_rows(sp_input, default_value, name=name)
-
-  sp_input = _convert_to_sparse_tensor(sp_input)
-  with ops.name_scope(name, "SparseFillEmptyRows", [sp_input]):
-    default_value = ops.convert_to_tensor(default_value,
-                                          dtype=sp_input.values.dtype)
-    (output_indices, output_values, empty_row_indicator,
-     unused_reverse_index_map) = tfra_math_ops.tfra_sparse_fill_empty_rows(
-         indices=sp_input.indices,
-         values=sp_input.values,
-         dense_shape=sp_input.dense_shape,
-         default_value=default_value)
-    return (sparse_tensor.SparseTensor(indices=output_indices,
-                                       values=output_values,
-                                       dense_shape=sp_input.dense_shape),
-            empty_row_indicator)
+  return tf.sparse.fill_empty_rows(sp_input, default_value, name=name)
 
 
 def sparse_reshape(sp_input, shape, name=None):
