@@ -76,8 +76,6 @@ custom_op_library(
         "kernels/segment_reduction_ops.h",
         "kernels/segment_reduction_ops_impl.cc",
         "kernels/segment_reduction_ops_impl.h",
-        "kernels/sparse_fill_empty_rows_op.cc",
-        "kernels/sparse_fill_empty_rows_op.h",
         "ops/math_ops.cc",
         "utils/utils.h",
     ],
@@ -89,8 +87,6 @@ custom_op_library(
     cuda_srcs = [
         "kernels/segment_reduction_ops.h",
         "kernels/segment_reduction_ops_gpu.cu.cc",
-        "kernels/sparse_fill_empty_rows_op.h",
-        "kernels/sparse_fill_empty_rows_op.cu.cc",
     ],
 )
 
