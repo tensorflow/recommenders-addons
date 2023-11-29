@@ -155,17 +155,21 @@ class DEHvdCheckpoint(Checkpoint):
         return False
       return True
 
-    if _filter_de_hvd_a2a_tw(self.root):
-      func(var.params, de_dir)
-    if hasattr(self.root, 'variables'):
-      for var in self.root.variables:
-        if _filter_de_hvd_a2a_tw(var):
-          func(var.params, de_dir)
+    def _handle_model_or_variable(obj):
+      if _filter_de_hvd_a2a_tw(obj):
+        func(var.params, de_dir)
+      if hasattr(obj, 'variables'):
+        _iter = obj.variables() if callable(obj.variables) else obj.variables
+        for var in _iter:
+          if _filter_de_hvd_a2a_tw(var):
+            func(var.params, de_dir)
+
+    if hasattr(self, 'root'):
+      _handle_model_or_variable(self.root)
     if len(self._tmp_var_key_set):
-      for var_key in self._tmp_var_key_set:
-        var = getattr(self, var_key)
-        if _filter_de_hvd_a2a_tw(var):
-          func(var.params, de_dir)
+      for obj_key in self._tmp_var_key_set:
+        obj_var = getattr(self, obj_key)
+        _handle_model_or_variable(obj_var)
 
   def _de_hvd_write_fs_func(self, file_prefix, tf_write_func):
 
