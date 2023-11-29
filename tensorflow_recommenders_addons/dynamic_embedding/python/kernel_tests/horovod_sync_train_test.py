@@ -339,7 +339,7 @@ class HorovodTest(test.TestCase):
             bp_v2=False,
             kv_creator=kv_creator,
             name='all2all_emb')
-        ckpt = de.train.DEHvdCheckpoint(new_base_model)
+        ckpt = de.train.DEHvdCheckpoint(my_model=new_base_model)
         hvd.join()  # Sync for avoiding files conflict
         ckpt.restore(tf.train.latest_checkpoint(save_dir + '/ckpt/'))
         new_a2aemb_size = new_base_model.layers[0].params.size()
