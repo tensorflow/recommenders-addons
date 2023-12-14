@@ -14,7 +14,7 @@
 # limitations under the License.
 # ==============================================================================
 
-# Use devtoolset-7 as tool chain
+# Use devtoolset-8 as tool chain
 rm -r /usr/bin/gcc*
 export PATH=/dt8/usr/bin:${PATH}
 export PATH=/usr/bin/:/usr/local/bin/:${PATH}
