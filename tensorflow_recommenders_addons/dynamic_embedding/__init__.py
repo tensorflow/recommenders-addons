@@ -18,6 +18,7 @@ __all__ = [
     'CuckooHashTable',
     'CuckooHashTableConfig',
     'CuckooHashTableCreator',
+    'HkvEvictStrategy',
     'HkvHashTable',
     'HkvHashTableConfig',
     'HkvHashTableCreator',
@@ -55,7 +56,7 @@ from tensorflow_recommenders_addons.dynamic_embedding.python.ops import math_ops
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops import data_flow_ops as data_flow
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_creator import (
     KVCreator, CuckooHashTableConfig, CuckooHashTableCreator,
-    HkvHashTableConfig, HkvHashTableCreator, RedisTableConfig,
+    HkvHashTableConfig, HkvHashTableCreator, HkvEvictStrategy, RedisTableConfig,
     RedisTableCreator, FileSystemSaver)
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.cuckoo_hashtable_ops import (
     CuckooHashTable,)

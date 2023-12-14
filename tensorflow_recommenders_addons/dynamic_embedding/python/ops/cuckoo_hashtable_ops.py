@@ -18,6 +18,7 @@
 import sys
 import copy
 import functools
+import tensorflow as tf
 
 from tensorflow.python.eager import context
 from tensorflow.python.framework import dtypes
@@ -107,6 +108,7 @@ class CuckooHashTable(LookupInterface):
     self._max_hbm_for_values = sys.maxsize
     self._device_type = tf_device.DeviceSpec.from_string(
         self._device).device_type
+    self._default_scores = tf.constant([], dtypes.int64)
 
     self._shared_name = None
     if context.executing_eagerly():
@@ -367,7 +369,8 @@ class CuckooHashTable(LookupInterface):
         # pylint: disable=protected-access
         if self._device_type == "GPU":
           return hkv_ops.tfra_hkv_hash_table_insert(self.resource_handle, keys,
-                                                    values)
+                                                    values,
+                                                    self._default_scores)
         else:
           return cuckoo_ops.tfra_cuckoo_hash_table_insert(
               self.resource_handle, keys, values)
@@ -405,7 +408,8 @@ class CuckooHashTable(LookupInterface):
         # pylint: disable=protected-access
         if self._device_type == "GPU":
           return hkv_ops.tfra_hkv_hash_table_accum(self.resource_handle, keys,
-                                                   values_or_deltas, exists)
+                                                   values_or_deltas, exists,
+                                                   self._default_scores)
         else:
           return cuckoo_ops.tfra_cuckoo_hash_table_accum(
               self.resource_handle, keys, values_or_deltas, exists)
@@ -424,6 +428,7 @@ class CuckooHashTable(LookupInterface):
                         [self.resource_handle]):
       with ops.colocate_with(self.resource_handle):
         if self._device_type == "GPU":
+
           keys, values = hkv_ops.tfra_hkv_hash_table_export(
               self.resource_handle, self._key_dtype, self._value_dtype)
         else:

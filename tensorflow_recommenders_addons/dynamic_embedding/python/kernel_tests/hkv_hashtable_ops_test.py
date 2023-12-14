@@ -1,4 +1,4 @@
-# Copyright 2020 The TensorFlow Authors. All Rights Reserved.
+# Copyright 2023 The TensorFlow Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -341,20 +341,20 @@ class HkvHashtableTest(test.TestCase):
         self.assertAllEqual(np_keys, np.sort(load_keys))
         self.assertAllEqual(np.sort(np_values), np.sort(load_values))
 
-  """
-    base kv [0, 1, 2, 3] [0, 1, 2, 3]
-    add kv [100] [99]
-    remove k [1]
-    accum key [0, 1, 100, 3]
-    old val [0, 1, 2, 3]
-    new val [10 ,11, 100, 13]
-    export_exist [t, t, f, t]
+  # """
+  #   base kv [0, 1, 2, 3] [0, 1, 2, 3]
+  #   add kv [100] [99]
+  #   remove k [1]
+  #   accum key [0, 1, 100, 3]
+  #   old val [0, 1, 2, 3]
+  #   new val [10 ,11, 100, 13]
+  #   export_exist [t, t, f, t]
 
-      insert base kv
-      lookup accum key
-      insert add kv
-      remove remove k [0, 2, 3, 100] [0, 2, 3, 99]
-  """
+  #     insert base kv
+  #     lookup accum key
+  #     insert add kv
+  #     remove remove k [0, 2, 3, 100] [0, 2, 3, 99]
+  # """
 
   def test_variable_find_with_exists_and_accum(self):
     test_list = [['/CPU:0', False]]

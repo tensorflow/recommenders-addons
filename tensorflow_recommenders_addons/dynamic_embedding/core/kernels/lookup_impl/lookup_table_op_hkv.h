@@ -57,6 +57,9 @@ inline Status ReturnInternalErrorStatus(const char* const str) {
   return Status(tensorflow::error::INTERNAL, str);
 #endif
 }
+using HkvEvictStrategy = nv::merlin::EvictStrategy;
+
+constexpr uint64_t IGNORED_GLOBAL_EPOCH = UINT64_C(0xFFFFFFFFFFFFFFFF);
 
 template <typename K, typename V, typename S>
 class KVOnlyFile : public nv::merlin::BaseKVFile<K, V, S> {
@@ -302,6 +305,8 @@ struct TableWrapperInitOptions {
   size_t init_capacity;
   size_t max_hbm_for_vectors;
   size_t max_bucket_size;
+  int64_t step_per_epoch;
+
   float max_load_factor;
   int block_size;
   int io_block_size;
@@ -419,15 +424,14 @@ class TFOrDefaultAllocator : public nv::merlin::BaseAllocator {
 template <class K, class V>
 class TableWrapper {
  private:
-  // using S = uint64_t;
-  using Table = nv::merlin::HashTable<K, V, uint64_t>;
+  using Table = nv::merlin::HashTableBase<K, V, uint64_t>;
   nv::merlin::HashTableOptions mkv_options_;
 
  public:
-  TableWrapper(TableWrapperInitOptions& init_options, size_t dim) {
+  TableWrapper(TableWrapperInitOptions& init_options, size_t dim,
+               int strategy) {
     max_capacity_ = init_options.max_capacity;
     dim_ = dim;
-    // nv::merlin::HashTableOptions mkv_options_;
     mkv_options_.init_capacity =
         std::min(init_options.init_capacity, max_capacity_);
     mkv_options_.max_capacity = max_capacity_;
@@ -439,52 +443,99 @@ class TableWrapper {
     mkv_options_.max_load_factor = 0.5;
     mkv_options_.block_size = nv::merlin::SAFE_GET_BLOCK_SIZE(128);
     mkv_options_.dim = dim;
-    // mkv_options_.evict_strategy = nv::merlin::EvictStrategy::kCustomized;
-    mkv_options_.evict_strategy = nv::merlin::EvictStrategy::kLru;
 
     block_size_ = mkv_options_.block_size;
-    table_ = new Table();
+    switch (strategy) {
+      case HkvEvictStrategy::kLfu:
+        table_ptr_ = std::make_unique<
+            nv::merlin::HashTable<K, V, uint64_t, HkvEvictStrategy::kLfu>>();
+        break;
+      case HkvEvictStrategy::kEpochLru:
+        table_ptr_ = std::make_unique<nv::merlin::HashTable<
+            K, V, uint64_t, HkvEvictStrategy::kEpochLru>>();
+        break;
+      case HkvEvictStrategy::kEpochLfu:
+        table_ptr_ = std::make_unique<nv::merlin::HashTable<
+            K, V, uint64_t, HkvEvictStrategy::kEpochLfu>>();
+        break;
+      case HkvEvictStrategy::kCustomized:
+        table_ptr_ = std::make_unique<nv::merlin::HashTable<
+            K, V, uint64_t, HkvEvictStrategy::kCustomized>>();
+        break;
+      default:
+        table_ptr_ = std::make_unique<
+            nv::merlin::HashTable<K, V, uint64_t, HkvEvictStrategy::kLru>>();
+        break;
+    }
+    step_per_epoch_ = init_options.step_per_epoch;
+    curr_epoch_ = 0;
+    curr_step_ = 1;
+
+    LOG(INFO) << "Use Evict Strategy:" << strategy
+              << ", [0:LRU, 1:LFU, 2:EPOCHLRU, 3:EPOCHLFU, 4:CUSTOMIZED]";
+    if (2 == strategy || 3 == strategy) {
+      epoch_evict_strategy_ = true;
+      table_ptr_->set_global_epoch(curr_epoch_);
+
+      LOG(INFO) << "HKV EPOCH EVICT STRATEGY, step_per_epoch: "
+                << init_options.step_per_epoch
+                << ", curr_epoch: " << curr_epoch_;
+    } else {
+      epoch_evict_strategy_ = false;
+
+      table_ptr_->set_global_epoch(IGNORED_GLOBAL_EPOCH);
+    }
   }
+
+  ~TableWrapper() {}
 
   Status init(nv::merlin::BaseAllocator* allocator) {
     try {
-      table_->init(mkv_options_, allocator);
+      table_ptr_->init(mkv_options_, allocator);
     } catch (std::runtime_error& e) {
       return ReturnInternalErrorStatus(e.what());
     }
     return TFOkStatus;
   }
 
-  ~TableWrapper() { delete table_; }
-
-  void upsert(const K* d_keys, const V* d_vals, size_t len,
-              cudaStream_t stream) {
-    uint64_t t0 = (uint64_t)time(NULL);
+  void upsert(const K* d_keys, const V* d_vals, const uint64_t* d_scores,
+              size_t len, cudaStream_t stream) {
     size_t grid_size = nv::merlin::SAFE_GET_GRID_SIZE(len, block_size_);
-    table_->insert_or_assign(len, d_keys, d_vals, /*d_scores=*/nullptr, stream);
+    table_ptr_->insert_or_assign(len, d_keys, d_vals, d_scores, stream);
+
     CUDA_CHECK(cudaStreamSynchronize(stream));
+    if (epoch_evict_strategy_) {
+      curr_step_ += 1;
+      if (curr_step_ > step_per_epoch_) {
+        curr_epoch_ += 1;
+        curr_step_ = 1;
+        table_ptr_->set_global_epoch(curr_epoch_);
+        LOG(INFO) << "HKV EPOCH EVICT STRATEGY: curr_epoch: " << curr_epoch_;
+      }
+    }
   }
 
   void accum(const K* d_keys, const V* d_vals_or_deltas, const bool* d_exists,
-             size_t len, cudaStream_t stream) {
+             const uint64_t* d_scores, size_t len, cudaStream_t stream) {
     uint64_t t0 = (uint64_t)time(NULL);
     size_t grid_size = nv::merlin::SAFE_GET_GRID_SIZE(len, block_size_);
-    table_->accum_or_assign(len, d_keys, d_vals_or_deltas, d_exists,
-                            /*d_scores=*/nullptr, stream);
+    table_ptr_->accum_or_assign(len, d_keys, d_vals_or_deltas, d_exists,
+                                d_scores, stream);
     CUDA_CHECK(cudaStreamSynchronize(stream));
   }
 
   void dump(K* d_key, V* d_val, const size_t offset, const size_t search_length,
             size_t* d_dump_counter, cudaStream_t stream) const {
-    table_->export_batch(search_length, offset, d_dump_counter, d_key, d_val,
-                         /*d_scores=*/nullptr, stream);
+    table_ptr_->export_batch(search_length, offset, d_dump_counter, d_key,
+                             d_val,
+                             /*d_scores=*/nullptr, stream);
   }
 
   void dump_with_scores(K* d_key, V* d_val, uint64_t* d_scores,
                         const size_t offset, const size_t search_length,
                         size_t* d_dump_counter, cudaStream_t stream) const {
-    table_->export_batch(search_length, offset, d_dump_counter, d_key, d_val,
-                         d_scores, stream);
+    table_ptr_->export_batch(search_length, offset, d_dump_counter, d_key,
+                             d_val, d_scores, stream);
   }
 
   void dump_keys_and_scores(K* keys, int64* scores, size_t len,
@@ -494,7 +545,7 @@ class TableWrapper {
     size_t real_offset = 0;
     size_t skip = split_len;
     uint64_t* scores_u64 = reinterpret_cast<uint64_t*>(scores);
-    size_t span_len = table_->capacity();
+    size_t span_len = table_ptr_->capacity();
     CUDA_CHECK(
         cudaMallocAsync(&values_buf, sizeof(V) * dim_ * split_len, stream));
     CUDA_CHECK(
@@ -505,8 +556,8 @@ class TableWrapper {
       }
       // TODO: overlap the loop
       size_t h_dump_counter =
-          table_->export_batch(skip, offset, keys + real_offset, values_buf,
-                               scores_u64 + real_offset, stream);
+          table_ptr_->export_batch(skip, offset, keys + real_offset, values_buf,
+                                   scores_u64 + real_offset, stream);
       CudaCheckError();
 
       if (h_dump_counter > 0) {
@@ -533,7 +584,7 @@ class TableWrapper {
     LOG(INFO) << "dump_to_file, filepath: " << filepath << ", dim: " << dim
               << ", stream: " << stream << ", buffer_size: " << buffer_size;
 
-    std::unique_ptr<nv::merlin::BaseKVFile<K, V, uint64_t>> wfile;
+    std::unique_ptr<nv::merlin::BaseKVFile<K, V, uint64_t>> wfile_ptr;
 
     string keyfile = filepath + "-keys";
     string valuefile = filepath + "-values";
@@ -542,9 +593,9 @@ class TableWrapper {
     Status status = TFOkStatus;
 
     if (is_valid_scores(keyfile, scorefile)) {
-      wfile.reset(new nv::merlin::LocalKVFile<K, V, uint64_t>);
+      wfile_ptr = std::make_unique<nv::merlin::LocalKVFile<K, V, uint64_t>>();
       bool open_ok = reinterpret_cast<nv::merlin::LocalKVFile<K, V, uint64_t>*>(
-                         wfile.get())
+                         wfile_ptr.get())
                          ->open(keyfile, valuefile, scorefile, "wb");
       has_scores = true;
       if (!open_ok) {
@@ -553,10 +604,11 @@ class TableWrapper {
         throw std::runtime_error(error_msg);
       }
     } else {
-      wfile.reset(new RandomKVFile<K, V, uint64_t>(
-          fs, filepath, dim, buffer_size, append_to_file));
-      status.Update(reinterpret_cast<RandomKVFile<K, V, uint64_t>*>(wfile.get())
-                        ->open(keyfile, valuefile, "wb"));
+      wfile_ptr = std::make_unique<RandomKVFile<K, V, uint64_t>>(
+          fs, filepath, dim, buffer_size, append_to_file);
+      status.Update(
+          reinterpret_cast<RandomKVFile<K, V, uint64_t>*>(wfile_ptr.get())
+              ->open(keyfile, valuefile, "wb"));
     }
     if (!status.ok()) {
       std::string error_msg = "Failed to dump to file to " + keyfile + ", " +
@@ -565,8 +617,8 @@ class TableWrapper {
       throw std::runtime_error(error_msg);
     }
 
-    size_t n_saved = table_->save(
-        wfile.get(),
+    size_t n_saved = table_ptr_->save(
+        wfile_ptr.get(),
         buffer_size * (sizeof(K) + sizeof(V) * dim + sizeof(uint64_t)), stream);
     if (has_scores) {
       LOG(INFO) << "[op] Save " << n_saved << " pairs from keyfile: " << keyfile
@@ -578,16 +630,17 @@ class TableWrapper {
     }
     CUDA_CHECK(cudaStreamSynchronize(stream));
     if (has_scores) {
-      reinterpret_cast<nv::merlin::LocalKVFile<K, V, uint64_t>*>(wfile.get())
+      reinterpret_cast<nv::merlin::LocalKVFile<K, V, uint64_t>*>(
+          wfile_ptr.get())
           ->close();
     } else {
-      reinterpret_cast<RandomKVFile<K, V, uint64_t>*>(wfile.get())->close();
+      reinterpret_cast<RandomKVFile<K, V, uint64_t>*>(wfile_ptr.get())->close();
     }
   }
 
   void load_from_file(FileSystem* fs, const string filepath, size_t dim,
                       cudaStream_t stream, const size_t buffer_size) {
-    std::unique_ptr<nv::merlin::BaseKVFile<K, V, uint64_t>> rfile;
+    std::unique_ptr<nv::merlin::BaseKVFile<K, V, uint64_t>> rfile_ptr;
     string keyfile = filepath + "-keys";
     string valuefile = filepath + "-values";
     string scorefile = filepath + "-scores";
@@ -595,9 +648,9 @@ class TableWrapper {
     Status status = TFOkStatus;
 
     if (is_valid_scores(keyfile, scorefile)) {
-      rfile.reset(new nv::merlin::LocalKVFile<K, V, uint64_t>);
+      rfile_ptr = std::make_unique<nv::merlin::LocalKVFile<K, V, uint64_t>>();
       bool open_ok = reinterpret_cast<nv::merlin::LocalKVFile<K, V, uint64_t>*>(
-                         rfile.get())
+                         rfile_ptr.get())
                          ->open(keyfile, valuefile, scorefile, "rb");
       has_scores = true;
       if (!open_ok) {
@@ -606,10 +659,11 @@ class TableWrapper {
         throw std::runtime_error(error_msg);
       }
     } else {
-      rfile.reset(
-          new RandomKVFile<K, V, uint64_t>(fs, filepath, dim, buffer_size));
-      status.Update(reinterpret_cast<RandomKVFile<K, V, uint64_t>*>(rfile.get())
-                        ->open(keyfile, valuefile, "rb"));
+      rfile_ptr = std::make_unique<RandomKVFile<K, V, uint64_t>>(
+          fs, filepath, dim, buffer_size);
+      status.Update(
+          reinterpret_cast<RandomKVFile<K, V, uint64_t>*>(rfile_ptr.get())
+              ->open(keyfile, valuefile, "rb"));
     }
     if (!status.ok()) {
       std::string error_msg = "Failed to load from file " + keyfile + ", " +
@@ -618,8 +672,8 @@ class TableWrapper {
       throw std::runtime_error(error_msg);
     }
 
-    size_t n_loaded = table_->load(
-        rfile.get(),
+    size_t n_loaded = table_ptr_->load(
+        rfile_ptr.get(),
         buffer_size * (sizeof(K) + sizeof(V) * dim + sizeof(uint64_t)), stream);
     if (has_scores) {
       LOG(INFO) << "[op] Load " << n_loaded
@@ -633,10 +687,11 @@ class TableWrapper {
     }
     CUDA_CHECK(cudaStreamSynchronize(stream));
     if (has_scores) {
-      reinterpret_cast<nv::merlin::LocalKVFile<K, V, uint64_t>*>(rfile.get())
+      reinterpret_cast<nv::merlin::LocalKVFile<K, V, uint64_t>*>(
+          rfile_ptr.get())
           ->close();
     } else {
-      reinterpret_cast<RandomKVFile<K, V, uint64_t>*>(rfile.get())->close();
+      reinterpret_cast<RandomKVFile<K, V, uint64_t>*>(rfile_ptr.get())->close();
     }
   }
 
@@ -651,7 +706,8 @@ class TableWrapper {
           <<<grid_size, block_size_, dim_ * sizeof(V), stream>>>(
               d_vals, d_def_val, len, dim_);
     }
-    table_->find(len, d_keys, d_vals, d_status, /*d_scores=*/nullptr, stream);
+    table_ptr_->find(len, d_keys, d_vals, d_status, /*d_scores=*/nullptr,
+                     stream);
   }
 
   // TODO(LinGeLin): Implemented using the HKV contains API
@@ -660,35 +716,42 @@ class TableWrapper {
     V* tmp_vals = nullptr;
     CUDA_CHECK(cudaMallocAsync(&tmp_vals, sizeof(V) * len * dim_, stream));
     CUDA_CHECK(cudaMemsetAsync(&tmp_vals, 0, sizeof(V) * len * dim_, stream));
-    table_->find(len, d_keys, tmp_vals, d_status, /*d_scores=*/nullptr, stream);
+    table_ptr_->find(len, d_keys, tmp_vals, d_status, /*d_scores=*/nullptr,
+                     stream);
     CUDA_CHECK(cudaFreeAsync(tmp_vals, stream));
     CUDA_CHECK(cudaStreamSynchronize(stream));
   }
 
-  size_t get_size(cudaStream_t stream) const { return table_->size(stream); }
-
-  size_t get_capacity() const { return table_->capacity(); }
-
-  void remove(const K* d_keys, size_t len, cudaStream_t stream) {
-    table_->erase(len, d_keys, stream);
+  size_t get_size(cudaStream_t stream) const {
+    return table_ptr_->size(stream);
   }
 
-  void clear(cudaStream_t stream) { table_->clear(stream); }
+  size_t get_capacity() const { return table_ptr_->capacity(); }
+
+  void remove(const K* d_keys, size_t len, cudaStream_t stream) {
+    table_ptr_->erase(len, d_keys, stream);
+  }
+
+  void clear(cudaStream_t stream) { table_ptr_->clear(stream); }
 
  private:
-  Table* table_;
+  std::unique_ptr<Table> table_ptr_;
   size_t max_capacity_;
   size_t dim_;
+  int64_t step_per_epoch_;
+  int64_t curr_step_;
+  uint64_t curr_epoch_;
   int block_size_;
   bool dynamic_mode_;
+  bool epoch_evict_strategy_;
 };
 
 template <class K, class V>
 Status CreateTableImpl(TableWrapper<K, V>** pptable,
                        TableWrapperInitOptions& options,
-                       nv::merlin::BaseAllocator* allocator,
-                       size_t runtime_dim) {
-  *pptable = new TableWrapper<K, V>(options, runtime_dim);
+                       nv::merlin::BaseAllocator* allocator, size_t runtime_dim,
+                       int strategy) {
+  *pptable = new TableWrapper<K, V>(options, runtime_dim, strategy);
   return (*pptable)->init(allocator);
 }
 

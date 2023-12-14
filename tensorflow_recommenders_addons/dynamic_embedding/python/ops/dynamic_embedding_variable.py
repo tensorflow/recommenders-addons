@@ -1024,6 +1024,21 @@ class Variable(base.Trackable):
             name=name))
     return control_flow_ops.group(ops_.as_list())
 
+  def export_keys_and_scores(self, split_size, name=None):
+    if not isinstance(self.kv_creator, de.HkvHashTableCreator):
+      raise TypeError("Only hkv HashTable support export_keys_and_scores")
+    full_keys = []
+    full_scores = []
+    for idx in range(len(self.devices)):
+      keys_ = None
+      scores_ = None
+      with ops.device(self.devices[idx]):
+        keys_, scores_ = self._tables[idx].export_keys_and_scores(
+            split_size=split_size, name=name)
+        full_keys.append(keys_)
+        full_scores.append(scores_)
+    return array_ops.concat(full_keys, 0), array_ops.concat(full_scores, 0)
+
   def load_from_file_system_with_restore_function(self,
                                                   dirpath,
                                                   proc_size=1,
