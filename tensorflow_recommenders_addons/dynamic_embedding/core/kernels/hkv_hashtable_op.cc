@@ -664,7 +664,8 @@ class HashTableInsertOp : public HashTableOpKernel {
     core::ScopedUnref unref_me(table);
 
     DataTypeVector expected_inputs = {expected_input_0_, table->key_dtype(),
-                                      table->value_dtype()};
+                                      table->value_dtype(),
+                                      DataTypeToEnum<int64>::v()};
     OP_REQUIRES_OK(ctx, ctx->MatchSignature(expected_inputs, {}));
 
     const Tensor& keys = ctx->input(1);
@@ -750,9 +751,9 @@ class HashTableAccumOp : public HashTableOpKernel {
     hkv_table::HkvHashTableOfTensors<K, V>* table_cuckoo =
         (hkv_table::HkvHashTableOfTensors<K, V>*)table;
 
-    DataTypeVector expected_inputs = {expected_input_0_, table->key_dtype(),
-                                      table->value_dtype(),
-                                      DataTypeToEnum<bool>::v()};
+    DataTypeVector expected_inputs = {
+        expected_input_0_, table->key_dtype(), table->value_dtype(),
+        DataTypeToEnum<bool>::v(), DataTypeToEnum<int64>::v()};
     OP_REQUIRES_OK(ctx, ctx->MatchSignature(expected_inputs, {}));
 
     const Tensor& keys = ctx->input(1);
@@ -975,8 +976,8 @@ REGISTER_KERNEL_BUILDER(
                           HashTableAccumOp<key_dtype, value_dtype>);          \
   REGISTER_KERNEL_BUILDER(Name(PREFIX_OP_NAME(HkvHashTableFindWithExists))    \
                               .Device(DEVICE_CPU)                             \
-                              .TypeConstraint<key_dtype>("Tin")               \
-                              .TypeConstraint<value_dtype>("Tout"),           \
+                              .TypeConstraint<key_dtype>("key_dtype")         \
+                              .TypeConstraint<value_dtype>("value_dtype"),    \
                           HashTableFindWithExistsOp<key_dtype, value_dtype>); \
   REGISTER_KERNEL_BUILDER(                                                    \
       Name(PREFIX_OP_NAME(HkvHashTableSaveToFileSystem))                      \
