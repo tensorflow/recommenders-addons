@@ -129,8 +129,8 @@ def train():
                     auc,
                 ])
 
-  if os.path.exists(FLAGS.model_dir):
-    model.load_weights(FLAGS.model_dir)
+  if os.path.exists(FLAGS.model_dir + '/variables'):
+    model.load_weights(FLAGS.model_dir + '/variables/variables')
 
   model.fit(dataset, epochs=FLAGS.epochs, steps_per_epoch=FLAGS.steps_per_epoch)
 
