@@ -560,16 +560,16 @@ class ShadowVariableBasicBehaviorTest(test.TestCase):
 
     model_dir = tempfile.mkdtemp(prefix=self.get_temp_dir())
     save_ckpt_dir = os.path.join(model_dir, 'model')
-    restore_ckpt_path = os.path.join(model_dir, 'model-1')
 
     options = tf.saved_model.SaveOptions(namespace_whitelist=['TFRA'])
-    ckpt = tf.train.Checkpoint(module)
+    ckpt = de.train.DECheckpoint(module)
     ckpt.save(save_ckpt_dir)
     shadow_value = module.shadow.read_value(False)
     self.assertAllEqual(shadow_value.shape, (0, 2))  # clear when saving
 
     new_module = TestModule()
-    new_ckpt = tf.train.Checkpoint(new_module)
+    new_ckpt = de.train.DECheckpoint(new_module)
+    restore_ckpt_path = tf.train.latest_checkpoint(model_dir)
     new_ckpt.read(restore_ckpt_path)
     self.assertEqual(new_module.size(), 3)
     expected_values = module(keys)
@@ -640,10 +640,9 @@ class ShadowVariableBasicBehaviorTest(test.TestCase):
 
     model_dir = tempfile.mkdtemp(prefix=self.get_temp_dir())
     save_ckpt_dir = os.path.join(model_dir, 'model')
-    restore_ckpt_path = os.path.join(model_dir, 'model-1')
 
     options = tf.saved_model.SaveOptions(namespace_whitelist=['TFRA'])
-    ckpt = tf.train.Checkpoint(module)
+    ckpt = de.train.DECheckpoint(module)
     ckpt.save(save_ckpt_dir)
     shadow_value = module.shadow.read_value(False)
     self.assertAllEqual(shadow_value.shape, (0, 1))  # clear when saving
@@ -651,7 +650,8 @@ class ShadowVariableBasicBehaviorTest(test.TestCase):
     tf.keras.backend.clear_session()
     del module, ckpt
     new_module = TestNewModule(table_devices_)
-    new_ckpt = tf.train.Checkpoint(new_module)
+    new_ckpt = de.train.DECheckpoint(new_module)
+    restore_ckpt_path = tf.train.latest_checkpoint(model_dir)
     new_ckpt.read(restore_ckpt_path)
     self.assertEqual(new_module.size(), test_size)
     expected_values = new_module(keys)
@@ -663,7 +663,7 @@ class ShadowVariableBasicBehaviorTest(test.TestCase):
     shard_num = 5
     table_devices_ = table_device * shard_num
     new_module = TestNewModule(table_devices_)
-    new_ckpt = tf.train.Checkpoint(new_module)
+    new_ckpt = de.train.DECheckpoint(new_module)
     new_ckpt.read(restore_ckpt_path)
     self.assertEqual(new_module.size(), test_size)
     expected_values = new_module(keys)
@@ -675,7 +675,7 @@ class ShadowVariableBasicBehaviorTest(test.TestCase):
     shard_num = 2
     table_devices_ = table_device * shard_num
     new_module = TestNewModule(table_devices_)
-    new_ckpt = tf.train.Checkpoint(new_module)
+    new_ckpt = de.train.DECheckpoint(new_module)
     new_ckpt.read(restore_ckpt_path)
     self.assertEqual(new_module.size(), test_size)
     expected_values = new_module(keys)
@@ -687,7 +687,7 @@ class ShadowVariableBasicBehaviorTest(test.TestCase):
     shard_num = 1
     table_devices_ = table_device * shard_num
     new_module = TestNewModule(table_devices_)
-    new_ckpt = tf.train.Checkpoint(new_module)
+    new_ckpt = de.train.DECheckpoint(new_module)
     new_ckpt.read(restore_ckpt_path)
     self.assertEqual(new_module.size(), test_size)
     expected_values = new_module(keys)
