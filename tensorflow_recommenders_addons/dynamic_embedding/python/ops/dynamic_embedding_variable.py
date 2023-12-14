@@ -174,8 +174,10 @@ def _list_de_variable_saved_files_from_file_system(de_variable_name,
   else:
     keys_pattern = '_mht_*of*_rank*_size{}-keys'.format(proc_size)
     values_pattern = '_mht_*of*_rank*_size{}-values'.format(proc_size)
+  de_variable_saveable_name = string_ops.regex_replace(de_variable_name, "/",
+                                                       "_")
   _shard_name_base_dir = string_ops.string_join(
-      [de_variable_folder_path, de_variable_name], separator='/')
+      [de_variable_folder_path, de_variable_saveable_name], separator='/')
   _shard_name_keys_pattern = string_ops.string_join(
       [_shard_name_base_dir, keys_pattern], separator='')
   shard_keys_file_list = gen_io_ops.matching_files(_shard_name_keys_pattern)
