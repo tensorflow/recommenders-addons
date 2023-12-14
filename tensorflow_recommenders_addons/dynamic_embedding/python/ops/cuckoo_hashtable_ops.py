@@ -154,7 +154,7 @@ class CuckooHashTable(LookupInterface):
 
     if self._device_type == "GPU":
       with ops.device(self._device):
-        table_ref = hkv_ops.tfra_hkv_hash_table_of_tensors(
+        table_ref = hkv_ops.tfra_hkv_hash_table_of_tensors_lru(
             shared_name=self._shared_name,
             use_node_name_sharing=use_node_name_sharing,
             key_dtype=self._key_dtype,
@@ -213,9 +213,10 @@ class CuckooHashTable(LookupInterface):
     with ops.name_scope(name, "%s_Size" % self.name, [self.resource_handle]):
       with ops.colocate_with(self.resource_handle):
         if self._device_type == "GPU":
-          return hkv_ops.tfra_hkv_hash_table_size(self.resource_handle,
-                                                  key_dtype=self._key_dtype,
-                                                  value_dtype=self._value_dtype)
+          return hkv_ops.tfra_hkv_hash_table_size_lru(
+              self.resource_handle,
+              key_dtype=self._key_dtype,
+              value_dtype=self._value_dtype)
         else:
           return cuckoo_ops.tfra_cuckoo_hash_table_size(self.resource_handle)
 
@@ -262,9 +263,10 @@ class CuckooHashTable(LookupInterface):
     with ops.name_scope(name, "%s_lookup_table_clear" % self.name,
                         (self.resource_handle, self._default_value)):
       if self._device_type == "GPU":
-        return hkv_ops.tfra_hkv_hash_table_clear(self.resource_handle,
-                                                 key_dtype=self._key_dtype,
-                                                 value_dtype=self._value_dtype)
+        return hkv_ops.tfra_hkv_hash_table_clear_lru(
+            self.resource_handle,
+            key_dtype=self._key_dtype,
+            value_dtype=self._value_dtype)
       else:
         return cuckoo_ops.tfra_cuckoo_hash_table_clear(
             self.resource_handle,
@@ -310,14 +312,14 @@ class CuckooHashTable(LookupInterface):
       with ops.colocate_with(self.resource_handle, ignore_existing=True):
         if self._device_type == "GPU":
           if return_exists:
-            values, exists = hkv_ops.tfra_hkv_hash_table_find_with_exists(
+            values, exists = hkv_ops.tfra_hkv_hash_table_find_with_exists_lru(
                 self.resource_handle,
                 keys,
                 dynamic_default_values
                 if dynamic_default_values is not None else self._default_value,
             )
           else:
-            values = hkv_ops.tfra_hkv_hash_table_find(
+            values = hkv_ops.tfra_hkv_hash_table_find_lru(
                 self.resource_handle,
                 keys,
                 dynamic_default_values
@@ -368,8 +370,8 @@ class CuckooHashTable(LookupInterface):
       with ops.colocate_with(self.resource_handle, ignore_existing=True):
         # pylint: disable=protected-access
         if self._device_type == "GPU":
-          return hkv_ops.tfra_hkv_hash_table_insert(self.resource_handle, keys,
-                                                    values)
+          return hkv_ops.tfra_hkv_hash_table_insert_lru(self.resource_handle,
+                                                        keys, values)
         else:
           return cuckoo_ops.tfra_cuckoo_hash_table_insert(
               self.resource_handle, keys, values)
@@ -406,8 +408,9 @@ class CuckooHashTable(LookupInterface):
       with ops.colocate_with(self.resource_handle, ignore_existing=True):
         # pylint: disable=protected-access
         if self._device_type == "GPU":
-          return hkv_ops.tfra_hkv_hash_table_accum(self.resource_handle, keys,
-                                                   values_or_deltas, exists)
+          return hkv_ops.tfra_hkv_hash_table_accum_lru(self.resource_handle,
+                                                       keys, values_or_deltas,
+                                                       exists)
         else:
           return cuckoo_ops.tfra_cuckoo_hash_table_accum(
               self.resource_handle, keys, values_or_deltas, exists)
@@ -426,7 +429,8 @@ class CuckooHashTable(LookupInterface):
                         [self.resource_handle]):
       with ops.colocate_with(self.resource_handle):
         if self._device_type == "GPU":
-          keys, values = hkv_ops.tfra_hkv_hash_table_export(
+
+          keys, values = hkv_ops.tfra_hkv_hash_table_export_lru(
               self.resource_handle, self._key_dtype, self._value_dtype)
         else:
           keys, values = cuckoo_ops.tfra_cuckoo_hash_table_export(
@@ -458,7 +462,7 @@ class CuckooHashTable(LookupInterface):
                         [self.resource_handle]):
       with ops.colocate_with(None, ignore_existing=True):
         if self._device_type == "GPU":
-          return hkv_ops.tfra_hkv_hash_table_save_to_file_system(
+          return hkv_ops.tfra_hkv_hash_table_save_to_file_system_lru(
               self.resource_handle,
               dirpath=dirpath,
               file_name=file_name if file_name else self._name,
@@ -502,7 +506,7 @@ class CuckooHashTable(LookupInterface):
                         [self.resource_handle]):
       with ops.colocate_with(None, ignore_existing=True):
         if self._device_type == "GPU":
-          return hkv_ops.tfra_hkv_hash_table_load_from_file_system(
+          return hkv_ops.tfra_hkv_hash_table_load_from_file_system_lru(
               self.resource_handle,
               dirpath=dirpath,
               file_name=file_name if file_name else self._name,
@@ -559,7 +563,7 @@ class CuckooHashTable(LookupInterface):
       with ops.name_scope(name, "%s_table_restore" % self._restore_name):
         with ops.colocate_with(self.op.resource_handle):
           if self.op.resource_handle.device.count('GPU'):
-            return hkv_ops.tfra_hkv_hash_table_import(
+            return hkv_ops.tfra_hkv_hash_table_import_lru(
                 self.op.resource_handle,
                 restored_tensors[0],
                 restored_tensors[1],

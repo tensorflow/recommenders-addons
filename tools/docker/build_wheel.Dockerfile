@@ -21,12 +21,12 @@ RUN mv /usr/bin/lsb_release2 /usr/bin/lsb_release
 ARG PY_VERSION
 RUN ln -sf /usr/local/bin/python$PY_VERSION /usr/bin/python
 
-ENV PATH=/dt7/usr/bin:${PATH}
+ENV PATH=/dt8/usr/bin:${PATH}
 ENV LD_LIBRARY_PATH=/usr/local/lib:${LD_LIBRARY_PATH}
-ENV LD_LIBRARY_PATH=/dt7/user/lib64:${LD_LIBRARY_PATH}
-ENV LD_LIBRARY_PATH=/dt7/user/lib:${LD_LIBRARY_PATH}
-ENV MANPATH=/dt7/user/share/man:${LD_LIBRARY_PATH}
-ENV INFOPATH=/dt7/user/share/info
+ENV LD_LIBRARY_PATH=/dt8/user/lib64:${LD_LIBRARY_PATH}
+ENV LD_LIBRARY_PATH=/dt8/user/lib:${LD_LIBRARY_PATH}
+ENV MANPATH=/dt8/user/share/man:${LD_LIBRARY_PATH}
+ENV INFOPATH=/dt8/user/share/info
 
 ARG TF_VERSION
 ARG TF_NAME

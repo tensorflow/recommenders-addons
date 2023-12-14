@@ -131,200 +131,186 @@ Status HkvHashTableShape(InferenceContext* c, const ShapeHandle& key,
   return Status::OK();
 }
 
-REGISTER_OP(PREFIX_OP_NAME(HkvHashTableFind))
-    .Input("table_handle: resource")
-    .Input("keys: Tin")
-    .Input("default_value: Tout")
-    .Output("values: Tout")
-    .Attr("Tin: type")
-    .Attr("Tout: type")
-    .SetShapeFn([](InferenceContext* c) {
-      ShapeHandle handle;
-      TF_RETURN_IF_ERROR(c->WithRank(c->input(0), 0, &handle));
-
-      ShapeAndType value_shape_and_type;
-      TF_RETURN_IF_ERROR(ValidateTableResourceHandle(
-          c,
-          /*keys=*/c->input(1),
-          /*key_dtype_attr=*/"Tin",
-          /*value_dtype_attr=*/"Tout",
-          /*is_lookup=*/true, &value_shape_and_type));
-      c->set_output(0, value_shape_and_type.shape);
-
-      return Status::OK();
-    });
-
-REGISTER_OP(PREFIX_OP_NAME(HkvHashTableFindWithExists))
-    .Input("table_handle: resource")
-    .Input("keys: Tin")
-    .Input("default_value: Tout")
-    .Output("values: Tout")
-    .Output("exists: bool")
-    .Attr("Tin: type")
-    .Attr("Tout: type")
-    .SetShapeFn([](InferenceContext* c) {
-      ShapeHandle handle;
-      TF_RETURN_IF_ERROR(c->WithRank(c->input(0), 0, &handle));
-
-      ShapeHandle keys = c->UnknownShapeOfRank(1);
-      ShapeAndType value_shape_and_type;
-      TF_RETURN_IF_ERROR(ValidateTableResourceHandle(
-          c,
-          /*keys=*/c->input(1),
-          /*key_dtype_attr=*/"Tin",
-          /*value_dtype_attr=*/"Tout",
-          /*is_lookup=*/true, &value_shape_and_type));
-      c->set_output(0, value_shape_and_type.shape);
-      c->set_output(1, keys);
-
-      return Status::OK();
-    });
-
-REGISTER_OP(PREFIX_OP_NAME(HkvHashTableInsert))
-    .Input("table_handle: resource")
-    .Input("keys: Tin")
-    .Input("values: Tout")
-    .Attr("Tin: type")
-    .Attr("Tout: type")
-    .SetShapeFn([](InferenceContext* c) {
-      ShapeHandle handle;
-      TF_RETURN_IF_ERROR(c->WithRank(c->input(0), 0, &handle));
-
-      // TODO: Validate keys and values shape.
-      return Status::OK();
-    });
-
-REGISTER_OP(PREFIX_OP_NAME(HkvHashTableAccum))
-    .Input("table_handle: resource")
-    .Input("keys: key_dtype")
-    .Input("values_or_deltas: value_dtype")
-    .Input("exists: bool")
-    .Attr("key_dtype: type")
-    .Attr("value_dtype: type")
-    .SetShapeFn([](InferenceContext* c) {
-      ShapeHandle handle;
-      TF_RETURN_IF_ERROR(c->WithRank(c->input(0), 0, &handle));
-
-      // TODO: Validate keys and values shape.
-      return Status::OK();
-    });
-
 REGISTER_OP(PREFIX_OP_NAME(HkvHashTableRemove))
     .Input("table_handle: resource")
-    .Input("keys: Tin")
-    .Attr("Tin: type")
+    .Input("keys: key_dtype")
+    .Attr("key_dtype: type")
     .SetShapeFn([](InferenceContext* c) {
       ShapeHandle handle;
       TF_RETURN_IF_ERROR(c->WithRank(c->input(0), 0, &handle));
       TF_RETURN_IF_ERROR(c->WithRankAtLeast(c->input(1), 1, &handle));
-
-      // TODO(turboale): Validate keys shape.
       return Status::OK();
     });
 
-REGISTER_OP(PREFIX_OP_NAME(HkvHashTableClear))
-    .Input("table_handle: resource")
-    .Attr("key_dtype: type")
-    .Attr("value_dtype: type");
+#define CONCAT_QUADRA_STRING(X, Y, Z, S) (#X #Y #Z #S)
 
-REGISTER_OP(PREFIX_OP_NAME(HkvHashTableSize))
-    .Input("table_handle: resource")
-    .Output("size: int64")
-    .Attr("key_dtype: type")
-    .Attr("value_dtype: type")
-    .SetShapeFn(ScalarAndTwoElementVectorInputsAndScalarOutputs);
+#define PREFIX_OP_NAME_X_IMPL(N, S) CONCAT_QUADRA_STRING(TFRA, >, N, S)
+#define PREFIX_OP_NAME_X(N, ...) PREFIX_OP_NAME_X_IMPL(N, __VA_ARGS__)
 
-REGISTER_OP(PREFIX_OP_NAME(HkvHashTableExport))
-    .Input("table_handle: resource")
-    .Output("keys: Tkeys")
-    .Output("values: Tvalues")
-    .Attr("Tkeys: type")
-    .Attr("Tvalues: type")
-    .SetShapeFn([](InferenceContext* c) {
-      ShapeHandle handle;
-      TF_RETURN_IF_ERROR(c->WithRank(c->input(0), 0, &handle));
-      ShapeHandle keys = c->UnknownShapeOfRank(1);
-      ShapeAndType value_shape_and_type;
-      TF_RETURN_IF_ERROR(ValidateTableResourceHandle(
-          c,
-          /*keys=*/keys,
-          /*key_dtype_attr=*/"Tkeys",
-          /*value_dtype_attr=*/"Tvalues",
-          /*is_lookup=*/false, &value_shape_and_type));
-      c->set_output(0, keys);
-      c->set_output(1, value_shape_and_type.shape);
-      return Status::OK();
-    });
+#define REGISTER_HKV_TABLE(STRATEGY)                                         \
+  REGISTER_OP(PREFIX_OP_NAME_X(HkvHashTableFind, STRATEGY))                  \
+      .Input("table_handle: resource")                                       \
+      .Input("keys: key_dtype")                                              \
+      .Input("default_value: value_dtype")                                   \
+      .Output("values: value_dtype")                                         \
+      .Attr("key_dtype: type")                                               \
+      .Attr("value_dtype: type")                                             \
+      .SetShapeFn([](InferenceContext* c) {                                  \
+        ShapeHandle handle;                                                  \
+        TF_RETURN_IF_ERROR(c->WithRank(c->input(0), 0, &handle));            \
+        ShapeAndType value_shape_and_type;                                   \
+        TF_RETURN_IF_ERROR(ValidateTableResourceHandle(                      \
+            c, /*keys=*/c->input(1), /*key_dtype_attr=*/"key_dtype",         \
+            /*value_dtype_attr=*/"value_dtype", /*is_lookup=*/true,          \
+            &value_shape_and_type));                                         \
+        c->set_output(0, value_shape_and_type.shape);                        \
+        return Status::OK();                                                 \
+      });                                                                    \
+  REGISTER_OP(PREFIX_OP_NAME_X(HkvHashTableFindWithExists, STRATEGY))        \
+      .Input("table_handle: resource")                                       \
+      .Input("keys: key_dtype")                                              \
+      .Input("default_value: value_dtype")                                   \
+      .Output("values: value_dtype")                                         \
+      .Output("exists: bool")                                                \
+      .Attr("key_dtype: type")                                               \
+      .Attr("value_dtype: type")                                             \
+      .SetShapeFn([](InferenceContext* c) {                                  \
+        ShapeHandle handle;                                                  \
+        TF_RETURN_IF_ERROR(c->WithRank(c->input(0), 0, &handle));            \
+        ShapeHandle keys = c->UnknownShapeOfRank(1);                         \
+        ShapeAndType value_shape_and_type;                                   \
+        TF_RETURN_IF_ERROR(ValidateTableResourceHandle(                      \
+            c, /*keys=*/c->input(1), /*key_dtype_attr=*/"key_dtype",         \
+            /*value_dtype_attr=*/"value_dtype", /*is_lookup=*/true,          \
+            &value_shape_and_type));                                         \
+        c->set_output(0, value_shape_and_type.shape);                        \
+        c->set_output(1, keys);                                              \
+        return Status::OK();                                                 \
+      });                                                                    \
+  REGISTER_OP(PREFIX_OP_NAME_X(HkvHashTableInsert, STRATEGY))                \
+      .Input("table_handle: resource")                                       \
+      .Input("keys: key_dtype")                                              \
+      .Input("values: value_dtype")                                          \
+      .Attr("key_dtype: type")                                               \
+      .Attr("value_dtype: type")                                             \
+      .SetShapeFn([](InferenceContext* c) {                                  \
+        ShapeHandle handle;                                                  \
+        TF_RETURN_IF_ERROR(c->WithRank(c->input(0), 0, &handle));            \
+        return Status::OK();                                                 \
+      });                                                                    \
+  REGISTER_OP(PREFIX_OP_NAME_X(HkvHashTableAccum, STRATEGY))                 \
+      .Input("table_handle: resource")                                       \
+      .Input("keys: key_dtype")                                              \
+      .Input("values_or_deltas: value_dtype")                                \
+      .Input("exists: bool")                                                 \
+      .Attr("key_dtype: type")                                               \
+      .Attr("value_dtype: type")                                             \
+      .SetShapeFn([](InferenceContext* c) {                                  \
+        ShapeHandle handle;                                                  \
+        TF_RETURN_IF_ERROR(c->WithRank(c->input(0), 0, &handle));            \
+        return Status::OK();                                                 \
+      });                                                                    \
+  REGISTER_OP(PREFIX_OP_NAME_X(HkvHashTableClear, STRATEGY))                 \
+      .Input("table_handle: resource")                                       \
+      .Attr("key_dtype: type")                                               \
+      .Attr("value_dtype: type");                                            \
+  REGISTER_OP(PREFIX_OP_NAME_X(HkvHashTableSize, STRATEGY))                  \
+      .Input("table_handle: resource")                                       \
+      .Output("size: int64")                                                 \
+      .Attr("key_dtype: type")                                               \
+      .Attr("value_dtype: type")                                             \
+      .SetShapeFn(ScalarAndTwoElementVectorInputsAndScalarOutputs);          \
+  REGISTER_OP(PREFIX_OP_NAME_X(HkvHashTableExport, STRATEGY))                \
+      .Input("table_handle: resource")                                       \
+      .Output("keys: key_dtype")                                             \
+      .Output("values: value_dtype")                                         \
+      .Attr("key_dtype: type")                                               \
+      .Attr("value_dtype: type")                                             \
+      .SetShapeFn([](InferenceContext* c) {                                  \
+        ShapeHandle handle;                                                  \
+        TF_RETURN_IF_ERROR(c->WithRank(c->input(0), 0, &handle));            \
+        ShapeHandle keys = c->UnknownShapeOfRank(1);                         \
+        ShapeAndType value_shape_and_type;                                   \
+        TF_RETURN_IF_ERROR(ValidateTableResourceHandle(                      \
+            c, /*keys=*/keys, /*key_dtype_attr=*/"key_dtype",                \
+            /*value_dtype_attr=*/"value_dtype", /*is_lookup=*/false,         \
+            &value_shape_and_type));                                         \
+        c->set_output(0, keys);                                              \
+        c->set_output(1, value_shape_and_type.shape);                        \
+        return Status::OK();                                                 \
+      });                                                                    \
+  REGISTER_OP(PREFIX_OP_NAME_X(HkvHashTableSaveToFileSystem, STRATEGY))      \
+      .Input("table_handle: resource")                                       \
+      .Input("dirpath: string")                                              \
+      .Input("file_name: string")                                            \
+      .Attr("key_dtype: type")                                               \
+      .Attr("value_dtype: type")                                             \
+      .Attr("dirpath_env: string")                                           \
+      .Attr("append_to_file: bool")                                          \
+      .Attr("buffer_size: int >= 1");                                        \
+  REGISTER_OP(PREFIX_OP_NAME_X(HkvHashTableExportKeysAndScores, STRATEGY))   \
+      .Input("table_handle: resource")                                       \
+      .Output("keys: Tkeys")                                                 \
+      .Output("scores: int64")                                               \
+      .Attr("Tkeys: type")                                                   \
+      .Attr("split_size: int")                                               \
+      .SetShapeFn([](InferenceContext* c) {                                  \
+        ShapeHandle handle;                                                  \
+        TF_RETURN_IF_ERROR(c->WithRank(c->input(0), 0, &handle));            \
+        ShapeHandle keys = c->UnknownShapeOfRank(1);                         \
+        ShapeHandle scores = c->UnknownShapeOfRank(1);                       \
+        c->set_output(0, keys);                                              \
+        c->set_output(1, scores);                                            \
+        return Status::OK();                                                 \
+      });                                                                    \
+  REGISTER_OP(PREFIX_OP_NAME_X(HkvHashTableImport, STRATEGY))                \
+      .Input("table_handle: resource")                                       \
+      .Input("keys: key_dtype")                                              \
+      .Input("values: value_dtype")                                          \
+      .Attr("key_dtype: type")                                               \
+      .Attr("value_dtype: type")                                             \
+      .SetShapeFn([](InferenceContext* c) {                                  \
+        ShapeHandle handle;                                                  \
+        TF_RETURN_IF_ERROR(c->WithRank(c->input(0), 0, &handle));            \
+        ShapeHandle keys;                                                    \
+        TF_RETURN_IF_ERROR(c->WithRank(c->input(1), 1, &keys));              \
+        TF_RETURN_IF_ERROR(c->Merge(keys, c->input(2), &keys));              \
+        return Status::OK();                                                 \
+      });                                                                    \
+  REGISTER_OP(PREFIX_OP_NAME_X(HkvHashTableLoadFromFileSystem, STRATEGY))    \
+      .Input("table_handle: resource")                                       \
+      .Input("dirpath: string")                                              \
+      .Input("file_name: string")                                            \
+      .Attr("key_dtype: type")                                               \
+      .Attr("value_dtype: type")                                             \
+      .Attr("dirpath_env: string")                                           \
+      .Attr("load_entire_dir: bool")                                         \
+      .Attr("buffer_size: int >= 1");                                        \
+  REGISTER_OP(PREFIX_OP_NAME_X(HkvHashTableOfTensors, STRATEGY))             \
+      .Output("table_handle: resource")                                      \
+      .Attr("container: string = ''")                                        \
+      .Attr("shared_name: string = ''")                                      \
+      .Attr("use_node_name_sharing: bool = false")                           \
+      .Attr("key_dtype: type")                                               \
+      .Attr("value_dtype: type")                                             \
+      .Attr("value_shape: shape = {}")                                       \
+      .Attr("init_capacity: int = 0")                                        \
+      .Attr("max_capacity: int = 0")                                         \
+      .Attr("max_hbm_for_vectors: int = 0")                                  \
+      .Attr("evict_global_epoch: int = 0")                                   \
+      .SetIsStateful()                                                       \
+      .SetShapeFn([](InferenceContext* c) {                                  \
+        PartialTensorShape value_p;                                          \
+        TF_RETURN_IF_ERROR(c->GetAttr("value_shape", &value_p));             \
+        ShapeHandle value_s;                                                 \
+        TF_RETURN_IF_ERROR(                                                  \
+            c->MakeShapeFromPartialTensorShape(value_p, &value_s));          \
+        return HkvHashTableShape(c, /*key=*/c->Scalar(), /*value=*/value_s); \
+      });
+REGISTER_HKV_TABLE(LRU)
+REGISTER_HKV_TABLE(LFU)
+REGISTER_HKV_TABLE(EPOCHLRU)
+REGISTER_HKV_TABLE(EPOCHLFU)
+REGISTER_HKV_TABLE(CUSTOMIZED)
 
-REGISTER_OP(PREFIX_OP_NAME(HkvHashTableSaveToFileSystem))
-    .Input("table_handle: resource")
-    .Input("dirpath: string")
-    .Input("file_name: string")
-    .Attr("key_dtype: type")
-    .Attr("value_dtype: type")
-    .Attr("dirpath_env: string")
-    .Attr("append_to_file: bool")
-    .Attr("buffer_size: int >= 1");
-
-REGISTER_OP(PREFIX_OP_NAME(HkvHashTableExportKeysAndScores))
-    .Input("table_handle: resource")
-    .Output("keys: Tkeys")
-    .Output("scores: int64")
-    .Attr("Tkeys: type")
-    .Attr("split_size: int")
-    .SetShapeFn([](InferenceContext* c) {
-      ShapeHandle handle;
-      TF_RETURN_IF_ERROR(c->WithRank(c->input(0), 0, &handle));
-      ShapeHandle keys = c->UnknownShapeOfRank(1);
-      ShapeHandle scores = c->UnknownShapeOfRank(1);
-      c->set_output(0, keys);
-      c->set_output(1, scores);
-      return Status::OK();
-    });
-
-REGISTER_OP(PREFIX_OP_NAME(HkvHashTableImport))
-    .Input("table_handle: resource")
-    .Input("keys: Tin")
-    .Input("values: Tout")
-    .Attr("Tin: type")
-    .Attr("Tout: type")
-    .SetShapeFn([](InferenceContext* c) {
-      ShapeHandle handle;
-      TF_RETURN_IF_ERROR(c->WithRank(c->input(0), 0, &handle));
-
-      ShapeHandle keys;
-      TF_RETURN_IF_ERROR(c->WithRank(c->input(1), 1, &keys));
-      TF_RETURN_IF_ERROR(c->Merge(keys, c->input(2), &keys));
-      return Status::OK();
-    });
-
-REGISTER_OP(PREFIX_OP_NAME(HkvHashTableLoadFromFileSystem))
-    .Input("table_handle: resource")
-    .Input("dirpath: string")
-    .Input("file_name: string")
-    .Attr("key_dtype: type")
-    .Attr("value_dtype: type")
-    .Attr("dirpath_env: string")
-    .Attr("load_entire_dir: bool")
-    .Attr("buffer_size: int >= 1");
-
-REGISTER_OP(PREFIX_OP_NAME(HkvHashTableOfTensors))
-    .Output("table_handle: resource")
-    .Attr("container: string = ''")
-    .Attr("shared_name: string = ''")
-    .Attr("use_node_name_sharing: bool = false")
-    .Attr("key_dtype: type")
-    .Attr("value_dtype: type")
-    .Attr("value_shape: shape = {}")
-    .Attr("init_capacity: int = 0")
-    .Attr("max_capacity: int = 0")
-    .Attr("max_hbm_for_vectors: int = 0")
-    .SetIsStateful()
-    .SetShapeFn([](InferenceContext* c) {
-      PartialTensorShape value_p;
-      TF_RETURN_IF_ERROR(c->GetAttr("value_shape", &value_p));
-      ShapeHandle value_s;
-      TF_RETURN_IF_ERROR(c->MakeShapeFromPartialTensorShape(value_p, &value_s));
-      return HkvHashTableShape(c, /*key=*/c->Scalar(), /*value=*/value_s);
-    });
 }  // namespace tensorflow

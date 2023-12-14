@@ -49,6 +49,8 @@ namespace recommenders_addons {
 namespace lookup {
 namespace gpu {
 
+using NvEvictStrategy = nv::merlin::EvictStrategy;
+
 template <typename K, typename V, typename S>
 class KVOnlyFile : public nv::merlin::BaseKVFile<K, V, S> {
  public:
@@ -297,6 +299,8 @@ struct TableWrapperInitOptions {
   size_t init_capacity;
   size_t max_hbm_for_vectors;
   size_t max_bucket_size;
+  size_t evict_global_epoch;
+
   float max_load_factor;
   int block_size;
   int io_block_size;
@@ -411,18 +415,16 @@ class TFOrDefaultAllocator : public nv::merlin::BaseAllocator {
   }
 };
 
-template <class K, class V>
+template <class K, class V, int Strategy = NvEvictStrategy::kLru>
 class TableWrapper {
  private:
-  // using S = uint64_t;
-  using Table = nv::merlin::HashTable<K, V, uint64_t>;
+  using Table = nv::merlin::HashTable<K, V, uint64_t, Strategy>;
   nv::merlin::HashTableOptions mkv_options_;
 
  public:
   TableWrapper(TableWrapperInitOptions& init_options, size_t dim) {
     max_capacity_ = init_options.max_capacity;
     dim_ = dim;
-    // nv::merlin::HashTableOptions mkv_options_;
     mkv_options_.init_capacity =
         std::min(init_options.init_capacity, max_capacity_);
     mkv_options_.max_capacity = max_capacity_;
@@ -434,11 +436,14 @@ class TableWrapper {
     mkv_options_.max_load_factor = 0.5;
     mkv_options_.block_size = nv::merlin::SAFE_GET_BLOCK_SIZE(128);
     mkv_options_.dim = dim;
-    // mkv_options_.evict_strategy = nv::merlin::EvictStrategy::kCustomized;
-    mkv_options_.evict_strategy = nv::merlin::EvictStrategy::kLru;
 
     block_size_ = mkv_options_.block_size;
     table_ = new Table();
+    nv::merlin::EvictStrategy::set_global_epoch(
+        init_options.evict_global_epoch);
+    LOG(INFO) << "Use Evict Strategy:" << Strategy
+              << ", [0:LRU, 1:LFU, 2:EPOCHLRU, 3:EPOCHLFU, 4:CUSTOMIZED]";
+    LOG(INFO) << "Use Evict Global Epoch:" << init_options.evict_global_epoch;
   }
 
   Status init(nv::merlin::BaseAllocator* allocator) {
@@ -674,12 +679,12 @@ class TableWrapper {
   bool dynamic_mode_;
 };
 
-template <class K, class V>
-Status CreateTableImpl(TableWrapper<K, V>** pptable,
+template <class K, class V, int Strategy = NvEvictStrategy::kLru>
+Status CreateTableImpl(TableWrapper<K, V, Strategy>** pptable,
                        TableWrapperInitOptions& options,
                        nv::merlin::BaseAllocator* allocator,
                        size_t runtime_dim) {
-  *pptable = new TableWrapper<K, V>(options, runtime_dim);
+  *pptable = new TableWrapper<K, V, Strategy>(options, runtime_dim);
   return (*pptable)->init(allocator);
 }
 
