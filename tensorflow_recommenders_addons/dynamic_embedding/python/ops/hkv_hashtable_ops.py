@@ -20,6 +20,7 @@ from __future__ import print_function
 
 import copy
 import functools
+import tensorflow as tf
 
 from tensorflow.python.eager import context
 from tensorflow.python.framework import dtypes
@@ -31,6 +32,8 @@ from tensorflow.python.training.saver import BaseSaverBuilder
 
 from tensorflow_recommenders_addons.utils.resource_loader import LazySO
 from tensorflow_recommenders_addons.utils.resource_loader import prefix_op_name
+
+from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_creator import HkvEvictStrategy
 
 try:
   hkv_ops = LazySO("dynamic_embedding/core/_hkv_ops.so").ops
@@ -73,6 +76,9 @@ class HkvHashTable(LookupInterface):
       config=None,
       device='',
       shard_saveable_object_fn=None,
+      evict_strategy=HkvEvictStrategy.LRU,
+      evict_global_epoch=0,
+      gen_scores_fn=None,
   ):
     """Creates an empty `HkvHashTable` object.
 
@@ -104,6 +110,7 @@ class HkvHashTable(LookupInterface):
     self._checkpoint = checkpoint
     self._key_dtype = key_dtype
     self._value_dtype = value_dtype
+    self._scores_dtype = dtypes.int64
     self._init_capacity = init_capacity
     self._max_capacity = max_capacity
     self._max_hbm_for_values = max_hbm_for_values
@@ -113,11 +120,18 @@ class HkvHashTable(LookupInterface):
     if not self._device or self._device == '':
       self._device = ['/GPU:0']
     self._new_obj_trackable = None
+    self._evict_strategy = evict_strategy
+    self._evict_global_epoch = evict_global_epoch
+    self._gen_scores_fn = gen_scores_fn
+    self._default_scores = tf.constant([], dtypes.int64)
 
     if self._config:
       self._init_capacity = self._config.init_capacity
       self._max_capacity = self._config.max_capacity
       self._max_hbm_for_values = self._config.max_hbm_for_values
+      self._evict_strategy = self._config.evict_strategy
+      self._evict_global_epoch = self._config.evict_global_epoch
+      self._gen_scores_fn = self._config.gen_scores_fn
 
     self._shared_name = None
     if context.executing_eagerly():
@@ -166,6 +180,8 @@ class HkvHashTable(LookupInterface):
           init_capacity=self._init_capacity,
           max_capacity=self._max_capacity,
           max_hbm_for_vectors=self._max_hbm_for_values,
+          strategy=self._evict_strategy.value,
+          evict_global_epoch=self._evict_global_epoch,
           name=self._name,
       )
 
@@ -330,14 +346,19 @@ class HkvHashTable(LookupInterface):
     with ops.name_scope(
         name,
         "%s_lookup_table_insert" % self.name,
-        [self.resource_handle, keys, values],
+        [self.resource_handle, keys, values, keys],
     ):
       keys = ops.convert_to_tensor(keys, self._key_dtype, name="keys")
       values = ops.convert_to_tensor(values, self._value_dtype, name="values")
+      scores = self._default_scores
+      if self._evict_strategy == HkvEvictStrategy.CUSTOMIZED:
+        assert self._gen_scores_fn != None, "You must set gen_scores_fn when set evict strategy to CUSTOMIZED"
+        scores = self._gen_scores_fn(keys)
+      elif self._evict_strategy == HkvEvictStrategy.LFU or self._evict_strategy == HkvEvictStrategy.EPOCHLFU:
+        scores = tf.ones(keys.shape, keys.dtype)
       with ops.colocate_with(self.resource_handle, ignore_existing=True):
-        # pylint: disable=protected-access
         op = hkv_ops.tfra_hkv_hash_table_insert(self.resource_handle, keys,
-                                                values)
+                                                values, scores)
     return op
 
   def accum(self, keys, values_or_deltas, exists, name=None):
@@ -369,10 +390,15 @@ class HkvHashTable(LookupInterface):
                                                self._value_dtype,
                                                name="values_or_deltas")
       exists = ops.convert_to_tensor(exists, dtypes.bool, name="exists")
+      scores = self._default_scores
+      if self._evict_strategy == HkvEvictStrategy.CUSTOMIZED:
+        assert self._gen_scores_fn != None, "You must set gen_scores_fn when set evict strategy to CUSTOMIZED"
+        scores = self._gen_scores_fn(keys)
+      elif self._evict_strategy == HkvEvictStrategy.LFU or self._evict_strategy == HkvEvictStrategy.EPOCHLFU:
+        scores = tf.ones(keys.shape, keys.dtype)
       with ops.colocate_with(self.resource_handle, ignore_existing=True):
-        # pylint: disable=protected-access
         op = hkv_ops.tfra_hkv_hash_table_accum(self.resource_handle, keys,
-                                               values_or_deltas, exists)
+                                               values_or_deltas, exists, scores)
     return op
 
   def export(self, name=None):
@@ -395,12 +421,16 @@ class HkvHashTable(LookupInterface):
   def export_keys_and_scores(self, split_size, name=None):
     if not (split_size > 0 and isinstance(split_size, int)):
       raise ValueError(f'split_size must be positive integer.')
+
     with ops.name_scope(name,
                         "%s_lookup_table_export_keys_and_scores" % self.name,
                         [self.resource_handle]):
       with ops.colocate_with(self.resource_handle):
         keys, scores = hkv_ops.tfra_hkv_hash_table_export_keys_and_scores(
-            self.resource_handle, Tkeys=self._key_dtype, split_size=split_size)
+            self.resource_handle,
+            key_dtype=self._key_dtype,
+            value_dtype=self._value_dtype,
+            split_size=split_size)
     return keys, scores
 
   def save_to_file_system(self,

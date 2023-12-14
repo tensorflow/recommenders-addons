@@ -15,6 +15,7 @@
 # lint-as: python3
 
 from abc import ABCMeta
+from enum import IntEnum, unique
 
 from tensorflow.python.eager import context
 from tensorflow.python.framework import constant_op
@@ -136,17 +137,34 @@ class CuckooHashTableCreator(KVCreator):
     return config
 
 
+@unique
+class HkvEvictStrategy(IntEnum):
+  LRU = 0
+  LFU = 1
+  EPOCHLRU = 2
+  EPOCHLFU = 3
+  CUSTOMIZED = 4
+
+
 class HkvHashTableConfig(object):
 
-  def __init__(self,
-               init_capacity=KHkvHashTableInitCapacity,
-               max_capacity=KHkvHashTableMaxCapacity,
-               max_hbm_for_values=KHkvHashTableMaxHbmForValuesByBytes):
+  def __init__(
+      self,
+      init_capacity=KHkvHashTableInitCapacity,
+      max_capacity=KHkvHashTableMaxCapacity,
+      max_hbm_for_values=KHkvHashTableMaxHbmForValuesByBytes,
+      evict_strategy=HkvEvictStrategy.LRU,
+      evict_global_epoch=0,
+      gen_scores_fn=None,
+  ):
     """ CuckooHashTableConfig include nothing for parameter default satisfied.
     """
     self.init_capacity = init_capacity
     self.max_capacity = max_capacity
     self.max_hbm_for_values = max_hbm_for_values
+    self.evict_strategy = evict_strategy
+    self.evict_global_epoch = evict_global_epoch
+    self.gen_scores_fn = gen_scores_fn
 
 
 class HkvHashTableCreator(KVCreator):
@@ -171,10 +189,16 @@ class HkvHashTableCreator(KVCreator):
     self.init_capacity = init_size
     self.max_capacity = KHkvHashTableMaxCapacity
     self.max_hbm_for_values = KHkvHashTableMaxHbmForValuesByBytes
+    self.evict_strategy = HkvEvictStrategy.LRU
+    self.evict_global_epoch = 0
+    self.gen_scores_fn = None
     if self.config and isinstance(self.config, de.HkvHashTableConfig):
       self.init_capacity = self.config.init_capacity
       self.max_capacity = self.config.max_capacity
       self.max_hbm_for_values = self.config.max_hbm_for_values
+      self.evict_strategy = self.config.evict_strategy
+      self.evict_global_epoch = self.config.evict_global_epoch
+      self.gen_scores_fn = self.config.gen_scores_fn
     self.device = device
     self.shard_saveable_object_fn = shard_saveable_object_fn
 
@@ -187,6 +211,9 @@ class HkvHashTableCreator(KVCreator):
         init_capacity=self.init_capacity,
         max_capacity=self.max_capacity,
         max_hbm_for_values=self.max_hbm_for_values,
+        evict_strategy=self.evict_strategy,
+        evict_global_epoch=self.evict_global_epoch,
+        gen_scores_fn=self.gen_scores_fn,
         config=self.config,
         device=self.device,
         shard_saveable_object_fn=self.shard_saveable_object_fn)

@@ -57,6 +57,7 @@ inline Status ReturnInternalErrorStatus(const char* const str) {
   return Status(tensorflow::error::INTERNAL, str);
 #endif
 }
+using HkvEvictStrategy = nv::merlin::EvictStrategy;
 
 template <typename K, typename V, typename S>
 class KVOnlyFile : public nv::merlin::BaseKVFile<K, V, S> {
@@ -299,6 +300,8 @@ struct TableWrapperInitOptions {
   size_t init_capacity;
   size_t max_hbm_for_vectors;
   size_t max_bucket_size;
+  size_t evict_global_epoch;
+
   float max_load_factor;
   int block_size;
   int io_block_size;
@@ -416,15 +419,14 @@ class TFOrDefaultAllocator : public nv::merlin::BaseAllocator {
 template <class K, class V>
 class TableWrapper {
  private:
-  // using S = uint64_t;
-  using Table = nv::merlin::HashTable<K, V, uint64_t>;
+  using Table = nv::merlin::HashTableBase<K, V, uint64_t>;
   nv::merlin::HashTableOptions mkv_options_;
 
  public:
-  TableWrapper(TableWrapperInitOptions& init_options, size_t dim) {
+  TableWrapper(TableWrapperInitOptions& init_options, size_t dim,
+               int strategy) {
     max_capacity_ = init_options.max_capacity;
     dim_ = dim;
-    // nv::merlin::HashTableOptions mkv_options_;
     mkv_options_.init_capacity =
         std::min(init_options.init_capacity, max_capacity_);
     mkv_options_.max_capacity = max_capacity_;
@@ -436,11 +438,34 @@ class TableWrapper {
     mkv_options_.max_load_factor = 0.5;
     mkv_options_.block_size = nv::merlin::SAFE_GET_BLOCK_SIZE(128);
     mkv_options_.dim = dim;
-    // mkv_options_.evict_strategy = nv::merlin::EvictStrategy::kCustomized;
-    mkv_options_.evict_strategy = nv::merlin::EvictStrategy::kLru;
 
     block_size_ = mkv_options_.block_size;
-    table_ = new Table();
+    switch (strategy) {
+      case HkvEvictStrategy::kLfu:
+        table_ =
+            new nv::merlin::HashTable<K, V, uint64_t, HkvEvictStrategy::kLfu>();
+        break;
+      case HkvEvictStrategy::kEpochLru:
+        table_ = new nv::merlin::HashTable<K, V, uint64_t,
+                                           HkvEvictStrategy::kEpochLru>();
+        break;
+      case HkvEvictStrategy::kEpochLfu:
+        table_ = new nv::merlin::HashTable<K, V, uint64_t,
+                                           HkvEvictStrategy::kEpochLfu>();
+        break;
+      case HkvEvictStrategy::kCustomized:
+        table_ = new nv::merlin::HashTable<K, V, uint64_t,
+                                           HkvEvictStrategy::kCustomized>();
+        break;
+      default:
+        table_ =
+            new nv::merlin::HashTable<K, V, uint64_t, HkvEvictStrategy::kLru>();
+        break;
+    }
+    table_->set_global_epoch(init_options.evict_global_epoch);
+    LOG(INFO) << "Use Evict Strategy:" << strategy
+              << ", [0:LRU, 1:LFU, 2:EPOCHLRU, 3:EPOCHLFU, 4:CUSTOMIZED]";
+    LOG(INFO) << "Use Evict Global Epoch:" << init_options.evict_global_epoch;
   }
 
   Status init(nv::merlin::BaseAllocator* allocator) {
@@ -454,20 +479,20 @@ class TableWrapper {
 
   ~TableWrapper() { delete table_; }
 
-  void upsert(const K* d_keys, const V* d_vals, size_t len,
-              cudaStream_t stream) {
+  void upsert(const K* d_keys, const V* d_vals, const uint64_t* d_scores,
+              size_t len, cudaStream_t stream) {
     uint64_t t0 = (uint64_t)time(NULL);
     size_t grid_size = nv::merlin::SAFE_GET_GRID_SIZE(len, block_size_);
-    table_->insert_or_assign(len, d_keys, d_vals, /*d_scores=*/nullptr, stream);
+    table_->insert_or_assign(len, d_keys, d_vals, d_scores, stream);
     CUDA_CHECK(cudaStreamSynchronize(stream));
   }
 
   void accum(const K* d_keys, const V* d_vals_or_deltas, const bool* d_exists,
-             size_t len, cudaStream_t stream) {
+             const uint64_t* d_scores, size_t len, cudaStream_t stream) {
     uint64_t t0 = (uint64_t)time(NULL);
     size_t grid_size = nv::merlin::SAFE_GET_GRID_SIZE(len, block_size_);
-    table_->accum_or_assign(len, d_keys, d_vals_or_deltas, d_exists,
-                            /*d_scores=*/nullptr, stream);
+    table_->accum_or_assign(len, d_keys, d_vals_or_deltas, d_exists, d_scores,
+                            stream);
     CUDA_CHECK(cudaStreamSynchronize(stream));
   }
 
@@ -679,9 +704,9 @@ class TableWrapper {
 template <class K, class V>
 Status CreateTableImpl(TableWrapper<K, V>** pptable,
                        TableWrapperInitOptions& options,
-                       nv::merlin::BaseAllocator* allocator,
-                       size_t runtime_dim) {
-  *pptable = new TableWrapper<K, V>(options, runtime_dim);
+                       nv::merlin::BaseAllocator* allocator, size_t runtime_dim,
+                       int strategy) {
+  *pptable = new TableWrapper<K, V>(options, runtime_dim, strategy);
   return (*pptable)->init(allocator);
 }
 
