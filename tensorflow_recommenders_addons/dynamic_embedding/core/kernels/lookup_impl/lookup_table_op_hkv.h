@@ -457,20 +457,20 @@ class TableWrapper {
 
   ~TableWrapper() { delete table_; }
 
-  void upsert(const K* d_keys, const V* d_vals, size_t len,
-              cudaStream_t stream) {
+  void upsert(const K* d_keys, const V* d_vals, const uint64_t* d_scores,
+              size_t len, cudaStream_t stream) {
     uint64_t t0 = (uint64_t)time(NULL);
     size_t grid_size = nv::merlin::SAFE_GET_GRID_SIZE(len, block_size_);
-    table_->insert_or_assign(len, d_keys, d_vals, /*d_scores=*/nullptr, stream);
+    table_->insert_or_assign(len, d_keys, d_vals, d_scores, stream);
     CUDA_CHECK(cudaStreamSynchronize(stream));
   }
 
   void accum(const K* d_keys, const V* d_vals_or_deltas, const bool* d_exists,
-             size_t len, cudaStream_t stream) {
+             const uint64_t* d_scores, size_t len, cudaStream_t stream) {
     uint64_t t0 = (uint64_t)time(NULL);
     size_t grid_size = nv::merlin::SAFE_GET_GRID_SIZE(len, block_size_);
-    table_->accum_or_assign(len, d_keys, d_vals_or_deltas, d_exists,
-                            /*d_scores=*/nullptr, stream);
+    table_->accum_or_assign(len, d_keys, d_vals_or_deltas, d_exists, d_scores,
+                            stream);
     CUDA_CHECK(cudaStreamSynchronize(stream));
   }
 

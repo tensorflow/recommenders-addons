@@ -20,6 +20,7 @@ from __future__ import print_function
 
 import copy
 import functools
+import tensorflow as tf
 
 from tensorflow.python.eager import context
 from tensorflow.python.framework import dtypes
@@ -77,6 +78,7 @@ class HkvHashTable(LookupInterface):
       shard_saveable_object_fn=None,
       evict_strategy=HkvEvictStrategy.LRU,
       evict_global_epoch=0,
+      gen_scores_fn=None,
   ):
     """Creates an empty `HkvHashTable` object.
 
@@ -120,6 +122,8 @@ class HkvHashTable(LookupInterface):
     self._new_obj_trackable = None
     self._evict_strategy = evict_strategy
     self._evict_global_epoch = evict_global_epoch
+    self._gen_scores_fn = gen_scores_fn
+    self._default_scores = tf.constant([], dtypes.int64)
 
     if self._config:
       self._init_capacity = self._config.init_capacity
@@ -127,6 +131,7 @@ class HkvHashTable(LookupInterface):
       self._max_hbm_for_values = self._config.max_hbm_for_values
       self._evict_strategy = self._config.evict_strategy
       self._evict_global_epoch = self._config.evict_global_epoch
+      self._gen_scores_fn = self._config.gen_scores_fn
 
     self._shared_name = None
     if context.executing_eagerly():
@@ -344,7 +349,6 @@ class HkvHashTable(LookupInterface):
           )
     return (values, exists) if return_exists else values
 
-  # TODO(LinGeLin): support scores
   def insert(self, keys, values, name=None):
     """Associates `keys` with `values`.
 
@@ -365,13 +369,19 @@ class HkvHashTable(LookupInterface):
     with ops.name_scope(
         name,
         "%s_lookup_table_insert" % self.name,
-        [self.resource_handle, keys, values],
+        [self.resource_handle, keys, values, keys],
     ):
       keys = ops.convert_to_tensor(keys, self._key_dtype, name="keys")
       values = ops.convert_to_tensor(values, self._value_dtype, name="values")
+      scores = self._default_scores
+      if self._evict_strategy == HkvEvictStrategy.CUSTOMIZED:
+        assert self._gen_scores_fn != None, "You must set gen_scores_fn when set evict strategy to CUSTOMIZED"
+        scores = self._gen_scores_fn(keys)
+      elif self._evict_strategy == HkvEvictStrategy.LFU or self._evict_strategy == HkvEvictStrategy.EPOCHLFU:
+        scores = tf.ones(keys.shape, keys.dtype)
       hkv_insert = self._get_op_interface("tfra_hkv_hash_table_insert")
       with ops.colocate_with(self.resource_handle, ignore_existing=True):
-        op = hkv_insert(self.resource_handle, keys, values)
+        op = hkv_insert(self.resource_handle, keys, values, scores)
     return op
 
   def accum(self, keys, values_or_deltas, exists, name=None):
@@ -403,9 +413,16 @@ class HkvHashTable(LookupInterface):
                                                self._value_dtype,
                                                name="values_or_deltas")
       exists = ops.convert_to_tensor(exists, dtypes.bool, name="exists")
+      scores = self._default_scores
+      if self._evict_strategy == HkvEvictStrategy.CUSTOMIZED:
+        assert self._gen_scores_fn != None, "You must set gen_scores_fn when set evict strategy to CUSTOMIZED"
+        scores = self._gen_scores_fn(keys)
+      elif self._evict_strategy == HkvEvictStrategy.LFU or self._evict_strategy == HkvEvictStrategy.EPOCHLFU:
+        scores = tf.ones(keys.shape, keys.dtype)
       hkv_accum = self._get_op_interface("tfra_hkv_hash_table_accum")
       with ops.colocate_with(self.resource_handle, ignore_existing=True):
-        op = hkv_accum(self.resource_handle, keys, values_or_deltas, exists)
+        op = hkv_accum(self.resource_handle, keys, values_or_deltas, exists,
+                       scores)
     return op
 
   def export(self, name=None):
@@ -436,7 +453,8 @@ class HkvHashTable(LookupInterface):
                         [self.resource_handle]):
       with ops.colocate_with(self.resource_handle):
         keys, scores = hkv_export_keys_and_scores(self.resource_handle,
-                                                  Tkeys=self._key_dtype,
+                                                  key_dtype=self._key_dtype,
+                                                  value_dtype=self._value_dtype,
                                                   split_size=split_size)
     return keys, scores
 

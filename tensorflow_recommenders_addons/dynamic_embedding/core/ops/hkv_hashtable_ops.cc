@@ -191,6 +191,7 @@ REGISTER_OP(PREFIX_OP_NAME(HkvHashTableRemove))
       .Input("table_handle: resource")                                       \
       .Input("keys: key_dtype")                                              \
       .Input("values: value_dtype")                                          \
+      .Input("scores: int64")                                                \
       .Attr("key_dtype: type")                                               \
       .Attr("value_dtype: type")                                             \
       .SetShapeFn([](InferenceContext* c) {                                  \
@@ -203,6 +204,7 @@ REGISTER_OP(PREFIX_OP_NAME(HkvHashTableRemove))
       .Input("keys: key_dtype")                                              \
       .Input("values_or_deltas: value_dtype")                                \
       .Input("exists: bool")                                                 \
+      .Input("scores: int64")                                                \
       .Attr("key_dtype: type")                                               \
       .Attr("value_dtype: type")                                             \
       .SetShapeFn([](InferenceContext* c) {                                  \
@@ -250,9 +252,10 @@ REGISTER_OP(PREFIX_OP_NAME(HkvHashTableRemove))
       .Attr("buffer_size: int >= 1");                                        \
   REGISTER_OP(PREFIX_OP_NAME_X(HkvHashTableExportKeysAndScores, STRATEGY))   \
       .Input("table_handle: resource")                                       \
-      .Output("keys: Tkeys")                                                 \
+      .Output("keys: key_dtype")                                             \
       .Output("scores: int64")                                               \
-      .Attr("Tkeys: type")                                                   \
+      .Attr("key_dtype: type")                                               \
+      .Attr("value_dtype: type")                                             \
       .Attr("split_size: int")                                               \
       .SetShapeFn([](InferenceContext* c) {                                  \
         ShapeHandle handle;                                                  \
