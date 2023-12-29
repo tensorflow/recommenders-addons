@@ -49,7 +49,7 @@ namespace recommenders_addons {
 namespace lookup {
 namespace gpu {
 
-using NvEvictStrategy = nv::merlin::EvictStrategy;
+using HkvEvictStrategy = nv::merlin::EvictStrategy;
 
 template <typename K, typename V, typename S>
 class KVOnlyFile : public nv::merlin::BaseKVFile<K, V, S> {
@@ -415,7 +415,7 @@ class TFOrDefaultAllocator : public nv::merlin::BaseAllocator {
   }
 };
 
-template <class K, class V, int Strategy = NvEvictStrategy::kLru>
+template <class K, class V, int Strategy = HkvEvictStrategy::kLru>
 class TableWrapper {
  private:
   using Table = nv::merlin::HashTable<K, V, uint64_t, Strategy>;
@@ -679,7 +679,7 @@ class TableWrapper {
   bool dynamic_mode_;
 };
 
-template <class K, class V, int Strategy = NvEvictStrategy::kLru>
+template <class K, class V, int Strategy = HkvEvictStrategy::kLru>
 Status CreateTableImpl(TableWrapper<K, V, Strategy>** pptable,
                        TableWrapperInitOptions& options,
                        nv::merlin::BaseAllocator* allocator,

@@ -42,7 +42,7 @@ limitations under the License.
 namespace tensorflow {
 
 using GPUDevice = Eigen::GpuDevice;
-using NvEvictStrategy = nv::merlin::EvictStrategy;
+using HkvEvictStrategy = nv::merlin::EvictStrategy;
 
 namespace recommenders_addons {
 namespace lookup {
@@ -52,7 +52,7 @@ constexpr size_t kDefaultGpuInitCapacity = 1024 * 1024;
 using tensorflow::OpKernelContext;
 using tensorflow::lookup::LookupInterface;
 
-template <class K, class V, int Strategy = NvEvictStrategy::kLru>
+template <class K, class V, int Strategy = HkvEvictStrategy::kLru>
 class HkvHashTableOfTensorsGpu final : public LookupInterface {
  private:
   std::unique_ptr<nv::merlin::BaseAllocator> allocator_ptr_;
@@ -641,7 +641,7 @@ class HkvHashTableOfTensorsGpu final : public LookupInterface {
 }  // namespace lookup
 
 // Table lookup op. Perform the lookup operation on the given table.
-template <class K, class V, int Strategy = NvEvictStrategy::kLru>
+template <class K, class V, int Strategy = HkvEvictStrategy::kLru>
 class HashTableFindGpuOp : public OpKernel {
  public:
   explicit HashTableFindGpuOp(OpKernelConstruction* ctx) : OpKernel(ctx) {}
@@ -678,7 +678,7 @@ class HashTableFindGpuOp : public OpKernel {
 
 // Table lookup op. Perform the lookup operation on the given table.
 
-template <class K, class V, int Strategy = NvEvictStrategy::kLru>
+template <class K, class V, int Strategy = HkvEvictStrategy::kLru>
 class HashTableFindWithExistsGpuOp : public OpKernel {
  public:
   explicit HashTableFindWithExistsGpuOp(OpKernelConstruction* ctx)
@@ -720,7 +720,7 @@ class HashTableFindWithExistsGpuOp : public OpKernel {
 };
 
 // Table insert op.
-template <class K, class V, int Strategy = NvEvictStrategy::kLru>
+template <class K, class V, int Strategy = HkvEvictStrategy::kLru>
 class HashTableInsertGpuOp : public OpKernel {
  public:
   explicit HashTableInsertGpuOp(OpKernelConstruction* ctx) : OpKernel(ctx) {}
@@ -751,7 +751,7 @@ class HashTableInsertGpuOp : public OpKernel {
 };
 
 // Table accum op.
-template <class K, class V, int Strategy = NvEvictStrategy::kLru>
+template <class K, class V, int Strategy = HkvEvictStrategy::kLru>
 class HashTableAccumGpuOp : public OpKernel {
  public:
   explicit HashTableAccumGpuOp(OpKernelConstruction* ctx) : OpKernel(ctx) {}
@@ -810,7 +810,7 @@ REGISTER_KERNEL_BUILDER(
     HashTableRemoveGpuOp);
 
 // Table clear op.
-template <class K, class V, int Strategy = NvEvictStrategy::kLru>
+template <class K, class V, int Strategy = HkvEvictStrategy::kLru>
 class HashTableClearGpuOp : public OpKernel {
  public:
   explicit HashTableClearGpuOp(OpKernelConstruction* ctx) : OpKernel(ctx) {}
@@ -826,7 +826,7 @@ class HashTableClearGpuOp : public OpKernel {
 };
 
 // Op that returns the size of the given table.
-template <class K, class V, int Strategy = NvEvictStrategy::kLru>
+template <class K, class V, int Strategy = HkvEvictStrategy::kLru>
 class HashTableSizeGpuOp : public OpKernel {
  public:
   explicit HashTableSizeGpuOp(OpKernelConstruction* ctx) : OpKernel(ctx) {}
@@ -851,7 +851,7 @@ class HashTableSizeGpuOp : public OpKernel {
 };
 
 // Op that outputs tensors of all keys and all values.
-template <class K, class V, int Strategy = NvEvictStrategy::kLru>
+template <class K, class V, int Strategy = HkvEvictStrategy::kLru>
 class HashTableExportGpuOp : public OpKernel {
  public:
   explicit HashTableExportGpuOp(OpKernelConstruction* ctx) : OpKernel(ctx) {}
@@ -868,7 +868,7 @@ class HashTableExportGpuOp : public OpKernel {
 };
 
 // Op that export all keys and values to file.
-template <class K, class V, int Strategy = NvEvictStrategy::kLru>
+template <class K, class V, int Strategy = HkvEvictStrategy::kLru>
 class HashTableExportWithScoresGpuOp : public OpKernel {
  public:
   explicit HashTableExportWithScoresGpuOp(OpKernelConstruction* ctx)
@@ -884,7 +884,7 @@ class HashTableExportWithScoresGpuOp : public OpKernel {
   }
 };
 
-template <class K, class V, int Strategy = NvEvictStrategy::kLru>
+template <class K, class V, int Strategy = HkvEvictStrategy::kLru>
 class HashTableExportKeysAndScoresGpuOp : public OpKernel {
  public:
   explicit HashTableExportKeysAndScoresGpuOp(OpKernelConstruction* ctx)
@@ -907,7 +907,7 @@ class HashTableExportKeysAndScoresGpuOp : public OpKernel {
 };
 
 // Clear the table and insert data.
-template <class K, class V, int Strategy = NvEvictStrategy::kLru>
+template <class K, class V, int Strategy = HkvEvictStrategy::kLru>
 class HashTableImportGpuOp : public OpKernel {
  public:
   explicit HashTableImportGpuOp(OpKernelConstruction* ctx) : OpKernel(ctx) {}
@@ -932,7 +932,7 @@ class HashTableImportGpuOp : public OpKernel {
 };
 
 // Op that export all keys and values to FileSystem.
-template <class K, class V, int Strategy = NvEvictStrategy::kLru>
+template <class K, class V, int Strategy = HkvEvictStrategy::kLru>
 class HashTableSaveToFileSystemGpuOp : public OpKernel {
  public:
   explicit HashTableSaveToFileSystemGpuOp(OpKernelConstruction* ctx)
@@ -987,7 +987,7 @@ class HashTableSaveToFileSystemGpuOp : public OpKernel {
 };
 
 // Clear the table and insert data from FileSystem.
-template <class K, class V, int Strategy = NvEvictStrategy::kLru>
+template <class K, class V, int Strategy = HkvEvictStrategy::kLru>
 class HashTableLoadFromFileSystemGpuOp : public OpKernel {
  public:
   explicit HashTableLoadFromFileSystemGpuOp(OpKernelConstruction* ctx)
@@ -1133,11 +1133,11 @@ class HashTableLoadFromFileSystemGpuOp : public OpKernel {
   REGISTER_HKV_TABLE(int64, int64, Strategy, STRATEGY); \
   REGISTER_HKV_TABLE(int64, Eigen::half, Strategy, STRATEGY);
 
-REGISTER_STRATRGY(NvEvictStrategy::kLru, LRU);
-REGISTER_STRATRGY(NvEvictStrategy::kLfu, LFU);
-REGISTER_STRATRGY(NvEvictStrategy::kEpochLru, EPOCHLRU);
-REGISTER_STRATRGY(NvEvictStrategy::kEpochLfu, EPOCHLFU);
-REGISTER_STRATRGY(NvEvictStrategy::kCustomized, CUSTOMIZED);
+REGISTER_STRATRGY(HkvEvictStrategy::kLru, LRU);
+REGISTER_STRATRGY(HkvEvictStrategy::kLfu, LFU);
+REGISTER_STRATRGY(HkvEvictStrategy::kEpochLru, EPOCHLRU);
+REGISTER_STRATRGY(HkvEvictStrategy::kEpochLfu, EPOCHLFU);
+REGISTER_STRATRGY(HkvEvictStrategy::kCustomized, CUSTOMIZED);
 
 #undef REGISTER_STRATRGY
 
