@@ -535,6 +535,7 @@ class HvdAllToAllEmbedding(BasicEmbedding):
 
   def __init__(self,
                with_unique=True,
+               with_secondary_unique=True,
                mpi_size=None,
                batch_size=None,
                *args,
@@ -547,6 +548,7 @@ class HvdAllToAllEmbedding(BasicEmbedding):
       )
     self.hvd = hvd
     self.with_unique = with_unique
+    self.with_secondary_unique = with_secondary_unique
     self.batch_size = batch_size
     if mpi_size is None:
       self._mpi_size = self.hvd.size()
@@ -605,7 +607,14 @@ class HvdAllToAllEmbedding(BasicEmbedding):
     reloc_ids, remote_sizes, gather_indices = self.__relocate_dense_feature__(
         ids, batch_size=batch_size_runtime)
 
-    lookup_result = de.shadow_ops.embedding_lookup(self.shadow, reloc_ids)
+    if self.with_secondary_unique:
+      with tf.name_scope(self.name + "/EmbeddingWithUnique"):
+        reloc_unique_ids, reloc_unique_idx = tf.unique(reloc_ids)
+        reloc_unique_embeddings = de.shadow_ops.embedding_lookup(
+            self.shadow, reloc_unique_ids)
+        lookup_result = tf.gather(reloc_unique_embeddings, reloc_unique_idx)
+    else:
+      lookup_result = de.shadow_ops.embedding_lookup(self.shadow, reloc_ids)
     lookup_result, _ = self.hvd.alltoall(lookup_result, splits=remote_sizes)
 
     recover_shape = tf.concat((input_shape, (self.embedding_size,)), axis=0)
