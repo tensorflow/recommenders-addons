@@ -466,12 +466,12 @@ def export_to_savedmodel(model, savedmodel_dir):
 
   # TFRA modify the Keras save function with a patch.
   # !!!! Run save_model function in all rank !!!!
-  de.keras.models.de_hvd_save_model(model,
-                                    savedmodel_dir,
-                                    overwrite=True,
-                                    include_optimizer=True,
-                                    save_traces=True,
-                                    options=save_options)
+  de.keras.models.de_save_model(model,
+                                savedmodel_dir,
+                                overwrite=True,
+                                include_optimizer=True,
+                                save_traces=True,
+                                options=save_options)
 
 
 def export_for_serving(model, export_dir):
@@ -521,7 +521,7 @@ def export_for_serving(model, export_dir):
 
   # TFRA modify the Keras save function with a patch.
   # !!!! Run save_model function in all rank !!!!
-  de.keras.models.de_hvd_save_model(
+  de.keras.models.de_save_model(
       model,
       export_dir,
       overwrite=True,

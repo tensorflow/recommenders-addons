@@ -327,9 +327,9 @@ class HorovodTest(test.TestCase):
             shutil.rmtree(save_dir)
         hvd.join()  # Sync for avoiding files conflict
         # base_model.save(save_dir, options=save_options)
-        de.keras.models.de_hvd_save_model(base_model,
-                                          save_dir,
-                                          options=save_options)
+        de.keras.models.de_save_model(base_model,
+                                      save_dir,
+                                      options=save_options)
         ckpt = de.train.DECheckpoint(
             my_model=base_model)  # Test custom model key "my_model"
         ckpt.save(save_dir + '/ckpt/test')
@@ -407,31 +407,38 @@ class HorovodTest(test.TestCase):
         return self.l2(out)
 
     def check_TFRADynamicEmbedding_directory(save_dir,
-                                             save_it,
+                                             save_it=None,
                                              should_be_exist=True):
       hvd_size = hvd.size()
       if hvd_size <= 1:
         hvd_size = 1
+      base_dir = os.path.join(save_dir, 'variables', 'TFRADynamicEmbedding')
+      if save_it is not None:
+        base_dir = os.path.join(save_dir, f'TFRADynamicEmbedding-{save_it}')
       for tag in ['keys', 'values']:
         for rank in range(hvd_size):
           self.assertTrue(not (os.path.exists(
-              save_dir +
-              f'/TFRADynamicEmbedding-{save_it}/{name}-parameter_mht_1of1_rank{rank}_size{hvd_size}-{tag}'
-          ) ^ should_be_exist))
+              base_dir +
+              f'/{name}-parameter_mht_1of1_rank{rank}_size{hvd_size}-{tag}') ^
+                               should_be_exist))
           self.assertTrue(not (os.path.exists(
-              save_dir +
-              f'/TFRADynamicEmbedding-{save_it}/{name}-parameter_DynamicEmbedding_keras_adam_lazy_build-shadow_m_mht_1of1_rank{rank}_size{hvd_size}-{tag}'
+              base_dir +
+              f'/{name}-parameter_DynamicEmbedding_keras_adam_lazy_build-shadow_m_mht_1of1_rank{rank}_size{hvd_size}-{tag}'
           ) ^ should_be_exist))
-          # f'/TFRADynamicEmbedding-{save_it}/{name}-parameter_no_compile_model_DynamicEmbedding_keras_adam_lazy_build-shadow_m_mht_1of1_rank{rank}_size{hvd_size}-{tag}'
+          # f'/{name}-parameter_no_compile_model_DynamicEmbedding_keras_adam_lazy_build-shadow_m_mht_1of1_rank{rank}_size{hvd_size}-{tag}'
           self.assertTrue(not (os.path.exists(
-              save_dir +
-              f'/TFRADynamicEmbedding-{save_it}/{name}-parameter_DynamicEmbedding_keras_adam_lazy_build-shadow_v_mht_1of1_rank{rank}_size{hvd_size}-{tag}'
+              base_dir +
+              f'/{name}-parameter_DynamicEmbedding_keras_adam_lazy_build-shadow_v_mht_1of1_rank{rank}_size{hvd_size}-{tag}'
           ) ^ should_be_exist))
-          # f'/TFRADynamicEmbedding-{save_it}/{name}-parameter_no_compile_model_DynamicEmbedding_keras_adam_lazy_build-shadow_v_mht_1of1_rank{rank}_size{hvd_size}-{tag}'
+          # f'/{name}-parameter_no_compile_model_DynamicEmbedding_keras_adam_lazy_build-shadow_v_mht_1of1_rank{rank}_size{hvd_size}-{tag}'
 
     with tf.device("/{}:{}".format(_device, _device_id)):
       x = tf.reshape(tf.range(0, 32, dtype=tf.int64), [32, 1])
       y = tf.random.uniform(shape=[32, 1])
+      base_de_emb_standard = {}
+      base_de_opt_standard = {}
+      new_de_emb_compared = {}
+      new_de_opt_compared = {}
 
       save_dir = self.get_temp_dir()
 
@@ -454,13 +461,16 @@ class HorovodTest(test.TestCase):
           l.params.upsert(x * 10, tf.random.uniform(shape=[32, 1, dim]))
           emb_size = l.params.size()
           emb_keys, emb_values = l.params.export()
+          base_de_emb_standard[l.name] = (emb_size, emb_keys, emb_values)
           break
       for v in base_opt.variables():
         if name in v.name:
           v.params.upsert(x * 10, tf.random.uniform(shape=[32, 1, dim]))
           opt_size = v.params.size()
-          opt_keys, opt_values = l.params.export()
-          break
+          opt_keys, opt_values = v.params.export()
+          base_de_opt_standard[v._shared_name.split('/')[-1]] = (opt_size,
+                                                                 opt_keys,
+                                                                 opt_values)
       manager.save()
       if hvd.rank() == 0:
         check_TFRADynamicEmbedding_directory(save_dir,
@@ -491,7 +501,9 @@ class HorovodTest(test.TestCase):
       new_model.compile(optimizer=new_opt, loss='mean_absolute_error')
       new_model(x)  # Build vairiables
       try:
-        new_opt._create_all_weights(new_model.variables)
+        new_opt._create_all_weights([
+            new_model.variables[0]
+        ])  # Create DE slot variable from DE shadow variable
       except:
         #TODO(MoFHejia) raise ValueError: Cannot convert a partially known TensorShape <unknown> to a Tensor.
         pass
@@ -499,23 +511,92 @@ class HorovodTest(test.TestCase):
         if name in l.name:
           new_emb_size = l.params.size()
           new_emb_keys, new_emb_values = l.params.export()
+          new_de_emb_compared[l.name] = (new_emb_size, new_emb_keys,
+                                         new_emb_values)
           break
       for v in new_opt.variables():
         if name in v.name:
           new_opt_size = v.params.size()
-          new_opt_keys, new_opt_values = l.params.export()
-          break
+          new_opt_keys, new_opt_values = v.params.export()
+          new_de_opt_compared[v._shared_name.split('/')[-1]] = (new_opt_size,
+                                                                new_opt_keys,
+                                                                new_opt_values)
 
-      self.assertEqual(emb_size, new_emb_size)
-      self.assertEqual(opt_size, new_opt_size)
-      self.assertAllEqual(np.sort(emb_keys, axis=0),
-                          np.sort(new_emb_keys, axis=0))
-      self.assertAllClose(np.sort(emb_values, axis=0),
-                          np.sort(new_emb_values, axis=0))
-      self.assertAllEqual(np.sort(opt_keys, axis=0),
-                          np.sort(new_opt_keys, axis=0))
-      self.assertAllClose(np.sort(opt_values, axis=0),
-                          np.sort(new_opt_values, axis=0))
+      for de_l_name in base_de_emb_standard.keys():
+        self.assertEqual(base_de_emb_standard[de_l_name][0],
+                         new_de_emb_compared[de_l_name][0])
+        self.assertAllEqual(np.sort(base_de_emb_standard[de_l_name][1], axis=0),
+                            np.sort(new_de_emb_compared[de_l_name][1], axis=0))
+        self.assertAllClose(np.sort(base_de_emb_standard[de_l_name][2], axis=0),
+                            np.sort(new_de_emb_compared[de_l_name][2], axis=0))
+      for opt_v_name in base_de_opt_standard.keys():
+        self.assertEqual(base_de_opt_standard[opt_v_name][0],
+                         new_de_opt_compared[opt_v_name][0])
+        self.assertAllEqual(
+            np.sort(base_de_opt_standard[opt_v_name][1], axis=0),
+            np.sort(new_de_opt_compared[opt_v_name][1], axis=0))
+        self.assertAllClose(
+            np.sort(base_de_opt_standard[opt_v_name][2], axis=0),
+            np.sort(new_de_opt_compared[opt_v_name][2], axis=0))
+
+      extra_save_dir = self.get_temp_dir() + '/extra_save_dir'
+      de.keras.models.de_save_model(new_model, extra_save_dir)
+      if hvd.rank() == 0:
+        check_TFRADynamicEmbedding_directory(extra_save_dir)
+      del new_opt
+      del new_model
+      del new_ckpt
+      tf.keras.backend.clear_session()
+      tf.compat.v1.reset_default_graph()
+      new_saved_model = NoCompileModel('zeros')
+      new_saved_opt = Adam(1.2)
+      new_saved_opt = de.DynamicEmbeddingOptimizer(new_saved_opt,
+                                                   synchronous=True)
+      new_saved_model.compile(optimizer=new_saved_opt,
+                              loss='mean_absolute_error')
+      new_saved_model(x)  # Build vairiables
+      try:
+        new_opt._create_all_weights([
+            new_model.variables[0]
+        ])  # Create DE slot variable from DE shadow variable
+      except:
+        #TODO(MoFHejia) raise ValueError: Cannot convert a partially known TensorShape <unknown> to a Tensor.
+        pass
+      extra_save_dir = hvd.broadcast_object(
+          extra_save_dir, root_rank=0, name='de_utest_hvd_broadcast_filepath'
+      )  # All ranks should share same save directory
+      new_saved_model.load_weights(extra_save_dir + '/variables/variables')
+      for l in new_saved_model.layers:
+        if name in l.name:
+          new_emb_size = l.params.size()
+          new_emb_keys, new_emb_values = l.params.export()
+          new_de_emb_compared[l.name] = (new_emb_size, new_emb_keys,
+                                         new_emb_values)
+          break
+      for v in new_saved_opt.variables():
+        if name in v.name:
+          new_opt_size = v.params.size()
+          new_opt_keys, new_opt_values = l.params.export()
+          new_de_opt_compared[v._shared_name.split('/')[-1]] = (new_opt_size,
+                                                                new_opt_keys,
+                                                                new_opt_values)
+
+      for de_l_name in base_de_emb_standard.keys():
+        self.assertEqual(base_de_emb_standard[de_l_name][0],
+                         new_de_emb_compared[de_l_name][0])
+        self.assertAllEqual(np.sort(base_de_emb_standard[de_l_name][1], axis=0),
+                            np.sort(new_de_emb_compared[de_l_name][1], axis=0))
+        self.assertAllClose(np.sort(base_de_emb_standard[de_l_name][2], axis=0),
+                            np.sort(new_de_emb_compared[de_l_name][2], axis=0))
+      for opt_v_name in base_de_opt_standard.keys():
+        self.assertEqual(base_de_opt_standard[opt_v_name][0],
+                         new_de_opt_compared[opt_v_name][0])
+        self.assertAllEqual(
+            np.sort(base_de_opt_standard[opt_v_name][1], axis=0),
+            np.sort(new_de_opt_compared[opt_v_name][1], axis=0))
+        self.assertAllClose(
+            np.sort(base_de_opt_standard[opt_v_name][2], axis=0),
+            np.sort(new_de_opt_compared[opt_v_name][2], axis=0))
 
 
 if __name__ == "__main__":
