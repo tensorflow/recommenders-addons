@@ -26,6 +26,7 @@ except:
 from tensorflow.python.keras.saving.saved_model import save as tf_saved_model_save
 from tensorflow.python.ops import array_ops
 from tensorflow.python.platform import tf_logging
+from tensorflow.python.saved_model.save_options import SaveOptions
 
 tf_original_save_func = tf_saved_model_save.save
 if keras_saved_model_save is not None:
@@ -56,6 +57,11 @@ def _de_keras_save_func(original_save_func,
   except:
     hvd = None
 
+  if hvd is not None:
+    filepath = hvd.broadcast_object(filepath,
+                                    root_rank=0,
+                                    name='de_hvd_broadcast_filepath')
+
   call_original_save_func = functools.partial(
       original_save_func,
       model=model,
@@ -68,8 +74,9 @@ def _de_keras_save_func(original_save_func,
       *args,
       **kwargs)
 
-  def _traverse_emb_layers_and_save(hvd_rank):
-    de_dir = os.path.join(filepath, "variables", "TFRADynamicEmbedding")
+  de_dir = os.path.join(filepath, "variables", "TFRADynamicEmbedding")
+
+  def _check_saveable_and_redirect_new_de_dir():
     for var in model.variables:
       if not hasattr(var, "params"):
         continue
@@ -85,33 +92,50 @@ def _de_keras_save_func(original_save_func,
                 "It will allow TFRA load KV files when Embedding tensor parallel. "
                 f"The embedding shards at each horovod rank are now temporarily stored in {de_dir}"
             )
-        else:
-          if not isinstance(de_var.kv_creator.saver, de.FileSystemSaver):
-            # This function only serves FileSystemSaver.
-            continue
-          if hvd_rank == 0:
-            # FileSystemSaver works well at rank 0.
-            continue
-          # save Dynamic Embedding Parameters
-          de_var.save_to_file_system(dirpath=de_dir,
-                                     proc_size=hvd.size(),
-                                     proc_rank=hvd.rank())
-          # save optimizer parameters of Dynamic Embedding
-          if include_optimizer is True:
-            de_opt_vars = a2a_emb.optimizer_vars.as_list() if hasattr(
-                a2a_emb.optimizer_vars, "as_list") else a2a_emb.optimizer_vars
-            for de_opt_var in de_opt_vars:
-              de_opt_var.save_to_file_system(dirpath=de_dir,
-                                             proc_size=hvd.size(),
-                                             proc_rank=hvd.rank())
+      if not isinstance(de_var.kv_creator.saver, de.FileSystemSaver):
+        # This function only serves FileSystemSaver.
+        continue
+      # Redirect new de_dir
+      if hasattr(de_var, 'saveable'):
+        de_var.saveable._saver_config.save_path = de_dir
 
+  def _traverse_emb_layers_and_save(hvd_rank=0):
+    for var in model.variables:
+      if not hasattr(var, "params"):
+        continue
+      if not hasattr(var.params, "_created_in_class"):
+        continue
+      de_var = var.params
+      a2a_emb = de_var._created_in_class
+      if de_var._saveable_object_creator is not None:
+        if not isinstance(de_var.kv_creator.saver, de.FileSystemSaver):
+          # This function only serves FileSystemSaver.
+          continue
+        # save optimizer parameters of Dynamic Embedding
+        if include_optimizer is True:
+          de_opt_vars = a2a_emb.optimizer_vars.as_list() if hasattr(
+              a2a_emb.optimizer_vars, "as_list") else a2a_emb.optimizer_vars
+          for de_opt_var in de_opt_vars:
+            de_opt_var.save_to_file_system(dirpath=de_dir,
+                                           proc_size=hvd.size(),
+                                           proc_rank=hvd.rank())
+        if hvd_rank == 0:
+          # FileSystemSaver works well at rank 0.
+          continue
+        # save Dynamic Embedding Parameters
+        de_var.save_to_file_system(dirpath=de_dir,
+                                   proc_size=hvd.size(),
+                                   proc_rank=hvd.rank())
+
+  _check_saveable_and_redirect_new_de_dir()
   if hvd is None:
     call_original_save_func()
+    _traverse_emb_layers_and_save(0)
   else:
     if hvd.rank() == 0:
       call_original_save_func()
     _traverse_emb_layers_and_save(hvd.rank())
-    hvd.join()  # Sync for avoiding data conflict
+    hvd.join()  # Sync for avoiding rank conflict
 
 
 def de_hvd_save_model(model,
@@ -123,11 +147,37 @@ def de_hvd_save_model(model,
                       save_traces=True,
                       *args,
                       **kwargs):
+  return de_save_model(model=model,
+                       filepath=filepath,
+                       overwrite=True,
+                       include_optimizer=True,
+                       signatures=None,
+                       options=None,
+                       save_traces=True,
+                       *args,
+                       **kwargs)
+
+
+def de_save_model(model,
+                  filepath,
+                  overwrite=True,
+                  include_optimizer=True,
+                  signatures=None,
+                  options=None,
+                  save_traces=True,
+                  *args,
+                  **kwargs):
   if keras_saved_model_save is not None:
     _save_handle = functools.partial(_de_keras_save_func,
                                      keras_original_save_func)
   else:
     _save_handle = functools.partial(_de_keras_save_func, tf_original_save_func)
+  if options is None:
+    options = SaveOptions(namespace_whitelist=['TFRA'])
+  elif isinstance(options, SaveOptions) and hasattr(options,
+                                                    'namespace_whitelist'):
+    options.namespace_whitelist.append('TFRA')
+
   return _save_handle(model,
                       filepath,
                       overwrite,
