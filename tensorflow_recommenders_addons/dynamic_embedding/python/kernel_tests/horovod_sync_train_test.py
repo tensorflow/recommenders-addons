@@ -65,6 +65,9 @@ def get_emb_sequential_model(emb_t, opt, *args, **kwargs):
   return model
 
 
+is_gpu_available = test_util.is_gpu_available()
+
+
 class HorovodTest(test.TestCase):
 
   @test_util.deprecated_graph_mode_only
@@ -90,6 +93,8 @@ class HorovodTest(test.TestCase):
     if (tf.__version__ == "2.11.0" or tf.__version__ == "2.11.1"):
       self.skipTest(
           "The save function doesn't work with TF 2.11, skip the test.")
+    if not is_gpu_available:
+      self.skipTest('Only test when gpu is available.')
     if (is_macos() and is_arm64()):
       self.skipTest(
           "Apple silicon devices don't support synchronous training based on Horovod."
