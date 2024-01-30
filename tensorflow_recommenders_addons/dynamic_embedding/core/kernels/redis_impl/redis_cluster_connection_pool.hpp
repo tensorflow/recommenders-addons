@@ -144,11 +144,22 @@ class RedisWrapper<RedisInstance, K, V,
       if (this->isRedisConnect == false) {
         LOG(ERROR) << "Can not connect to the Redis Cluster servers.";
         if (redis_conn_read == nullptr && redis_conn_write != nullptr) {
+#if TF_VERSION_INTEGER >= 2130  // 2.13.0
+          return Status(absl::StatusCode::kUnavailable,
+                        "Can not access Redis Slave servers, Exit without any "
+                        "Redis connection.");
+#else
           return Status(error::UNAVAILABLE,
                         "Can not access Redis Slave servers, Exit without any "
                         "Redis connection.");
+#endif
         }
+#if TF_VERSION_INTEGER >= 2130  // 2.13.0
+        return Status(absl::StatusCode::kUnavailable,
+                      "Exit without any Redis connection.");
+#else
         return Status(error::UNAVAILABLE, "Exit without any Redis connection.");
+#endif
       }
     }
     return TFOkStatus;

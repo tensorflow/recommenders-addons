@@ -917,8 +917,13 @@ class RedisTableOfTensors final : public LookupInterface {
           "values", TensorShape({0, runtime_value_dim_}), &values));
       return TFOkStatus;
     }
+#if TF_VERSION_INTEGER >= 2130  // 2.13.0
+    return Status(absl::StatusCode::kInvalidArgument,
+                  "invalid redis_connection_params.table_store_mode.");
+#else
     return Status(error::INVALID_ARGUMENT,
                   "invalid redis_connection_params.table_store_mode.");
+#endif
   }
 
   Status ExportValuesToFiles(OpKernelContext *ctx) {

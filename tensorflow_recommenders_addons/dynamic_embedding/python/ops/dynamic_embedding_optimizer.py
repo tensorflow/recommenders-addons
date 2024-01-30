@@ -28,6 +28,10 @@ from tensorflow.python.distribute import reduce_util as ds_reduce_util
 from tensorflow.python.eager import context
 from tensorflow.python.framework import dtypes
 from tensorflow.python.framework import ops
+try:  # tf version >= 2.13.0
+  from tensorflow.python.framework.indexed_slices import IndexedSlices
+except:
+  from tensorflow.python.framework.ops import IndexedSlices
 from tensorflow.python.keras import backend
 from tensorflow.python.keras import initializers
 from tensorflow.python.keras.utils import tf_utils
@@ -115,7 +119,7 @@ def DynamicEmbeddingOptimizer(self, bp_v2=False, synchronous=False, **kwargs):
 
       apply_kwargs = {}
       if not isinstance(var, de.TrainableWrapper):
-        if isinstance(grad, ops.IndexedSlices):
+        if isinstance(grad, IndexedSlices):
           if var.constraint is not None:
             raise RuntimeError(
                 "Cannot use a constraint function on a sparse variable.")
@@ -148,7 +152,7 @@ def DynamicEmbeddingOptimizer(self, bp_v2=False, synchronous=False, **kwargs):
             s0 = [_s.read_value() for _s in _slots]
             _before = [v0] + s0
 
-          if isinstance(grad, ops.IndexedSlices):
+          if isinstance(grad, IndexedSlices):
             if var.constraint is not None:
               raise RuntimeError(
                   "Cannot use a constraint function on a sparse variable.")
@@ -515,7 +519,7 @@ def DynamicEmbeddingOptimizer(self, bp_v2=False, synchronous=False, **kwargs):
           '''
           if sparse_as_dense:
             grad = ops.convert_to_tensor(grad) if isinstance(
-                grad, ops.IndexedSlices) else grad
+                grad, IndexedSlices) else grad
           aggregated_grad.append(hvd_handle.allreduce(grad, op=hvd_handle.Sum))
     return zip(aggregated_grad, var_list)
 

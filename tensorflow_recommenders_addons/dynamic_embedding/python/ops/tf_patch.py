@@ -42,6 +42,10 @@ from tensorflow.python.eager import context
 from tensorflow.python.framework import device as pydev
 from tensorflow.python.framework import dtypes
 from tensorflow.python.framework import ops
+try:  # tf version >= 2.13.0
+  from tensorflow.python.framework.indexed_slices import IndexedSlices
+except:
+  from tensorflow.python.framework.ops import IndexedSlices
 from tensorflow.python.keras import initializers as kinit1
 from tensorflow.python.ops import control_flow_ops
 from tensorflow.python.ops import random_ops
@@ -93,7 +97,7 @@ class _DenseDynamicEmbeddingTrainableProcessor(optimizer._OptimizableVariable):
         s0 = [_s.read_value() for _s in _slots]
         _before = [v0] + s0
 
-      if isinstance(g, ops.IndexedSlices):
+      if isinstance(g, IndexedSlices):
         if self._v.constraint is not None:
           raise RuntimeError(
               "Cannot use a constraint function on a sparse variable.")

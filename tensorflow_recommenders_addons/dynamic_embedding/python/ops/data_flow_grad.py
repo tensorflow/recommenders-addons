@@ -16,7 +16,10 @@
 # pylint: disable=g-bad-name
 
 from tensorflow.python.framework import dtypes
-from tensorflow.python.framework import indexed_slices
+try:  # tf version >= 2.13.0
+  from tensorflow.python.framework.indexed_slices import IndexedSlices
+except:
+  from tensorflow.python.framework.ops import IndexedSlices
 from tensorflow.python.framework import ops
 from tensorflow.python.ops import array_ops
 from tensorflow.python.ops import math_ops
@@ -56,7 +59,7 @@ def _TfraDynamicStitchGrads(op, grad):
         x, dtypes.int32))
 
   inputs = [AsInt32(op.inputs[i]) for i in range(num_values)]
-  if isinstance(grad, indexed_slices.IndexedSlices):
+  if isinstance(grad, IndexedSlices):
     output_shape = array_ops.shape(op.outputs[0])
     output_rows = output_shape[0]
     grad = math_ops.unsorted_segment_sum(grad.values, grad.indices, output_rows)
