@@ -330,9 +330,7 @@ class HorovodTest(test.TestCase):
             shutil.rmtree(save_dir)
         hvd.join()  # Sync for avoiding files conflict
         # base_model.save(save_dir, options=save_options)
-        de.keras.models.de_save_model(base_model,
-                                      save_dir,
-                                      options=save_options)
+        de.keras.models.save_model(base_model, save_dir, options=save_options)
         ckpt = de.train.DECheckpoint(
             my_model=base_model)  # Test custom model key "my_model"
         ckpt.save(save_dir + '/ckpt/test')
@@ -542,7 +540,7 @@ class HorovodTest(test.TestCase):
             np.sort(new_de_opt_compared[opt_v_name][2], axis=0))
 
       extra_save_dir = self.get_temp_dir() + '/extra_save_dir'
-      de.keras.models.de_save_model(new_model, extra_save_dir)
+      de.keras.models.save_model(new_model, extra_save_dir)
       if hvd.rank() == 0:
         check_TFRADynamicEmbedding_directory(extra_save_dir)
       del new_opt

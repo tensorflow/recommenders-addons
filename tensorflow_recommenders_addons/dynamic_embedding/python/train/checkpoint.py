@@ -26,16 +26,16 @@ from tensorflow.python.eager import context
 from tensorflow.python.framework import constant_op
 from tensorflow.python.framework import ops
 try:  # tf version >= 2.10.0
-  from tensorflow.python.checkpoint.checkpoint import Checkpoint
+  from tensorflow.python.checkpoint.checkpoint import Checkpoint as TFCheckpoint
   from tensorflow.python.checkpoint import restore as ckpt_base
 except:
-  from tensorflow.python.training.tracking.util import Checkpoint
+  from tensorflow.python.training.tracking.util import Checkpoint as TFCheckpoint
   from tensorflow.python.training.tracking import base as ckpt_base
 from tensorflow.python.lib.io import file_io
 from tensorflow.python.platform import tf_logging
 
 
-class DECheckpoint(Checkpoint):
+class DECheckpoint(TFCheckpoint):
   """Overwrite tf.train.Saver class
     Calling the TF save API for all ranks causes file conflicts, 
     so KV files other than rank0 need to be saved by calling the underlying API separately.
