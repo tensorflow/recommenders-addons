@@ -653,7 +653,11 @@ class CuckooHashTableOfTensorsGpu final : public LookupInterface {
   size_t last_hint_size_;
   size_t runtime_dim_;
   mutable mutex mu_;
+#if TF_VERSION_INTEGER >= 2130  // 2.13.0
+  gpu::TableWrapperBase<K, V>* table_ = nullptr TF_GUARDED_BY(mu_);
+#else
   gpu::TableWrapperBase<K, V>* table_ = nullptr GUARDED_BY(mu_);
+#endif
 };
 
 }  // namespace lookup

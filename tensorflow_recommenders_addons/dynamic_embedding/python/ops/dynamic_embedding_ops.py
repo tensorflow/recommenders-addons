@@ -27,7 +27,10 @@ try:
 except:
   forward_compat = None
 from tensorflow.python.eager import context
-from tensorflow.python.eager import tape
+from tensorflow.python.eager import tape as tape_record
+if not hasattr(tape_record, 'record_operation'):
+  # tf version >= 2.13.0
+  from tensorflow.python.eager import record as tape_record
 from tensorflow.python.keras.optimizer_v2 import optimizer_v2
 from tensorflow.python.ops import clip_ops
 from tensorflow.python.framework import dtypes
@@ -447,8 +450,8 @@ class TrainableWrapper(resource_variable_ops.ResourceVariable):
     if not context.executing_eagerly():
       # Note that if a control flow context is active the input of the read op
       # might not actually be the handle. This line bypasses it.
-      tape.record_operation("ReadVariableOp", [_result], [self._handle],
-                            lambda x: [x])
+      tape_record.record_operation("ReadVariableOp", [_result], [self._handle],
+                                   lambda x: [x])
     result = self.transform(_result)
     return result
 
@@ -647,7 +650,7 @@ def embedding_lookup(
                 if i > 0:
                   name_replica = "%s/replica_%d" % (name, i)
                 with context.device_policy(context.DEVICE_PLACEMENT_SILENT):
-                  with tape.stop_recording():
+                  with tape_record.stop_recording():
                     trainable_impl.as_list().append(
                         _create_or_get_trainable(name_replica))
             trainable_ = DistributedVariableWrapper(

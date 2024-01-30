@@ -43,11 +43,20 @@ limitations under the License.
 #include "tensorflow/core/lib/io/random_inputstream.h"
 #include "tensorflow/core/platform/macros.h"
 #include "tensorflow/core/platform/thread_annotations.h"
+#include "tensorflow_recommenders_addons/dynamic_embedding/core/utils/utils.h"
 
 namespace tensorflow {
 namespace recommenders_addons {
 namespace lookup {
 namespace gpu {
+
+inline Status ReturnInternalErrorStatus(const char* const str) {
+#if TF_VERSION_INTEGER >= 2130 /* 2.13.0 */
+  return Status(absl::StatusCode::kInternal, str);
+#else
+  return Status(tensorflow::error::INTERNAL, str);
+#endif
+}
 
 template <typename K, typename V, typename S>
 class KVOnlyFile : public nv::merlin::BaseKVFile<K, V, S> {
@@ -173,7 +182,7 @@ class RandomKVFile : public nv::merlin::BaseKVFile<K, V, S> {
       auto has_atomic_move_ret =
           fs_->HasAtomicMove(filepath_, &has_atomic_move);
       bool need_tmp_file =
-          (has_atomic_move == false) || (has_atomic_move_ret != Status::OK());
+          (has_atomic_move == false) || (has_atomic_move_ret != TFOkStatus);
 
       if (!need_tmp_file) {
         key_tmpfilepath = key_filepath;
@@ -193,7 +202,7 @@ class RandomKVFile : public nv::merlin::BaseKVFile<K, V, S> {
             fs_->NewWritableFile(value_tmpfilepath, &value_writer_));
       }
     }
-    return Status::OK();
+    return TFOkStatus;
   }
 
   void close() {
@@ -445,9 +454,9 @@ class TableWrapper {
     try {
       table_->init(mkv_options_, allocator);
     } catch (std::runtime_error& e) {
-      return Status(tensorflow::error::INTERNAL, e.what());
+      return ReturnInternalErrorStatus(e.what());
     }
-    return Status::OK();
+    return TFOkStatus;
   }
 
   ~TableWrapper() { delete table_; }
@@ -534,7 +543,7 @@ class TableWrapper {
     string valuefile = filepath + "-values";
     string scorefile = filepath + "-scores";
     bool has_scores = false;
-    Status status = Status::OK();
+    Status status = TFOkStatus;
 
     if (is_valid_scores(keyfile, scorefile)) {
       wfile.reset(new nv::merlin::LocalKVFile<K, V, uint64_t>);
@@ -585,7 +594,7 @@ class TableWrapper {
     string valuefile = filepath + "-values";
     string scorefile = filepath + "-scores";
     bool has_scores = false;
-    Status status = Status::OK();
+    Status status = TFOkStatus;
 
     if (is_valid_scores(keyfile, scorefile)) {
       rfile.reset(new nv::merlin::LocalKVFile<K, V, uint64_t>);

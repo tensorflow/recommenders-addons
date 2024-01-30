@@ -16,7 +16,6 @@ limitations under the License.
 
 #include "tensorflow_recommenders_addons/dynamic_embedding/core/kernels/cuckoo_hashtable_op_gpu.h"
 #include "tensorflow_recommenders_addons/dynamic_embedding/core/kernels/lookup_impl/lookup_table_op_hkv.h"
-#include "tensorflow_recommenders_addons/dynamic_embedding/core/utils/utils.h"
 
 #define EIGEN_USE_GPU
 
@@ -37,7 +36,11 @@ limitations under the License.
 #include "tensorflow/core/util/env_var.h"
 #include "tensorflow/core/util/gpu_device_functions.h"
 #include "tensorflow/core/util/gpu_kernel_helper.h"
+#if TF_VERSION_INTEGER >= 2110  // 2.11.0
+#include "tensorflow/compiler/xla/stream_executor/stream.h"
+#else
 #include "tensorflow/stream_executor/stream.h"
+#endif
 
 namespace tensorflow {
 
@@ -187,14 +190,14 @@ class HkvHashTableOfTensorsGpu final : public LookupInterface {
                       is_full_default);
           CUDA_CHECK(cudaStreamSynchronize(stream));
         } catch (std::runtime_error& e) {
-          return Status(tensorflow::error::INTERNAL, e.what());
+          return gpu::ReturnInternalErrorStatus(e.what());
         }
       }
       CUDA_CHECK(cudaFreeAsync(d_status, stream));
       CUDA_CHECK(cudaStreamSynchronize(stream));
     }
 
-    return Status::OK();
+    return TFOkStatus;
   }
 
   Status FindWithExists(OpKernelContext* ctx, const Tensor& d_keys,
@@ -222,13 +225,13 @@ class HkvHashTableOfTensorsGpu final : public LookupInterface {
                       (V*)(default_value.tensor_data().data()), stream,
                       is_full_default);
         } catch (std::runtime_error& e) {
-          return Status(tensorflow::error::INTERNAL, e.what());
+          return gpu::ReturnInternalErrorStatus(e.what());
         }
       }
       CUDA_CHECK(cudaStreamSynchronize(stream));
     }
 
-    return Status::OK();
+    return TFOkStatus;
   }
 
   Status Insert(OpKernelContext* ctx, const Tensor& keys,
@@ -241,12 +244,12 @@ class HkvHashTableOfTensorsGpu final : public LookupInterface {
         table_->upsert((const K*)keys.tensor_data().data(),
                        (const V*)(values.tensor_data().data()), len, stream);
       } catch (std::runtime_error& e) {
-        return Status(tensorflow::error::INTERNAL, e.what());
+        return gpu::ReturnInternalErrorStatus(e.what());
       }
     }
     CUDA_CHECK(cudaStreamSynchronize(stream));
 
-    return Status::OK();
+    return TFOkStatus;
   }
 
   Status Accum(OpKernelContext* ctx, const Tensor& keys,
@@ -260,12 +263,12 @@ class HkvHashTableOfTensorsGpu final : public LookupInterface {
                       (const V*)(values_or_deltas.tensor_data().data()),
                       (const bool*)exists.tensor_data().data(), len, stream);
       } catch (std::runtime_error& e) {
-        return Status(tensorflow::error::INTERNAL, e.what());
+        return gpu::ReturnInternalErrorStatus(e.what());
       }
     }
     CUDA_CHECK(cudaStreamSynchronize(stream));
 
-    return Status::OK();
+    return TFOkStatus;
   }
 
   Status Remove(OpKernelContext* ctx, const Tensor& keys) override {
@@ -285,14 +288,14 @@ class HkvHashTableOfTensorsGpu final : public LookupInterface {
         try {
           table_->remove((const K*)d_keys, len, stream);
         } catch (std::runtime_error& e) {
-          return Status(tensorflow::error::INTERNAL, e.what());
+          return gpu::ReturnInternalErrorStatus(e.what());
         }
       }
       CUDA_CHECK(cudaFreeAsync(d_keys, stream));
       CUDA_CHECK(cudaStreamSynchronize(stream));
     }
 
-    return Status::OK();
+    return TFOkStatus;
   }
 
   Status Clear(OpKernelContext* ctx) {
@@ -302,11 +305,11 @@ class HkvHashTableOfTensorsGpu final : public LookupInterface {
       try {
         table_->clear(stream);
       } catch (std::runtime_error& e) {
-        return Status(tensorflow::error::INTERNAL, e.what());
+        return gpu::ReturnInternalErrorStatus(e.what());
       }
     }
     CUDA_CHECK(cudaStreamSynchronize(stream));
-    return Status::OK();
+    return TFOkStatus;
   }
 
   Status ImportValues(OpKernelContext* ctx, const Tensor& keys,
@@ -345,7 +348,7 @@ class HkvHashTableOfTensorsGpu final : public LookupInterface {
           table_->upsert((const K*)d_keys, (const V*)d_values, len, stream);
           CUDA_CHECK(cudaStreamSynchronize(stream));
         } catch (std::runtime_error& e) {
-          return Status(tensorflow::error::INTERNAL, e.what());
+          return gpu::ReturnInternalErrorStatus(e.what());
         }
       }
       if (keys_attr.type != cudaMemoryTypeDevice) {
@@ -355,7 +358,7 @@ class HkvHashTableOfTensorsGpu final : public LookupInterface {
         CUDA_CHECK(cudaFree(d_values));
       }
     }
-    return Status::OK();
+    return TFOkStatus;
   }
 
   Status ExportValues(OpKernelContext* ctx) override {
@@ -397,12 +400,12 @@ class HkvHashTableOfTensorsGpu final : public LookupInterface {
                      d_dump_counter, stream);
         CUDA_CHECK(cudaStreamSynchronize(stream));
       } catch (std::runtime_error& e) {
-        return Status(tensorflow::error::INTERNAL, e.what());
+        return gpu::ReturnInternalErrorStatus(e.what());
       }
     }
     CUDA_CHECK(cudaFreeAsync(d_dump_counter, stream));
     CUDA_CHECK(cudaStreamSynchronize(stream));
-    return Status::OK();
+    return TFOkStatus;
   }
 
   Status ExportValuesWithScores(OpKernelContext* ctx) {
@@ -448,12 +451,12 @@ class HkvHashTableOfTensorsGpu final : public LookupInterface {
                                  len, d_dump_counter, stream);
         CUDA_CHECK(cudaStreamSynchronize(stream));
       } catch (std::runtime_error& e) {
-        return Status(tensorflow::error::INTERNAL, e.what());
+        return gpu::ReturnInternalErrorStatus(e.what());
       }
     }
     CUDA_CHECK(cudaFreeAsync(d_dump_counter, stream));
     CUDA_CHECK(cudaStreamSynchronize(stream));
-    return Status::OK();
+    return TFOkStatus;
   }
 
   Status ExportKeysAndScores(OpKernelContext* ctx, size_t split_size) {
@@ -486,12 +489,12 @@ class HkvHashTableOfTensorsGpu final : public LookupInterface {
                                        static_cast<size_t>(size), split_size,
                                        stream);
         } catch (std::runtime_error& e) {
-          return Status(tensorflow::error::INTERNAL, e.what());
+          return gpu::ReturnInternalErrorStatus(e.what());
         }
       }
     }
     CUDA_CHECK(cudaStreamSynchronize(stream));
-    return Status::OK();
+    return TFOkStatus;
   }
 
   Status ExportValuesToFile(OpKernelContext* ctx, const string filepath,
@@ -507,12 +510,12 @@ class HkvHashTableOfTensorsGpu final : public LookupInterface {
         table_->dump_to_file(fs, filepath, runtime_dim_, stream, buffer_size,
                              append_to_file);
       } catch (std::runtime_error& e) {
-        return Status(tensorflow::error::INTERNAL, e.what());
+        return gpu::ReturnInternalErrorStatus(e.what());
       }
     }
     CUDA_CHECK(cudaStreamSynchronize(stream));
 
-    return Status::OK();
+    return TFOkStatus;
   }
 
   Status ImportValuesFromFile(OpKernelContext* ctx, const string& dirpath,
@@ -564,11 +567,11 @@ class HkvHashTableOfTensorsGpu final : public LookupInterface {
                                  buffer_size);
         }
       } catch (std::runtime_error& e) {
-        return Status(tensorflow::error::INTERNAL, e.what());
+        return gpu::ReturnInternalErrorStatus(e.what());
       }
     }
     CUDA_CHECK(cudaStreamSynchronize(stream));
-    return Status::OK();
+    return TFOkStatus;
   }
 
   DataType key_dtype() const override { return DataTypeToEnum<K>::v(); }
@@ -580,7 +583,11 @@ class HkvHashTableOfTensorsGpu final : public LookupInterface {
   TensorShape value_shape_;
   size_t runtime_dim_;
   mutable mutex mu_;
+#if TF_VERSION_INTEGER >= 2130  // 2.13.0
+  gpu::TableWrapper<K, V>* table_ = nullptr TF_GUARDED_BY(mu_);
+#else
   gpu::TableWrapper<K, V>* table_ = nullptr GUARDED_BY(mu_);
+#endif
 };
 
 }  // namespace lookup
