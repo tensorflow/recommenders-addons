@@ -22,6 +22,7 @@ import itertools
 import os
 import numpy as np
 import shutil
+from time import sleep
 
 import tensorflow as tf
 
@@ -409,6 +410,7 @@ class HorovodTest(test.TestCase):
     def check_TFRADynamicEmbedding_directory(save_dir,
                                              save_it=None,
                                              should_be_exist=True):
+      sleep(4)  # Wait for filesystem operation
       hvd_size = hvd.size()
       if hvd_size <= 1:
         hvd_size = 1
@@ -441,6 +443,10 @@ class HorovodTest(test.TestCase):
       new_de_opt_compared = {}
 
       save_dir = self.get_temp_dir()
+      # Need to use same directory when horovod save
+      save_dir = hvd.broadcast_object(save_dir,
+                                      root_rank=0,
+                                      name=f'{__file__}_broadcast_save_dir')
 
       model = NoCompileModel('ones')
       base_opt = Adam(1.0)
