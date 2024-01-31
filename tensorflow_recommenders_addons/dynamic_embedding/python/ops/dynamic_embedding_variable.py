@@ -589,6 +589,7 @@ class Variable(base.Trackable):
           [dtypes.int64, dtypes.int32],
           [dtypes.int64, dtypes.int64],
           [dtypes.int64, dtypes.half],
+          [dtypes.int64, dtypes.bfloat16],
       ]
     if is_macos() and is_arm64():
       if value_dtype == dtypes.half or value_dtype == dtypes.bfloat16:
