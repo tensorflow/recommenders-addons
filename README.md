@@ -145,6 +145,7 @@ At the same time, we find some OPs used by TRFA have better performance, so we h
 For all developers, we recommend you use the development docker containers which are all GPU enabled:
 ```sh
 docker pull tfra/dev_container:latest-python3.8  # "3.7", "3.9" are all avaliable.
+
 docker run --privileged --gpus all -it --rm -v $(pwd):$(pwd) tfra/dev_container:latest-3.8
 ```
 
