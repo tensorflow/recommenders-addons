@@ -52,15 +52,11 @@ _PYTHON_BIN_PATH = "PYTHON_BIN_PATH"
 
 _DEFAULT_CUDA_COMPUTE_CAPABILITIES = {
     "11.0": [
-        "6.0",
-        "6.1",
         "7.0",
         "7.5",
         "8.0",
     ],
     "10.0": [
-        "6.0",
-        "6.1",
         "7.0",
         "7.5",
     ],
@@ -77,8 +73,6 @@ _DEFAULT_CUDA_COMPUTE_CAPABILITIES.update(
 
 _DEFAULT_CUDA_COMPUTE_CAPABILITIES.update(
     {"11.{}".format(v): [
-        "6.0",
-        "6.1",
         "7.0",
         "7.5",
         "8.0",
@@ -90,8 +84,6 @@ _DEFAULT_CUDA_COMPUTE_CAPABILITIES.update(
 
 _DEFAULT_CUDA_COMPUTE_CAPABILITIES.update(
     {"12.{}".format(v): [
-        "6.0",
-        "6.1",
         "7.0",
         "7.5",
         "8.0",
