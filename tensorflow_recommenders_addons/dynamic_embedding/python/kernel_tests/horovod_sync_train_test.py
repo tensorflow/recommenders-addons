@@ -93,8 +93,6 @@ class HorovodTest(test.TestCase):
     if (tf.__version__ == "2.11.0" or tf.__version__ == "2.11.1"):
       self.skipTest(
           "The save function doesn't work with TF 2.11, skip the test.")
-    if not is_gpu_available:
-      self.skipTest('Only test when gpu is available.')
     if (is_macos() and is_arm64()):
       self.skipTest(
           "Apple silicon devices don't support synchronous training based on Horovod."
@@ -394,7 +392,6 @@ class HorovodTest(test.TestCase):
         kv_creator = de.CuckooHashTableCreator(saver=de.FileSystemSaver(
             proc_size=hvd.size(), proc_rank=hvd.rank()))
         self.emb = de.keras.layers.HvdAllToAllEmbedding(embedding_size=dim,
-                                                        devices=['/GPU:0'],
                                                         initializer=0,
                                                         kv_creator=kv_creator,
                                                         name=name)
