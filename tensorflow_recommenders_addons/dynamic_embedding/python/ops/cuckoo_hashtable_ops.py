@@ -103,9 +103,7 @@ class CuckooHashTable(LookupInterface):
     self._init_size = init_size
     self._name = name
     self._new_obj_trackable = None  # for restore op can easily found this table
-    self._max_capacity = init_size
-    if self._max_capacity == 0:
-      self._max_capacity = 1024 * 1024
+    self._max_capacity = sys.maxsize
     self._max_hbm_for_values = sys.maxsize
     self._device_type = tf_device.DeviceSpec.from_string(
         self._device).device_type
