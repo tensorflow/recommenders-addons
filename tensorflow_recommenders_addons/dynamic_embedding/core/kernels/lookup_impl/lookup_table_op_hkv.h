@@ -210,8 +210,8 @@ class RandomKVFile : public nv::merlin::BaseKVFile<K, V, S> {
     size_t key_read_byte = n * sizeof(K);
     size_t value_read_byte = n * sizeof(V) * dim;
 
-    key_buffer_.resize(key_read_byte);
-    value_buffer_.resize(value_read_byte);
+    key_buffer_.reserve(key_read_byte);
+    value_buffer_.reserve(value_read_byte);
 
     key_reader_->ReadNBytes(key_read_byte, &key_buffer_);
     value_reader_->ReadNBytes(value_read_byte, &value_buffer_);
@@ -227,16 +227,9 @@ class RandomKVFile : public nv::merlin::BaseKVFile<K, V, S> {
                const V* vectors, const S* scores) override {
     size_t key_write_byte = n * sizeof(K);
     size_t value_write_byte = n * sizeof(V) * value_dim_;
-    std::vector<char> key_buffer_vector(key_buffer_byte_size_);
-    char* key_buffer = key_buffer_vector.data();
-    std::vector<char> value_buffer_vector(value_buffer_byte_size_);
-    char* value_buffer = value_buffer_vector.data();
 
-    memcpy(key_buffer, (void*)keys, key_write_byte);
-    memcpy(value_buffer, (void*)vectors, value_write_byte);
-
-    key_writer_->Append(StringPiece(key_buffer, key_write_byte));
-    value_writer_->Append(StringPiece(value_buffer, value_write_byte));
+    key_writer_->Append(StringPiece((char*)keys, key_write_byte));
+    value_writer_->Append(StringPiece((char*)vectors, value_write_byte));
 
     return n;
   }
