@@ -599,8 +599,12 @@ class RedisTableOfTensors final : public LookupInterface {
               hscan_reply->elements > 1) {
             kvs_reply = hscan_reply->element[1];
             // fill Tensor keys and values
+            if (kvs_reply->elements < 2 && cursor == 0) {
+              // Find nothing in Redis
+              break;
+            }
             if constexpr (!std::is_same<V, tstring>::value) {
-              if (kvs_reply->element[0]->len !=
+              if (kvs_reply->element[1]->len !=
                   runtime_value_dim_ * sizeof(V)) {
                 return errors::InvalidArgument(
                     "Embedding dim in Redis server is not equal to the OP "
@@ -1035,8 +1039,12 @@ class RedisTableOfTensors final : public LookupInterface {
         }
         kvs_reply = hscan_reply->element[1];
         // fill Tensor keys and values
+        if (kvs_reply->elements < 2 && cursor == 0) {
+          // Find nothing in Redis
+          break;
+        }
         if constexpr (!std::is_same<V, tstring>::value) {
-          if (kvs_reply->element[0]->len != runtime_value_dim_ * sizeof(V)) {
+          if (kvs_reply->element[1]->len != runtime_value_dim_ * sizeof(V)) {
             return errors::InvalidArgument(
                 "Embedding dim in Redis server is not equal to the OP runtime "
                 "dim.");
@@ -1146,8 +1154,12 @@ class RedisTableOfTensors final : public LookupInterface {
         }
         kvs_reply = hscan_reply->element[1];
         // fill Tensor keys and values
+        if (kvs_reply->elements < 2 && cursor == 0) {
+          // Find nothing in Redis
+          break;
+        }
         if constexpr (!std::is_same<V, tstring>::value) {
-          if (kvs_reply->element[0]->len != runtime_value_dim_ * sizeof(V)) {
+          if (kvs_reply->element[1]->len != runtime_value_dim_ * sizeof(V)) {
             return errors::InvalidArgument(
                 "Embedding dim in Redis server is not equal to the OP runtime "
                 "dim.");
