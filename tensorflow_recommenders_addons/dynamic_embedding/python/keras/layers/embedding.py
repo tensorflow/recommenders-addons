@@ -29,7 +29,11 @@ from tensorflow_recommenders_addons.dynamic_embedding.python.ops import dynamic_
 
 from tensorflow.python.distribute import distribute_lib
 from tensorflow.python.keras.utils import tf_utils
-from tensorflow.python.distribute import distribution_strategy_context as distribute_ctx
+try:  # tf version >= 2.14.0
+  from tensorflow.python.distribute import distribute_lib as distribute_ctx
+  assert hasattr(distribute_ctx, 'has_strategy')
+except:
+  from tensorflow.python.distribute import distribution_strategy_context as distribute_ctx
 from tensorflow.python.distribute import values_util
 from tensorflow.python.framework import ops
 from tensorflow.python.eager import tape

@@ -21,13 +21,21 @@ import six
 from tensorflow_recommenders_addons import dynamic_embedding as de
 
 from tensorflow.python.distribute import central_storage_strategy
-from tensorflow.python.distribute import distribution_strategy_context as distribute_ctx
+try:  # tf version >= 2.14.0
+  from tensorflow.python.distribute import distribute_lib as distribute_ctx
+  assert hasattr(distribute_ctx, 'has_strategy')
+except:
+  from tensorflow.python.distribute import distribution_strategy_context as distribute_ctx
 from tensorflow.python.distribute import parameter_server_strategy
 from tensorflow.python.distribute import parameter_server_strategy_v2
 from tensorflow.python.distribute import reduce_util as ds_reduce_util
 from tensorflow.python.eager import context
 from tensorflow.python.framework import dtypes
 from tensorflow.python.framework import ops
+try:  # tf version >= 2.14.0
+  from tensorflow.python.framework.tensor import Tensor
+except:
+  from tensorflow.python.framework.ops import Tensor
 try:  # tf version >= 2.13.0
   from tensorflow.python.framework.indexed_slices import IndexedSlices
 except:
@@ -41,6 +49,10 @@ from tensorflow.python.ops import math_ops
 from tensorflow.python.ops import script_ops
 from tensorflow.python.ops import variables
 from tensorflow.python.ops import variable_scope
+try:  # tf version >= 2.14.0
+  from tensorflow.python.ops.cond import cond
+except:
+  from tensorflow.python.ops.control_flow_ops import cond
 from tensorflow.python.platform import tf_logging as logging
 from tensorflow.python.training import optimizer
 from tensorflow.python.training import slot_creator
@@ -114,7 +126,7 @@ def DynamicEmbeddingOptimizer(self, bp_v2=False, synchronous=False, **kwargs):
 
     def apply_grad_to_update_var(var, grad):
       """Apply gradient to variable."""
-      if isinstance(var, ops.Tensor):
+      if isinstance(var, Tensor):
         raise NotImplementedError("Trying to update a Tensor ", var)
 
       apply_kwargs = {}
@@ -337,7 +349,7 @@ def DynamicEmbeddingOptimizer(self, bp_v2=False, synchronous=False, **kwargs):
         # overwrite the model variables.
         should_overwrite_model_vars = (self.iterations +
                                        1) % self.ema_overwrite_frequency == 0
-        control_flow_ops.cond(
+        cond(
             math_ops.cast(should_overwrite_model_vars, dtypes.bool),
             true_fn=lambda: self.
             _overwrite_model_variables_with_average_value(  # noqa: E501

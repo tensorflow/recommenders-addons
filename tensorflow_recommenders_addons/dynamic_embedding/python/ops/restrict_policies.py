@@ -26,6 +26,10 @@ from tensorflow.python.ops import gen_logging_ops
 from tensorflow.python.ops import math_ops
 from tensorflow.python.ops import nn_ops
 from tensorflow.python.ops import variable_scope
+try:  # tf version >= 2.14.0
+  from tensorflow.python.ops.cond import cond
+except:
+  from tensorflow.python.ops.control_flow_ops import cond
 from tensorflow.python.platform import tf_logging
 
 
@@ -195,8 +199,7 @@ class TimestampRestrictPolicy(RestrictPolicy):
       raise TypeError('trigger should be integer.')
 
     is_oversize = math_ops.greater(self.var.size(), trigger)
-    return control_flow_ops.cond(is_oversize, self._cond_restrict_fn,
-                                 control_flow_ops.no_op)
+    return cond(is_oversize, self._cond_restrict_fn, control_flow_ops.no_op)
 
   def _cond_restrict_fn(self):
     """
@@ -322,8 +325,7 @@ class FrequencyRestrictPolicy(RestrictPolicy):
       raise TypeError('trigger should be integer.')
 
     is_oversize = math_ops.greater(self.var.size(), trigger)
-    return control_flow_ops.cond(is_oversize, self._cond_restrict_fn,
-                                 control_flow_ops.no_op)
+    return cond(is_oversize, self._cond_restrict_fn, control_flow_ops.no_op)
 
   def _cond_restrict_fn(self):
     """

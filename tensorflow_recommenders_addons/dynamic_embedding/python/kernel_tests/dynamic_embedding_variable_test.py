@@ -57,7 +57,10 @@ from tensorflow.python.training import adam
 from tensorflow.python.training import saver
 from tensorflow.python.training import server_lib
 from tensorflow.python.training import training
-from tensorflow.python.training.tracking import util as track_util
+try:  # tf version >= 2.14.0
+  from tensorflow.python.checkpoint.checkpoint import Checkpoint
+except:
+  from tensorflow.python.training.tracking.util import Checkpoint
 from tensorflow.python.util import compat
 from tensorflow_estimator.python.estimator import estimator
 from tensorflow_estimator.python.estimator import estimator_lib
@@ -1326,13 +1329,13 @@ class VariableTest(test.TestCase):
           *sorted(zip(keys1, vals1), key=lambda x: x[0], reverse=False))
       slot_keys_and_vals1 = [sv.export() for sv in model1.slot_vars]
 
-      ckpt1 = track_util.Checkpoint(model=model1, optimizer=model1.optmz)
+      ckpt1 = Checkpoint(model=model1, optimizer=model1.optmz)
       ckpt_dir = self.get_temp_dir()
       model_path = ckpt1.save(ckpt_dir)
       del model1
 
       model2 = TestModel()
-      ckpt2 = track_util.Checkpoint(model=model2, optimizer=model2.optmz)
+      ckpt2 = Checkpoint(model=model2, optimizer=model2.optmz)
       model2.train(features)  # Pre-build trace before restore.
       ckpt2.restore(model_path)
       loss2 = model2(features)

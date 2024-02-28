@@ -37,6 +37,10 @@ from tensorflow.python.framework import dtypes
 from tensorflow.python.framework import ops
 from tensorflow.python.framework import sparse_tensor
 from tensorflow.python.framework import tensor_shape
+try:  # tf version >= 2.14.0
+  from tensorflow.python.framework.tensor import Tensor
+except:
+  from tensorflow.python.framework.ops import Tensor
 from tensorflow.python.ops import array_ops
 from tensorflow.python.ops import control_flow_ops
 from tensorflow.python.ops import gen_resource_variable_ops
@@ -45,6 +49,10 @@ from tensorflow.python.ops import math_ops
 from tensorflow.python.ops import sparse_ops
 from tensorflow.python.ops import variables
 from tensorflow.python.ops import variable_scope
+try:  # tf version >= 2.14.0
+  from tensorflow.python.ops.array_ops_stack import stack
+except:
+  from tensorflow.python.ops.array_ops import stack
 try:  # tf version >= 2.10.0
   from tensorflow.python.trackable import base as trackable
 except:
@@ -57,7 +65,11 @@ from tensorflow.python.util import compat
 from tensorflow.python.util.tf_export import tf_export
 
 from tensorflow.python.keras.utils import tf_utils
-from tensorflow.python.distribute import distribution_strategy_context as distribute_ctx
+try:  # tf version >= 2.14.0
+  from tensorflow.python.distribute import distribute_lib as distribute_ctx
+  assert hasattr(distribute_ctx, 'has_strategy')
+except:
+  from tensorflow.python.distribute import distribution_strategy_context as distribute_ctx
 from tensorflow.python.distribute import values as distribute_values_lib
 from tensorflow.python.training.saving import saveable_object
 from tensorflow.python.distribute import distribute_utils
@@ -241,8 +253,7 @@ class TrainableWrapper(resource_variable_ops.ResourceVariable):
       raise ValueError("initial_value must be specified.")
     init_from_fn = callable(initial_value)
 
-    if (isinstance(initial_value, ops.Tensor)
-        and hasattr(initial_value, "graph")
+    if (isinstance(initial_value, Tensor) and hasattr(initial_value, "graph")
         and initial_value.graph.building_function):
       raise ValueError("Tensor-typed variable initializers must either be "
                        "wrapped in an init_scope or callable "
@@ -592,8 +603,7 @@ def embedding_lookup(
                                           axis=0)
     initial_value = array_ops.zeros(shape=initial_shape,
                                     dtype=params.value_dtype)
-    if (isinstance(initial_value, ops.Tensor)
-        and hasattr(initial_value, "graph")
+    if (isinstance(initial_value, Tensor) and hasattr(initial_value, "graph")
         and initial_value.graph.building_function):
 
       def initial_value():
@@ -613,8 +623,8 @@ def embedding_lookup(
           trainable_name = ops.get_default_graph().unique_name(
               _ANONYMOUS_TRAINABLE_STORE_KEY)
         if not context.executing_eagerly() and not ops.inside_function():
-          wrapper = de.TrainableWrapper(params,
-                                        ids,
+          wrapper = de.TrainableWrapper(params=params,
+                                        ids=ids,
                                         max_norm=max_norm,
                                         initial_value=initial_value,
                                         dtype=params.value_dtype,
@@ -1033,7 +1043,7 @@ def safe_embedding_lookup_sparse(
       # for use in Select.
       is_row_empty = array_ops.tile(
           array_ops.reshape(is_row_empty, [-1, 1]),
-          array_ops.stack([1, array_ops.shape(result)[1]]),
+          stack([1, array_ops.shape(result)[1]]),
       )
 
       result = array_ops.where(is_row_empty,
