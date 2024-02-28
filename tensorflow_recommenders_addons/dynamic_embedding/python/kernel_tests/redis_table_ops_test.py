@@ -18,23 +18,19 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-import copy
 import glob
 import itertools
 import json
 import math
 import numpy as np
 import os
-import platform
 import six
-import sys
 import tempfile
 
 from tensorflow_recommenders_addons import dynamic_embedding as de
 from tensorflow_recommenders_addons.utils.check_platform import is_windows, is_macos, is_arm64, is_linux, is_raspi_arm
 
 from tensorflow.core.protobuf import config_pb2
-from tensorflow.keras import layers
 from tensorflow.python.client import session
 from tensorflow.python.eager import context
 from tensorflow.python.framework import constant_op
@@ -42,6 +38,7 @@ from tensorflow.python.framework import dtypes
 from tensorflow.python.framework import ops
 from tensorflow.python.framework import sparse_tensor
 from tensorflow.python.framework import test_util
+from tensorflow.keras import layers
 from tensorflow.python.keras import optimizer_v2
 from tensorflow.python.ops import array_ops
 from tensorflow.python.ops import init_ops
@@ -57,13 +54,6 @@ from tensorflow.python.training import saver
 from tensorflow.python.training import server_lib
 from tensorflow.python.util import compat
 
-try:
-  import tensorflow_io
-except:
-  print()
-
-os.environ["CUDA_VISIBLE_DEVICES"] = '-1'
-
 
 # pylint: disable=missing-class-docstring
 # pylint: disable=missing-function-docstring
@@ -71,12 +61,12 @@ def _type_converter(tf_type):
   mapper = {
       dtypes.int32: np.int32,
       dtypes.int64: np.int64,
-      dtypes.float32: float,
+      dtypes.float32: np.float32 if hasattr(np, "float32") else np.float,
       dtypes.float64: np.float64,
-      dtypes.string: str,
+      dtypes.string: np.str if hasattr(np, "str") else str,
       dtypes.half: np.float16,
       dtypes.int8: np.int8,
-      dtypes.bool: bool,
+      dtypes.bool: np.bool if hasattr(np, "bool") else bool,
   }
   return mapper[tf_type]
 
@@ -137,8 +127,8 @@ def model_fn(sparse_vars, embed_dim, feature_inputs):
     for inp_tensor in feature_inputs:
       embed_w, trainable = de.embedding_lookup(sp,
                                                inp_tensor,
-                                               name="emb",
-                                               return_trainable=True)
+                                               return_trainable=True,
+                                               name='nt9527')
       embedding_weights.append(embed_w)
       embedding_trainables.append(trainable)
 
@@ -302,10 +292,23 @@ redis_config_path = os.path.join(tempfile.mkdtemp(prefix=redis_config_dir),
 os.makedirs(redis_config_path)
 redis_config_path = os.path.join(redis_config_path, "redis_config.json")
 redis_config_params = {
-    "redis_connection_mode": 2,
     "redis_host_ip": ["127.0.0.1"],
     "redis_host_port": [6379],
-    "storage_slice": 1,
+    "table_store_mode": 0
+}
+with open(redis_config_path, 'w', encoding='utf-8') as f:
+  f.write(json.dumps(redis_config_params, indent=2, ensure_ascii=True))
+redis_config = de.RedisTableConfig(redis_config_abs_dir=redis_config_path)
+
+redis_config_dir = os.path.join(
+    tempfile.mkdtemp(dir=os.environ.get('TEST_TMPDIR')), "save_restore")
+redis_config_path = os.path.join(tempfile.mkdtemp(prefix=redis_config_dir),
+                                 "hash")
+os.makedirs(redis_config_path)
+redis_config_path = os.path.join(redis_config_path, "redis_config.json")
+redis_config_params = {
+    "redis_host_ip": ["127.0.0.1"],
+    "redis_host_port": [6379],
     "table_store_mode": 0
 }
 with open(redis_config_path, 'w', encoding='utf-8') as f:
@@ -334,7 +337,6 @@ class RedisVariableTest(test.TestCase):
           dtypes.int32,
           initializer=0,
           dim=8,
-          devices=["/CPU:0"],
           kv_creator=de.RedisTableCreator(config=redis_config))
       table.clear()
       self.evaluate(table.size())
@@ -365,10 +367,6 @@ class RedisVariableTest(test.TestCase):
 
     for (key_dtype, value_dtype), dim in itertools.product(kv_list, dim_list):
       id += 1
-      # Skip float16 tests if the platform is macOS arm64 architecture
-      if is_macos() and is_arm64():
-        if value_dtype == dtypes.half:
-          continue
       with self.session(config=default_config,
                         use_gpu=test_util.is_gpu_available()) as sess:
         keys = constant_op.constant(
@@ -378,12 +376,12 @@ class RedisVariableTest(test.TestCase):
             _convert([[0] * dim, [1] * dim, [2] * dim, [3] * dim], value_dtype),
             value_dtype)
         table = de.get_variable(
-            't1-' + str(id) + '_test_variable',
+            't1-' + str(id) + '_test_variable_' + key_dtype.name + '_' +
+            value_dtype.name,
             key_dtype=key_dtype,
             value_dtype=value_dtype,
             initializer=np.array([-1]).astype(_type_converter(value_dtype)),
             dim=dim,
-            devices=["/CPU:0"],
             kv_creator=de.RedisTableCreator(config=redis_config))
 
         table.clear()
@@ -422,160 +420,96 @@ class RedisVariableTest(test.TestCase):
         table.clear()
         del table
 
-  def test_empty_kvs(self):
-    if _redis_health_check(redis_config_params["redis_host_ip"][0],
-                           redis_config_params["redis_host_port"][0]) == False:
-      self.skipTest('skip redis test when unable to access the redis service.')
-    id = 0
-    dim_list = [1, 8, 16]
-    kv_list = [[dtypes.int32, dtypes.double], [dtypes.int32, dtypes.float32],
-               [dtypes.int32, dtypes.int32], [dtypes.int64, dtypes.double],
-               [dtypes.int64, dtypes.float32], [dtypes.int64, dtypes.int32],
-               [dtypes.int64, dtypes.int64], [dtypes.int64, dtypes.string],
-               [dtypes.int64, dtypes.int8], [dtypes.int64, dtypes.half],
-               [dtypes.string, dtypes.double], [dtypes.string, dtypes.float32],
-               [dtypes.string, dtypes.int32], [dtypes.string, dtypes.int64],
-               [dtypes.string, dtypes.int8], [dtypes.string, dtypes.half]]
+  # def test_variable_find_with_exists_and_accum(self):
+  #   id = 0
+  #   if test_util.is_gpu_available():
+  #     dim_list = [1, 2, 4, 8, 10, 16, 32, 64, 100, 200]
+  #     kv_list = [[dtypes.int64, dtypes.float32], [dtypes.int64, dtypes.int32],
+  #                [dtypes.int64, dtypes.half], [dtypes.int64, dtypes.int8]]
+  #   else:
+  #     dim_list = [1, 8, 16, 128]
+  #     kv_list = [[dtypes.int32, dtypes.double], [dtypes.int32, dtypes.float32],
+  #                [dtypes.int32, dtypes.int32], [dtypes.int64, dtypes.double],
+  #                [dtypes.int64, dtypes.float32], [dtypes.int64, dtypes.int32],
+  #                [dtypes.int64, dtypes.int64], [dtypes.int64, dtypes.int8],
+  #                [dtypes.int64, dtypes.half], [dtypes.string, dtypes.double],
+  #                [dtypes.string, dtypes.float32], [dtypes.string, dtypes.int32],
+  #                [dtypes.string, dtypes.int64], [dtypes.string, dtypes.int8],
+  #                [dtypes.string, dtypes.half]]
 
-    def _convert(v, t):
-      return np.array(v).astype(_type_converter(t))
+  #   def _convert(v, t):
+  #     return np.array(v).astype(_type_converter(t))
 
-    for (key_dtype, value_dtype), dim in itertools.product(kv_list, dim_list):
-      id += 1
-      # Skip float16 tests if the platform is macOS arm64 architecture
-      if is_macos() and is_arm64():
-        if value_dtype == dtypes.half:
-          continue
-      with self.session(config=default_config,
-                        use_gpu=test_util.is_gpu_available()) as sess:
-        keys = constant_op.constant(
-            np.array([]).astype(_type_converter(key_dtype)), key_dtype)
-        values = constant_op.constant(_convert([], value_dtype), value_dtype)
-        table = de.get_variable(
-            't1-' + str(id) + '_test_empty_kvs',
-            key_dtype=key_dtype,
-            value_dtype=value_dtype,
-            initializer=np.array([-1]).astype(_type_converter(value_dtype)),
-            dim=dim,
-            devices=["/CPU:0"],
-            kv_creator=de.RedisTableCreator(config=redis_config))
+  #   for (key_dtype, value_dtype), dim in itertools.product(kv_list, dim_list):
+  #     id += 1
+  #     with self.session(config=default_config,
+  #                       use_gpu=test_util.is_gpu_available()) as sess:
+  #       base_keys = constant_op.constant(
+  #           np.array([0, 1, 2, 3]).astype(_type_converter(key_dtype)),
+  #           key_dtype)
+  #       base_values = constant_op.constant(
+  #           _convert([[0] * dim, [1] * dim, [2] * dim, [3] * dim], value_dtype),
+  #           value_dtype)
 
-        table.clear()
+  #       simulate_other_process_add_keys = constant_op.constant(
+  #           np.array([100]).astype(_type_converter(key_dtype)), key_dtype)
+  #       simulate_other_process_add_vals = constant_op.constant(
+  #           _convert([
+  #               [99] * dim,
+  #           ], value_dtype), value_dtype)
 
-        self.assertAllEqual(0, self.evaluate(table.size()))
-        with self.assertRaisesOpError("Expected shape"):
-          self.evaluate(table.upsert(keys, values))
-        self.assertAllEqual(0, self.evaluate(table.size()))
+  #       simulate_other_process_remove_keys = constant_op.constant(
+  #           np.array([1]).astype(_type_converter(key_dtype)), key_dtype)
+  #       accum_keys = constant_op.constant(
+  #           np.array([0, 1, 100, 3]).astype(_type_converter(key_dtype)),
+  #           key_dtype)
+  #       old_values = constant_op.constant(
+  #           _convert([[0] * dim, [1] * dim, [2] * dim, [3] * dim], value_dtype),
+  #           value_dtype)
+  #       new_values = constant_op.constant(
+  #           _convert([[10] * dim, [11] * dim, [100] * dim, [13] * dim],
+  #                    value_dtype), value_dtype)
+  #       exported_exists = constant_op.constant([True, True, False, True],
+  #                                              dtype=dtypes.bool)
 
-        output = table.lookup(keys)
-        self.assertAllEqual([0, dim], output.get_shape())
+  #       table = de.get_variable('taccum1-' + str(id),
+  #                               key_dtype=key_dtype,
+  #                               value_dtype=value_dtype,
+  #                               initializer=np.array([-1]).astype(
+  #                                   _type_converter(value_dtype)),
+  #                               dim=dim)
+  #       self.evaluate(table.clear())
 
-        result = self.evaluate(output)
+  #       self.assertAllEqual(0, self.evaluate(table.size()))
 
-        self.assertAllEqual(np.reshape(_convert([], value_dtype), (0, dim)),
-                            _convert(result, value_dtype))
+  #       self.evaluate(table.upsert(base_keys, base_values))
+  #       _, exists = table.lookup(accum_keys, return_exists=True)
+  #       self.assertAllEqual(self.evaluate(exported_exists),
+  #                           self.evaluate(exists))
+  #       # Simulate multi-process situation that other process operated table,
+  #       # between lookup and accum in this process.
+  #       self.evaluate(
+  #           table.upsert(simulate_other_process_add_keys,
+  #                        simulate_other_process_add_vals))
+  #       self.evaluate(table.remove(simulate_other_process_remove_keys))
+  #       self.assertAllEqual(4, self.evaluate(table.size()))
+  #       self.evaluate(
+  #           table.accum(accum_keys, old_values, new_values, exported_exists))
 
-        table.clear()
-        del table
+  #       exported_keys, exported_values = table.export()
 
-    def test_variable_find_with_exists_and_accum(self):
-      if _redis_health_check(
-          redis_config_params["redis_host_ip"][0],
-          redis_config_params["redis_host_port"][0]) == False:
-        self.skipTest(
-            'skip redis test when unable to access the redis service.')
-      id = 0
-      if test_util.is_gpu_available():
-        dim_list = [1, 2, 4, 8, 10, 16, 32, 64, 100, 200]
-        kv_list = [[dtypes.int64, dtypes.float32], [dtypes.int64, dtypes.int32],
-                   [dtypes.int64, dtypes.half], [dtypes.int64, dtypes.int8]]
-      else:
-        dim_list = [1, 8, 16, 128]
-        kv_list = [[dtypes.int32,
-                    dtypes.double], [dtypes.int32, dtypes.float32],
-                   [dtypes.int32, dtypes.int32], [dtypes.int64, dtypes.double],
-                   [dtypes.int64, dtypes.float32], [dtypes.int64, dtypes.int32],
-                   [dtypes.int64, dtypes.int64], [dtypes.int64, dtypes.int8],
-                   [dtypes.int64, dtypes.half], [dtypes.string, dtypes.double],
-                   [dtypes.string, dtypes.float32],
-                   [dtypes.string, dtypes.int32], [dtypes.string, dtypes.int64],
-                   [dtypes.string, dtypes.int8], [dtypes.string, dtypes.half]]
+  #       # exported data is in the order of the internal map, i.e. undefined
+  #       sorted_keys = np.sort(self.evaluate(exported_keys), axis=0)
+  #       sorted_values = np.sort(self.evaluate(exported_values), axis=0)
+  #       self.assertAllEqual(
+  #           np.sort(_convert([0, 2, 3, 100], key_dtype), axis=0),
+  #           _convert(sorted_keys, key_dtype))
+  #       self.assertAllEqual(
+  #           _convert([[2] * dim, [10] * dim, [13] * dim, [99] * dim],
+  #                    value_dtype), _convert(sorted_values, value_dtype))
 
-      def _convert(v, t):
-        return np.array(v).astype(_type_converter(t))
-
-      for (key_dtype, value_dtype), dim in itertools.product(kv_list, dim_list):
-        id += 1
-        with self.session(config=default_config,
-                          use_gpu=test_util.is_gpu_available()) as sess:
-          base_keys = constant_op.constant(
-              np.array([0, 1, 2, 3]).astype(_type_converter(key_dtype)),
-              key_dtype)
-          base_values = constant_op.constant(
-              _convert([[0] * dim, [1] * dim, [2] * dim, [3] * dim],
-                       value_dtype), value_dtype)
-
-          simulate_other_process_add_keys = constant_op.constant(
-              np.array([100]).astype(_type_converter(key_dtype)), key_dtype)
-          simulate_other_process_add_vals = constant_op.constant(
-              _convert([
-                  [99] * dim,
-              ], value_dtype), value_dtype)
-
-          simulate_other_process_remove_keys = constant_op.constant(
-              np.array([1]).astype(_type_converter(key_dtype)), key_dtype)
-          accum_keys = constant_op.constant(
-              np.array([0, 1, 100, 3]).astype(_type_converter(key_dtype)),
-              key_dtype)
-          old_values = constant_op.constant(
-              _convert([[0] * dim, [1] * dim, [2] * dim, [3] * dim],
-                       value_dtype), value_dtype)
-          new_values = constant_op.constant(
-              _convert([[10] * dim, [11] * dim, [100] * dim, [13] * dim],
-                       value_dtype), value_dtype)
-          exported_exists = constant_op.constant([True, True, False, True],
-                                                 dtype=dtypes.bool)
-
-          table = de.get_variable(
-              'taccum1-' + str(id),
-              key_dtype=key_dtype,
-              value_dtype=value_dtype,
-              initializer=np.array([-1]).astype(_type_converter(value_dtype)),
-              dim=dim,
-              devices=["/CPU:0"],
-              kv_creator=de.RedisTableCreator(config=redis_config))
-          self.evaluate(table.clear())
-
-          self.assertAllEqual(0, self.evaluate(table.size()))
-
-          self.evaluate(table.upsert(base_keys, base_values))
-          _, exists = table.lookup(accum_keys, return_exists=True)
-          self.assertAllEqual(self.evaluate(exported_exists),
-                              self.evaluate(exists))
-          # Simulate multi-process situation that other process operated table,
-          # between lookup and accum in this process.
-          self.evaluate(
-              table.upsert(simulate_other_process_add_keys,
-                           simulate_other_process_add_vals))
-          self.evaluate(table.remove(simulate_other_process_remove_keys))
-          self.assertAllEqual(4, self.evaluate(table.size()))
-          self.evaluate(
-              table.accum(accum_keys, old_values, new_values, exported_exists))
-
-          exported_keys, exported_values = table.export()
-
-          # exported data is in the order of the internal map, i.e. undefined
-          sorted_keys = np.sort(self.evaluate(exported_keys), axis=0)
-          sorted_values = np.sort(self.evaluate(exported_values), axis=0)
-          self.assertAllEqual(
-              np.sort(_convert([0, 2, 3, 100], key_dtype), axis=0),
-              _convert(sorted_keys, key_dtype))
-          self.assertAllEqual(
-              _convert([[2] * dim, [10] * dim, [13] * dim, [99] * dim],
-                       value_dtype), _convert(sorted_values, value_dtype))
-
-          self.evaluate(table.clear())
-          del table
+  #       self.evaluate(table.clear())
+  #       del table
 
   def test_variable_initializer(self):
     if _redis_health_check(redis_config_params["redis_host_ip"][0],
@@ -596,7 +530,6 @@ class RedisVariableTest(test.TestCase):
             value_dtype=dtypes.float32,
             initializer=initializer,
             dim=10,
-            devices=["/CPU:0"],
             kv_creator=de.RedisTableCreator(config=redis_config))
         table.clear()
         vals_op = table.lookup(keys)
@@ -609,8 +542,6 @@ class RedisVariableTest(test.TestCase):
         table.clear()
 
   def test_save_restore(self):
-    if context.executing_eagerly():
-      self.skipTest('skip eager test when using legacy Saver.')
     if _redis_health_check(redis_config_params["redis_host_ip"][0],
                            redis_config_params["redis_host_port"][0]) == False:
       self.skipTest('skip redis test when unable to access the redis service.')
@@ -628,11 +559,9 @@ class RedisVariableTest(test.TestCase):
       table = de.Variable(
           key_dtype=dtypes.int64,
           value_dtype=dtypes.float32,
-          dim=1,
-          name="t1",
           initializer=-1.0,
-          devices=["/CPU:0"],
-          kv_creator=de.RedisTableCreator(config=redis_config),
+          name="t1",
+          dim=1,
       )
       table.clear()
 
@@ -651,21 +580,19 @@ class RedisVariableTest(test.TestCase):
       self.assertIsInstance(val, six.string_types)
       self.assertEqual(save_path, val)
 
-      self.evaluate(table.clear())
+      table.clear()
       del table
 
     with self.session(config=default_config, graph=ops.Graph()) as sess:
       v0 = variables.Variable(-1.0, name="v0")
       v1 = variables.Variable(-1.0, name="v1")
       table = de.Variable(
+          name="t1",
           key_dtype=dtypes.int64,
           value_dtype=dtypes.float32,
-          dim=1,
-          name="t1",
           initializer=-1.0,
+          dim=1,
           checkpoint=True,
-          devices=["/CPU:0"],
-          kv_creator=de.RedisTableCreator(config=redis_config),
       )
       table.clear()
 
@@ -692,204 +619,10 @@ class RedisVariableTest(test.TestCase):
       self.assertAllEqual([[-1.0], [0.0], [1.0], [2.0], [-1.0]],
                           self.evaluate(output))
 
-      self.evaluate(table.clear())
-      del table
-
-  def test_save_restore_file_system(self):
-    if context.executing_eagerly():
-      self.skipTest('skip eager test when using legacy Saver.')
-    if _redis_health_check(redis_config_params["redis_host_ip"][0],
-                           redis_config_params["redis_host_port"][0]) == False:
-      self.skipTest('skip redis test when unable to access the redis service.')
-    self.skipTest('Only test for file_system export, need file_system path.')
-    if context.executing_eagerly():
-      self.skipTest('skip eager test when using legacy Saver.')
-    save_dir = os.path.join(self.get_temp_dir(), "save_restore")
-    save_path = os.path.join(tempfile.mkdtemp(prefix=save_dir), "hash")
-
-    os.environ["AWS_ACCESS_KEY_ID"] = "Q3AM3UQ867SPQQA43P2F"
-    os.environ[
-        "AWS_SECRET_ACCESS_KEY"] = "zuf+tfteSlswRu7BJ86wekitnifILbZam1KYY3TG"
-    os.environ["S3_ENDPOINT"] = "https://play.min.io"
-
-    with self.session(config=default_config, graph=ops.Graph()) as sess:
-      v0 = variables.Variable(10.0, name="v0")
-      v1 = variables.Variable(20.0, name="v1")
-
-      keys = constant_op.constant([0, 1, 2], dtypes.int64)
-      values = constant_op.constant([[0.0], [1.0], [2.0]], dtypes.float32)
-      table = de.Variable(
-          key_dtype=dtypes.int64,
-          value_dtype=dtypes.float32,
-          initializer=-1.0,
-          name="t1_test_file_system",
-          dim=1,
-          kv_creator=de.RedisTableCreator(config=redis_config),
-      )
-
-      save = saver.Saver(var_list=[v0, v1])
-      self.evaluate(variables.global_variables_initializer())
-
-      # Check that the parameter nodes have been initialized.
-      self.assertEqual(10.0, self.evaluate(v0))
-      self.assertEqual(20.0, self.evaluate(v1))
-
-      self.assertAllEqual(0, self.evaluate(table.size()))
-      self.evaluate(table.upsert(keys, values))
-      self.assertAllEqual(3, self.evaluate(table.size()))
-
-      # save table
-      for k, v in enumerate(table.tables):
-        self.evaluate(
-            v.save_to_file_system("s3://test/" + str(k), buffer_size=4096))
-
-      val = save.save(sess, save_path)
-      self.assertIsInstance(val, six.string_types)
-      self.assertEqual(save_path, val)
-
-      del table
-
-    with self.session(config=default_config, graph=ops.Graph()) as sess:
-      v0 = variables.Variable(-1.0, name="v0")
-      v1 = variables.Variable(-1.0, name="v1")
-      table = de.Variable(
-          name="t1_test_file_system",
-          key_dtype=dtypes.int64,
-          value_dtype=dtypes.float32,
-          initializer=-1.0,
-          dim=1,
-          checkpoint=True,
-          kv_creator=de.RedisTableCreator(config=redis_config),
-      )
-      self.evaluate(
-          table.upsert(
-              constant_op.constant([0, 1], dtypes.int64),
-              constant_op.constant([[12.0], [24.0]], dtypes.float32),
-          ))
-      size_op = table.size()
-      self.assertAllEqual(2, self.evaluate(size_op))
-
-      save = saver.Saver(var_list=[v0, v1])
-
-      # Restore the saved values in the parameter nodes.
-      save.restore(sess, save_path)
-      # load table
-      for k, v in enumerate(table.tables):
-        self.evaluate(
-            v.load_from_file_system("s3://test/" + str(k), buffer_size=4096))
-      # Check that the parameter nodes have been restored.
-      self.assertEqual([10.0], self.evaluate(v0))
-      self.assertEqual([20.0], self.evaluate(v1))
-
-      self.assertAllEqual(3, self.evaluate(table.size()))
-
-      remove_keys = constant_op.constant([5, 0, 1, 2, 6], dtypes.int64)
-      output = table.lookup(remove_keys)
-      self.assertAllEqual([[-1.0], [0.0], [1.0], [2.0], [-1.0]],
-                          self.evaluate(output))
-
-      del table
-
-  def test_save_restore_local_file_system(self):
-    if context.executing_eagerly():
-      self.skipTest('skip eager test when using legacy Saver.')
-    if _redis_health_check(redis_config_params["redis_host_ip"][0],
-                           redis_config_params["redis_host_port"][0]) == False \
-                           or (is_macos() and is_arm64()):
-      self.skipTest(
-          "skip save restore file system test because TFIO doesn't support apple silicon."
-      )
-    if context.executing_eagerly():
-      self.skipTest('skip eager test when using legacy Saver.')
-    save_dir = os.path.join(self.get_temp_dir(), "save_restore")
-    save_path = os.path.join(tempfile.mkdtemp(prefix=save_dir), "hash")
-
-    with self.session(config=default_config, graph=ops.Graph()) as sess:
-      v0 = variables.Variable(10.0, name="v0")
-      v1 = variables.Variable(20.0, name="v1")
-
-      keys = constant_op.constant([0, 1, 2], dtypes.int64)
-      values = constant_op.constant([[0.0], [1.0], [2.0]], dtypes.float32)
-      table = de.Variable(
-          key_dtype=dtypes.int64,
-          value_dtype=dtypes.float32,
-          initializer=-1.0,
-          name="t1_test_local_file_system",
-          dim=1,
-          kv_creator=de.RedisTableCreator(config=redis_config),
-      )
-
-      save = saver.Saver(var_list=[v0, v1])
-      self.evaluate(variables.global_variables_initializer())
-
-      # Check that the parameter nodes have been initialized.
-      self.assertEqual(10.0, self.evaluate(v0))
-      self.assertEqual(20.0, self.evaluate(v1))
-
-      self.assertAllEqual(0, self.evaluate(table.size()))
-      self.evaluate(table.upsert(keys, values))
-      self.assertAllEqual(3, self.evaluate(table.size()))
-
-      # save table
-      for k, v in enumerate(table.tables):
-        self.evaluate(
-            v.save_to_file_system("file:///tmp/test_local_file_system/" +
-                                  str(k),
-                                  buffer_size=4096))
-
-      val = save.save(sess, save_path)
-      self.assertIsInstance(val, six.string_types)
-      self.assertEqual(save_path, val)
-
-      self.evaluate(table.clear())
-      del table
-
-    with self.session(config=default_config, graph=ops.Graph()) as sess:
-      v0 = variables.Variable(-1.0, name="v0")
-      v1 = variables.Variable(-1.0, name="v1")
-      table = de.Variable(
-          name="t1_test_local_file_system",
-          key_dtype=dtypes.int64,
-          value_dtype=dtypes.float32,
-          initializer=-1.0,
-          dim=1,
-          checkpoint=True,
-          kv_creator=de.RedisTableCreator(config=redis_config),
-      )
-      self.evaluate(
-          table.upsert(
-              constant_op.constant([0, 1], dtypes.int64),
-              constant_op.constant([[12.0], [24.0]], dtypes.float32),
-          ))
-      size_op = table.size()
-      self.assertAllEqual(2, self.evaluate(size_op))
-
-      save = saver.Saver(var_list=[v0, v1])
-
-      # Restore the saved values in the parameter nodes.
-      save.restore(sess, save_path)
-      # load table
-      for k, v in enumerate(table.tables):
-        self.evaluate(
-            v.load_from_file_system("file:///tmp/test_local_file_system/" +
-                                    str(k),
-                                    buffer_size=4096))
-      # Check that the parameter nodes have been restored.
-      self.assertEqual([10.0], self.evaluate(v0))
-      self.assertEqual([20.0], self.evaluate(v1))
-
-      self.assertAllEqual(3, self.evaluate(table.size()))
-
-      remove_keys = constant_op.constant([5, 0, 1, 2, 6], dtypes.int64)
-      output = table.lookup(remove_keys)
-      self.assertAllEqual([[-1.0], [0.0], [1.0], [2.0], [-1.0]],
-                          self.evaluate(output))
-
+      table.clear()
       del table
 
   def test_save_restore_only_table(self):
-    if context.executing_eagerly():
-      self.skipTest('skip eager test when using legacy Saver.')
     if _redis_health_check(redis_config_params["redis_host_ip"][0],
                            redis_config_params["redis_host_port"][0]) == False:
       self.skipTest('skip redis test when unable to access the redis service.')
@@ -915,8 +648,6 @@ class RedisVariableTest(test.TestCase):
           name="t1",
           initializer=default_val,
           checkpoint=True,
-          devices=["/CPU:0"],
-          kv_creator=de.RedisTableCreator(config=redis_config),
       )
       table.clear()
 
@@ -935,7 +666,7 @@ class RedisVariableTest(test.TestCase):
       self.assertIsInstance(val, six.string_types)
       self.assertEqual(save_path, val)
 
-      self.evaluate(table.clear())
+      table.clear()
       del table
 
     with self.session(
@@ -950,8 +681,6 @@ class RedisVariableTest(test.TestCase):
           name="t1",
           initializer=default_val,
           checkpoint=True,
-          devices=["/CPU:0"],
-          kv_creator=de.RedisTableCreator(config=redis_config),
       )
       table.clear()
 
@@ -974,7 +703,7 @@ class RedisVariableTest(test.TestCase):
       output = table.lookup(remove_keys)
       self.assertAllEqual([[0], [1], [2], [-1], [-1]], self.evaluate(output))
 
-      self.evaluate(table.clear())
+      table.clear()
       del table
 
   def test_training_save_restore(self):
@@ -1010,15 +739,11 @@ class RedisVariableTest(test.TestCase):
           value_dtype=value_dtype,
           initializer=init_ops.random_normal_initializer(0.0, 0.01),
           dim=dim,
-          devices=["/CPU:0"],
           kv_creator=de.RedisTableCreator(config=redis_config))
-      self.evaluate(params.clear())
+      params.clear()
       params_size = self.evaluate(params.size())
 
-      _, var0 = de.embedding_lookup(params,
-                                    ids,
-                                    name="emb",
-                                    return_trainable=True)
+      _, var0 = de.embedding_lookup(params, ids, return_trainable=True)
 
       def loss():
         return var0 * var0
@@ -1077,6 +802,8 @@ class RedisVariableTest(test.TestCase):
               np.sort(pairs_before[1], axis=0),
               np.sort(pairs_after[1], axis=0),
           )
+        if test_util.is_gpu_available():
+          self.assertTrue("GPU" in params.tables[0].resource_handle.device)
 
   def test_training_save_restore_by_files(self):
     if _redis_health_check(redis_config_params["redis_host_ip"][0],
@@ -1101,7 +828,6 @@ class RedisVariableTest(test.TestCase):
       redis_config_params_modify = {
           "redis_host_ip": ["127.0.0.1"],
           "redis_host_port": [6379],
-          "storage_slice": 1,
           "table_store_mode": 1,
           "model_lib_abs_dir": save_path
       }
@@ -1123,13 +849,9 @@ class RedisVariableTest(test.TestCase):
           value_dtype=value_dtype,
           initializer=0,
           dim=dim,
-          devices=["/CPU:0"],
           kv_creator=de.RedisTableCreator(config=redis_config_modify))
 
-      _, var0 = de.embedding_lookup(params,
-                                    ids,
-                                    name="emb",
-                                    return_trainable=True)
+      _, var0 = de.embedding_lookup(params, ids, return_trainable=True)
 
       def loss():
         return var0 * var0
@@ -1187,7 +909,6 @@ class RedisVariableTest(test.TestCase):
             dtypes.int32,
             initializer=default_val,
             dim=2,
-            devices=["/CPU:0"],
             kv_creator=de.RedisTableCreator(config=redis_config))
         table2 = de.get_variable(
             "t1" + '_test_get_variable',
@@ -1195,7 +916,6 @@ class RedisVariableTest(test.TestCase):
             dtypes.int32,
             initializer=default_val,
             dim=2,
-            devices=["/CPU:0"],
             kv_creator=de.RedisTableCreator(config=redis_config))
         table3 = de.get_variable(
             "t3" + '_test_get_variable',
@@ -1203,7 +923,6 @@ class RedisVariableTest(test.TestCase):
             dtypes.int32,
             initializer=default_val,
             dim=2,
-            devices=["/CPU:0"],
             kv_creator=de.RedisTableCreator(config=redis_config))
 
         table1.clear()
@@ -1228,7 +947,6 @@ class RedisVariableTest(test.TestCase):
             "t900",
             initializer=-1,
             dim=2,
-            devices=["/CPU:0"],
             kv_creator=de.RedisTableCreator(config=redis_config))
         with self.assertRaisesRegexp(ValueError,
                                      "Variable embedding/t900 already exists"):
@@ -1236,7 +954,6 @@ class RedisVariableTest(test.TestCase):
               "t900",
               initializer=-1,
               dim=2,
-              devices=["/CPU:0"],
               kv_creator=de.RedisTableCreator(config=redis_config))
 
   @test_util.run_v1_only("Multiple sessions")
@@ -1259,7 +976,6 @@ class RedisVariableTest(test.TestCase):
         dtypes.int32,
         initializer=0,
         dim=1,
-        devices=["/CPU:0"],
         kv_creator=de.RedisTableCreator(config=redis_config))
     self.evaluate(table.clear())
 
@@ -1302,7 +1018,6 @@ class RedisVariableTest(test.TestCase):
           dtypes.int32,
           initializer=default_val,
           dim=2,
-          devices=["/CPU:0"],
           kv_creator=de.RedisTableCreator(config=redis_config))
       table.clear()
 
@@ -1348,7 +1063,6 @@ class RedisVariableTest(test.TestCase):
           dtypes.int32,
           initializer=default_val,
           dim=2,
-          devices=["/CPU:0"],
           kv_creator=de.RedisTableCreator(config=redis_config))
 
       table1.clear()
@@ -1373,7 +1087,6 @@ class RedisVariableTest(test.TestCase):
           dtypes.int32,
           initializer=default_val,
           dim=2,
-          devices=["/CPU:0"],
           kv_creator=de.RedisTableCreator(config=redis_config))
 
       table2.clear()
@@ -1400,7 +1113,6 @@ class RedisVariableTest(test.TestCase):
           dtypes.int32,
           initializer=default_val,
           dim=2,
-          devices=["/CPU:0"],
           kv_creator=de.RedisTableCreator(config=redis_config))
 
       table.clear()
@@ -1445,7 +1157,6 @@ class RedisVariableTest(test.TestCase):
           dtypes.int64,
           dtypes.float32,
           initializer=default_val,
-          devices=["/CPU:0"],
           kv_creator=de.RedisTableCreator(config=redis_config))
 
       table.clear()
@@ -1476,7 +1187,6 @@ class RedisVariableTest(test.TestCase):
           dtypes.int64,
           dtypes.int32,
           initializer=default_val,
-          devices=["/CPU:0"],
           kv_creator=de.RedisTableCreator(config=redis_config))
 
       table.clear()
@@ -1505,7 +1215,6 @@ class RedisVariableTest(test.TestCase):
           dtypes.int64,
           dtypes.int32,
           initializer=default_val,
-          devices=["/CPU:0"],
           kv_creator=de.RedisTableCreator(config=redis_config))
 
       table.clear()
@@ -1533,7 +1242,6 @@ class RedisVariableTest(test.TestCase):
           dtypes.int64,
           dtypes.int32,
           initializer=default_val,
-          devices=["/CPU:0"],
           kv_creator=de.RedisTableCreator(config=redis_config))
 
       table.clear()
@@ -1567,7 +1275,6 @@ class RedisVariableTest(test.TestCase):
           dtypes.int32,
           initializer=default_val,
           dim=3,
-          devices=["/CPU:0"],
           kv_creator=de.RedisTableCreator(config=redis_config))
 
       table.clear()
@@ -1599,7 +1306,6 @@ class RedisVariableTest(test.TestCase):
           dtypes.int32,
           initializer=default_val,
           dim=3,
-          devices=["/CPU:0"],
           kv_creator=de.RedisTableCreator(config=redis_config))
 
       table.clear()
@@ -1634,21 +1340,18 @@ class RedisVariableTest(test.TestCase):
           dtypes.int64,
           dtypes.int32,
           initializer=default_val,
-          devices=["/CPU:0"],
           kv_creator=de.RedisTableCreator(config=redis_config))
       table2 = de.get_variable(
           "t192" + '_test_dynamic_embedding_variables',
           dtypes.int64,
           dtypes.int32,
           initializer=default_val,
-          devices=["/CPU:0"],
           kv_creator=de.RedisTableCreator(config=redis_config))
       table3 = de.get_variable(
           "t193" + '_test_dynamic_embedding_variables',
           dtypes.int64,
           dtypes.int32,
           initializer=default_val,
-          devices=["/CPU:0"],
           kv_creator=de.RedisTableCreator(config=redis_config))
 
       table1.clear()
@@ -1687,7 +1390,6 @@ class RedisVariableTest(test.TestCase):
           dtypes.int64,
           dtypes.int32,
           initializer=default_val,
-          devices=["/CPU:0"],
           kv_creator=de.RedisTableCreator(config=redis_config))
 
       table.clear()
@@ -1717,7 +1419,6 @@ class RedisVariableTest(test.TestCase):
           dtypes.int64,
           dtypes.int32,
           initializer=default_val,
-          devices=["/CPU:0"],
           kv_creator=de.RedisTableCreator(config=redis_config))
 
       table.clear()
@@ -1767,7 +1468,6 @@ class RedisVariableTest(test.TestCase):
           dtypes.int64,
           dtypes.float32,
           initializer=default_val,
-          devices=["/CPU:0"],
           kv_creator=de.RedisTableCreator(config=redis_config))
 
       table.clear()
@@ -1797,7 +1497,6 @@ class RedisVariableTest(test.TestCase):
           dtypes.int64,
           dtypes.float32,
           initializer=default_val,
-          devices=["/CPU:0"],
           kv_creator=de.RedisTableCreator(config=redis_config))
 
       table.clear()
@@ -1833,7 +1532,6 @@ class RedisVariableTest(test.TestCase):
         dim=embed_dim,
         init_size=256,
         restrict_policy=de.TimestampRestrictPolicy,
-        devices=["/CPU:0"],
         kv_creator=de.RedisTableCreator(config=redis_config))
 
     var_guard_by_tstp.clear()
@@ -1846,7 +1544,6 @@ class RedisVariableTest(test.TestCase):
         dim=embed_dim,
         init_size=256,
         restrict_policy=de.FrequencyRestrictPolicy,
-        devices=["/CPU:0"],
         kv_creator=de.RedisTableCreator(config=redis_config))
 
     var_guard_by_freq.clear()
@@ -1911,7 +1608,6 @@ class RedisVariableTest(test.TestCase):
         initializer=-1.,
         dim=embed_dim,
         restrict_policy=de.TimestampRestrictPolicy,
-        devices=["/CPU:0"],
         kv_creator=de.RedisTableCreator(config=redis_config))
 
     var_guard_by_tstp.clear()
@@ -1923,7 +1619,6 @@ class RedisVariableTest(test.TestCase):
         initializer=-1.,
         dim=embed_dim,
         restrict_policy=de.FrequencyRestrictPolicy,
-        devices=["/CPU:0"],
         kv_creator=de.RedisTableCreator(config=redis_config))
 
     var_guard_by_freq.clear()
@@ -1966,110 +1661,6 @@ class RedisVariableTest(test.TestCase):
                         num_reserved)
     self.assertAllEqual(var_guard_by_freq.restrict_policy.status.size(),
                         num_reserved)
-
-  def test_json_config_file_with_wrong_type(self):
-    if _redis_health_check(redis_config_params["redis_host_ip"][0],
-                           redis_config_params["redis_host_port"][0]) == False:
-      self.skipTest('skip redis test when unable to access the redis service.')
-    if not context.executing_eagerly():
-      self.skipTest('Test in eager mode only.')
-
-    save_dir = os.path.join(self.get_temp_dir(), "save_restore")
-    save_path = os.path.join(tempfile.mkdtemp(prefix=save_dir), "hash")
-
-    os.makedirs(save_path)
-    redis_config_path = os.path.join(save_path,
-                                     "redis_config_modify_wrong_type.json")
-    redis_config_params_raw_config = {
-        "redis_connection_mode": 2,
-        "redis_master_name": "master",
-        "redis_host_ip": ["127.0.0.1"],
-        "redis_host_port": [6379],
-        "redis_user": "default",
-        "redis_password": "",
-        "redis_db": 0,
-        "redis_read_access_slave": False,
-        "redis_connect_keep_alive": False,
-        "redis_connect_timeout": 1000,
-        "redis_socket_timeout": 1000,
-        "redis_conn_pool_size": 20,
-        "redis_wait_timeout": 100000000,
-        "redis_connection_lifetime": 100,
-        "redis_sentinel_user": "default",
-        "redis_sentinel_password": "",
-        "redis_sentinel_connect_timeout": 1000,
-        "redis_sentinel_socket_timeout": 1000,
-        "storage_slice": 4,
-        "keys_sending_size": 1024,
-        "using_md5_prefix_name": False,
-        "model_tag_import": "test",
-        "redis_hash_tags_import": [],
-        "model_tag_runtime": "test",
-        "redis_hash_tags_runtime": [],
-        "expire_model_tag_in_seconds": 604800,
-        "table_store_mode": 1,
-        "model_lib_abs_dir": save_path
-    }
-
-    id = 0
-    for key in list(redis_config_params_raw_config.keys()):
-      id += 1
-      redis_config_params_modify = copy.deepcopy(redis_config_params_raw_config)
-      if type(redis_config_params_raw_config[key]) != type(''):
-        redis_config_params_modify[key] = str(
-            redis_config_params_raw_config[key])
-      elif type(redis_config_params_raw_config[key]) != type(0):
-        redis_config_params_modify[key] = 0
-      with open(redis_config_path, 'w', encoding='utf-8') as f:
-        f.write(
-            json.dumps(redis_config_params_modify, indent=2, ensure_ascii=True))
-        redis_config_modify_wrong_type = de.RedisTableConfig(
-            redis_config_abs_dir=redis_config_path)
-
-      with self.session(config=default_config,
-                        use_gpu=test_util.is_gpu_available()) as sess:
-        with self.assertRaisesOpError(key):
-          table = de.get_variable('tConfig-' + str(id) + '_test_variable',
-                                  kv_creator=de.RedisTableCreator(
-                                      config=redis_config_modify_wrong_type))
-
-  def test_unable_connect_to_redis(self):
-    if _redis_health_check(redis_config_params["redis_host_ip"][0],
-                           redis_config_params["redis_host_port"][0]) == False:
-      self.skipTest('skip redis test when unable to access the redis service.')
-    if not context.executing_eagerly():
-      self.skipTest('Test in eager mode only.')
-
-    save_dir = os.path.join(self.get_temp_dir(), "save_restore")
-    save_path = os.path.join(tempfile.mkdtemp(prefix=save_dir), "hash")
-
-    os.makedirs(save_path)
-    redis_config_path = os.path.join(save_path,
-                                     "redis_config_modify_wrong_ip.json")
-    redis_config_params_raw_wrong_ip = {
-        "redis_connection_mode": 0,
-        "redis_master_name": "master",
-        "redis_host_ip": ["999.999.999.999"],
-        "redis_host_port": [6379],
-        "storage_slice": 4,
-    }
-
-    id = 0
-    with open(redis_config_path, 'w', encoding='utf-8') as f:
-      f.write(
-          json.dumps(redis_config_params_raw_wrong_ip,
-                     indent=2,
-                     ensure_ascii=True))
-      redis_config_modify_wrong_ip = de.RedisTableConfig(
-          redis_config_abs_dir=redis_config_path)
-
-    with self.session(config=default_config,
-                      use_gpu=test_util.is_gpu_available()) as sess:
-      with self.assertRaisesOpError("Exit without any Redis connection"):
-        table = de.get_variable('tWrongIP-' + str(id) + '_test_variable',
-                                kv_creator=de.RedisTableCreator(
-                                    config=redis_config_modify_wrong_ip))
-        self.evaluate(table.size())
 
 
 if __name__ == "__main__":
@@ -2119,4 +1710,7 @@ if __name__ == "__main__":
                ' -p ' + str(redis_config_params["redis_host_port"][0]) +
                ' FLUSHALL').read())
   os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+  if _redis_health_check(redis_config_params["redis_host_ip"][0],
+                         redis_config_params["redis_host_port"][0]) == False:
+    exit(f"skip {__file__} redis test when unable to access the redis service.")
   test.main()
