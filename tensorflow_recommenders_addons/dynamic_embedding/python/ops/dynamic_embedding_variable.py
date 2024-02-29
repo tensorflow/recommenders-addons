@@ -65,6 +65,18 @@ from tensorflow.python.ops import parsing_ops
 from tensorflow.python.ops import string_ops
 from tensorflow.python.ops import tensor_array_ops
 from tensorflow.python.ops import variable_scope
+try:  # tf version >= 2.14.0
+  from tensorflow.python.ops.control_flow_assert import Assert
+except:
+  from tensorflow.python.ops.control_flow_ops import Assert
+try:  # tf version >= 2.14.0
+  from tensorflow.python.ops.cond import cond
+except:
+  from tensorflow.python.ops.control_flow_ops import cond
+try:  # tf version >= 2.14.0
+  from tensorflow.python.ops.while_loop import while_loop
+except:
+  from tensorflow.python.ops.control_flow_ops import while_loop
 from tensorflow.python.platform import tf_logging
 from tensorflow.python.training.optimizer import Optimizer
 try:  # tf version >= 2.10.0
@@ -75,15 +87,15 @@ try:  # tf version >= 2.10.0
   from tensorflow.python.training.saving.saveable_object_util import _PythonStringStateSaveable as TF_PythonStringStateSaveable
 except:
   from tensorflow.python.training.tracking.base import PythonStringStateSaveable as TF_PythonStringStateSaveable
-from tensorflow.python.training.tracking import base
 try:  # The data_structures has been moved to the new package in tf 2.11
   from tensorflow.python.trackable import data_structures
 except:
   from tensorflow.python.training.tracking import data_structures
-from tensorflow.python.training.tracking import python_state
+try:  # tf version >= 2.14.0
+  from tensorflow.python.trackable import python_state
+except:
+  from tensorflow.python.training.tracking import python_state
 from tensorflow.python.util.tf_export import tf_export
-
-from tensorflow.python.distribute import distribution_strategy_context as distribute_ctx
 
 
 def make_partition(data, partition_index, shard_num, name=None):
@@ -211,7 +223,7 @@ def _insert_de_shard_from_file_system(
   Returns:
     traverse_files_result: A tensor from loop result, return False if success.
   """
-  check_size_op = control_flow_ops.Assert(
+  check_size_op = Assert(
       math_ops.equal(array_ops.size(shard_keys_file_list),
                      array_ops.size(shard_values_file_list)),
       [
@@ -306,11 +318,10 @@ def _insert_de_shard_from_file_system(
 
       _files_has_value = math_ops.logical_and(keys_get_next.has_value(),
                                               values_get_next.has_value())
-      return control_flow_ops.cond(_files_has_value, _insert_table,
-                                   _end_insert_loop)
+      return cond(_files_has_value, _insert_table, _end_insert_loop)
 
   with ops.control_dependencies(iterator_init_list.as_list()):
-    traverse_files_result = control_flow_ops.while_loop(
+    traverse_files_result = while_loop(
         _traverse_files_cond, _traverse_files_body,
         [constant_op.constant(True, dtype=dtypes.bool)])
   return traverse_files_result
@@ -399,12 +410,11 @@ def load_de_variable_from_file_system(de_variable,
                                                  _partition_fn, _proc_size,
                                                  _proc_rank, buffer_size)
 
-    upsert_ops = control_flow_ops.cond(
-        math_ops.equal(_de_now_global_shard_num, 1), load_all_de_table,
-        insert_de_table)
+    upsert_ops = cond(math_ops.equal(_de_now_global_shard_num, 1),
+                      load_all_de_table, insert_de_table)
     return upsert_ops
 
-  load_op = control_flow_ops.cond(
+  load_op = cond(
       math_ops.equal(_de_now_global_shard_num, _de_prev_global_shard_num),
       load_de_table_directly, upsert_de_table)
   return load_op

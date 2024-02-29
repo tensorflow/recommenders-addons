@@ -273,32 +273,32 @@ Status ParseJsonConfig(const std::string *const redis_config_abs_dir,
     }                                                                 \
   }
 
-#define ReadArrayJsonToParams(json_key_name, json_val_type)                  \
-  {                                                                          \
-    json_hangar_it = json_hangar.find(#json_key_name);                       \
-    if (json_hangar_it != json_hangar.end()) {                               \
-      if (json_hangar_it->second->type == json_array) {                      \
-        redis_connection_params->json_key_name.clear();                      \
-        for (unsigned i = 0; i < json_hangar_it->second->u.array.length;     \
-             ++i) {                                                          \
-          value_depth1 = json_hangar_it->second->u.array.values[i];          \
-          if (value_depth1->type == json_##json_val_type) {                  \
-            redis_connection_params->redis_host_port.push_back(              \
-                value_depth1->u.json_val_type);                              \
-          } else {                                                           \
-            LOG(ERROR) << #json_key_name " should be json " #json_val_type   \
-                                         " array";                           \
-            return ReturnInvalidArgumentStatus(                              \
-                " should be json " #json_val_type " array");                 \
-          }                                                                  \
-        }                                                                    \
-      } else {                                                               \
-        LOG(ERROR) << #json_key_name " should be json " #json_val_type       \
-                                     " array";                               \
-        return ReturnInvalidArgumentStatus(" should be json " #json_val_type \
-                                           " array");                        \
-      }                                                                      \
-    }                                                                        \
+#define ReadArrayJsonToParams(json_key_name, json_val_type)                 \
+  {                                                                         \
+    json_hangar_it = json_hangar.find(#json_key_name);                      \
+    if (json_hangar_it != json_hangar.end()) {                              \
+      if (json_hangar_it->second->type == json_array) {                     \
+        redis_connection_params->json_key_name.clear();                     \
+        for (unsigned i = 0; i < json_hangar_it->second->u.array.length;    \
+             ++i) {                                                         \
+          value_depth1 = json_hangar_it->second->u.array.values[i];         \
+          if (value_depth1->type == json_##json_val_type) {                 \
+            redis_connection_params->redis_host_port.push_back(             \
+                value_depth1->u.json_val_type);                             \
+          } else {                                                          \
+            LOG(ERROR) << #json_key_name " should be json " #json_val_type  \
+                                         " array";                          \
+            return ReturnInvalidArgumentStatus(                             \
+                #json_key_name " should be json " #json_val_type " array"); \
+          }                                                                 \
+        }                                                                   \
+      } else {                                                              \
+        LOG(ERROR) << #json_key_name " should be json " #json_val_type      \
+                                     " array";                              \
+        return ReturnInvalidArgumentStatus(                                 \
+            #json_key_name " should be json " #json_val_type " array");     \
+      }                                                                     \
+    }                                                                       \
   }
 
 #define ReadStringArrayJsonToParams(json_key_name)                           \

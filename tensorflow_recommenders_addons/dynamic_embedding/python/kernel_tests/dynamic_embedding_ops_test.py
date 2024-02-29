@@ -54,6 +54,10 @@ from tensorflow.python.ops import resource_variable_ops
 from tensorflow.python.ops import script_ops
 from tensorflow.python.ops import variables
 from tensorflow.python.ops import variable_scope
+try:  # tf version >= 2.14.0
+  from tensorflow.python.ops.array_ops_stack import stack
+except:
+  from tensorflow.python.ops.array_ops import stack
 from tensorflow.python.platform import test
 from tensorflow.python.training import device_setter
 from tensorflow.python.training import server_lib
@@ -309,7 +313,7 @@ class EmbeddingLookupTest(test.TestCase):
       embedding = de.embedding_lookup(embeddings, ids, max_norm=2.0)
       norms = math_ops.sqrt(
           math_ops.reduce_sum(embedding_no_norm * embedding_no_norm, axis=1))
-      normalized = embedding_no_norm / array_ops.stack([norms, norms], axis=1)
+      normalized = embedding_no_norm / stack([norms, norms], axis=1)
       self.assertAllCloseAccordingToType(embedding.eval(),
                                          2 * self.evaluate(normalized))
 

@@ -42,6 +42,10 @@ from tensorflow.python.eager import context
 from tensorflow.python.framework import device as pydev
 from tensorflow.python.framework import dtypes
 from tensorflow.python.framework import ops
+try:  # tf version >= 2.14.0
+  from tensorflow.python.framework.tensor import Tensor
+except:
+  from tensorflow.python.framework.ops import Tensor
 try:  # tf version >= 2.13.0
   from tensorflow.python.framework.indexed_slices import IndexedSlices
 except:
@@ -129,7 +133,7 @@ def _get_processor(v):
   if isinstance(v, de.TrainableWrapper):
     return _DenseDynamicEmbeddingTrainableProcessor(v)
   if context.executing_eagerly():
-    if isinstance(v, ops.Tensor):
+    if isinstance(v, Tensor):
       return optimizer._TensorProcessor(v)
     else:
       return optimizer._DenseResourceVariableProcessor(v)
@@ -140,7 +144,7 @@ def _get_processor(v):
     return optimizer._DenseResourceVariableProcessor(v)
   if isinstance(v, variables.Variable):
     return optimizer._RefVariableProcessor(v)
-  if isinstance(v, ops.Tensor):
+  if isinstance(v, Tensor):
     return optimizer._TensorProcessor(v)
   raise NotImplementedError("Trying to optimize unsupported type ", v)
 
