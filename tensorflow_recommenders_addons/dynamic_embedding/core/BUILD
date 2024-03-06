@@ -93,9 +93,11 @@ custom_op_library(
 custom_cuda_op_library(
     name = "_hkv_ops.so",
     srcs = [
+        "kernels/cuckoo_hashtable_op.h",
+        "kernels/hkv_hashtable_op.cc",
         "ops/hkv_hashtable_ops.cc",
         "utils/utils.h",
-    ],
+    ] + glob(["kernels/lookup_impl/lookup_table_op_cpu*"]),
     copts = [
         "-Ofast",
     ],
@@ -110,4 +112,7 @@ custom_cuda_op_library(
         "kernels/cuckoo_hashtable_op_gpu.h",
         "kernels/hkv_hashtable_op_gpu.cu.cc",
     ]) + glob(["kernels/lookup_impl/lookup_table_op_hkv*"]),
+    deps = [
+        "//tensorflow_recommenders_addons/dynamic_embedding/core/lib/cuckoo:cuckoohash",
+    ],
 )
