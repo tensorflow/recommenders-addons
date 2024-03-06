@@ -64,12 +64,17 @@ if [ "$(uname)" != "Darwin" ]; then
   bash /install/install_horovod.sh $HOROVOD_VERSION
 fi
 
+IGNORE_HKV=""
+if [ "$TF_NEED_CUDA" -eq 0 ]; then
+    IGNORE_HKV="--ignore=./tensorflow_recommenders_addons/dynamic_embedding/python/kernel_tests/hkv_hashtable_ops_test.py"
+fi
+
 # Only use GPU 0 if available.
 if [ -x "$(command -v nvidia-smi)" ]; then
   export CUDA_VISIBLE_DEVICES=0
 fi
 
-python -m pytest -v -s --functions-durations=20 --modules-durations=5 $SKIP_CUSTOM_OP_TESTS_FLAG $EXTRA_ARGS ./tensorflow_recommenders_addons/dynamic_embedding/python/kernel_tests/
+python -m pytest -v -s --functions-durations=20 --modules-durations=5 $IGNORE_HKV $SKIP_CUSTOM_OP_TESTS_FLAG $EXTRA_ARGS ./tensorflow_recommenders_addons/dynamic_embedding/python/kernel_tests/
 
 
 
