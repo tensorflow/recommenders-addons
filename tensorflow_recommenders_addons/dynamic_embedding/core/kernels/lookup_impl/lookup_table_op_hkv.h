@@ -47,7 +47,7 @@ limitations under the License.
 
 namespace tensorflow {
 namespace recommenders_addons {
-namespace lookup {
+namespace hkv_table {
 namespace gpu {
 
 inline Status ReturnInternalErrorStatus(const char* const str) {
@@ -689,7 +689,7 @@ Status CreateTableImpl(TableWrapper<K, V>** pptable,
 }
 
 }  // namespace gpu
-}  // namespace lookup
+}  // namespace hkv_table
 }  // namespace recommenders_addons
 }  // namespace tensorflow
 

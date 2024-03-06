@@ -17,7 +17,7 @@ limitations under the License.
 
 namespace tensorflow {
 namespace recommenders_addons {
-namespace lookup {
+namespace hkv_table {
 namespace gpu {
 
 #define DEFINE_PURE_GPU_HASHTABLE(key_type, value_type) \
@@ -34,6 +34,6 @@ DEFINE_PURE_GPU_HASHTABLE(int64, Eigen::bfloat16);
 #undef DEFINE_PURE_GPU_HASHTABLE
 
 }  // namespace gpu
-}  // namespace lookup
+}  // namespace hkv_table
 }  // namespace recommenders_addons
 }  // namespace tensorflow

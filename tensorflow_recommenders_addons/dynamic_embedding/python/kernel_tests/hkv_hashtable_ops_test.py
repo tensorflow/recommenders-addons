@@ -73,27 +73,37 @@ is_gpu_available = test_util.is_gpu_available()
 
 class HkvHashtableTest(test.TestCase):
 
-  @test_util.run_in_graph_and_eager_modes()
   def test_basic(self):
-    if not is_gpu_available:
-      self.skipTest('Only test when gpu is available.')
-    with self.session(use_gpu=True, config=default_config):
-      table = de.get_variable(
-          'basic',
-          key_dtype=dtypes.int64,
-          value_dtype=dtypes.int32,
-          initializer=0,
-          dim=8,
-          init_size=1024,
-          kv_creator=de.HkvHashTableCreator(config=de.HkvHashTableConfig(
-              max_capacity=99999)))
-      self.evaluate(table.size())
-      self.evaluate(table.clear())
-      del table
+    test_list = [["CPU", '/CPU:0', False]]
+    if is_gpu_available:
+      test_list = test_list + [["GPU", '/GPU:0', True]]
+
+    id = 0
+    for dev_str, device, use_gpu in test_list:
+      with self.session(use_gpu=use_gpu, config=default_config):
+        with self.captureWritesToStream(sys.stderr) as printed:
+          table = de.get_variable(
+              'basic' + str(id),
+              key_dtype=dtypes.int64,
+              value_dtype=dtypes.int32,
+              devices=device,
+              initializer=0,
+              dim=8,
+              init_size=1024,
+              kv_creator=de.HkvHashTableCreator(config=de.HkvHashTableConfig(
+                  max_capacity=99999)))
+          self.assertTrue(dev_str in printed.contents())
+
+          self.evaluate(table.size())
+          self.evaluate(table.clear())
+          del table
+          id += 1
 
   def test_variable(self):
-    if not is_gpu_available:
-      self.skipTest('Only test when gpu is available.')
+    test_list = [['/CPU:0', False]]
+    if is_gpu_available:
+      test_list = test_list + [['/GPU:0', True]]
+
     id = 0
     dim_list = [1, 2, 4, 8, 10, 16, 32, 64, 100, 200]
     kv_list = [[dtypes.int64, dtypes.int8], [dtypes.int64, dtypes.int32],
@@ -104,121 +114,142 @@ class HkvHashtableTest(test.TestCase):
       return np.array(v).astype(_type_converter(t))
 
     for (key_dtype, value_dtype), dim in itertools.product(kv_list, dim_list):
-      id += 1
       # Skip float16 tests if the platform is macOS arm64 architecture
       if is_macos() and is_arm64():
         if value_dtype == dtypes.half:
           continue
-      with self.session(config=default_config, use_gpu=True) as sess:
-        keys = constant_op.constant(
-            np.array([0, 1, 2, 3]).astype(_type_converter(key_dtype)),
-            key_dtype)
-        values = constant_op.constant(
-            _convert([[0] * dim, [1] * dim, [2] * dim, [3] * dim], value_dtype),
-            value_dtype)
-        table = de.get_variable(
-            't1-' + str(id) + '_test_variable',
-            key_dtype=key_dtype,
-            value_dtype=value_dtype,
-            initializer=np.array([-1]).astype(_type_converter(value_dtype)),
-            dim=dim,
-            init_size=1024,
-            kv_creator=de.HkvHashTableCreator(config=de.HkvHashTableConfig(
-                max_capacity=99999)))
-        table.clear()
 
-        self.assertAllEqual(0, self.evaluate(table.size()))
+      for device, use_gpu in test_list:
+        with self.session(config=default_config, use_gpu=use_gpu) as sess:
+          keys = constant_op.constant(
+              np.array([0, 1, 2, 3]).astype(_type_converter(key_dtype)),
+              key_dtype)
+          values = constant_op.constant(
+              _convert([[0] * dim, [1] * dim, [2] * dim, [3] * dim],
+                       value_dtype), value_dtype)
+          table = de.get_variable(
+              't1-' + str(id) + '_test_variable',
+              key_dtype=key_dtype,
+              value_dtype=value_dtype,
+              devices=device,
+              initializer=np.array([-1]).astype(_type_converter(value_dtype)),
+              dim=dim,
+              init_size=1024,
+              kv_creator=de.HkvHashTableCreator(config=de.HkvHashTableConfig(
+                  max_capacity=99999)))
+          table.clear()
+          id += 1
 
-        self.evaluate(table.upsert(keys, values))
-        self.assertAllEqual(4, self.evaluate(table.size()))
+          self.assertAllEqual(0, self.evaluate(table.size()))
 
-        output = table.lookup(keys)
-        self.assertAllEqual(values, self.evaluate(output))
+          self.evaluate(table.upsert(keys, values))
+          self.assertAllEqual(4, self.evaluate(table.size()))
 
-        remove_keys = constant_op.constant(_convert([1, 5], key_dtype),
-                                           key_dtype)
+          output = table.lookup(keys)
+          self.assertAllEqual(values, self.evaluate(output))
 
-        self.evaluate(table.remove(remove_keys))
+          remove_keys = constant_op.constant(_convert([1, 5], key_dtype),
+                                             key_dtype)
 
-        self.assertAllEqual(3, self.evaluate(table.size()))
+          self.evaluate(table.remove(remove_keys))
 
-        remove_keys = constant_op.constant(_convert([0, 1, 5], key_dtype),
-                                           key_dtype)
-        output = table.lookup(remove_keys)
-        self.assertAllEqual([3, dim], output.get_shape())
+          self.assertAllEqual(3, self.evaluate(table.size()))
 
-        result = self.evaluate(output)
-        self.assertAllEqual(
-            _convert([[0] * dim, [-1] * dim, [-1] * dim], value_dtype),
-            _convert(result, value_dtype))
+          remove_keys = constant_op.constant(_convert([0, 1, 5], key_dtype),
+                                             key_dtype)
+          output = table.lookup(remove_keys)
+          self.assertAllEqual([3, dim], output.get_shape())
 
-        exported_keys, exported_values = table.export()
+          result = self.evaluate(output)
+          self.assertAllEqual(
+              _convert([[0] * dim, [-1] * dim, [-1] * dim], value_dtype),
+              _convert(result, value_dtype))
 
-        # exported data is in the order of the internal map, i.e. undefined
-        sorted_keys = np.sort(self.evaluate(exported_keys))
-        sorted_values = np.sort(self.evaluate(exported_values), axis=0)
-        self.assertAllEqual(_convert([0, 2, 3], key_dtype),
-                            _convert(sorted_keys, key_dtype))
-        self.assertAllEqual(
-            _convert([[0] * dim, [2] * dim, [3] * dim], value_dtype),
-            _convert(sorted_values, value_dtype))
+          exported_keys, exported_values = table.export()
 
-        self.evaluate(table.clear())
-        del table
+          # exported data is in the order of the internal map, i.e. undefined
+          sorted_keys = np.sort(self.evaluate(exported_keys))
+          sorted_values = np.sort(self.evaluate(exported_values), axis=0)
+          self.assertAllEqual(_convert([0, 2, 3], key_dtype),
+                              _convert(sorted_keys, key_dtype))
+          self.assertAllEqual(
+              _convert([[0] * dim, [2] * dim, [3] * dim], value_dtype),
+              _convert(sorted_values, value_dtype))
+
+          self.evaluate(table.clear())
+          del table
 
   def test_dynamic_embedding_variable_set_init_size(self):
-    if not is_gpu_available:
-      self.skipTest('Only test when gpu is available.')
-    test_list = [["GPU", True, 54321, 54321], ["GPU", True, 0, 8192]]
+    test_list = [["CPU", '/CPU:0', False, 12345, 12345],
+                 ["CPU", '/CPU:0', False, 0, 8192]]
+    if is_gpu_available:
+      test_list = test_list + [["GPU", '/GPU:0', True, 54321, 54321],
+                               ["GPU", '/GPU:0', True, 0, 8192]]
+
     self.assertTrue(len(test_list) > 0)
     id = 0
-    for dev_str, use_gpu, init_size, expect_size in test_list:
+    for dev_str, device, use_gpu, init_size, expect_size in test_list:
       with self.session(use_gpu=use_gpu, config=default_config):
         with self.captureWritesToStream(sys.stderr) as printed:
           table = de.get_variable(
               "2021-" + str(id),
               dtypes.int64,
               dtypes.int32,
+              devices=device,
               initializer=0,
               dim=8,
-              init_size=init_size,
               kv_creator=de.HkvHashTableCreator(config=de.HkvHashTableConfig(
-                  max_capacity=99999)))
+                  init_capacity=init_size)))
           self.evaluate(table.size())
+          self.assertTrue(dev_str in printed.contents())
+
         id += 1
+        self.assertTrue("I" in printed.contents())
+        self.assertTrue(dev_str in printed.contents())
+        if not use_gpu:
+          self.assertTrue("_size={}".format(expect_size) in printed.contents())
+        else:
+          if init_size == 0:
+            self.assertTrue(
+                "init capacity: {}".format(1024 * 1024) in printed.contents())
+          else:
+            self.assertTrue(
+                "init capacity: {}".format(init_size) in printed.contents())
 
   def test_hkv_hashtable_import_and_export(self):
-    if not is_gpu_available:
-      self.skipTest('Only test when gpu is available.')
-    test_list = [["GPU", True]]
+    test_list = [['/CPU:0', False]]
+    if is_gpu_available:
+      test_list = test_list + [['/GPU:0', True]]
+
     id = 0
     for device, use_gpu in test_list:
       with self.session(use_gpu=use_gpu, config=default_config):
-        with self.captureWritesToStream(sys.stderr) as printed:
-          table = de.get_variable(
-              "2021-" + str(id),
-              dtypes.int64,
-              dtypes.int32,
-              initializer=0,
-              dim=3,
-              init_size=128,
-              kv_creator=de.HkvHashTableCreator(config=de.HkvHashTableConfig(
-                  max_capacity=99999)))
-          keys = constant_op.constant(list(range(168)), dtypes.int64)
-          values = constant_op.constant([[1, 1, 1] for _ in range(168)],
-                                        dtypes.int32)
-          self.evaluate(table.upsert(keys, values))
-          self.assertAllEqual(168, self.evaluate(table.size()))
-          exported_keys, exported_values = self.evaluate(table.export())
-          exported_keys = sorted(exported_keys)
-          self.assertAllEqual(keys, exported_keys)
-          self.assertEqual(168, len(exported_values))
-          id += 1
+        table = de.get_variable(
+            "2021-" + str(id),
+            dtypes.int64,
+            dtypes.int32,
+            devices=device,
+            initializer=0,
+            dim=3,
+            kv_creator=de.HkvHashTableCreator(config=de.HkvHashTableConfig(
+                init_capacity=128, max_capacity=99999)))
+        keys = constant_op.constant(list(range(168)), dtypes.int64)
+        values = constant_op.constant([[1, 1, 1] for _ in range(168)],
+                                      dtypes.int32)
+        self.evaluate(table.upsert(keys, values))
+        self.assertAllEqual(168, self.evaluate(table.size()))
+        exported_keys, exported_values = self.evaluate(table.export())
+        exported_keys = sorted(exported_keys)
+        self.assertAllEqual(keys, exported_keys)
+        self.assertEqual(168, len(exported_values))
+        id += 1
 
   @test_util.run_in_graph_and_eager_modes()
   def test_insert(self):
-    if not is_gpu_available:
-      self.skipTest('Only test when gpu is available.')
+    test_list = [['/CPU:0', False]]
+    if is_gpu_available:
+      test_list = test_list + [['/GPU:0', True]]
+
     dim_list = [1, 2, 4, 8, 10, 16, 32, 64, 100, 200]
     kv_list = [[dtypes.int64, dtypes.float32], [dtypes.int64, dtypes.int32],
                [dtypes.int64, dtypes.int64], [dtypes.int64, dtypes.int8]]
@@ -229,36 +260,40 @@ class HkvHashtableTest(test.TestCase):
     id = 0
 
     for (key_dtype, value_dtype), dim in itertools.product(kv_list, dim_list):
-      id += 1
-      # Skip float16 tests if the platform is macOS arm64 architecture
-      with self.session(config=default_config, use_gpu=True) as sess:
-        table = de.get_variable('test_insert' + str(id),
-                                key_dtype=key_dtype,
-                                value_dtype=value_dtype,
-                                initializer=np.array([-1]).astype(
-                                    _type_converter(value_dtype)),
-                                dim=dim,
-                                init_size=102400)
+      for device, use_gpu in test_list:
+        with self.session(config=default_config, use_gpu=use_gpu) as sess:
+          table = de.get_variable(
+              'test_insert' + str(id),
+              key_dtype=key_dtype,
+              value_dtype=value_dtype,
+              devices=device,
+              initializer=np.array([-1]).astype(_type_converter(value_dtype)),
+              dim=dim,
+              init_size=102400,
+              kv_creator=de.HkvHashTableCreator(config=de.HkvHashTableConfig(
+                  init_capacity=102400, max_capacity=102400)))
+          id += 1
 
-        base_keys = []
-        for i in range(18):
-          keys = constant_op.constant(
-              np.array([x for x in range(85 * i, 85 * (i + 1))
-                       ]).astype(_type_converter(key_dtype)), key_dtype)
-          values = constant_op.constant(
-              _convert([[x] * dim for x in range(85 * i, 85 * (i + 1))],
-                       value_dtype), value_dtype)
+          base_keys = []
+          for i in range(18):
+            keys = constant_op.constant(
+                np.array([x for x in range(85 * i, 85 * (i + 1))
+                         ]).astype(_type_converter(key_dtype)), key_dtype)
+            values = constant_op.constant(
+                _convert([[x] * dim for x in range(85 * i, 85 * (i + 1))],
+                         value_dtype), value_dtype)
 
-          self.evaluate(table.upsert(keys, values))
-          self.assertAllEqual((i + 1) * 85, self.evaluate(table.size()))
-        self.evaluate(table.clear())
-        del table
+            self.evaluate(table.upsert(keys, values))
+            self.assertAllEqual((i + 1) * 85, self.evaluate(table.size()))
+          self.evaluate(table.clear())
+          del table
 
   @test_util.run_in_graph_and_eager_modes()
   def test_hkv_hashtable_save_local_file_system(self):
-    if not is_gpu_available:
-      self.skipTest('Only test when gpu is available.')
-    test_devices = ['/GPU:0']
+    test_devices = ['/CPU:0']
+    if is_gpu_available:
+      test_devices = test_devices + ['/GPU:0']
+
     dim = 8
     for idx, device in enumerate(test_devices):
       var1 = de.get_variable(
@@ -322,8 +357,9 @@ class HkvHashtableTest(test.TestCase):
   """
 
   def test_variable_find_with_exists_and_accum(self):
-    if not is_gpu_available:
-      self.skipTest('Only test when gpu is available.')
+    test_list = [['/CPU:0', False]]
+    if is_gpu_available:
+      test_list = test_list + [['/GPU:0', True]]
     id = 0
     dim_list = [1, 2, 4, 8, 10, 16, 32, 64, 100, 200]
     kv_list = [[dtypes.int64, dtypes.float32], [dtypes.int64, dtypes.int8],
@@ -335,151 +371,156 @@ class HkvHashtableTest(test.TestCase):
 
     for (key_dtype, value_dtype), dim in itertools.product(kv_list, dim_list):
       id += 1
-      with self.session(config=default_config, use_gpu=True) as sess:
-        base_keys = constant_op.constant(
-            np.array([0, 1, 2, 3]).astype(_type_converter(key_dtype)),
-            key_dtype)
-        base_values = constant_op.constant(
-            _convert([[0] * dim, [1] * dim, [2] * dim, [3] * dim], value_dtype),
-            value_dtype)
+      for device, use_gpu in test_list:
+        with self.session(config=default_config, use_gpu=use_gpu) as sess:
+          base_keys = constant_op.constant(
+              np.array([0, 1, 2, 3]).astype(_type_converter(key_dtype)),
+              key_dtype)
+          base_values = constant_op.constant(
+              _convert([[0] * dim, [1] * dim, [2] * dim, [3] * dim],
+                       value_dtype), value_dtype)
 
-        simulate_other_process_add_keys = constant_op.constant(
-            np.array([100]).astype(_type_converter(key_dtype)), key_dtype)
-        simulate_other_process_add_vals = constant_op.constant(
-            _convert([
-                [99] * dim,
-            ], value_dtype), value_dtype)
+          simulate_other_process_add_keys = constant_op.constant(
+              np.array([100]).astype(_type_converter(key_dtype)), key_dtype)
+          simulate_other_process_add_vals = constant_op.constant(
+              _convert([
+                  [99] * dim,
+              ], value_dtype), value_dtype)
 
-        simulate_other_process_remove_keys = constant_op.constant(
-            np.array([1]).astype(_type_converter(key_dtype)), key_dtype)
-        accum_keys = constant_op.constant(
-            np.array([0, 1, 100, 3]).astype(_type_converter(key_dtype)),
-            key_dtype)
-        old_values = constant_op.constant(
-            _convert([[0] * dim, [1] * dim, [2] * dim, [3] * dim], value_dtype),
-            value_dtype)
-        new_values = constant_op.constant(
-            _convert([[10] * dim, [11] * dim, [100] * dim, [13] * dim],
-                     value_dtype), value_dtype)
-        exported_exists = constant_op.constant([True, True, False, True],
-                                               dtype=dtypes.bool)
+          simulate_other_process_remove_keys = constant_op.constant(
+              np.array([1]).astype(_type_converter(key_dtype)), key_dtype)
+          accum_keys = constant_op.constant(
+              np.array([0, 1, 100, 3]).astype(_type_converter(key_dtype)),
+              key_dtype)
+          old_values = constant_op.constant(
+              _convert([[0] * dim, [1] * dim, [2] * dim, [3] * dim],
+                       value_dtype), value_dtype)
+          new_values = constant_op.constant(
+              _convert([[10] * dim, [11] * dim, [100] * dim, [13] * dim],
+                       value_dtype), value_dtype)
+          exported_exists = constant_op.constant([True, True, False, True],
+                                                 dtype=dtypes.bool)
 
-        table = de.get_variable(
-            'taccum1-' + str(id),
-            key_dtype=key_dtype,
-            value_dtype=value_dtype,
-            initializer=np.array([-1]).astype(_type_converter(value_dtype)),
-            dim=dim,
-            devices=["/GPU:0"],
-            kv_creator=de.HkvHashTableCreator(config=de.HkvHashTableConfig(
-                max_capacity=99999)))
-        self.evaluate(table.clear())
+          table = de.get_variable(
+              'taccum1-' + str(id),
+              key_dtype=key_dtype,
+              value_dtype=value_dtype,
+              initializer=np.array([-1]).astype(_type_converter(value_dtype)),
+              dim=dim,
+              devices=device,
+              kv_creator=de.HkvHashTableCreator(config=de.HkvHashTableConfig(
+                  max_capacity=99999)))
+          self.evaluate(table.clear())
 
-        self.assertAllEqual(0, self.evaluate(table.size()))
+          self.assertAllEqual(0, self.evaluate(table.size()))
 
-        self.evaluate(table.upsert(base_keys, base_values))
-        _, exists = table.lookup(accum_keys, return_exists=True)
-        self.assertAllEqual(self.evaluate(exported_exists),
-                            self.evaluate(exists))
-        # Simulate multi-process situation that other process operated table,
-        # between lookup and accum in this process.
-        self.evaluate(
-            table.upsert(simulate_other_process_add_keys,
-                         simulate_other_process_add_vals))
-        self.evaluate(table.remove(simulate_other_process_remove_keys))
-        self.assertAllEqual(4, self.evaluate(table.size()))
-        self.evaluate(
-            table.accum(accum_keys, old_values, new_values, exported_exists))
+          self.evaluate(table.upsert(base_keys, base_values))
+          _, exists = table.lookup(accum_keys, return_exists=True)
+          self.assertAllEqual(self.evaluate(exported_exists),
+                              self.evaluate(exists))
+          # Simulate multi-process situation that other process operated table,
+          # between lookup and accum in this process.
+          self.evaluate(
+              table.upsert(simulate_other_process_add_keys,
+                           simulate_other_process_add_vals))
+          self.evaluate(table.remove(simulate_other_process_remove_keys))
+          self.assertAllEqual(4, self.evaluate(table.size()))
+          self.evaluate(
+              table.accum(accum_keys, old_values, new_values, exported_exists))
 
-        exported_keys, exported_values = table.export()
+          exported_keys, exported_values = table.export()
 
-        # exported data is in the order of the internal map, i.e. undefined
-        sorted_keys = np.sort(self.evaluate(exported_keys), axis=0)
-        sorted_values = np.sort(self.evaluate(exported_values), axis=0)
-        self.assertAllEqual(
-            np.sort(_convert([0, 2, 3, 100], key_dtype), axis=0),
-            _convert(sorted_keys, key_dtype))
-        self.assertAllEqual(
-            _convert([[2] * dim, [10] * dim, [13] * dim, [99] * dim],
-                     value_dtype), _convert(sorted_values, value_dtype))
+          # exported data is in the order of the internal map, i.e. undefined
+          sorted_keys = np.sort(self.evaluate(exported_keys), axis=0)
+          sorted_values = np.sort(self.evaluate(exported_values), axis=0)
+          self.assertAllEqual(
+              np.sort(_convert([0, 2, 3, 100], key_dtype), axis=0),
+              _convert(sorted_keys, key_dtype))
+          self.assertAllEqual(
+              _convert([[2] * dim, [10] * dim, [13] * dim, [99] * dim],
+                       value_dtype), _convert(sorted_values, value_dtype))
 
-        self.evaluate(table.clear())
-        del table
+          self.evaluate(table.clear())
+          del table
 
   def test_get_variable(self):
-    if not is_gpu_available:
-      self.skipTest('Only test when gpu is available.')
-    with self.session(
-        config=default_config,
-        graph=ops.Graph(),
-        use_gpu=True,
-    ):
-      default_val = -1
-      with variable_scope.variable_scope("embedding", reuse=True):
-        table1 = de.get_variable(
-            "t1" + '_test_get_variable',
-            dtypes.int64,
-            dtypes.int32,
-            initializer=default_val,
-            dim=2,
-            devices=["/GPU:0"],
-            init_size=2048,
-            kv_creator=de.HkvHashTableCreator(config=de.HkvHashTableConfig(
-                max_capacity=99999)))
-        table2 = de.get_variable(
-            "t1" + '_test_get_variable',
-            dtypes.int64,
-            dtypes.int32,
-            initializer=default_val,
-            dim=2,
-            devices=["/GPU:0"],
-            init_size=2048,
-            kv_creator=de.HkvHashTableCreator(config=de.HkvHashTableConfig(
-                max_capacity=99999)))
-        table3 = de.get_variable(
-            "t3" + '_test_get_variable',
-            dtypes.int64,
-            dtypes.int32,
-            initializer=default_val,
-            dim=2,
-            devices=["/GPU:0"],
-            init_size=2048,
-            kv_creator=de.HkvHashTableCreator(config=de.HkvHashTableConfig(
-                max_capacity=99999)))
+    test_list = [['/CPU:0', False]]
+    if is_gpu_available:
+      test_list = test_list + [['/GPU:0', True]]
+    for device, use_gpu in test_list:
+      with self.session(
+          config=default_config,
+          graph=ops.Graph(),
+          use_gpu=use_gpu,
+      ):
+        default_val = -1
+        with variable_scope.variable_scope("embedding", reuse=True):
+          table1 = de.get_variable(
+              "t1" + '_test_get_variable',
+              dtypes.int64,
+              dtypes.int32,
+              initializer=default_val,
+              dim=2,
+              devices=device,
+              init_size=2048,
+              kv_creator=de.HkvHashTableCreator(config=de.HkvHashTableConfig(
+                  max_capacity=99999)))
+          table2 = de.get_variable(
+              "t1" + '_test_get_variable',
+              dtypes.int64,
+              dtypes.int32,
+              initializer=default_val,
+              dim=2,
+              devices=device,
+              init_size=2048,
+              kv_creator=de.HkvHashTableCreator(config=de.HkvHashTableConfig(
+                  max_capacity=99999)))
+          table3 = de.get_variable(
+              "t3" + '_test_get_variable',
+              dtypes.int64,
+              dtypes.int32,
+              initializer=default_val,
+              dim=2,
+              devices=device,
+              init_size=2048,
+              kv_creator=de.HkvHashTableCreator(config=de.HkvHashTableConfig(
+                  max_capacity=99999)))
 
-        table1.clear()
-        table2.clear()
-        table3.clear()
+          table1.clear()
+          table2.clear()
+          table3.clear()
 
-      self.assertAllEqual(table1, table2)
-      self.assertNotEqual(table1, table3)
+        self.assertAllEqual(table1, table2)
+        self.assertNotEqual(table1, table3)
 
   def test_get_variable_reuse_error(self):
-    if not is_gpu_available:
-      self.skipTest('Only test when gpu is available.')
+    test_list = [['/CPU:0', False]]
+    if is_gpu_available:
+      test_list = test_list + [['/GPU:0', True]]
     ops.disable_eager_execution()
-    with self.session(
-        config=default_config,
-        graph=ops.Graph(),
-        use_gpu=True,
-    ):
-      with variable_scope.variable_scope("embedding", reuse=False):
-        _ = de.get_variable(
-            "t900",
-            initializer=-1,
-            dim=2,
-            devices=["/GPU:0"],
-            kv_creator=de.HkvHashTableCreator(config=de.HkvHashTableConfig(
-                max_capacity=99999)))
-        with self.assertRaisesRegexp(ValueError,
-                                     "Variable embedding/t900 already exists"):
+    for device, use_gpu in test_list:
+      with self.session(
+          config=default_config,
+          graph=ops.Graph(),
+          use_gpu=use_gpu,
+      ):
+        with variable_scope.variable_scope("embedding", reuse=False):
           _ = de.get_variable(
               "t900",
               initializer=-1,
               dim=2,
-              devices=["/GPU:0"],
+              devices=device,
               kv_creator=de.HkvHashTableCreator(config=de.HkvHashTableConfig(
                   max_capacity=99999)))
+          with self.assertRaisesRegexp(
+              ValueError, "Variable embedding/t900 already exists"):
+            _ = de.get_variable(
+                "t900",
+                initializer=-1,
+                dim=2,
+                devices=device,
+                kv_creator=de.HkvHashTableCreator(config=de.HkvHashTableConfig(
+                    max_capacity=99999)))
 
   @test_util.run_v1_only("Multiple sessions")
   def test_sharing_between_multi_sessions(self):
@@ -529,8 +570,9 @@ class HkvHashtableTest(test.TestCase):
         self.assertAllEqual([[0], [11], [12]], output.eval())
 
   def test_insert_repeat_data(self):
-    if not is_gpu_available:
-      self.skipTest('Only test when gpu is available.')
+    test_list = [['/CPU:0', False]]
+    if is_gpu_available:
+      test_list = test_list + [['/GPU:0', True]]
     id = 0
     dim_list = [1, 2, 4, 8, 10, 16, 32, 64, 100, 200]
     kv_list = [[dtypes.int64, dtypes.int8], [dtypes.int64, dtypes.int32],
@@ -547,39 +589,40 @@ class HkvHashtableTest(test.TestCase):
     for (key_dtype,
          value_dtype), dim, bit in itertools.product(kv_list, dim_list,
                                                      bits_list):
-      id += 1
-      with self.session(config=default_config, use_gpu=True) as sess:
-        hkv_table_config = de.HkvHashTableConfig(init_capacity=100000,
-                                                 max_capacity=100000,
-                                                 max_hbm_for_values=bit *
-                                                 (dim + 1) * 100)
-        table = de.get_variable(
-            't1-' + str(id) + '_test_variable',
-            key_dtype=key_dtype,
-            value_dtype=value_dtype,
-            initializer=np.array([-1]).astype(_type_converter(value_dtype)),
-            devices=['/GPU:0'],
-            dim=dim,
-            kv_creator=de.HkvHashTableCreator(config=hkv_table_config))
+      for device, use_gpu in test_list:
+        id += 1
+        with self.session(config=default_config, use_gpu=use_gpu) as sess:
+          hkv_table_config = de.HkvHashTableConfig(init_capacity=100000,
+                                                   max_capacity=100000,
+                                                   max_hbm_for_values=bit *
+                                                   (dim + 1) * 100)
+          table = de.get_variable(
+              't1-' + str(id) + '_test_variable',
+              key_dtype=key_dtype,
+              value_dtype=value_dtype,
+              initializer=np.array([-1]).astype(_type_converter(value_dtype)),
+              devices=device,
+              dim=dim,
+              kv_creator=de.HkvHashTableCreator(config=hkv_table_config))
 
-        for i in range(2):
-          keys = constant_op.constant(
-              np.array([x for x in range(key_num)
-                       ]).astype(_type_converter(key_dtype)), key_dtype)
-          values = constant_op.constant(
-              _convert([[x] * dim for x in range(key_num)], value_dtype),
-              value_dtype)
+          for i in range(2):
+            keys = constant_op.constant(
+                np.array([x for x in range(key_num)
+                         ]).astype(_type_converter(key_dtype)), key_dtype)
+            values = constant_op.constant(
+                _convert([[x] * dim for x in range(key_num)], value_dtype),
+                value_dtype)
 
-          if i == 0:
-            self.assertAllEqual(0, self.evaluate(table.size()))
-          else:
+            if i == 0:
+              self.assertAllEqual(0, self.evaluate(table.size()))
+            else:
+              self.assertAllEqual(key_num, self.evaluate(table.size()))
+
+            self.evaluate(table.upsert(keys, values))
             self.assertAllEqual(key_num, self.evaluate(table.size()))
 
-          self.evaluate(table.upsert(keys, values))
-          self.assertAllEqual(key_num, self.evaluate(table.size()))
-
-        self.evaluate(table.clear())
-        del table
+          self.evaluate(table.clear())
+          del table
 
   def test_reach_max_hbm(self):
     if not is_gpu_available:
