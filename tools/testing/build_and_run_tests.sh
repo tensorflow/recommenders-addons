@@ -73,4 +73,3 @@ python -m pytest -v -s --functions-durations=20 --modules-durations=5 $SKIP_CUST
 # Release disk space
 bazel clean --expunge
 rm -f ./tensorflow_recommenders_addons/dynamic_embedding/core/_*_ops.so
-rm -f ./tensorflow_recommenders_addons/embedding_variable/core/_*_ops.so

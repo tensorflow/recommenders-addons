@@ -22,6 +22,9 @@ jobs:
     name: Check that the source code is compliant
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/setup-python@v1
+        with:
+          python-version: 3.9
       - uses: actions/checkout@v2
       - name: Run type check
         run: bash tools/run_build.sh source_code_test
@@ -57,6 +60,9 @@ jobs:
     name: Check that we can build the docs
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/setup-python@v1
+        with:
+          python-version: 3.9
       - uses: actions/checkout@v2
       - name: Building the docs
         run: bash tools/run_build.sh docs_tests
@@ -64,6 +70,9 @@ jobs:
     name: Run the cpu tests in a small python docker image
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/setup-python@v1
+        with:
+          python-version: 3.9
       - uses: actions/checkout@v2
       - run: bash tools/run_cpu_tests.sh
   valid-codeowners:
@@ -82,6 +91,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/setup-python@v1
+      with:
+        python-version: 3.9
     - uses: actions/checkout@v2
     - name: Install tensorflow-docs
       run: python3 -m pip install -U git+https://github.com/tensorflow/docs
@@ -89,7 +100,7 @@ jobs:
       run: |
         # Run on all notebooks to prevent upstream change.
         echo "Check formatting with nbfmt:"
-        python3 -m pip install --upgrade protobuf==3.20.0
+        python3 -m pip install --upgrade protobuf==3.20.3
         python3 -m tensorflow_docs.tools.nbfmt --test \
             $(find docs/tutorials/ -type f -name *.ipynb)
   nblint:
@@ -97,6 +108,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/setup-python@v1
+      with:
+        python-version: 3.9
     - uses: actions/checkout@v2
     - name: Install tensorflow-docs
       run: python3 -m pip install -U git+https://github.com/tensorflow/docs
@@ -104,7 +117,7 @@ jobs:
       run: |
         # Run on all notebooks to prevent upstream change.
         echo "Lint check with nblint:"
-        python3 -m pip install --upgrade protobuf==3.20.0
+        python3 -m pip install --upgrade protobuf==3.20.3
         python3 -m tensorflow_docs.tools.nblint \
             --arg=repo:tensorflow/recommenders-addons \
             --exclude_lint=tensorflow::button_colab \

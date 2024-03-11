@@ -6,10 +6,16 @@ if [ -z $HOROVOD_VERSION ] ; then
 fi
 python --version
 
+# For TensorFlow version 2.12 or earlier:
+export PROTOBUF_VERSION=3.19.6
+if [[ "$TF_VERSION" =~ ^2\.1[3-9]\.[0-9]$ ]] ; then
+  export PROTOBUF_VERSION=3.20.3
+fi
+
 brew install open-mpi
 python -m pip install --default-timeout=1000 delocate==0.10.3 wheel==0.36.2 setuptools tensorflow==$TF_VERSION
 python -m pip install tensorflow-io
-python -m pip install --upgrade protobuf==3.20.0
+python -m pip install --upgrade protobuf~=$PROTOBUF_VERSION
 
 bash tools/docker/install/install_horovod.sh $HOROVOD_VERSION --only-cpu
 

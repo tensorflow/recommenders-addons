@@ -107,6 +107,8 @@ is compiled differently. A typical example of this would be `conda`-installed Te
 
 | TFRA  | TensorFlow | Compiler   | CUDA | CUDNN | Compute Capability           | CPU           |
 |:------|:-----------|:-----------|:-----|:------|:-----------------------------|:--------------|
+| 0.6.1 | 2.15.1     | GCC 7.3.1  | 11.2 | 8.1   | 6.0, 6.1, 7.0, 7.5, 8.0, 8.6 | x86 |
+| 0.6.1 | 2.6.0      | Xcode 13.1 | -    | -     | -                            | Apple M1      |
 | 0.6.0 | 2.8.3      | GCC 7.3.1  | 11.2 | 8.1   | 6.0, 6.1, 7.0, 7.5, 8.0, 8.6 | x86 |
 | 0.6.0 | 2.6.0      | Xcode 13.1 | -    | -     | -                            | Apple M1      |
 | 0.5.1 | 2.8.3      | GCC 7.3.1  | 11.2 | 8.1   | 6.0, 6.1, 7.0, 7.5, 8.0, 8.6 | x86 |
@@ -128,8 +130,8 @@ Check [nvidia-support-matrix](https://docs.nvidia.com/deeplearning/cudnn/support
 - Due to the significant changes in the Tensorflow API, we can only ensure version 0.2.0 compatibility with TF1.15.2 on CPU & GPU, 
   but **there are no official releases**, you can only get it through compiling by the following:
 ```sh
-PY_VERSION="3.7" \
-TF_VERSION="1.15.2" \
+PY_VERSION="3.9" \
+TF_VERSION="2.15.1" \
 TF_NEED_CUDA=1 \
 sh .github/workflows/make_wheel_Linux_x86.sh
 
@@ -144,7 +146,7 @@ At the same time, we find some OPs used by TRFA have better performance, so we h
 
 For all developers, we recommend you use the development docker containers which are all GPU enabled:
 ```sh
-docker pull tfra/dev_container:latest-python3.8  # "3.7", "3.9" are all avaliable.
+docker pull tfra/dev_container:latest-python3.9  # "3.9" “3.10” are all avaliable.
 docker run --privileged --gpus all -it --rm -v $(pwd):$(pwd) tfra/dev_container:latest-3.8
 ```
 
@@ -154,7 +156,7 @@ Please install a TensorFlow on your compiling machine, The compiler needs to kno
 its headers according to the installed TensorFlow. 
 
 ```sh
-export TF_VERSION="2.8.3"  # "2.6.3" are well tested.
+export TF_VERSION="2.15.1"  # "2.8.3" are well tested.
 pip install tensorflow[-gpu]==$TF_VERSION
 
 git clone https://github.com/tensorflow/recommenders-addons.git
@@ -171,7 +173,7 @@ pip install artifacts/tensorflow_recommenders_addons-*.whl
 #### GPU Support
 Only `TF_NEED_CUDA=1` is required and other environment variables are optional:
 ```sh
-export TF_VERSION="2.8.3"  # "2.6.3" is well tested.
+export TF_VERSION="2.15.1"  # "2.8.3" is well tested.
 export PY_VERSION="3.8" 
 export TF_NEED_CUDA=1
 export TF_CUDA_VERSION=11.2
@@ -275,6 +277,7 @@ sess_config.gpu_options.allow_growth = True
 #### Compatibility Matrix
 | TFRA  | TensorFlow | Serving branch | Compiler  | CUDA | CUDNN | Compute Capability |
 |:------|:-----------|:---------------|:---------| :------------ | :---- | :------------ |
+| 0.6.1 | 2.15.1     | r2.8           | GCC 7.3.1 | 11.2| 8.1 | 6.0, 6.1, 7.0, 7.5, 8.0, 8.6 |
 | 0.6.0 | 2.8.3      | r2.8           | GCC 7.3.1 | 11.2| 8.1 | 6.0, 6.1, 7.0, 7.5, 8.0, 8.6 |
 | 0.5.1 | 2.8.3      | r2.8           | GCC 7.3.1 | 11.2| 8.1 | 6.0, 6.1, 7.0, 7.5, 8.0, 8.6 |
 | 0.5.0 | 2.8.3      | r2.8           | GCC 7.3.1 | 11.2| 8.1 | 6.0, 6.1, 7.0, 7.5, 8.0, 8.6 |

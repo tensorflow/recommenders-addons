@@ -5,14 +5,10 @@ docker info
 # to get more disk space
 rm -rf /usr/share/dotnet &
 
-if [ $TF_NEED_CUDA -eq "1" ] ; then
-  export TF_NAME='tensorflow-gpu'
-else
-  export TF_NAME='tensorflow'
-fi
+export TF_NAME='tensorflow'
 
-# if tensorflow version >= 2.6.0 and <= 2.11.9
-if [[ "$TF_VERSION" =~ ^2\.([6-9]|10|11)\.[0-9]$ ]] ; then
+# if tensorflow version >= 2.6.0 and <= 2.15.9
+if [[ "$TF_VERSION" =~ ^2\.([6-9]|10|11|12|13|14|15)\.[0-9]+$ ]] ; then
   export BUILD_IMAGE="tfra/nosla-cuda11.2.1-cudnn8-ubuntu20.04-manylinux2014-python$PY_VERSION"
   export TF_CUDA_VERSION="11.2"
   export TF_CUDNN_VERSION="8.1"
@@ -30,7 +26,13 @@ else
 fi
 
 if [ -z $HOROVOD_VERSION ] ; then
-  export HOROVOD_VERSION='0.23.0'
+  export HOROVOD_VERSION='0.28.1'
+fi
+
+# For TensorFlow version 2.13 or later:
+export PROTOBUF_VERSION='3.19.6'
+if [[ "$TF_VERSION" =~ ^2\.1[3-9]\.[0-9]$ ]] ; then
+  export PROTOBUF_VERSION='3.20.3'
 fi
 
 DOCKER_BUILDKIT=1 docker build --no-cache \
@@ -46,4 +48,5 @@ DOCKER_BUILDKIT=1 docker build --no-cache \
     --build-arg BUILD_IMAGE \
     --build-arg NIGHTLY_FLAG \
     --build-arg NIGHTLY_TIME \
+    --build-arg PROTOBUF_VERSION \
     ./

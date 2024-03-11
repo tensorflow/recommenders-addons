@@ -7,7 +7,7 @@ RUN pip install -r yapf.txt
 COPY ./ /recommenders-addons
 WORKDIR /recommenders-addons
 
-RUN python -m pip install --upgrade protobuf==3.20.0
+RUN python -m pip install --upgrade protobuf==3.20.3
 RUN python tools/check_python_format.py
 RUN touch /ok.txt
 
@@ -35,7 +35,7 @@ WORKDIR /recommenders-addons
 
 RUN python -m pip install tensorflow-io
 
-RUN python -m pip install --upgrade protobuf==3.20.0
+RUN python -m pip install --upgrade protobuf==3.20.3
 
 RUN python configure.py
 RUN --mount=type=cache,id=cache_bazel,target=/root/.cache/bazel \
@@ -57,7 +57,7 @@ RUN bash install_bazelisk.sh
 COPY ./ /recommenders-addons
 WORKDIR /recommenders-addons
 
-RUN python -m pip install --upgrade protobuf==3.20.0
+RUN python -m pip install --upgrade protobuf==3.20.3
 
 RUN python ./configure.py
 RUN --mount=type=cache,id=cache_bazel,target=/root/.cache/bazel \
@@ -111,7 +111,7 @@ RUN bash install_bazelisk.sh
 COPY ./ /recommenders-addons
 WORKDIR /recommenders-addons
 
-RUN python -m pip install --upgrade protobuf==3.20.0
+RUN python -m pip install --upgrade protobuf==3.20.3
 
 RUN python configure.py
 RUN --mount=type=cache,id=cache_bazel,target=/root/.cache/bazel \
@@ -139,7 +139,7 @@ RUN bash install_bazelisk.sh
 COPY ./ /recommenders-addons
 WORKDIR /recommenders-addons
 
-RUN python -m pip install --upgrade protobuf==3.20.0
+RUN python -m pip install --upgrade protobuf==3.20.3
 
 RUN python configure.py
 RUN --mount=type=cache,id=cache_bazel,target=/root/.cache/bazel \

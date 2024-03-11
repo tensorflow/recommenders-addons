@@ -26,18 +26,18 @@ def is_arm64():
   return platform.machine() == "arm64"
 
 
-# Required TensorFlow version [min, max)
+# Required TensorFlow version [min, max]
 if (is_macos() and is_arm64()):
-  MIN_TF_VERSION = "2.8.0"
-  MAX_TF_VERSION = "2.11.0"
+  MIN_TF_VERSION = "2.11.0"
+  MAX_TF_VERSION = "2.15.1"
 else:
-  MIN_TF_VERSION = "2.8.3"
-  MAX_TF_VERSION = "2.11.0"
+  MIN_TF_VERSION = "2.11.3"
+  MAX_TF_VERSION = "2.15.1"
 
 # We follow Semantic Versioning (https://semver.org/)
 _MAJOR_VERSION = "0"
 _MINOR_VERSION = "6"
-_PATCH_VERSION = "0"
+_PATCH_VERSION = "1"
 
 # When building releases, we can update this value on the release branch to
 # reflect the current release candidate ('rc0', 'rc1') or, finally, the official
