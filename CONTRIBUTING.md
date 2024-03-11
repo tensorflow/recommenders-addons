@@ -62,7 +62,7 @@ See our [Style Guide](STYLE_GUIDE.md) for more details.
 ### Additional Requirements
 In addition to the above requirements, contribution also needs to meet the following criteria:
 * The functionality is not otherwise available in TensorFlow.
-* It has to be compatible with TensorFlow 2.6.3 and 2.8.3.
+* It has to be compatible with TensorFlow 2.6.3 and 2.15.1.
 * The change needs to include unit tests and integration tests if any.
 * Each project needs to provide documentation for when and how to use it.
 

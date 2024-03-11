@@ -112,12 +112,9 @@ def get_tf_shared_lib_dir():
 # Converts the linkflag namespec to the full shared library name
 def get_shared_lib_name():
   namespec = tf.sysconfig.get_link_flags()
-  if is_macos() and is_arm64():
-    # MacOS arm64
-    return "libtensorflow_framework.2.dylib"
-  elif is_macos():
+  if is_macos():
     # MacOS
-    return "libtensorflow_framework.dylib"
+    return "lib" + namespec[1][2:] + ".dylib"
   elif is_windows():
     # Windows
     return "_pywrap_tensorflow_internal.lib"
@@ -138,6 +135,7 @@ def get_tf_version_integer():
     2.4.1 get 2041
     2.6.3 get 2063
     2.8.3 get 2083
+    2.15.1 get 2151
 
   The 4-digits-string will be passed to C macro to discriminate different
   Tensorflow versions. 
@@ -152,7 +150,8 @@ def get_tf_version_integer():
         '\nPlease install a TensorFlow on your compiling machine, '
         'The compiler needs to know the version of Tensorflow '
         'and get TF c++ headers according to the installed TensorFlow. '
-        '\nNote: Only TensorFlow 2.8.3, 2.6.3, 2.4.1, 1.15.2 are supported.')
+        '\nNote: Only TensorFlow 2.15.1 2.8.3, 2.6.3, 2.4.1, 1.15.2 are supported.'
+    )
   try:
     major, minor, patch = version.split('.')
     assert len(

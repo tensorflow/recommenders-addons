@@ -31,6 +31,9 @@ if [ "$TF_VERSION" = "2.6.3" ] ; then
   python -m pip install numpy==1.19.5 --force-reinstall
 fi
 
+# Avoid SystemError: initialization of _pywrap_checkpoint_reader raised unreported exception
+pip install tensorflow==$TF_VERSION
+
 TF_NEED_CUDA=$TF_NEED_CUDA python ./configure.py
 bash tools/install_so_files.sh
 
@@ -73,4 +76,3 @@ python -m pytest -v -s --functions-durations=20 --modules-durations=5 $SKIP_CUST
 # Release disk space
 bazel clean --expunge
 rm -f ./tensorflow_recommenders_addons/dynamic_embedding/core/_*_ops.so
-rm -f ./tensorflow_recommenders_addons/embedding_variable/core/_*_ops.so

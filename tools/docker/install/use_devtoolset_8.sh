@@ -14,26 +14,13 @@
 # limitations under the License.
 # ==============================================================================
 
-## Select version.
-HOROVOD_VERSION=$1
+# Use devtoolset-7 as tool chain
+rm -r /usr/bin/gcc*
+export PATH=/dt8/usr/bin:${PATH}
+export PATH=/usr/bin/:/usr/local/bin/:${PATH}
+export LD_LIBRARY_PATH=/usr/local/lib:${LD_LIBRARY_PATH}
+export LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu/:${LD_LIBRARY_PATH}
+ln -sf /dt8/usr/bin/cc /usr/bin/gcc
+ln -sf /dt8/usr/bin/gcc /usr/bin/gcc
+ln -sf /dt8/usr/bin/g++ /usr/bin/g++
 
-# Install horovod
-if [[ "$2" != "--only-cpu" ]]; then
-  ln -sf /usr/include/nccl.h /usr/local/include/nccl.h
-  HOROVOD_GPU_OPERATIONS=NCCL \
-  HOROVOD_NCCL_INCLUDE=/usr/include/ \
-  HOROVOD_NCCL_LIB=/usr/lib/x86_64-linux-gnu/ \
-  HOROVOD_WITH_TENSORFLOW=1 \
-  HOROVOD_WITHOUT_PYTORCH=1 \
-  HOROVOD_WITHOUT_MXNET=1 \
-  HOROVOD_WITH_MPI=1 \
-  HOROVOD_WITHOUT_GLOO=1 \
-  python -m pip install --no-cache-dir horovod==$HOROVOD_VERSION
-else
-  HOROVOD_WITH_TENSORFLOW=1 \
-  HOROVOD_WITHOUT_PYTORCH=1 \
-  HOROVOD_WITHOUT_MXNET=1 \
-  HOROVOD_WITH_MPI=1 \
-  HOROVOD_WITHOUT_GLOO=1 \
-  python -m pip install --no-cache-dir horovod==$HOROVOD_VERSION
-fi
