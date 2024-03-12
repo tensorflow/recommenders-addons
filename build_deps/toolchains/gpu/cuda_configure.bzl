@@ -960,19 +960,28 @@ def _create_local_cuda_repository(repository_ctx):
     # Copy cudnn.h if cuDNN was not installed to CUDA_TOOLKIT_PATH.
     included_files = _read_dir(repository_ctx, cuda_include_path)
     if not any([file.endswith("cudnn.h") for file in included_files]):
-        if [int(x) for x in cuda_config.cudnn_version.split(".")] < [8, 0]:
-            cudnn_headers = ["cudnn.h"]
-        else:
-            cudnn_headers = [
+        cudnn_headers = ["cudnn.h"]
+        if cuda_config.cudnn_version.rsplit("_", 1)[-1] >= "9":
+            cudnn_headers += [
+                "cudnn_adv.h",
+                "cudnn_backend.h",
+                "cudnn_cnn.h",
+                "cudnn_graph.h",
+                "cudnn_ops.h",
+                "cudnn_version.h",
+            ]
+        elif cuda_config.cudnn_version.rsplit("_", 1)[-1] >= "8":
+            cudnn_headers += [
+                "cudnn_backend.h",
                 "cudnn_adv_infer.h",
                 "cudnn_adv_train.h",
                 "cudnn_cnn_infer.h",
                 "cudnn_cnn_train.h",
                 "cudnn_ops_infer.h",
                 "cudnn_ops_train.h",
-                "cudnn.h",
                 "cudnn_version.h",
             ]
+
         cudnn_srcs = []
         cudnn_outs = []
         for header in cudnn_headers:
