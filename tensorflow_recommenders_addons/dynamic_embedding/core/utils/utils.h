@@ -42,4 +42,24 @@ This code is for compatibility.*/
 }  // namespace recommenders_addons
 }  // namespace tensorflow
 
+// For propagating errors when calling a function but not return status.
+#if TF_VERSION_INTEGER >= 2130
+#define TFRA_LOG_IF_ERROR(...)             \
+  do {                                     \
+    const auto _status = (__VA_ARGS__);    \
+    if (TF_PREDICT_FALSE(!_status.ok())) { \
+      MAYBE_ADD_SOURCE_LOCATION(_status)   \
+      LOG(ERROR) << _status.message();     \
+    }                                      \
+  } while (0)
+#else
+#define TFRA_LOG_IF_ERROR(...)               \
+  do {                                       \
+    const auto _status = (__VA_ARGS__);      \
+    if (TF_PREDICT_FALSE(!_status.ok())) {   \
+      LOG(ERROR) << _status.error_message(); \
+    }                                        \
+  } while (0)
+#endif
+
 #endif  // TFRA_UTILS_H_
