@@ -34,7 +34,7 @@ jobs:
           sudo apt install -y redis > /dev/null 2> /dev/null
           bash tools/install_deps/install_bazelisk.sh ./
           python -m pip install tensorflow-io
-          python -m pip install --upgrade protobuf==3.20.3
+          python -m pip install --upgrade protobuf==4.23.4
           python configure.py
           bazel test --local_ram_resources=4096 -c opt -k --test_timeout 300,450,1200,3600 --test_output=errors //tensorflow_recommenders_addons/...
   release-wheel:
@@ -65,7 +65,7 @@ jobs:
           script: |
             const commit_details = await github.git.getCommit({owner: context.repo.owner, repo: context.repo.repo, commit_sha: context.sha});
             return commit_details.data.author.date
-      - if: matrix.tf-version != '2.11.0'
+      - if: matrix.tf-version != '2.15.1'
         shell: bash
         run: echo "SKIP_CUSTOM_OP_TESTS=--skip-custom-ops" >> $GITHUB_ENV
       - if: github.event_name == 'push'

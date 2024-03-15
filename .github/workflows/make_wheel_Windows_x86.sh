@@ -12,7 +12,7 @@ python -m pip install tensorflow-io
 # For TensorFlow version 2.12 or earlier:
 export PROTOBUF_VERSION=3.19.6
 if [[ "$TF_VERSION" =~ ^2\.1[3-9]\.[0-9]$ ]] ; then
-  export PROTOBUF_VERSION=3.20.3
+  export PROTOBUF_VERSION=4.23.4
 fi
 
 python -m pip install --upgrade protobuf~=$PROTOBUF_VERSION

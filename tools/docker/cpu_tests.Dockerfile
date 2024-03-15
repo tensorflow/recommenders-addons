@@ -9,7 +9,7 @@ ARG HOROVOD_VERSION="0.28.1"
 RUN pip install --upgrade pip
 RUN pip install --default-timeout=1000 tensorflow==$TF_VERSION
 
-RUN python -m pip install --upgrade protobuf==3.20.3
+RUN python -m pip install --upgrade protobuf==4.23.4
 
 RUN apt-get update && apt-get install -y sudo rsync cmake openmpi-bin libopenmpi-dev
 
@@ -32,7 +32,7 @@ WORKDIR recommenders-addons
 
 RUN python -m pip install tensorflow-io
 
-RUN python -m pip install --upgrade protobuf==3.20.3
+RUN python -m pip install --upgrade protobuf==4.23.4
 RUN python -m pip install numpy==1.26.4 --force-reinstall
 
 RUN python configure.py
@@ -54,7 +54,7 @@ RUN pip install --default-timeout=1000 tensorflow==$TF_VERSION
 
 COPY --from=0 /recommenders-addons/artifacts /artifacts
 
-RUN python -m pip install --upgrade protobuf==3.20.3
+RUN python -m pip install --upgrade protobuf==4.23.4
 
 RUN pip install /artifacts/tensorflow_recommenders_addons-*.whl
 
