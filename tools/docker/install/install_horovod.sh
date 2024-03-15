@@ -17,7 +17,6 @@
 ## Select version.
 HOROVOD_VERSION=$1
 
-
 # Install horovod
 if [[ "$2" != "--only-cpu" ]]; then
   ln -sf /usr/include/nccl.h /usr/local/include/nccl.h
@@ -29,12 +28,12 @@ if [[ "$2" != "--only-cpu" ]]; then
   HOROVOD_WITHOUT_MXNET=1 \
   HOROVOD_WITH_MPI=1 \
   HOROVOD_WITHOUT_GLOO=1 \
-  python -m pip install --no-cache-dir --use-pep517 horovod==$HOROVOD_VERSION
+  python -m pip install --no-cache-dir horovod==$HOROVOD_VERSION
 else
   HOROVOD_WITH_TENSORFLOW=1 \
   HOROVOD_WITHOUT_PYTORCH=1 \
   HOROVOD_WITHOUT_MXNET=1 \
   HOROVOD_WITH_MPI=1 \
   HOROVOD_WITHOUT_GLOO=1 \
-  python -m pip install --no-cache-dir --use-pep517 horovod==$HOROVOD_VERSION
+  python -m pip install --no-cache-dir horovod==$HOROVOD_VERSION
 fi
