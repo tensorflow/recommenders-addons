@@ -303,7 +303,7 @@ def DynamicEmbeddingOptimizer(self, bp_v2=False, synchronous=False, **kwargs):
         if self.jit_compile:
           return self._update_step_xla(grad, var, id(self._var_key(var)))
         else:
-          return script_ops.py_func_common(self._update_step, [grad, var], [])
+          return self._update_step(grad, var)
 
       if not isinstance(var, de.TrainableWrapper):
         return _update_step_fn(var, grad)
@@ -327,9 +327,9 @@ def DynamicEmbeddingOptimizer(self, bp_v2=False, synchronous=False, **kwargs):
             _before = [v0] + s0
 
           with ops.control_dependencies(_before):
-            _apply_op = _update_step_fn(var, grad)
+            _update_step_fn(var, grad)
 
-          with ops.control_dependencies([_apply_op]):
+          with ops.control_dependencies([var]):
             _after = control_flow_ops.group(
                 [var.update_op(v0=v0)] +
                 [_s.update_op(v0=s0[si]) for si, _s in enumerate(_slots)])
@@ -514,6 +514,8 @@ def DynamicEmbeddingOptimizer(self, bp_v2=False, synchronous=False, **kwargs):
   def _hvd_aggregate_gradients(hvd_handle,
                                grads_and_vars_in,
                                sparse_as_dense=True):
+    if hvd_handle.size() <= 1:
+      return grads_and_vars_in
     var_list = []
     aggregated_grad = []
     for grad, var in grads_and_vars_in:
