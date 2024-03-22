@@ -216,7 +216,7 @@ class EmbeddingLayerTest(test.TestCase):
     tf.keras.backend.clear_session()
     del model
     model = model_fn(table_device_)
-    model.load_weights(save_path)
+    model.load_weights(save_path).expect_partial()
     params_ = model.get_layer('test_keras_save_restore').params
     size = params_.size()
     self.assertEqual(2, size)
@@ -284,7 +284,7 @@ class EmbeddingLayerTest(test.TestCase):
     tf.keras.backend.clear_session()
     del model
     model = model_fn(table_devices_)
-    model.load_weights(save_path)
+    model.load_weights(save_path).expect_partial()
     params_ = model.get_layer('test_keras_save_restore').params
     size = params_.size()
     self.assertEqual(test_size, size)
@@ -298,7 +298,7 @@ class EmbeddingLayerTest(test.TestCase):
     shard_num = 5
     table_devices_ = table_device * shard_num
     model = model_fn(table_devices_)
-    model.load_weights(save_path)
+    model.load_weights(save_path).expect_partial()
     params_ = model.get_layer('test_keras_save_restore').params
     size = params_.size()
     self.assertEqual(test_size, size)
@@ -312,7 +312,7 @@ class EmbeddingLayerTest(test.TestCase):
     shard_num = 2
     table_devices_ = table_device * shard_num
     model = model_fn(table_devices_)
-    model.load_weights(save_path)
+    model.load_weights(save_path).expect_partial()
     params_ = model.get_layer('test_keras_save_restore').params
     size = params_.size()
     self.assertEqual(test_size, size)
@@ -326,7 +326,7 @@ class EmbeddingLayerTest(test.TestCase):
     shard_num = 1
     table_devices_ = table_device * shard_num
     model = model_fn(table_devices_)
-    model.load_weights(save_path)
+    model.load_weights(save_path).expect_partial()
     params_ = model.get_layer('test_keras_save_restore').params
     size = params_.size()
     self.assertEqual(test_size, size)
@@ -407,7 +407,7 @@ class EmbeddingLayerTest(test.TestCase):
     for i in range(proc_size):
       tf.keras.backend.clear_session()
       models.append(model_fn(proc_size, i))
-      models[i].load_weights(save_path)
+      models[i].load_weights(save_path).expect_partial()
       params_ = models[i].get_layer('test_keras_save_restore').params
       size_i = params_.size()
       total_size = total_size + size_i
@@ -450,7 +450,7 @@ class EmbeddingLayerTest(test.TestCase):
     for i in range(proc_size):
       tf.keras.backend.clear_session()
       models.append(model_fn(proc_size, i))
-      models[i].load_weights(save_path)
+      models[i].load_weights(save_path).expect_partial()
       params_ = models[i].get_layer('test_keras_save_restore').params
       size_i = params_.size()
       total_size = total_size + size_i
@@ -492,7 +492,7 @@ class EmbeddingLayerTest(test.TestCase):
     for i in range(proc_size):
       tf.keras.backend.clear_session()
       models.append(model_fn(proc_size, i))
-      models[i].load_weights(save_path)
+      models[i].load_weights(save_path).expect_partial()
       params_ = models[i].get_layer('test_keras_save_restore').params
       size_i = params_.size()
       total_size = total_size + size_i
@@ -535,7 +535,7 @@ class EmbeddingLayerTest(test.TestCase):
     for i in range(proc_size):
       tf.keras.backend.clear_session()
       models.append(model_fn(proc_size, i))
-      models[i].load_weights(save_path)
+      models[i].load_weights(save_path).expect_partial()
       params_ = models[i].get_layer('test_keras_save_restore').params
       size_i = params_.size()
       total_size = total_size + size_i
@@ -577,7 +577,7 @@ class EmbeddingLayerTest(test.TestCase):
     for i in range(proc_size):
       tf.keras.backend.clear_session()
       models.append(model_fn(proc_size, i))
-      models[i].load_weights(save_path)
+      models[i].load_weights(save_path).expect_partial()
       params_ = models[i].get_layer('test_keras_save_restore').params
       size_i = params_.size()
       total_size = total_size + size_i
@@ -620,7 +620,7 @@ class EmbeddingLayerTest(test.TestCase):
     for i in range(proc_size):
       tf.keras.backend.clear_session()
       models.append(model_fn(proc_size, i))
-      models[i].load_weights(save_path)
+      models[i].load_weights(save_path).expect_partial()
       params_ = models[i].get_layer('test_keras_save_restore').params
       size_i = params_.size()
       total_size = total_size + size_i
@@ -819,7 +819,7 @@ class FieldWiseEmbeddingLayerTest(test.TestCase):
                                      initializer=copied_init,
                                      name='pc053')
     new_emb_layer = new_model.layers[0]
-    new_model.load_weights(save_dir)
+    new_model.load_weights(save_dir).expect_partial()
     evaluate = new_model(ids)
     self.assertAllEqual(evaluate, expected)
 

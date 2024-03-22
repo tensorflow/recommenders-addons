@@ -271,6 +271,10 @@ class HorovodTest(test.TestCase):
     _device_id = hvd.local_rank(
     ) if _device == "GPU" and len(logical_devices) >= 2 else 0
 
+    if len(logical_devices) == 0:
+      self.skipTest(
+          "Skip the test for hvd.join() has no CPU kernel registered.")
+
     if _device == "GPU":
       os.environ["CUDA_VISIBLE_DEVICES"] = str(_device_id)
 
@@ -355,7 +359,8 @@ class HorovodTest(test.TestCase):
         self.assertEqual(a2aemb_size, new_a2aemb_size)
         hvd.join()  # Sync for avoiding files conflict
         tf.keras.backend.clear_session()
-        new_base_model.load_weights(save_dir + '/variables/variables')
+        new_base_model.load_weights(save_dir +
+                                    '/variables/variables').expect_partial()
         new_a2aemb_size = new_base_model.layers[0].params.size()
         self.assertEqual(a2aemb_size, new_a2aemb_size)
         hvd.join()  # Sync for avoiding files conflict
@@ -571,7 +576,8 @@ class HorovodTest(test.TestCase):
       extra_save_dir = hvd.broadcast_object(
           extra_save_dir, root_rank=0, name='de_utest_hvd_broadcast_filepath'
       )  # All ranks should share same save directory
-      new_saved_model.load_weights(extra_save_dir + '/variables/variables')
+      new_saved_model.load_weights(extra_save_dir +
+                                   '/variables/variables').expect_partial()
       for l in new_saved_model.layers:
         if name in l.name:
           new_emb_size = l.params.size()

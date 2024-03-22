@@ -19,7 +19,7 @@ python --version
 python -m pip install --default-timeout=1000 delocate==0.10.3 wheel setuptools
 # For TensorFlow version 2.13 or later:
 if [[ "$TF_VERSION" =~ ^2\.1[3-9]\.[0-9]$ ]] ; then
-  export PROTOBUF_VERSION=3.20.3
+  export PROTOBUF_VERSION=4.23.4
   export TF_NAME="tensorflow"
 fi
 

@@ -4,11 +4,11 @@
 # glibc (2.12) and system libstdc++ (4.4).
 #
 # To push a new version, run:
-# $ docker build -f cuda11.2.1-cudnn8-ubuntu20.04-manylinux2014-python3.8.Dockerfile . \
-#  --tag "tfra/nosla-cuda11.2.1-cudnn8-ubuntu20.04-manylinux2014-python3.8"
-# $ docker push tfra/nosla-cuda11.2.1-cudnn8-ubuntu20.04-manylinux2014-python3.8
+# $ docker build -f cuda11.2-cudnn8-ubuntu20.04-manylinux2014-python3.8.Dockerfile . \
+#  --tag "tfra/nosla-cuda11.2-cudnn8-ubuntu20.04-manylinux2014-python3.8"
+# $ docker push tfra/nosla-cuda11.2-cudnn8-ubuntu20.04-manylinux2014-python3.8
 
-FROM nvidia/cuda:11.2.1-cudnn8-devel-ubuntu20.04 as devtoolset
+FROM nvidia/cuda:11.2.2-cudnn8-devel-ubuntu20.04 as devtoolset
 
 RUN chmod 777 /tmp/
 ENV DEBIAN_FRONTEND=noninteractive
@@ -38,14 +38,11 @@ ADD devtoolset/fixlinks.sh fixlinks.sh
 ADD devtoolset/build_devtoolset.sh build_devtoolset.sh
 ADD devtoolset/rpm-patch.sh rpm-patch.sh
 
-# Set up a sysroot for glibc 2.12 / libstdc++ 4.4 / devtoolset-7 in /dt7.
-RUN /build_devtoolset.sh devtoolset-7 /dt7
 # Set up a sysroot for glibc 2.12 / libstdc++ 4.4 / devtoolset-8 in /dt8.
 RUN /build_devtoolset.sh devtoolset-8 /dt8
 
 # TODO(klimek): Split up into two different docker images.
-FROM nvidia/cuda:11.2.1-cudnn8-devel-ubuntu20.04
-COPY --from=devtoolset /dt7 /dt7
+FROM nvidia/cuda:11.2.2-cudnn8-devel-ubuntu20.04
 COPY --from=devtoolset /dt8 /dt8
 
 # Install TensorRT.
@@ -96,8 +93,8 @@ RUN /install/build_and_install_python.sh "3.8.2"
 COPY install/install_pip_packages_by_version.sh /install/
 RUN /install/install_pip_packages_by_version.sh "/usr/local/bin/pip3.8"
 
-COPY install/use_devtoolset_7.sh /install/
-RUN /install/use_devtoolset_7.sh
+COPY install/use_devtoolset_8.sh /install/
+RUN /install/use_devtoolset_8.sh
 
 COPY install/install_openmpi.sh /install/
 RUN /install/install_openmpi.sh "4.1.1"

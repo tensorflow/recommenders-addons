@@ -55,7 +55,7 @@ def _check_tf_version():
 
   warnings.warn(
       "Tensorflow Recommenders Addons supports using Python ops for all Tensorflow versions "
-      "above or equal to {} and strictly below {} (nightly versions are not "
+      "above or equal to {} and strictly below or equal to {} (nightly versions are not "
       "supported). \n "
       "The versions of TensorFlow you are currently using is {} and is not "
       "supported. \n"

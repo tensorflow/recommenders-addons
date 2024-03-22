@@ -19,7 +19,7 @@ preparation, model formulation, training, evaluation, and deployment.
 It's built on Keras and aims to have a gentle learning curve while still giving
 you the flexibility to build complex models.
 """
-__all__ = ['dynamic_embedding', 'embedding_variable']
+__all__ = ['dynamic_embedding']
 
 from tensorflow_recommenders_addons.utils.ensure_tf_install import _check_tf_version
 from tensorflow_recommenders_addons.version import __version__
@@ -27,5 +27,4 @@ from tensorflow_recommenders_addons.version import __version__
 _check_tf_version()
 
 from tensorflow_recommenders_addons import dynamic_embedding
-from tensorflow_recommenders_addons import embedding_variable
 from tensorflow_recommenders_addons.register import register_all
