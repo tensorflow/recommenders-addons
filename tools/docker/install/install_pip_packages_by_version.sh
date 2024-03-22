@@ -17,13 +17,11 @@
 PIP="$1"
 PIP_INSTALL=("${PIP}" "install" "--prefer-binary" --upgrade)
 
-if [[ ! -x "$(which "${PIP}")" ]]; then
-  # Python2 doesn't ship with pip by default.
-  PYTHON="${PIP/pip/python}"
-  wget "https://bootstrap.pypa.io/get-pip.py"
-  "${PYTHON}" "get-pip.py"
-  rm "get-pip.py"
-fi
+PYTHON="${PIP/pip/python}"
+wget "https://bootstrap.pypa.io/get-pip.py"
+"${PYTHON}" "get-pip.py" --force-reinstall
+rm "get-pip.py"
+"${PYTHON}" -m ensurepip --upgrade
 
 PACKAGES=(
   "auditwheel==4.0.0"

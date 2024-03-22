@@ -31,6 +31,9 @@ if [ "$TF_VERSION" = "2.6.3" ] ; then
   python -m pip install numpy==1.19.5 --force-reinstall
 fi
 
+# Avoid SystemError: initialization of _pywrap_checkpoint_reader raised unreported exception
+pip install tensorflow==$TF_VERSION
+
 TF_NEED_CUDA=$TF_NEED_CUDA python ./configure.py
 bash tools/install_so_files.sh
 

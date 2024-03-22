@@ -31,7 +31,7 @@ if (is_macos() and is_arm64()):
   MIN_TF_VERSION = "2.11.0"
   MAX_TF_VERSION = "2.15.1"
 else:
-  MIN_TF_VERSION = "2.11.3"
+  MIN_TF_VERSION = "2.11.0"
   MAX_TF_VERSION = "2.15.1"
 
 # We follow Semantic Versioning (https://semver.org/)

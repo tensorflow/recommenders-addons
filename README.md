@@ -156,8 +156,8 @@ Please install a TensorFlow on your compiling machine, The compiler needs to kno
 its headers according to the installed TensorFlow. 
 
 ```sh
-export TF_VERSION="2.15.1"  # "2.8.3" are well tested.
-pip install tensorflow[-gpu]==$TF_VERSION
+export TF_VERSION="2.15.1"  # "2.11.0" are well tested.
+pip install tensorflow==$TF_VERSION
 
 git clone https://github.com/tensorflow/recommenders-addons.git
 cd recommenders-addons
@@ -173,11 +173,11 @@ pip install artifacts/tensorflow_recommenders_addons-*.whl
 #### GPU Support
 Only `TF_NEED_CUDA=1` is required and other environment variables are optional:
 ```sh
-export TF_VERSION="2.15.1"  # "2.8.3" is well tested.
-export PY_VERSION="3.8" 
+export TF_VERSION="2.15.1"  # "2.11.0" is well tested.
+export PY_VERSION="3.9" 
 export TF_NEED_CUDA=1
-export TF_CUDA_VERSION=11.2
-export TF_CUDNN_VERSION=8.1
+export TF_CUDA_VERSION=12.2
+export TF_CUDNN_VERSION=8.9
 export CUDA_TOOLKIT_PATH="/usr/local/cuda"
 export CUDNN_INSTALL_PATH="/usr/lib/x86_64-linux-gnu"
 

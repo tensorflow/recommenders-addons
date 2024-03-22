@@ -15,8 +15,8 @@ on:
       - r*
 
 env:
-  MIN_PY_VERSION: '3.9'
-  MAX_PY_VERSION: '3.10'
+  MIN_PY_VERSION: '3.7'
+  MAX_PY_VERSION: '3.11'
   HOROVOD_VERSION: '0.28.1'
 
 jobs:
@@ -43,16 +43,20 @@ jobs:
       matrix:
         # TODO: add back 'windows-latest' when it can be compiled.
         os: ['macos-12', 'ubuntu-20.04']
-        py-version: ['3.9', '3.10']
+        py-version: ['3.7', '3.8', '3.9', '3.10', '3.11']
         tf-version: ['2.11.0', '2.15.1']
         tf-need-cuda: ['0', '1']
-        tf-cuda-version: ['11.2']
-        tf-cudnn-version: ['8.1']
         cpu: ['x86']
         exclude:
           # excludes cuda on macOS
           - os: 'macos-12'
             tf-need-cuda: '1'
+          - tf-version: '2.11.0'
+            py-version: '3.11'
+          - tf-version: '2.15.1'
+            py-version: '3.7'
+          - tf-version: '2.15.1'
+            py-version: '3.8'
       fail-fast: false
     runs-on: ${{ matrix.os }}
     steps:
@@ -85,8 +89,6 @@ jobs:
           PY_VERSION: ${{ matrix.py-version }}
           TF_VERSION: ${{ matrix.tf-version }}
           TF_NEED_CUDA: ${{ matrix.tf-need-cuda }}
-          TF_CUDA_VERSION: ${{ matrix.tf-cuda-version }}
-          TF_CUDNN_VERSION: ${{ matrix.tf-cudnn-version }}
           NIGHTLY_TIME: ${{ steps.author-date.outputs.result }}
           CPU: ${{ matrix.cpu }}
         shell: bash
@@ -113,13 +115,20 @@ jobs:
       matrix:
         # TODO: add back 'Windows' when it can be compiled.
         os: ['macOS', 'Linux']
-        py-version: ['3.9', '3.10']
+        py-version: ['3.7', '3.8', '3.9', '3.10', '3.11']
+        tf-version: ['2.15.1']
         tf-need-cuda: ['0', '1']
         cpu: ['x86']
         exclude:
           # excludes cuda on macOS
           - os: 'macOS'
             tf-need-cuda: '1'
+          - tf-version: '2.11.0'
+            py-version: '3.11'
+          - tf-version: '2.15.1'
+            py-version: '3.7'
+          - tf-version: '2.15.1'
+            py-version: '3.8'
       fail-fast: false
     if: (github.event_name == 'push' && github.ref == 'refs/heads/master') || github.event_name == 'release'
     steps:
@@ -147,7 +156,7 @@ jobs:
     runs-on: ubuntu-20.04
     strategy:
       matrix:
-        py-version: ['3.9', '3.10']
+        py-version: ['3.10']
     if: (github.event_name == 'push' && github.ref == 'refs/heads/master')
     steps:
       - uses: actions/checkout@v2

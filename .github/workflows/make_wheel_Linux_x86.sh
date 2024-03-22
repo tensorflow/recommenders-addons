@@ -8,8 +8,24 @@ rm -rf /usr/share/dotnet &
 export TF_NAME='tensorflow'
 
 # if tensorflow version >= 2.6.0 and <= 2.15.9
-if [[ "$TF_VERSION" =~ ^2\.([6-9]|10|11|12|13|14|15)\.[0-9]+$ ]] ; then
-  export BUILD_IMAGE="tfra/nosla-cuda11.2.1-cudnn8-ubuntu20.04-manylinux2014-python$PY_VERSION"
+if [[ "$TF_VERSION" =~ ^2\.(16)\.[0-9]+$ ]] ; then
+  export BUILD_IMAGE="tfra/nosla-cuda12.3-cudnn8.9-ubuntu20.04-manylinux2014-python$PY_VERSION"
+  export TF_CUDA_VERSION="12.3"
+  export TF_CUDNN_VERSION="8.9"
+elif [[ "$TF_VERSION" =~ ^2\.(15)\.[0-9]+$ ]] ; then
+  export BUILD_IMAGE="tfra/nosla-cuda12.2-cudnn8.9-ubuntu20.04-manylinux2014-python$PY_VERSION"
+  export TF_CUDA_VERSION="12.2"
+  export TF_CUDNN_VERSION="8.9"
+elif [[ "$TF_VERSION" =~ ^2\.(14)\.[0-9]+$ ]] ; then
+  export BUILD_IMAGE="tfra/nosla-cuda11.8-cudnn8.7-ubuntu20.04-manylinux2014-python$PY_VERSION"
+  export TF_CUDA_VERSION="11.8"
+  export TF_CUDNN_VERSION="8.7"
+elif [[ "$TF_VERSION" =~ ^2\.(12|13)\.[0-9]+$ ]] ; then
+  export BUILD_IMAGE="tfra/nosla-cuda11.8-cudnn8.6-ubuntu20.04-manylinux2014-python$PY_VERSION"
+  export TF_CUDA_VERSION="11.8"
+  export TF_CUDNN_VERSION="8.6"
+elif [[ "$TF_VERSION" =~ ^2\.([6-9]|10|11)\.[0-9]+$ ]] ; then
+  export BUILD_IMAGE="tfra/nosla-cuda11.2-cudnn8-ubuntu20.04-manylinux2014-python$PY_VERSION"
   export TF_CUDA_VERSION="11.2"
   export TF_CUDNN_VERSION="8.1"
 elif [ $TF_VERSION == "2.4.1" ] ; then
@@ -24,6 +40,10 @@ else
   echo "TF_VERSION is invalid: $TF_VERSION!"
   exit 1
 fi
+
+echo "BUILD_IMAGE is $BUILD_IMAGE"
+echo "TF_CUDA_VERSION is $TF_CUDA_VERSION"
+echo "TF_CUDNN_VERSION is $TF_CUDNN_VERSION"
 
 if [ -z $HOROVOD_VERSION ] ; then
   export HOROVOD_VERSION='0.28.1'
