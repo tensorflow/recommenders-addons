@@ -205,6 +205,15 @@ class HkvHashTable(LookupInterface):
     resource_map = {self.resource_handle: new_resource}
     return obj_map, resource_map
 
+  def _gen_scores(self, keys):
+    if self._evict_strategy == HkvEvictStrategy.CUSTOMIZED:
+      assert self._gen_scores_fn != None, "You must set gen_scores_fn when set evict strategy to CUSTOMIZED"
+      return self._gen_scores_fn(keys)
+    elif self._evict_strategy == HkvEvictStrategy.LFU or self._evict_strategy == HkvEvictStrategy.EPOCHLFU:
+      return tf.ones(keys.shape, keys.dtype)
+    else:
+      return self._default_score
+
   @property
   def name(self):
     return self._table_name
@@ -350,12 +359,7 @@ class HkvHashTable(LookupInterface):
     ):
       keys = ops.convert_to_tensor(keys, self._key_dtype, name="keys")
       values = ops.convert_to_tensor(values, self._value_dtype, name="values")
-      scores = self._default_scores
-      if self._evict_strategy == HkvEvictStrategy.CUSTOMIZED:
-        assert self._gen_scores_fn != None, "You must set gen_scores_fn when set evict strategy to CUSTOMIZED"
-        scores = self._gen_scores_fn(keys)
-      elif self._evict_strategy == HkvEvictStrategy.LFU or self._evict_strategy == HkvEvictStrategy.EPOCHLFU:
-        scores = tf.ones(keys.shape, keys.dtype)
+      scores = self._gen_scores(keys)
       with ops.colocate_with(self.resource_handle, ignore_existing=True):
         op = hkv_ops.tfra_hkv_hash_table_insert(self.resource_handle, keys,
                                                 values, scores)
@@ -390,12 +394,7 @@ class HkvHashTable(LookupInterface):
                                                self._value_dtype,
                                                name="values_or_deltas")
       exists = ops.convert_to_tensor(exists, dtypes.bool, name="exists")
-      scores = self._default_scores
-      if self._evict_strategy == HkvEvictStrategy.CUSTOMIZED:
-        assert self._gen_scores_fn != None, "You must set gen_scores_fn when set evict strategy to CUSTOMIZED"
-        scores = self._gen_scores_fn(keys)
-      elif self._evict_strategy == HkvEvictStrategy.LFU or self._evict_strategy == HkvEvictStrategy.EPOCHLFU:
-        scores = tf.ones(keys.shape, keys.dtype)
+      scores = self._gen_scores(keys)
       with ops.colocate_with(self.resource_handle, ignore_existing=True):
         op = hkv_ops.tfra_hkv_hash_table_accum(self.resource_handle, keys,
                                                values_or_deltas, exists, scores)
