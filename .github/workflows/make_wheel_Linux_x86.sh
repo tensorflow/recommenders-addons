@@ -56,9 +56,9 @@ if [[ "$TF_VERSION" =~ ^2\.1[3-9]\.[0-9]$ ]] ; then
 fi
 original_dir=$(pwd)
 echo $original_dir
-mkdir -p /home/hrong/mnt/recommenders-addons
-cp -rf ./* /home/hrong/mnt/recommenders-addons/
-cd /home/hrong/mnt/recommenders-addons
+mkdir -p /mnt/recommenders-addons
+cp -rf ./* /mnt/recommenders-addons/
+cd /mnt/recommenders-addons
 DOCKER_BUILDKIT=1 docker build --no-cache \
     -f tools/docker/build_wheel.Dockerfile \
     --output type=local,dest=wheelhouse \
