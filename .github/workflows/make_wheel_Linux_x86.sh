@@ -69,4 +69,4 @@ DOCKER_BUILDKIT=1 docker build --no-cache \
     --build-arg NIGHTLY_FLAG \
     --build-arg NIGHTLY_TIME \
     --build-arg PROTOBUF_VERSION \
-    /mnt
+    ./
