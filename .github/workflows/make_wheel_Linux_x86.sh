@@ -61,7 +61,7 @@ cp -rf ./* /home/hrong/mnt/recommenders-addons/
 cd /home/hrong/mnt/recommenders-addons
 DOCKER_BUILDKIT=1 docker build --no-cache \
     -f tools/docker/build_wheel.Dockerfile \
-    --output type=local,dest=$(original_dir)/wheelhouse \
+    --output type=local,dest=wheelhouse \
     --build-arg PY_VERSION \
     --build-arg TF_VERSION \
     --build-arg TF_NAME \
@@ -74,5 +74,3 @@ DOCKER_BUILDKIT=1 docker build --no-cache \
     --build-arg NIGHTLY_TIME \
     --build-arg PROTOBUF_VERSION \
     ./
-
-cd $original_dir
