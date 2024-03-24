@@ -54,10 +54,14 @@ export PROTOBUF_VERSION='3.19.6'
 if [[ "$TF_VERSION" =~ ^2\.1[3-9]\.[0-9]$ ]] ; then
   export PROTOBUF_VERSION='4.23.4'
 fi
-
+original_dir=$(pwd)
+echo $original_dir
+mkdir -p /home/hrong/mnt/recommenders-addons
+cp ./* /home/hrong/mnt/recommenders-addons/
+cd /home/hrong/mnt/recommenders-addons
 DOCKER_BUILDKIT=1 docker build --no-cache \
     -f tools/docker/build_wheel.Dockerfile \
-    --output type=local,dest=wheelhouse \
+    --output type=local,dest=$(original_dir)/wheelhouse \
     --build-arg PY_VERSION \
     --build-arg TF_VERSION \
     --build-arg TF_NAME \
@@ -69,4 +73,6 @@ DOCKER_BUILDKIT=1 docker build --no-cache \
     --build-arg NIGHTLY_FLAG \
     --build-arg NIGHTLY_TIME \
     --build-arg PROTOBUF_VERSION \
-    ./mnt
+    ./
+
+cd $original_dir
