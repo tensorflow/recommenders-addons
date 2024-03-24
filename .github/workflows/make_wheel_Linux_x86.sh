@@ -57,7 +57,7 @@ fi
 original_dir=$(pwd)
 echo $original_dir
 mkdir -p /home/hrong/mnt/recommenders-addons
-cp ./* /home/hrong/mnt/recommenders-addons/
+cp -rf ./* /home/hrong/mnt/recommenders-addons/
 cd /home/hrong/mnt/recommenders-addons
 DOCKER_BUILDKIT=1 docker build --no-cache \
     -f tools/docker/build_wheel.Dockerfile \
