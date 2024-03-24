@@ -76,6 +76,7 @@ RUN python configure.py
 
 RUN bash tools/testing/build_and_run_tests.sh $SKIP_CUSTOM_OP_TESTS && \
     bazel build --local_ram_resources=4096 \
+        --output_user_root=/mnt \
         --noshow_progress \
         --noshow_loading_progress \
         --verbose_failures \
