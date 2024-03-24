@@ -559,7 +559,9 @@ class HvdAllToAllEmbedding(BasicEmbedding):
     else:
       self._mpi_size = mpi_size
     super(HvdAllToAllEmbedding, self).__init__(*args, **kwargs)
-    if type(self.params.saveable).__name__ not in de_fs_saveable_class_names:
+    try:
+      assert type(self.params.saveable).__name__ in de_fs_saveable_class_names
+    except:
       tf_logging.warning(
           "Please use FileSystemSaver in KVCreator when use HvdAllToAllEmbedding. "
           "It will allow TFRA save and restore KV files when Embedding tensor parallel in distributed training. "

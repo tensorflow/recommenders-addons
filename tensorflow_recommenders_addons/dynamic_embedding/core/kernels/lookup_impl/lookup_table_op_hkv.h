@@ -207,10 +207,10 @@ class RandomKVFile : public nv::merlin::BaseKVFile<K, V, S> {
 
   void close() {
     if (key_writer_) {
-      key_writer_->Flush();
+      TFRA_LOG_IF_ERROR(key_writer_->Flush());
     }
     if (value_writer_) {
-      value_writer_->Flush();
+      TFRA_LOG_IF_ERROR(value_writer_->Flush());
     }
   }
 
@@ -222,8 +222,9 @@ class RandomKVFile : public nv::merlin::BaseKVFile<K, V, S> {
     key_buffer_.reserve(key_read_byte);
     value_buffer_.reserve(value_read_byte);
 
-    key_reader_->ReadNBytes(key_read_byte, &key_buffer_);
-    value_reader_->ReadNBytes(value_read_byte, &value_buffer_);
+    TFRA_LOG_IF_ERROR(key_reader_->ReadNBytes(key_read_byte, &key_buffer_));
+    TFRA_LOG_IF_ERROR(
+        value_reader_->ReadNBytes(value_read_byte, &value_buffer_));
 
     memcpy((char*)keys, key_buffer_.data(), key_buffer_.size());
     memcpy((char*)vectors, value_buffer_.data(), value_buffer_.size());
@@ -237,8 +238,10 @@ class RandomKVFile : public nv::merlin::BaseKVFile<K, V, S> {
     size_t key_write_byte = n * sizeof(K);
     size_t value_write_byte = n * sizeof(V) * value_dim_;
 
-    key_writer_->Append(StringPiece((char*)keys, key_write_byte));
-    value_writer_->Append(StringPiece((char*)vectors, value_write_byte));
+    TFRA_LOG_IF_ERROR(
+        key_writer_->Append(StringPiece((char*)keys, key_write_byte)));
+    TFRA_LOG_IF_ERROR(
+        value_writer_->Append(StringPiece((char*)vectors, value_write_byte)));
 
     return n;
   }
@@ -552,8 +555,8 @@ class TableWrapper {
     } else {
       wfile.reset(new RandomKVFile<K, V, uint64_t>(
           fs, filepath, dim, buffer_size, append_to_file));
-      status = reinterpret_cast<RandomKVFile<K, V, uint64_t>*>(wfile.get())
-                   ->open(keyfile, valuefile, "wb");
+      status.Update(reinterpret_cast<RandomKVFile<K, V, uint64_t>*>(wfile.get())
+                        ->open(keyfile, valuefile, "wb"));
     }
     if (!status.ok()) {
       std::string error_msg = "Failed to dump to file to " + keyfile + ", " +
@@ -603,8 +606,8 @@ class TableWrapper {
     } else {
       rfile.reset(
           new RandomKVFile<K, V, uint64_t>(fs, filepath, dim, buffer_size));
-      status = reinterpret_cast<RandomKVFile<K, V, uint64_t>*>(rfile.get())
-                   ->open(keyfile, valuefile, "rb");
+      status.Update(reinterpret_cast<RandomKVFile<K, V, uint64_t>*>(rfile.get())
+                        ->open(keyfile, valuefile, "rb"));
     }
     if (!status.ok()) {
       std::string error_msg = "Failed to load from file " + keyfile + ", " +

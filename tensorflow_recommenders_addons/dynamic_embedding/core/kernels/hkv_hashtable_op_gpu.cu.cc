@@ -839,7 +839,7 @@ class HashTableExportKeysAndScoresGpuOp : public OpKernel {
  public:
   explicit HashTableExportKeysAndScoresGpuOp(OpKernelConstruction* ctx)
       : OpKernel(ctx) {
-    ctx->GetAttr("split_size", &split_size_i64_);
+    OP_REQUIRES_OK(ctx, ctx->GetAttr("split_size", &split_size_i64_));
   }
 
   void Compute(OpKernelContext* ctx) override {

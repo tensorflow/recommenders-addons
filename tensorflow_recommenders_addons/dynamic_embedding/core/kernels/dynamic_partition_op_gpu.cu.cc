@@ -119,11 +119,7 @@ void MoveValues(const GPUDevice& d, int32* keys, int32* values, int32* num_runs,
                               values, num_runs, out_size, out));
 }
 
-struct IdentityOp {
-  __device__ int32 __forceinline__ operator()(const int32& a) const {
-    return a;
-  }
-};
+struct IdentityOp {};
 
 // Define an output iterator that only allows assignment to
 // positions between [base, base + limit).
@@ -162,26 +158,9 @@ class BoundedOutputIterator
                         IdentityOp op, int32 size)
       : TransformOutputIterator(ptr, op), limit(size), base(base) {}
 
-  // Indirection
-  __host__ __device__ __forceinline__ reference operator*() const {
-    return BoundedReference(ptr, base, conversion_op, limit);
-  }
-
   // Array subscript
   __host__ __device__ __forceinline__ reference operator[](int32 n) const {
     return BoundedReference(ptr + n, base, conversion_op, limit);
-  }
-
-  // Addition
-  __host__ __device__ __forceinline__ self_type operator+(int32 n) const {
-    self_type retval(ptr + n, base, conversion_op, limit);
-    return retval;
-  }
-
-  // Subtraction
-  __host__ __device__ __forceinline__ self_type operator-(int32 n) const {
-    self_type retval(ptr - n, base, conversion_op, limit);
-    return retval;
   }
 };
 
