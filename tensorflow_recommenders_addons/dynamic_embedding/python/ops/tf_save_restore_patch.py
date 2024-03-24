@@ -150,7 +150,9 @@ class _DynamicEmbeddingSingleDeviceSaver(functional_saver._SingleDeviceSaver):
             str(saveable.local_shard_num) + '_rank' + str(saveable.proc_rank) +
             '_size' + str(saveable.proc_size), saveable.op._name)
         _DynamicEmbeddingShardSaveable_save_op = saveable.op.save_to_file_system(
-            de_variable_folder_dir, file_name=save_file_name)
+            de_variable_folder_dir,
+            file_name=save_file_name,
+            buffer_size=saveable._saver_config.buffer_size)
         save_ops.as_list().append(_DynamicEmbeddingShardSaveable_save_op)
       for spec in saveable.specs:
         tensor = spec.tensor
