@@ -1242,7 +1242,7 @@ def get_variable(
   scope = variable_scope.get_variable_scope()
   scope_store = variable_scope._get_default_variable_store()
   full_name = scope.name + "/" + name if scope.name else name
-  if full_name in scope_store._vars:
+  if context.executing_eagerly() and full_name in scope_store._vars:
     if scope.reuse is False:
       err_msg = ("Variable %s already exists, disallowed."
                  " Did you mean to set reuse=True or "
