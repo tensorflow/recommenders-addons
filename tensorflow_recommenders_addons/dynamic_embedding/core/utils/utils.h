@@ -42,6 +42,11 @@ This code is for compatibility.*/
 }  // namespace recommenders_addons
 }  // namespace tensorflow
 
+#ifndef MAYBE_ADD_SOURCE_LOCATION
+#define MAYBE_ADD_SOURCE_LOCATION(status) \
+  {}
+#endif  // MAYBE_ADD_SOURCE_LOCATION
+
 // For propagating errors when calling a function but not return status.
 #if TF_VERSION_INTEGER >= 2130
 #define TFRA_LOG_IF_ERROR(...)             \
