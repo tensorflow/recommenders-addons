@@ -74,9 +74,9 @@ is_gpu_available = test_util.is_gpu_available()
 class HkvHashtableTest(test.TestCase):
 
   def test_basic(self):
-    test_list = [["CPU", '/CPU:0', False]]
-    if is_gpu_available:
-      test_list = test_list + [["GPU", '/GPU:0', True]]
+    if not is_gpu_available:
+      self.skipTest('Only test when gpu is available.')
+    test_list = [["CPU", '/CPU:0', False], ["GPU", '/GPU:0', True]]
 
     id = 0
     for dev_str, device, use_gpu in test_list:
@@ -100,9 +100,10 @@ class HkvHashtableTest(test.TestCase):
           id += 1
 
   def test_variable(self):
-    test_list = [['/CPU:0', False]]
-    if is_gpu_available:
-      test_list = test_list + [['/GPU:0', True]]
+    if not is_gpu_available:
+      self.skipTest('Only test when gpu is available.')
+    test_list = [['/CPU:0', False], ['/GPU:0', True]]
+
     id = 0
     dim_list = [1, 2, 4, 8, 10, 16, 32, 64, 100, 200]
     kv_list = [[dtypes.int64, dtypes.int8], [dtypes.int64, dtypes.int32],
@@ -179,11 +180,13 @@ class HkvHashtableTest(test.TestCase):
           del table
 
   def test_dynamic_embedding_variable_set_init_size(self):
+    if not is_gpu_available:
+      self.skipTest('Only test when gpu is available.')
     test_list = [["CPU", '/CPU:0', False, 12345, 12345],
-                 ["CPU", '/CPU:0', False, 0, 8192]]
-    if is_gpu_available:
-      test_list = test_list + [["GPU", '/GPU:0', True, 54321, 54321],
-                               ["GPU", '/GPU:0', True, 0, 8192]]
+                 ["CPU", '/CPU:0', False, 0, 8192],
+                 ["GPU", '/GPU:0', True, 54321, 54321],
+                 ["GPU", '/GPU:0', True, 0, 8192]]
+
     self.assertTrue(len(test_list) > 0)
     id = 0
     for dev_str, device, use_gpu, init_size, expect_size in test_list:
@@ -215,9 +218,10 @@ class HkvHashtableTest(test.TestCase):
                 "init capacity: {}".format(init_size) in printed.contents())
 
   def test_hkv_hashtable_import_and_export(self):
-    test_list = [['/CPU:0', False]]
-    if is_gpu_available:
-      test_list = test_list + [['/GPU:0', True]]
+    if not is_gpu_available:
+      self.skipTest('Only test when gpu is available.')
+    test_list = [['/CPU:0', False], ['/GPU:0', True]]
+
     id = 0
     for device, use_gpu in test_list:
       with self.session(use_gpu=use_gpu, config=default_config):
@@ -243,9 +247,10 @@ class HkvHashtableTest(test.TestCase):
 
   @test_util.run_in_graph_and_eager_modes()
   def test_insert(self):
-    test_list = [['/CPU:0', False]]
-    if is_gpu_available:
-      test_list = test_list + [['/GPU:0', True]]
+    if not is_gpu_available:
+      self.skipTest('Only test when gpu is available.')
+    test_list = [['/CPU:0', False], ['/GPU:0', True]]
+
     dim_list = [1, 2, 4, 8, 10, 16, 32, 64, 100, 200]
     kv_list = [[dtypes.int64, dtypes.float32], [dtypes.int64, dtypes.int32],
                [dtypes.int64, dtypes.int64], [dtypes.int64, dtypes.int8]]
@@ -286,9 +291,10 @@ class HkvHashtableTest(test.TestCase):
 
   @test_util.run_in_graph_and_eager_modes()
   def test_hkv_hashtable_save_local_file_system(self):
-    test_devices = ['/CPU:0']
-    if is_gpu_available:
-      test_devices = test_devices + ['/GPU:0']
+    if not is_gpu_available:
+      self.skipTest('Only test when gpu is available.')
+    test_devices = ['/CPU:0', '/GPU:0']
+
     dim = 8
     for idx, device in enumerate(test_devices):
       var1 = de.get_variable(
@@ -674,6 +680,8 @@ class HkvHashtableTest(test.TestCase):
 
   @test_util.run_in_graph_and_eager_modes()
   def test_hkv_hashtable_save_and_load_all_with_local_file_system(self):
+    if not is_gpu_available:
+      self.skipTest('Only test when gpu is available.')
     test_devices = [['/CPU:0', '/CPU:1']]
     if test_util.is_gpu_available():
       tf.debugging.set_log_device_placement(True)
