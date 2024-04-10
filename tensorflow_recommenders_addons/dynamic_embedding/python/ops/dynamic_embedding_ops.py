@@ -61,7 +61,7 @@ try:  # The data_structures has been moved to the new package in tf 2.11
   from tensorflow.python.trackable import data_structures
 except:
   from tensorflow.python.training.tracking import data_structures
-from tensorflow.python.util import compat
+from tensorflow.python.util import compat, dispatch
 from tensorflow.python.util.tf_export import tf_export
 
 from tensorflow.python.keras.utils import tf_utils
@@ -773,7 +773,7 @@ def embedding_lookup_sparse(
 
     Args:
       params: A single `dynamic_embedding.Variable` instance representing
-        the complete embedding tensor.
+        the complete embedding tensor or a `ShadowVariable` instance.
       sp_ids: N x M `SparseTensor` of int64 ids where N is typically batch size
         and M is arbitrary.
       sp_weights: either a `SparseTensor` of float / double weights, or `None` to
@@ -855,15 +855,22 @@ def embedding_lookup_sparse(
 
     ids = sp_ids.values
     ids, idx = array_ops.unique(ids)
-
-    embeddings, trainable_ = embedding_lookup(
-        params,
-        ids,
-        name=name + '/embedding_lookup',
-        partition_strategy=partition_strategy,
-        max_norm=max_norm,
-        return_trainable=True,
-    )
+    if isinstance(params, de.shadow_ops.ShadowVariable):
+      embeddings = de.shadow_ops.embedding_lookup(
+          params,
+          ids,
+          name=name + '/embedding_lookup',
+      )
+      trainable_ = params
+    else:
+      embeddings, trainable_ = embedding_lookup(
+          params,
+          ids,
+          name=name + '/embedding_lookup',
+          partition_strategy=partition_strategy,
+          max_norm=max_norm,
+          return_trainable=True,
+      )
     if embeddings.dtype in (dtypes.float16, dtypes.bfloat16):
       embeddings = math_ops.cast(embeddings, dtypes.float32)
     if not ignore_weights:
@@ -928,6 +935,24 @@ def embedding_lookup_sparse(
     return (embeddings, trainable_) if return_trainable else embeddings
 
 
+def verify_embedding_weights(embedding_weights,
+                             sparse_ids,
+                             sparse_weights=None):
+  if embedding_weights is None:
+    raise ValueError("Missing embedding_weights %s." % embedding_weights)
+
+  if embedding_weights.key_dtype != sparse_ids.dtype:
+    raise TypeError(
+        "embedding_weights.key_dtype should be same with sparse_ids.dtype: "
+        "{} vs. {}".format(embedding_weights.key_dtype, sparse_ids.dtype))
+
+  weights_dtype = sparse_weights.dtype if sparse_weights is not None else None
+  if weights_dtype and embedding_weights.value_dtype != weights_dtype:
+    raise TypeError(
+        "embedding_weights.value_dtype should be same with sparse_weights.dtype"
+        ": {} vs. {}".format(embedding_weights.value_dtype, weights_dtype))
+
+
 def safe_embedding_lookup_sparse(
     embedding_weights,
     sparse_ids,
@@ -953,7 +978,7 @@ def safe_embedding_lookup_sparse(
 
     Args:
       embedding_weights: A single `dynamic_embedding.Variable` instance
-        representing the complete embedding tensor.
+        representing the complete embedding tensor or a single `ShadowVariable` instance.
       sparse_ids: `SparseTensor` of shape `[d_0, d_1, ..., d_n]` containing the
         ids. `d_0` is typically batch size.
       sparse_weights: `SparseTensor` of same shape as `sparse_ids`, containing
@@ -980,22 +1005,15 @@ def safe_embedding_lookup_sparse(
     Raises:
       ValueError: if `embedding_weights` is empty.
   """
-  if embedding_weights is None:
-    raise ValueError("Missing embedding_weights %s." % embedding_weights)
-
-  if embedding_weights.key_dtype != sparse_ids.dtype:
-    raise TypeError(
-        "embedding_weights.key_dtype should be same with sparse_ids.dtype: "
-        "{} vs. {}".format(embedding_weights.key_dtype, sparse_ids.dtype))
-
-  weights_dtype = sparse_weights.dtype if sparse_weights is not None else None
-  if weights_dtype and embedding_weights.value_dtype != weights_dtype:
-    raise TypeError(
-        "embedding_weights.value_dtype should be same with sparse_weights.dtype"
-        ": {} vs. {}".format(embedding_weights.value_dtype, weights_dtype))
+  if isinstance(embedding_weights, de.shadow_ops.ShadowVariable):
+    verify_embedding_weights(embedding_weights.params, sparse_ids,
+                             sparse_weights)
+  else:
+    verify_embedding_weights(embedding_weights, sparse_ids, sparse_weights)
 
   scope = variable_scope.get_variable_scope()
   full_name = scope.name + "/" + name if scope.name else name
+
   with ops.name_scope(full_name + "/"):
     # Reshape higher-rank sparse ids and weights to linear segment ids.
     original_shape = sparse_ids.dense_shape

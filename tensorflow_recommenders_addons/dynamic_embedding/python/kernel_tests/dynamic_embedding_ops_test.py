@@ -23,9 +23,14 @@ import itertools
 import math
 import numpy as np
 import os
+
 import tensorflow as tf
+from absl.testing import parameterized
+from tensorflow.python.ops.ragged import ragged_tensor
 
 from tensorflow_recommenders_addons import dynamic_embedding as de
+from tensorflow_recommenders_addons.dynamic_embedding.python.ops.ragged_embedding_ops import embedding_lookup_sparse, \
+  safe_embedding_lookup_sparse
 
 try:
   from tensorflow.python.keras.initializers import initializers_v2 as kinit2
@@ -125,7 +130,7 @@ def embedding_result(params, id_vals, weight_vals=None):
   return values, weights, weights_squared
 
 
-def ids_and_weights_2d(embed_dim=4):
+def _ids_and_weights_2d(embed_dim=4, ragged=False):
   # Each row demonstrates a test case:
   #   Row 0: multiple valid ids, 1 invalid id, weighted mean
   #   Row 1: all ids are invalid (leaving no valid ids after pruning)
@@ -148,11 +153,14 @@ def ids_and_weights_2d(embed_dim=4):
       constant_op.constant(weights, dtypes.float32),
       constant_op.constant(shape, dtypes.int64),
   )
-
+  if ragged:
+    sparse_ids = ragged_tensor.RaggedTensor.from_sparse(sparse_ids)
+    sparse_weights = ragged_tensor.RaggedTensor.from_sparse(sparse_weights)
   return sparse_ids, sparse_weights
 
 
-def ids_and_weights_3d(embed_dim=4):
+def _ids_and_weights_3d(
+    embed_dim=4) -> (sparse_tensor.SparseTensor, sparse_tensor.SparseTensor):
   # Each (2-D) index demonstrates a test case:
   #   Index 0, 0: multiple valid ids, 1 invalid id, weighted mean
   #   Index 0, 1: all ids are invalid (leaving no valid ids after pruning)
@@ -743,10 +751,15 @@ class EmbeddingLookupUniqueTest(test.TestCase):
     np.testing.assert_almost_equal(embedded_np, embedded_de)
 
 
-@test_util.deprecated_graph_mode_only
-class EmbeddingLookupSparseTest(test.TestCase):
+@test_util.run_all_in_graph_and_eager_modes
+class EmbeddingLookupSparseTest(test.TestCase, parameterized.TestCase):
 
-  def _random_ids_and_weights(self, batch_size, vocab_size, k_type, d_type):
+  def _random_ids_and_weights(self,
+                              batch_size,
+                              vocab_size,
+                              k_type,
+                              d_type,
+                              ragged=False):
     max_val_per_entry = 6
     vals_per_batch_entry = np.random.randint(1,
                                              max_val_per_entry,
@@ -775,7 +788,9 @@ class EmbeddingLookupSparseTest(test.TestCase):
         constant_op.constant(weights, d_type),
         constant_op.constant(shape, dtypes.int64),
     )
-
+    if ragged:
+      sp_ids = ragged_tensor.RaggedTensor.from_sparse(sp_ids)
+      sp_weights = ragged_tensor.RaggedTensor.from_sparse(sp_weights)
     return sp_ids, sp_weights, ids, weights, vals_per_batch_entry
 
   def _group_by_batch_entry(self, vals, vals_per_batch_entry):
@@ -786,8 +801,8 @@ class EmbeddingLookupSparseTest(test.TestCase):
       index += num_val
     return grouped_vals
 
-  def test_embedding_lookup_sparse(self):
-
+  @parameterized.parameters(itertools.product([True, False]))
+  def test_embedding_lookup_sparse(self, ragged):
     var_id = 0
     for (
         num_shards,
@@ -821,7 +836,8 @@ class EmbeddingLookupSparseTest(test.TestCase):
           ids,
           weights,
           vals_per_batch_entry,
-      ) = self._random_ids_and_weights(batch_size, vocab_size, k_dtype, d_dtype)
+      ) = self._random_ids_and_weights(batch_size, vocab_size, k_dtype, d_dtype,
+                                       ragged)
 
       grouped_ids = self._group_by_batch_entry(ids, vals_per_batch_entry)
       grouped_weights = self._group_by_batch_entry(weights,
@@ -843,18 +859,30 @@ class EmbeddingLookupSparseTest(test.TestCase):
         random_init = params.lookup(ids)
         init_op = params.upsert(ids, random_init)
         self.evaluate(init_op)
-        np_params = random_init.eval()
+        np_params = random_init.numpy() if context.executing_eagerly(
+        ) else random_init.eval()
         grouped_params = self._group_by_batch_entry(np_params,
                                                     vals_per_batch_entry)
-        embedding_sum = de.embedding_lookup_sparse(
-            params,
-            sp_ids,
-            None if ignore_weights else sp_weights,
-            combiner=combiner,
-        )
+        if context.executing_eagerly():
+          params = de.shadow_ops.ShadowVariable(params)
+        if ragged:
+          embedding_sum = embedding_lookup_sparse(
+              params,
+              sp_ids,
+              None if ignore_weights else sp_weights,
+              combiner=combiner,
+          )
+        else:
+          embedding_sum = de.embedding_lookup_sparse(
+              params,
+              sp_ids,
+              None if ignore_weights else sp_weights,
+              combiner=combiner,
+          )
         self.assertEqual(embedding_sum.dtype, d_dtype)
 
-        tf_embedding_sum = embedding_sum.eval()
+        tf_embedding_sum = embedding_sum.numpy() if context.executing_eagerly(
+        ) else embedding_sum.eval()
 
         np_embedding_sum, np_weight_sum, np_weight_sq_sum = embedding_result(
             grouped_params,
@@ -873,6 +901,8 @@ class EmbeddingLookupSparseTest(test.TestCase):
         self.assertAllClose(np_embedding_sum, tf_embedding_sum, rtol, atol)
 
   def test_embedding_lookup_sparse_shape_checking(self):
+    if context.executing_eagerly():
+      self.skipTest("Skip eager test")
     with self.session(use_gpu=test_util.is_gpu_available(),
                       config=default_config):
       embed_dim = 4
@@ -880,7 +910,7 @@ class EmbeddingLookupSparseTest(test.TestCase):
                                                          shape=[100, embed_dim],
                                                          use_resource=False)
       embedding_weights_de = _random_weights(embed_dim=4)
-      sparse_ids, _ = ids_and_weights_3d(embed_dim=embed_dim)
+      sparse_ids, _ = _ids_and_weights_3d(embed_dim=embed_dim)
 
       embedding_lookup_base = embedding_ops.embedding_lookup_sparse(
           embedding_weights_nn, sparse_ids, None)
@@ -890,15 +920,30 @@ class EmbeddingLookupSparseTest(test.TestCase):
                       embedding_lookup_test.get_shape().as_list())
 
 
-@test_util.deprecated_graph_mode_only
-class SafeEmbeddingLookupSparseTest(test.TestCase):
+@test_util.run_all_in_graph_and_eager_modes
+class SafeEmbeddingLookupSparseTest(test.TestCase, parameterized.TestCase):
 
-  def test_safe_embedding_lookup_sparse_return_zero_vector(self):
-    with self.cached_session(use_gpu=test_util.is_gpu_available(),
-                             config=default_config):
+  def _get_ids_and_weights_3d(self, valid_ids):
+    embedding_weights = _random_weights()
+    sparse_ids, sparse_weights = _ids_and_weights_3d()
+
+    # init
+    embedding_weights_values = embedding_weights.lookup(valid_ids)
+    embedding_weights_values = embedding_weights_values.numpy(
+    ) if context.executing_eagerly() else embedding_weights_values.eval()
+    self.evaluate(embedding_weights.upsert(valid_ids, embedding_weights_values))
+    if context.executing_eagerly():
+      embedding_weights = de.shadow_ops.ShadowVariable(embedding_weights)
+    return embedding_weights, embedding_weights_values, sparse_ids, sparse_weights
+
+  @parameterized.parameters(itertools.product([True, False]))
+  def test_safe_embedding_lookup_sparse_return_zero_vector(self, ragged=False):
+    with self.session(use_gpu=test_util.is_gpu_available(),
+                      config=default_config):
       dim = 4
       embedding_weights = _random_weights(embed_dim=dim)
-      sparse_ids, sparse_weights = ids_and_weights_2d(embed_dim=dim)
+      sparse_ids, sparse_weights = _ids_and_weights_2d(embed_dim=dim,
+                                                       ragged=ragged)
       valid_ids = np.array([
           0,
           1,
@@ -907,13 +952,24 @@ class SafeEmbeddingLookupSparseTest(test.TestCase):
       ])
 
       # init
-      embedding_weights_values = embedding_weights.lookup(valid_ids).eval()
+      weights = embedding_weights.lookup(valid_ids)
+      embedding_weights_values = weights.numpy() if context.executing_eagerly(
+      ) else weights.eval()
       self.evaluate(
           embedding_weights.upsert(valid_ids, embedding_weights_values))
 
       # check
-      embedding_lookup_result = de.safe_embedding_lookup_sparse(
-          embedding_weights, sparse_ids, sparse_weights).eval()
+      if context.executing_eagerly():
+        embedding_weights = de.shadow_ops.ShadowVariable(embedding_weights)
+      if ragged:
+        embedding_lookup_result = safe_embedding_lookup_sparse(
+            embedding_weights, sparse_ids, sparse_weights)
+      else:
+        embedding_lookup_result = de.safe_embedding_lookup_sparse(
+            embedding_weights, sparse_ids, sparse_weights)
+      embedding_lookup_result = embedding_lookup_result.numpy(
+      ) if context.executing_eagerly() else embedding_lookup_result.eval()
+
       self.assertAllClose(
           embedding_lookup_result,
           [
@@ -927,23 +983,35 @@ class SafeEmbeddingLookupSparseTest(test.TestCase):
           ],
       )
 
-  def test_safe_embedding_lookup_sparse_return_special_vector(self):
+  @parameterized.parameters(itertools.product([True, False]))
+  def test_safe_embedding_lookup_sparse_return_special_vector(
+      self, ragged=False):
     with self.session(use_gpu=test_util.is_gpu_available(),
                       config=default_config):
       dim = 4
       embedding_weights = _random_weights(embed_dim=dim)
-      sparse_ids, sparse_weights = ids_and_weights_2d(embed_dim=dim)
+      sparse_ids, sparse_weights = _ids_and_weights_2d(embed_dim=dim,
+                                                       ragged=ragged)
       valid_ids = np.array([0, 1, 2, 3, -1])
 
       # init
-      embedding_weights_values = embedding_weights.lookup(valid_ids).eval()
+      weights = embedding_weights.lookup(valid_ids)
+      embedding_weights_values = weights.numpy() if context.executing_eagerly(
+      ) else weights.eval()
       self.evaluate(
           embedding_weights.upsert(valid_ids, embedding_weights_values))
 
       # check
-      embedding_lookup_result = de.safe_embedding_lookup_sparse(
-          embedding_weights, sparse_ids, sparse_weights, default_id=3).eval()
-
+      if context.executing_eagerly():
+        embedding_weights = de.shadow_ops.ShadowVariable(embedding_weights)
+      if ragged:
+        embedding_lookup_result = safe_embedding_lookup_sparse(
+            embedding_weights, sparse_ids, sparse_weights, default_id=3)
+      else:
+        embedding_lookup_result = de.safe_embedding_lookup_sparse(
+            embedding_weights, sparse_ids, sparse_weights, default_id=3)
+      embedding_lookup_result = embedding_lookup_result.numpy(
+      ) if context.executing_eagerly() else embedding_lookup_result.eval()
       self.assertAllClose(
           embedding_lookup_result,
           [
@@ -957,21 +1025,33 @@ class SafeEmbeddingLookupSparseTest(test.TestCase):
           ],
       )
 
-  def test_safe_embedding_lookup_sparse_no_weights(self):
+  @parameterized.parameters(itertools.product([True, False]))
+  def test_safe_embedding_lookup_sparse_no_weights(self, ragged=False):
     with self.session(use_gpu=test_util.is_gpu_available(),
                       config=default_config):
       dim = 4
       embedding_weights = _random_weights(embed_dim=dim)
-      sparse_ids, sparse_weights = ids_and_weights_2d(embed_dim=dim)
+      sparse_ids, sparse_weights = _ids_and_weights_2d(embed_dim=dim,
+                                                       ragged=ragged)
       valid_ids = np.array([0, 1, 2, -1])
 
       # init
-      embedding_weights_values = embedding_weights.lookup(valid_ids).eval()
+      weights = embedding_weights.lookup(valid_ids)
+      embedding_weights_values = weights.numpy() if context.executing_eagerly(
+      ) else weights.eval()
       self.evaluate(
           embedding_weights.upsert(valid_ids, embedding_weights_values))
 
-      embedding_lookup_result = de.safe_embedding_lookup_sparse(
-          embedding_weights, sparse_ids, None).eval()
+      if context.executing_eagerly():
+        embedding_weights = de.shadow_ops.ShadowVariable(embedding_weights)
+      if ragged:
+        embedding_lookup_result = safe_embedding_lookup_sparse(
+            embedding_weights, sparse_ids, None)
+      else:
+        embedding_lookup_result = de.safe_embedding_lookup_sparse(
+            embedding_weights, sparse_ids, None)
+      embedding_lookup_result = embedding_lookup_result.numpy(
+      ) if context.executing_eagerly() else embedding_lookup_result.eval()
 
       self.assertAllClose(
           embedding_lookup_result,
@@ -985,21 +1065,33 @@ class SafeEmbeddingLookupSparseTest(test.TestCase):
           ],
       )
 
-  def test_safe_embedding_lookup_sparse_partitioned(self):
+  @parameterized.parameters(itertools.product([True, False]))
+  def test_safe_embedding_lookup_sparse_partitioned(self, ragged=False):
     with self.session(use_gpu=test_util.is_gpu_available(),
                       config=default_config):
       dim = 4
       embedding_weights = _random_weights(embed_dim=dim, num_shards=3)
-      sparse_ids, sparse_weights = ids_and_weights_2d(embed_dim=dim)
+      sparse_ids, sparse_weights = _ids_and_weights_2d(embed_dim=dim,
+                                                       ragged=ragged)
       valid_ids = np.array([0, 1, 2, -1])
 
       # init
-      embedding_weights_values = embedding_weights.lookup(valid_ids).eval()
+      weights = embedding_weights.lookup(valid_ids)
+      embedding_weights_values = weights.numpy() if context.executing_eagerly(
+      ) else weights.eval()
       self.evaluate(
           embedding_weights.upsert(valid_ids, embedding_weights_values))
 
-      embedding_lookup_result = de.safe_embedding_lookup_sparse(
-          embedding_weights, sparse_ids, None).eval()
+      if context.executing_eagerly():
+        embedding_weights = de.shadow_ops.ShadowVariable(embedding_weights)
+      if ragged:
+        embedding_lookup_result = safe_embedding_lookup_sparse(
+            embedding_weights, sparse_ids, None)
+      else:
+        embedding_lookup_result = de.safe_embedding_lookup_sparse(
+            embedding_weights, sparse_ids, None)
+      embedding_lookup_result = embedding_lookup_result.numpy(
+      ) if context.executing_eagerly() else embedding_lookup_result.eval()
 
       self.assertAllClose(
           embedding_lookup_result,
@@ -1013,44 +1105,58 @@ class SafeEmbeddingLookupSparseTest(test.TestCase):
           ],
       )
 
-  def test_safe_embedding_lookup_sparse_inconsistent_ids_type(self):
+  @parameterized.parameters(itertools.product([True, False]))
+  def test_safe_embedding_lookup_sparse_inconsistent_ids_type(
+      self, ragged=False):
     with self.session(use_gpu=test_util.is_gpu_available(),
                       config=default_config):
 
       def fn():
         embedding_weights = _random_weights(num_shards=3,
                                             key_dtype=dtypes.int32)
-        sparse_ids, sparse_weights = ids_and_weights_2d()
-        de.safe_embedding_lookup_sparse(embedding_weights, sparse_ids,
-                                        sparse_weights)
+        sparse_ids, sparse_weights = _ids_and_weights_2d(ragged=ragged)
+        if context.executing_eagerly():
+          embedding_weights = de.shadow_ops.ShadowVariable(embedding_weights)
+        if ragged:
+          safe_embedding_lookup_sparse(embedding_weights, sparse_ids,
+                                       sparse_weights)
+        else:
+          de.safe_embedding_lookup_sparse(embedding_weights, sparse_ids,
+                                          sparse_weights)
 
       self.assertRaises(TypeError, fn)
 
-  def test_safe_embedding_lookup_sparse_inconsistent_weights_type(self):
+  @parameterized.parameters(itertools.product([True, False]))
+  def test_safe_embedding_lookup_sparse_inconsistent_weights_type(
+      self, ragged=False):
     with self.session(use_gpu=test_util.is_gpu_available(),
                       config=default_config):
 
       def fn():
         embedding_weights = _random_weights(num_shards=3, key_dtype=dtypes.half)
-        sparse_ids, sparse_weights = ids_and_weights_2d()
-        de.safe_embedding_lookup_sparse(embedding_weights, sparse_ids,
-                                        sparse_weights)
+        sparse_ids, sparse_weights = _ids_and_weights_2d(ragged=ragged)
+        if context.executing_eagerly():
+          embedding_weights = de.shadow_ops.ShadowVariable(embedding_weights)
+        if ragged:
+          safe_embedding_lookup_sparse(embedding_weights, sparse_ids,
+                                       sparse_weights)
+        else:
+          de.safe_embedding_lookup_sparse(embedding_weights, sparse_ids,
+                                          sparse_weights)
 
       self.assertRaises(TypeError, fn)
 
   def test_safe_embedding_lookup_sparse_3d_return_zero_vector(self):
     with self.session(use_gpu=test_util.is_gpu_available(),
                       config=default_config):
-      embedding_weights = _random_weights()
-      sparse_ids, sparse_weights = ids_and_weights_3d()
       valid_ids = np.array([0, 1, 2, -1])
-      # init
-      embedding_weights_values = embedding_weights.lookup(valid_ids).eval()
-      self.evaluate(
-          embedding_weights.upsert(valid_ids, embedding_weights_values))
+      embedding_weights, embedding_weights_values, sparse_ids, sparse_weights = self._get_ids_and_weights_3d(
+          valid_ids)
 
       embedding_lookup_result = de.safe_embedding_lookup_sparse(
-          embedding_weights, sparse_ids, sparse_weights).eval()
+          embedding_weights, sparse_ids, sparse_weights)
+      embedding_lookup_result = embedding_lookup_result.numpy(
+      ) if context.executing_eagerly() else embedding_lookup_result.eval()
 
       self.assertAllClose(
           embedding_lookup_result,
@@ -1069,18 +1175,12 @@ class SafeEmbeddingLookupSparseTest(test.TestCase):
   def test_safe_embedding_lookup_sparse_3d_return_special_vector(self):
     with self.session(use_gpu=test_util.is_gpu_available(),
                       config=default_config):
-      embedding_weights = _random_weights()
-      sparse_ids, sparse_weights = ids_and_weights_3d()
-      valid_ids = np.array([0, 1, 2, 3, -1])
-
-      # init
-      embedding_weights_values = embedding_weights.lookup(valid_ids).eval()
-      self.evaluate(
-          embedding_weights.upsert(valid_ids, embedding_weights_values))
-
+      embedding_weights, embedding_weights_values, sparse_ids, sparse_weights = self._get_ids_and_weights_3d(
+          np.array([0, 1, 2, 3, -1]))
       embedding_lookup_result = de.safe_embedding_lookup_sparse(
-          embedding_weights, sparse_ids, sparse_weights, default_id=3).eval()
-
+          embedding_weights, sparse_ids, sparse_weights, default_id=3)
+      embedding_lookup_result = embedding_lookup_result.numpy(
+      ) if context.executing_eagerly() else embedding_lookup_result.eval()
       self.assertAllClose(
           embedding_lookup_result,
           [
@@ -1102,17 +1202,13 @@ class SafeEmbeddingLookupSparseTest(test.TestCase):
   def test_safe_embedding_lookup_sparse_3d_no_weights(self):
     with self.session(use_gpu=test_util.is_gpu_available(),
                       config=default_config):
-      embedding_weights = _random_weights()
-      sparse_ids, _ = ids_and_weights_3d()
       valid_ids = np.array([0, 1, 2, -1])
-      # init
-      embedding_weights_values = embedding_weights.lookup(valid_ids).eval()
-      self.evaluate(
-          embedding_weights.upsert(valid_ids, embedding_weights_values))
-
+      embedding_weights, embedding_weights_values, sparse_ids, _ = self._get_ids_and_weights_3d(
+          valid_ids)
       embedding_lookup_result = de.safe_embedding_lookup_sparse(
-          embedding_weights, sparse_ids, None).eval()
-
+          embedding_weights, sparse_ids, None)
+      embedding_lookup_result = embedding_lookup_result.numpy(
+      ) if context.executing_eagerly() else embedding_lookup_result.eval()
       self.assertAllClose(
           embedding_lookup_result,
           [
@@ -1135,16 +1231,21 @@ class SafeEmbeddingLookupSparseTest(test.TestCase):
     with self.session(use_gpu=test_util.is_gpu_available(),
                       config=default_config):
       embedding_weights = _random_weights(num_shards=3)
-      sparse_ids, _ = ids_and_weights_3d()
+      sparse_ids, _ = _ids_and_weights_3d()
       valid_ids = np.array([0, 1, 2, -1])
 
       # init
-      embedding_weights_values = embedding_weights.lookup(valid_ids).eval()
+      embedding_weights_values = embedding_weights.lookup(valid_ids)
+      embedding_weights_values = embedding_weights_values.numpy(
+      ) if context.executing_eagerly() else embedding_weights_values.eval()
       self.evaluate(
           embedding_weights.upsert(valid_ids, embedding_weights_values))
-
+      if context.executing_eagerly():
+        embedding_weights = de.shadow_ops.ShadowVariable(embedding_weights)
       embedding_lookup_result = de.safe_embedding_lookup_sparse(
-          embedding_weights, sparse_ids, None).eval()
+          embedding_weights, sparse_ids, None)
+      embedding_lookup_result = embedding_lookup_result.numpy(
+      ) if context.executing_eagerly() else embedding_lookup_result.eval()
 
       self.assertAllClose(
           embedding_lookup_result,
@@ -1214,10 +1315,15 @@ class SafeEmbeddingLookupSparseTest(test.TestCase):
             constant_op.constant(ids, dtypes.int64),
             constant_op.constant(dense_shape, dtypes.int64),
         )
+        if context.executing_eagerly():
+          embedding_weights = de.shadow_ops.ShadowVariable(embedding_weights)
+
         vals_op = de.safe_embedding_lookup_sparse(embedding_weights,
                                                   sparse_ids,
                                                   None,
-                                                  combiner="mean").eval()
+                                                  combiner="mean")
+        vals_op = vals_op.numpy() if context.executing_eagerly(
+        ) else vals_op.eval()
 
         mean = self.evaluate(math_ops.reduce_mean(vals_op))
         stddev = self.evaluate(math_ops.reduce_std(vals_op))
@@ -1228,6 +1334,8 @@ class SafeEmbeddingLookupSparseTest(test.TestCase):
         self.assertAllClose(target_stddev, stddev, rtol, atol)
 
   def test_safe_embedding_lookup_sparse_shape_checking(self):
+    if context.executing_eagerly():
+      self.skipTest("Skip eager test")
     with self.session(use_gpu=test_util.is_gpu_available(),
                       config=default_config):
       embed_dim = 4
@@ -1235,7 +1343,7 @@ class SafeEmbeddingLookupSparseTest(test.TestCase):
                                                          shape=[100, embed_dim],
                                                          use_resource=False)
       embedding_weights_de = _random_weights(embed_dim=4)
-      sparse_ids, _ = ids_and_weights_3d(embed_dim=embed_dim)
+      sparse_ids, _ = _ids_and_weights_3d(embed_dim=embed_dim)
 
       embedding_lookup_base = embedding_ops.safe_embedding_lookup_sparse(
           embedding_weights_nn, sparse_ids, None)
