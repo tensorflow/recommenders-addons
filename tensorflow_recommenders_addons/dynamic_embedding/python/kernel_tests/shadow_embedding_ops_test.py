@@ -154,6 +154,29 @@ class ShadowVariableTest(test.TestCase):
       emb = self.evaluate(de.shadow_ops.embedding_lookup(shadow_var, ext_ids))
       self.assertAllEqual(exp_values, emb)
 
+  def test_safe_embedding_lookup_sparse(self):
+    if not context.executing_eagerly():
+      self.skipTest('Only test in eager mode.')
+    with self.session(use_gpu=test_util.is_gpu_available(),
+                      config=default_config):
+      var, shadow_var = _get_sparse_variable('tk049', dim=2)
+      self.evaluate(variables.global_variables_initializer())
+      ids = constant_op.constant([2, 5], dtype=dtypes.int64)
+      values = array_ops.ones((2, 2), dtype=np.float32)
+      self.evaluate(
+          var.upsert(ids, ops.convert_to_tensor(values, dtype=dtypes.float32)))
+
+      sp_ids = constant_op.constant([[0, 2], [1, 5]], dtype=dtypes.int64)
+      sp_weights = constant_op.constant([2, 5], dtype=dtypes.int64)
+      dense_shape = constant_op.constant([2, 6], dtype=dtypes.int64)
+      sparse_tensor = tf.sparse.SparseTensor(indices=sp_ids,
+                                             values=sp_weights,
+                                             dense_shape=dense_shape)
+
+      emb = self.evaluate(
+          de.safe_embedding_lookup_sparse(shadow_var, sparse_tensor))
+      self.assertAllEqual(emb, values)
+
   def test_update_with_optimizer_v1(self):
     if not context.executing_eagerly():
       self.skipTest('Only test when eagerly.')
@@ -409,6 +432,30 @@ class ShadowVariableBasicBehaviorTest(test.TestCase):
         val,
         constant_op.constant([[2.2, 2.2], [3.3, 3.3], [0.1, 0.1]],
                              dtype=dtypes.float32))
+
+  def test_embedding_lookup_unique(self):
+    if not context.executing_eagerly():
+      self.skipTest('Only test in eager mode.')
+
+    params = de.get_variable('pn012', dim=2, initializer=0.1)
+    params.upsert(
+        constant_op.constant([1, 2, 3], dtype=dtypes.int64),
+        constant_op.constant([[1., 1.], [2., 2.], [3., 3.]],
+                             dtype=dtypes.float32))
+    shadow = de.shadow_ops.ShadowVariable(params)
+    # [[2, 3], [4, 5, 1]]
+    ragged_ids = tf.RaggedTensor.from_row_splits(values=tf.constant(
+        [2, 3, 4, 5, 1], dtype=tf.int64),
+                                                 row_splits=[0, 2, 5])
+    val_ragged = de.shadow_ops.embedding_lookup_unique(shadow, ragged_ids, 2,
+                                                       True)
+    expected_output = tf.RaggedTensor.from_row_splits(values=[[2., 2.],
+                                                              [3., 3.],
+                                                              [0.1, 0.1],
+                                                              [0.1, 0.1],
+                                                              [1., 1.]],
+                                                      row_splits=[0, 2, 5])
+    self.assertAllEqual(val_ragged, expected_output)
 
   def test_get_size(self):
     if not context.executing_eagerly():

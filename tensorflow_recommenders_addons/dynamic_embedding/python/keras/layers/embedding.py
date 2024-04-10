@@ -18,16 +18,12 @@ Dynamic Embedding is designed for Large-scale Sparse Weights Training.
 See [Sparse Domain Isolation](https://github.com/tensorflow/community/pull/237)
 """
 
-import pickle
-
 import tensorflow as tf
 
 from tensorflow.python.eager import context
-from tensorflow.python.ops import init_ops
 from tensorflow_recommenders_addons import dynamic_embedding as de
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops import dynamic_embedding_variable as devar
 
-from tensorflow.python.distribute import distribute_lib
 from tensorflow.python.keras.utils import tf_utils
 try:  # tf version >= 2.14.0
   from tensorflow.python.distribute import distribute_lib as distribute_ctx
@@ -268,20 +264,9 @@ class Embedding(tf.keras.layers.Layer):
     Returns:
       A embedding output with shape (shape(ids), embedding_size).
     """
-    ids = tf.convert_to_tensor(ids)
-    input_shape = tf.shape(ids)
-    embeddings_shape = tf.concat([input_shape, [self.embedding_size]], 0)
-    ids_flat = tf.reshape(ids, (-1,))
-    if self.with_unique:
-      with tf.name_scope(self.name + "/EmbeddingWithUnique"):
-        unique_ids, idx = tf.unique(ids_flat)
-        unique_embeddings = de.shadow_ops.embedding_lookup(
-            self.shadow, unique_ids)
-        embeddings_flat = tf.gather(unique_embeddings, idx)
-    else:
-      embeddings_flat = de.shadow_ops.embedding_lookup(self.shadow, ids_flat)
-    embeddings = tf.reshape(embeddings_flat, embeddings_shape)
-    return embeddings
+    return de.shadow_ops.embedding_lookup_unique(self.shadow, ids,
+                                                 self.embedding_size,
+                                                 self.with_unique, self.name)
 
   def get_config(self):
     _initializer = self.params.initializer

@@ -33,7 +33,7 @@ The `shadow_ops` submodule is designed to support usage on `tf.function`
 and modular style development, like keras.
 """
 
-import functools
+import tensorflow as tf
 
 from tensorflow_recommenders_addons import dynamic_embedding as de
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_ops import DEResourceVariable
@@ -44,7 +44,6 @@ from tensorflow.python.framework import dtypes
 from tensorflow.python.framework import ops
 from tensorflow.python.framework import tensor_shape
 from tensorflow.python.ops import array_ops
-from tensorflow.python.ops import control_flow_ops
 from tensorflow.python.ops import gen_resource_variable_ops
 from tensorflow.python.ops import resource_variable_ops
 try:  # tf version >= 2.10.0
@@ -53,7 +52,6 @@ except:
   from tensorflow.python.training.tracking import base as trackable
 
 from tensorflow.python.distribute import distribute_utils
-from tensorflow.python.distribute import values_util as distribute_values_util
 
 
 class ShadowVariable(de.TrainableWrapper):
@@ -222,7 +220,7 @@ class ShadowVariable(de.TrainableWrapper):
 
 
 def embedding_lookup(
-    shadow,
+    shadow: ShadowVariable,
     ids,
     partition_strategy=None,  # pylint: disable=unused-argument
     name=None,
@@ -259,6 +257,55 @@ def embedding_lookup(
     with ops.colocate_with(None, ignore_existing=True):
       if de.ModelMode.CURRENT_SETTING == de.ModelMode.TRAIN:
         with ops.control_dependencies([shadow_._reset_ids(ids)]):
-          return shadow_.read_value(do_prefetch=True)
+          result = shadow_.read_value(do_prefetch=True)
       else:
-        return shadow_.params.lookup(ids)
+        result = shadow_.params.lookup(ids)
+
+      return result
+
+
+def embedding_lookup_unique(
+    shadow,
+    ids,
+    embedding_size,
+    with_unique=True,
+    name=None,
+):
+  """
+  unify version of embedding_lookup. It handles ragged tensor, unique and shape. No by-product will
+  be introduced in this call. So it can be decorated by `tf.function`.
+
+  Args:
+    shadow: A ShadowVariable object.
+    ids: A tensor with any shape as same dtype of params.key_dtype.
+    embedding_size: The size of embedding, used in shape the output
+    with_unique: If True, it will use unique ids to lookup embedding.
+    name: A name for the operation.
+
+  Returns:
+    A tensor with shape [shape of ids] + [embedding_size],
+      containing the values from the params tensor(s) for keys in ids.
+  """
+  is_ragged = isinstance(ids, tf.RaggedTensor)
+
+  if is_ragged:
+    original_structure = ids
+    ids = ids.flat_values
+  else:
+    ids = tf.convert_to_tensor(ids)
+  input_shape = tf.shape(ids)
+  embeddings_shape = tf.concat([input_shape, [embedding_size]], 0)
+  ids_flat = tf.reshape(ids, (-1,))
+  if with_unique:
+    with ops.name_scope(name, "EmbeddingWithUnique"):
+      unique_ids, idx = tf.unique(ids_flat)
+      unique_embeddings = embedding_lookup(shadow, unique_ids)
+      embeddings_flat = tf.gather(unique_embeddings, idx)
+  else:
+    embeddings_flat = embedding_lookup(shadow, ids_flat)
+  embeddings = tf.reshape(embeddings_flat, embeddings_shape)
+
+  if is_ragged:
+    embeddings = tf.RaggedTensor.from_row_lengths(
+        embeddings, original_structure.row_lengths())
+  return embeddings
