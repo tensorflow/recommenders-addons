@@ -76,7 +76,7 @@ def _de_keras_save_func(original_save_func,
 
   de_dir = os.path.join(filepath, "variables", "TFRADynamicEmbedding")
 
-  def _check_saveable_and_redirect_new_de_dir():
+  def _check_saveable_and_redirect_new_de_dir(hvd_rank=0):
     for var in model.variables:
       if not hasattr(var, "params"):
         continue
@@ -127,7 +127,7 @@ def _de_keras_save_func(original_save_func,
                                    proc_size=hvd.size(),
                                    proc_rank=hvd.rank())
 
-  _check_saveable_and_redirect_new_de_dir()
+  _check_saveable_and_redirect_new_de_dir(hvd.rank())
   if hvd is None:
     call_original_save_func()
     _traverse_emb_layers_and_save(0)
