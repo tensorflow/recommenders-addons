@@ -565,7 +565,9 @@ class TableWrapper {
       throw std::runtime_error(error_msg);
     }
 
-    size_t n_saved = table_->save(wfile.get(), buffer_size, stream);
+    size_t n_saved = table_->save(
+        wfile.get(),
+        buffer_size * (sizeof(K) + sizeof(V) * dim + sizeof(uint64_t)), stream);
     if (has_scores) {
       LOG(INFO) << "[op] Save " << n_saved << " pairs from keyfile: " << keyfile
                 << ", and valuefile: " << valuefile << ", and scorefile"
@@ -616,7 +618,9 @@ class TableWrapper {
       throw std::runtime_error(error_msg);
     }
 
-    size_t n_loaded = table_->load(rfile.get(), buffer_size, stream);
+    size_t n_loaded = table_->load(
+        rfile.get(),
+        buffer_size * (sizeof(K) + sizeof(V) * dim + sizeof(uint64_t)), stream);
     if (has_scores) {
       LOG(INFO) << "[op] Load " << n_loaded
                 << " pairs from keyfile: " << keyfile
