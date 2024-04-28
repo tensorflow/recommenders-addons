@@ -144,8 +144,8 @@ At the same time, we find some OPs used by TRFA have better performance, so we h
 
 For all developers, we recommend you use the development docker containers which are all GPU enabled:
 ```sh
-docker pull tfra/dev_container:latest-python3.9  # "3.9" “3.10” are all avaliable.
-docker run --privileged --gpus all -it --rm -v $(pwd):$(pwd) tfra/dev_container:latest-3.8
+docker pull tfra/dev_container:latest-tf2.15.1-python3.9  # Available tensorflow and python combinations can be found [here](https://www.tensorflow.org/install/source#linux)
+docker run --privileged --gpus all -it --rm -v $(pwd):$(pwd) tfra/dev_container:latest-tf2.15.1-3.9
 ```
 
 #### CPU Only
@@ -182,9 +182,9 @@ export CUDNN_INSTALL_PATH="/usr/lib/x86_64-linux-gnu"
 python configure.py
 ```
 And then build the pip package and install:
-```sh
+```sh`
 bazel build --enable_runfiles build_pip_pkg
-bazel-bin/build_pip_pkg artifacts
+bazel-bin/build_pip_pkg artifacts`
 pip install artifacts/tensorflow_recommenders_addons_gpu-*.whl
 ```
 
