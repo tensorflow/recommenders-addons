@@ -327,7 +327,7 @@ class TFOrDefaultAllocator : public nv::merlin::BaseAllocator {
   std::unique_ptr<nv::merlin::DefaultAllocator> default_allocator_ = nullptr;
   bool use_default_allocator_ = false;
   // bool tf_async_allocator_stream_set_ = false;
-  static constexpr size_t kAllocatorAlignment = 8;
+  static constexpr size_t kAllocatorAlignment = 4;
 
  public:
   TFOrDefaultAllocator() : use_default_allocator_(true) {
