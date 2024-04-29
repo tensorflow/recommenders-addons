@@ -17,11 +17,6 @@ class TestFillEmptyRows(unittest.TestCase):
     expected_filled = tf.ragged.constant([[1, 2, 3], [0], [4], [0], [5, 6]],
                                          dtype=tf.int32)
     expected_empty = tf.constant([False, True, False, True, False])
-
-    self.assertTrue(
-        tf.reduce_all(filled_ragged_tensor.to_tensor() ==
-                      expected_filled.to_tensor()).numpy(),
-        "Filled tensors do not match")
-    self.assertTrue(
-        tf.reduce_all(is_row_empty == expected_empty).numpy(),
-        "Empty row flags do not match")
+    tf.debugging.assert_equal(filled_ragged_tensor.to_tensor(),
+                              expected_filled.to_tensor())
+    tf.debugging.assert_equal(is_row_empty, expected_empty)
