@@ -242,15 +242,18 @@ class EmbeddingLayerTest(test.TestCase):
 
     def model_fn(table_devices):
       input_tensor = tf.keras.layers.Input(shape=(1,), dtype=tf.int64)
-      embedding_out = de.keras.layers.Embedding(
-          embedding_size=1,
-          key_dtype=tf.int64,
-          value_dtype=tf.float32,
-          initializer=tf.keras.initializers.RandomNormal(),
-          devices=table_devices,
-          name='test_keras_save_restore',
-          kv_creator=de.CuckooHashTableCreator(
-              saver=de.FileSystemSaver()))(input_tensor)
+      embedding_outs = []
+      for t in range(2):
+        embedding_out = de.keras.layers.Embedding(
+            embedding_size=1,
+            key_dtype=tf.int64,
+            value_dtype=tf.float32,
+            initializer=tf.keras.initializers.RandomNormal(),
+            devices=table_devices,
+            name=f'test_keras_save_restore_{t}',
+            kv_creator=de.CuckooHashTableCreator(
+                saver=de.FileSystemSaver()))(input_tensor)
+        embedding_outs.append(embedding_out)
       normal_embedding_out = de.keras.layers.Embedding(
           embedding_size=1,
           key_dtype=tf.int64,
@@ -258,7 +261,8 @@ class EmbeddingLayerTest(test.TestCase):
           initializer=tf.keras.initializers.RandomNormal(),
           devices=table_devices,
           name='test_keras_save_restore_normal')(input_tensor)
-      concat = tf.concat([embedding_out, normal_embedding_out], axis=0)
+      embedding_outs.append(normal_embedding_out)
+      concat = tf.concat(embedding_outs, axis=0)
       model = tf.keras.Model(inputs=input_tensor, outputs=concat)
       optimizer = Adam(learning_rate=1E-4, amsgrad=False)
       optimizer = de.DynamicEmbeddingOptimizer(optimizer)
@@ -274,23 +278,25 @@ class EmbeddingLayerTest(test.TestCase):
     shard_num = 3
     table_devices_ = table_device * shard_num
     model = model_fn(table_devices_)
-    params_ = model.get_layer('test_keras_save_restore').params
-    params_.upsert(
-        constant_op.constant(test_keys, dtypes.int64),
-        constant_op.constant(test_values, dtypes.float32),
-    )
+    for t in range(2):
+      params_ = model.get_layer(f'test_keras_save_restore_{t}').params
+      params_.upsert(
+          constant_op.constant(test_keys, dtypes.int64),
+          constant_op.constant(test_values, dtypes.float32),
+      )
     options = tf.saved_model.SaveOptions(namespace_whitelist=['TFRA'])
     model.save(save_path, options=options)
     tf.keras.backend.clear_session()
     del model
     model = model_fn(table_devices_)
     model.load_weights(save_path).expect_partial()
-    params_ = model.get_layer('test_keras_save_restore').params
-    size = params_.size()
-    self.assertEqual(test_size, size)
-    [keys, values] = params_.export()
-    self.assertAllEqual(test_keys, np.sort(keys, axis=0))
-    self.assertAllEqual(test_values, np.sort(values, axis=0))
+    for t in range(2):
+      params_ = model.get_layer(f'test_keras_save_restore_{t}').params
+      size = params_.size()
+      self.assertEqual(test_size, size)
+      [keys, values] = params_.export()
+      self.assertAllEqual(test_keys, np.sort(keys, axis=0))
+      self.assertAllEqual(test_values, np.sort(values, axis=0))
 
     # test expand shards number
     tf.keras.backend.clear_session()
@@ -299,12 +305,13 @@ class EmbeddingLayerTest(test.TestCase):
     table_devices_ = table_device * shard_num
     model = model_fn(table_devices_)
     model.load_weights(save_path).expect_partial()
-    params_ = model.get_layer('test_keras_save_restore').params
-    size = params_.size()
-    self.assertEqual(test_size, size)
-    [keys, values] = params_.export()
-    self.assertAllEqual(test_keys, np.sort(keys, axis=0))
-    self.assertAllEqual(test_values, np.sort(values, axis=0))
+    for t in range(2):
+      params_ = model.get_layer(f'test_keras_save_restore_{t}').params
+      size = params_.size()
+      self.assertEqual(test_size, size)
+      [keys, values] = params_.export()
+      self.assertAllEqual(test_keys, np.sort(keys, axis=0))
+      self.assertAllEqual(test_values, np.sort(values, axis=0))
 
     # test contracte shards number
     tf.keras.backend.clear_session()
@@ -313,12 +320,13 @@ class EmbeddingLayerTest(test.TestCase):
     table_devices_ = table_device * shard_num
     model = model_fn(table_devices_)
     model.load_weights(save_path).expect_partial()
-    params_ = model.get_layer('test_keras_save_restore').params
-    size = params_.size()
-    self.assertEqual(test_size, size)
-    [keys, values] = params_.export()
-    self.assertAllEqual(test_keys, np.sort(keys, axis=0))
-    self.assertAllEqual(test_values, np.sort(values, axis=0))
+    for t in range(2):
+      params_ = model.get_layer(f'test_keras_save_restore_{t}').params
+      size = params_.size()
+      self.assertEqual(test_size, size)
+      [keys, values] = params_.export()
+      self.assertAllEqual(test_keys, np.sort(keys, axis=0))
+      self.assertAllEqual(test_values, np.sort(values, axis=0))
 
     # test load all into one shard
     tf.keras.backend.clear_session()
@@ -327,12 +335,13 @@ class EmbeddingLayerTest(test.TestCase):
     table_devices_ = table_device * shard_num
     model = model_fn(table_devices_)
     model.load_weights(save_path).expect_partial()
-    params_ = model.get_layer('test_keras_save_restore').params
-    size = params_.size()
-    self.assertEqual(test_size, size)
-    [keys, values] = params_.export()
-    self.assertAllEqual(test_keys, np.sort(keys, axis=0))
-    self.assertAllEqual(test_values, np.sort(values, axis=0))
+    for t in range(2):
+      params_ = model.get_layer(f'test_keras_save_restore_{t}').params
+      size = params_.size()
+      self.assertEqual(test_size, size)
+      [keys, values] = params_.export()
+      self.assertAllEqual(test_keys, np.sort(keys, axis=0))
+      self.assertAllEqual(test_values, np.sort(values, axis=0))
 
   def test_mpi_keras_save_load_weights_file_system(self):
     if not context.executing_eagerly():
@@ -346,15 +355,18 @@ class EmbeddingLayerTest(test.TestCase):
       if test_util.is_gpu_available():
         table_device = ['/device:GPU:0']
       input_tensor = tf.keras.layers.Input(shape=(1,), dtype=tf.int64)
-      embedding_out = de.keras.layers.Embedding(
-          embedding_size=1,
-          key_dtype=tf.int64,
-          value_dtype=tf.float32,
-          initializer=tf.keras.initializers.RandomNormal(),
-          devices=table_device,
-          name='test_keras_save_restore',
-          kv_creator=de.CuckooHashTableCreator(saver=de.FileSystemSaver(
-              proc_size=proc_size, proc_rank=proc_rank)))(input_tensor)
+      embedding_outs = []
+      for t in range(2):
+        embedding_out = de.keras.layers.Embedding(
+            embedding_size=1,
+            key_dtype=tf.int64,
+            value_dtype=tf.float32,
+            initializer=tf.keras.initializers.RandomNormal(),
+            devices=table_device,
+            name=f'test_keras_save_restore_{t}',
+            kv_creator=de.CuckooHashTableCreator(saver=de.FileSystemSaver(
+                proc_size=proc_size, proc_rank=proc_rank)))(input_tensor)
+        embedding_outs.append(embedding_out)
       normal_embedding_out = de.keras.layers.Embedding(
           embedding_size=1,
           key_dtype=tf.int64,
@@ -362,7 +374,8 @@ class EmbeddingLayerTest(test.TestCase):
           initializer=tf.keras.initializers.RandomNormal(),
           devices=table_device,
           name='test_keras_save_restore_normal')(input_tensor)
-      concat = tf.concat([embedding_out, normal_embedding_out], axis=0)
+      embedding_outs.append(normal_embedding_out)
+      concat = tf.concat(embedding_outs, axis=0)
       model = tf.keras.Model(inputs=input_tensor, outputs=concat)
       optimizer = Adam(learning_rate=1E-4, amsgrad=False)
       optimizer = de.DynamicEmbeddingOptimizer(optimizer)
@@ -383,40 +396,45 @@ class EmbeddingLayerTest(test.TestCase):
     for i in range(proc_size):
       tf.keras.backend.clear_session()
       models.append(model_fn(proc_size, i))
-      params_ = models[i].get_layer('test_keras_save_restore').params
-      test_keys_i = test_keys[(i * keys_shard_size):((i + 1) * keys_shard_size)]
-      test_values_i = test_values[(i * keys_shard_size):((i + 1) *
-                                                         keys_shard_size)]
-      params_.upsert(
-          constant_op.constant(test_keys_i, dtypes.int64),
-          constant_op.constant(test_values_i, dtypes.float32),
-      )
+      for t in range(2):
+        params_ = models[i].get_layer(f'test_keras_save_restore_{t}').params
+        test_keys_i = test_keys[(i * keys_shard_size):((i + 1) *
+                                                       keys_shard_size)]
+        test_values_i = test_values[(i * keys_shard_size):((i + 1) *
+                                                           keys_shard_size)]
+        params_.upsert(
+            constant_op.constant(test_keys_i, dtypes.int64),
+            constant_op.constant(test_values_i, dtypes.float32),
+        )
       options = tf.saved_model.SaveOptions(namespace_whitelist=['TFRA'])
       if i == 0:
         models[i].save(save_path, options=options)
       else:
-        models[i].get_layer(
-            'test_keras_save_restore').params.save_to_file_system(
-                dirpath=de_dir, proc_size=proc_size, proc_rank=i)
+        for t in range(2):
+          models[i].get_layer(
+              f'test_keras_save_restore_{t}').params.save_to_file_system(
+                  dirpath=de_dir, proc_size=proc_size, proc_rank=i)
     tf.keras.backend.clear_session()
     for i in range(proc_size):
       del models[0]
-    total_size = 0
-    total_keys = []
-    total_values = []
     for i in range(proc_size):
       tf.keras.backend.clear_session()
       models.append(model_fn(proc_size, i))
       models[i].load_weights(save_path).expect_partial()
-      params_ = models[i].get_layer('test_keras_save_restore').params
-      size_i = params_.size()
-      total_size = total_size + size_i
-      keys, values = params_.export()
-      total_keys.extend(keys)
-      total_values.extend(values)
-    self.assertEqual(test_size, total_size)
-    self.assertAllEqual(test_keys, np.sort(total_keys, axis=0))
-    self.assertAllEqual(test_values, np.sort(total_values, axis=0))
+    for t in range(2):
+      total_size = 0
+      total_keys = []
+      total_values = []
+      for i in range(proc_size):
+        params_ = models[i].get_layer(f'test_keras_save_restore_{t}').params
+        size_i = params_.size()
+        total_size = total_size + size_i
+        keys, values = params_.export()
+        total_keys.extend(keys)
+        total_values.extend(values)
+      self.assertEqual(test_size, total_size)
+      self.assertAllEqual(test_keys, np.sort(total_keys, axis=0))
+      self.assertAllEqual(test_values, np.sort(total_values, axis=0))
 
     # test expand shards number
     proc_size = 3
@@ -425,41 +443,46 @@ class EmbeddingLayerTest(test.TestCase):
     for i in range(proc_size):
       tf.keras.backend.clear_session()
       models.append(model_fn(proc_size, i))
-      params_ = models[i].get_layer('test_keras_save_restore').params
-      test_keys_i = test_keys[(i * keys_shard_size):((i + 1) * keys_shard_size)]
-      test_values_i = test_values[(i * keys_shard_size):((i + 1) *
-                                                         keys_shard_size)]
-      params_.upsert(
-          constant_op.constant(test_keys_i, dtypes.int64),
-          constant_op.constant(test_values_i, dtypes.float32),
-      )
+      for t in range(2):
+        params_ = models[i].get_layer(f'test_keras_save_restore_{t}').params
+        test_keys_i = test_keys[(i * keys_shard_size):((i + 1) *
+                                                       keys_shard_size)]
+        test_values_i = test_values[(i * keys_shard_size):((i + 1) *
+                                                           keys_shard_size)]
+        params_.upsert(
+            constant_op.constant(test_keys_i, dtypes.int64),
+            constant_op.constant(test_values_i, dtypes.float32),
+        )
       options = tf.saved_model.SaveOptions(namespace_whitelist=['TFRA'])
       if i == 0:
         models[i].save(save_path, options=options)
       else:
-        models[i].get_layer(
-            'test_keras_save_restore').params.save_to_file_system(
-                dirpath=de_dir, proc_size=proc_size, proc_rank=i)
+        for t in range(2):
+          models[i].get_layer(
+              f'test_keras_save_restore_{t}').params.save_to_file_system(
+                  dirpath=de_dir, proc_size=proc_size, proc_rank=i)
     tf.keras.backend.clear_session()
     for i in range(proc_size):
       del models[0]
     proc_size = 5
-    total_size = 0
-    total_keys = []
-    total_values = []
     for i in range(proc_size):
       tf.keras.backend.clear_session()
       models.append(model_fn(proc_size, i))
       models[i].load_weights(save_path).expect_partial()
-      params_ = models[i].get_layer('test_keras_save_restore').params
-      size_i = params_.size()
-      total_size = total_size + size_i
-      keys, values = params_.export()
-      total_keys.extend(keys)
-      total_values.extend(values)
-    self.assertEqual(test_size, total_size)
-    self.assertAllEqual(test_keys, np.sort(total_keys, axis=0))
-    self.assertAllEqual(test_values, np.sort(total_values, axis=0))
+    for t in range(2):
+      total_size = 0
+      total_keys = []
+      total_values = []
+      for i in range(proc_size):
+        params_ = models[i].get_layer(f'test_keras_save_restore_{t}').params
+        size_i = params_.size()
+        total_size = total_size + size_i
+        keys, values = params_.export()
+        total_keys.extend(keys)
+        total_values.extend(values)
+      self.assertEqual(test_size, total_size)
+      self.assertAllEqual(test_keys, np.sort(total_keys, axis=0))
+      self.assertAllEqual(test_values, np.sort(total_values, axis=0))
 
     # test contracte shards number
     proc_size = 3
@@ -468,40 +491,45 @@ class EmbeddingLayerTest(test.TestCase):
     for i in range(proc_size):
       tf.keras.backend.clear_session()
       models.append(model_fn(proc_size, i))
-      params_ = models[i].get_layer('test_keras_save_restore').params
-      test_keys_i = test_keys[(i * keys_shard_size):((i + 1) * keys_shard_size)]
-      test_values_i = test_values[(i * keys_shard_size):((i + 1) *
-                                                         keys_shard_size)]
-      params_.upsert(
-          constant_op.constant(test_keys_i, dtypes.int64),
-          constant_op.constant(test_values_i, dtypes.float32),
-      )
+      for t in range(2):
+        params_ = models[i].get_layer(f'test_keras_save_restore_{t}').params
+        test_keys_i = test_keys[(i * keys_shard_size):((i + 1) *
+                                                       keys_shard_size)]
+        test_values_i = test_values[(i * keys_shard_size):((i + 1) *
+                                                           keys_shard_size)]
+        params_.upsert(
+            constant_op.constant(test_keys_i, dtypes.int64),
+            constant_op.constant(test_values_i, dtypes.float32),
+        )
       options = tf.saved_model.SaveOptions(namespace_whitelist=['TFRA'])
       if i == 0:
         models[i].save(save_path, options=options)
       else:
-        models[i].get_layer(
-            'test_keras_save_restore').params.save_to_file_system(
-                dirpath=de_dir, proc_size=proc_size, proc_rank=i)
+        for t in range(2):
+          models[i].get_layer(
+              f'test_keras_save_restore_{t}').params.save_to_file_system(
+                  dirpath=de_dir, proc_size=proc_size, proc_rank=i)
     tf.keras.backend.clear_session()
     for i in range(proc_size):
       del models[0]
-    total_size = 0
-    total_keys = []
-    total_values = []
     for i in range(proc_size):
       tf.keras.backend.clear_session()
       models.append(model_fn(proc_size, i))
       models[i].load_weights(save_path).expect_partial()
-      params_ = models[i].get_layer('test_keras_save_restore').params
-      size_i = params_.size()
-      total_size = total_size + size_i
-      keys, values = params_.export()
-      total_keys.extend(keys)
-      total_values.extend(values)
-    self.assertEqual(test_size, total_size)
-    self.assertAllEqual(test_keys, np.sort(total_keys, axis=0))
-    self.assertAllEqual(test_values, np.sort(total_values, axis=0))
+    for t in range(2):
+      total_size = 0
+      total_keys = []
+      total_values = []
+      for i in range(proc_size):
+        params_ = models[i].get_layer(f'test_keras_save_restore_{t}').params
+        size_i = params_.size()
+        total_size = total_size + size_i
+        keys, values = params_.export()
+        total_keys.extend(keys)
+        total_values.extend(values)
+      self.assertEqual(test_size, total_size)
+      self.assertAllEqual(test_keys, np.sort(total_keys, axis=0))
+      self.assertAllEqual(test_values, np.sort(total_values, axis=0))
 
     # test expand shards number
     proc_size = 3
@@ -510,41 +538,46 @@ class EmbeddingLayerTest(test.TestCase):
     for i in range(proc_size):
       tf.keras.backend.clear_session()
       models.append(model_fn(proc_size, i))
-      params_ = models[i].get_layer('test_keras_save_restore').params
-      test_keys_i = test_keys[(i * keys_shard_size):((i + 1) * keys_shard_size)]
-      test_values_i = test_values[(i * keys_shard_size):((i + 1) *
-                                                         keys_shard_size)]
-      params_.upsert(
-          constant_op.constant(test_keys_i, dtypes.int64),
-          constant_op.constant(test_values_i, dtypes.float32),
-      )
+      for t in range(2):
+        params_ = models[i].get_layer(f'test_keras_save_restore_{t}').params
+        test_keys_i = test_keys[(i * keys_shard_size):((i + 1) *
+                                                       keys_shard_size)]
+        test_values_i = test_values[(i * keys_shard_size):((i + 1) *
+                                                           keys_shard_size)]
+        params_.upsert(
+            constant_op.constant(test_keys_i, dtypes.int64),
+            constant_op.constant(test_values_i, dtypes.float32),
+        )
       options = tf.saved_model.SaveOptions(namespace_whitelist=['TFRA'])
       if i == 0:
         models[i].save(save_path, options=options)
       else:
-        models[i].get_layer(
-            'test_keras_save_restore').params.save_to_file_system(
-                dirpath=de_dir, proc_size=proc_size, proc_rank=i)
+        for t in range(2):
+          models[i].get_layer(
+              f'test_keras_save_restore_{t}').params.save_to_file_system(
+                  dirpath=de_dir, proc_size=proc_size, proc_rank=i)
     tf.keras.backend.clear_session()
     for i in range(proc_size):
       del models[0]
     proc_size = 2
-    total_size = 0
-    total_keys = []
-    total_values = []
     for i in range(proc_size):
       tf.keras.backend.clear_session()
       models.append(model_fn(proc_size, i))
       models[i].load_weights(save_path).expect_partial()
-      params_ = models[i].get_layer('test_keras_save_restore').params
-      size_i = params_.size()
-      total_size = total_size + size_i
-      keys, values = params_.export()
-      total_keys.extend(keys)
-      total_values.extend(values)
-    self.assertEqual(test_size, total_size)
-    self.assertAllEqual(test_keys, np.sort(total_keys, axis=0))
-    self.assertAllEqual(test_values, np.sort(total_values, axis=0))
+    for t in range(2):
+      total_size = 0
+      total_keys = []
+      total_values = []
+      for i in range(proc_size):
+        params_ = models[i].get_layer(f'test_keras_save_restore_{t}').params
+        size_i = params_.size()
+        total_size = total_size + size_i
+        keys, values = params_.export()
+        total_keys.extend(keys)
+        total_values.extend(values)
+      self.assertEqual(test_size, total_size)
+      self.assertAllEqual(test_keys, np.sort(total_keys, axis=0))
+      self.assertAllEqual(test_values, np.sort(total_values, axis=0))
 
     # test load all into one shard
     proc_size = 3
@@ -553,40 +586,45 @@ class EmbeddingLayerTest(test.TestCase):
     for i in range(proc_size):
       tf.keras.backend.clear_session()
       models.append(model_fn(proc_size, i))
-      params_ = models[i].get_layer('test_keras_save_restore').params
-      test_keys_i = test_keys[(i * keys_shard_size):((i + 1) * keys_shard_size)]
-      test_values_i = test_values[(i * keys_shard_size):((i + 1) *
-                                                         keys_shard_size)]
-      params_.upsert(
-          constant_op.constant(test_keys_i, dtypes.int64),
-          constant_op.constant(test_values_i, dtypes.float32),
-      )
+      for t in range(2):
+        params_ = models[i].get_layer(f'test_keras_save_restore_{t}').params
+        test_keys_i = test_keys[(i * keys_shard_size):((i + 1) *
+                                                       keys_shard_size)]
+        test_values_i = test_values[(i * keys_shard_size):((i + 1) *
+                                                           keys_shard_size)]
+        params_.upsert(
+            constant_op.constant(test_keys_i, dtypes.int64),
+            constant_op.constant(test_values_i, dtypes.float32),
+        )
       options = tf.saved_model.SaveOptions(namespace_whitelist=['TFRA'])
       if i == 0:
         models[i].save(save_path, options=options)
       else:
-        models[i].get_layer(
-            'test_keras_save_restore').params.save_to_file_system(
-                dirpath=de_dir, proc_size=proc_size, proc_rank=i)
+        for t in range(2):
+          models[i].get_layer(
+              f'test_keras_save_restore_{t}').params.save_to_file_system(
+                  dirpath=de_dir, proc_size=proc_size, proc_rank=i)
     tf.keras.backend.clear_session()
     for i in range(proc_size):
       del models[0]
-    total_size = 0
-    total_keys = []
-    total_values = []
     for i in range(proc_size):
       tf.keras.backend.clear_session()
       models.append(model_fn(proc_size, i))
       models[i].load_weights(save_path).expect_partial()
-      params_ = models[i].get_layer('test_keras_save_restore').params
-      size_i = params_.size()
-      total_size = total_size + size_i
-      keys, values = params_.export()
-      total_keys.extend(keys)
-      total_values.extend(values)
-    self.assertEqual(test_size, total_size)
-    self.assertAllEqual(test_keys, np.sort(total_keys, axis=0))
-    self.assertAllEqual(test_values, np.sort(total_values, axis=0))
+    for t in range(2):
+      total_size = 0
+      total_keys = []
+      total_values = []
+      for i in range(proc_size):
+        params_ = models[i].get_layer(f'test_keras_save_restore_{t}').params
+        size_i = params_.size()
+        total_size = total_size + size_i
+        keys, values = params_.export()
+        total_keys.extend(keys)
+        total_values.extend(values)
+      self.assertEqual(test_size, total_size)
+      self.assertAllEqual(test_keys, np.sort(total_keys, axis=0))
+      self.assertAllEqual(test_values, np.sort(total_values, axis=0))
 
     # test expand shards number
     proc_size = 3
@@ -595,21 +633,24 @@ class EmbeddingLayerTest(test.TestCase):
     for i in range(proc_size):
       tf.keras.backend.clear_session()
       models.append(model_fn(proc_size, i))
-      params_ = models[i].get_layer('test_keras_save_restore').params
-      test_keys_i = test_keys[(i * keys_shard_size):((i + 1) * keys_shard_size)]
-      test_values_i = test_values[(i * keys_shard_size):((i + 1) *
-                                                         keys_shard_size)]
-      params_.upsert(
-          constant_op.constant(test_keys_i, dtypes.int64),
-          constant_op.constant(test_values_i, dtypes.float32),
-      )
+      for t in range(2):
+        params_ = models[i].get_layer(f'test_keras_save_restore_{t}').params
+        test_keys_i = test_keys[(i * keys_shard_size):((i + 1) *
+                                                       keys_shard_size)]
+        test_values_i = test_values[(i * keys_shard_size):((i + 1) *
+                                                           keys_shard_size)]
+        params_.upsert(
+            constant_op.constant(test_keys_i, dtypes.int64),
+            constant_op.constant(test_values_i, dtypes.float32),
+        )
       options = tf.saved_model.SaveOptions(namespace_whitelist=['TFRA'])
       if i == 0:
         models[i].save(save_path, options=options)
       else:
-        models[i].get_layer(
-            'test_keras_save_restore').params.save_to_file_system(
-                dirpath=de_dir, proc_size=proc_size, proc_rank=i)
+        for t in range(2):
+          models[i].get_layer(
+              f'test_keras_save_restore_{t}').params.save_to_file_system(
+                  dirpath=de_dir, proc_size=proc_size, proc_rank=i)
     tf.keras.backend.clear_session()
     for i in range(proc_size):
       del models[0]
@@ -621,15 +662,20 @@ class EmbeddingLayerTest(test.TestCase):
       tf.keras.backend.clear_session()
       models.append(model_fn(proc_size, i))
       models[i].load_weights(save_path).expect_partial()
-      params_ = models[i].get_layer('test_keras_save_restore').params
-      size_i = params_.size()
-      total_size = total_size + size_i
-      keys, values = params_.export()
-      total_keys.extend(keys)
-      total_values.extend(values)
-    self.assertEqual(test_size, total_size)
-    self.assertAllEqual(test_keys, np.sort(total_keys, axis=0))
-    self.assertAllEqual(test_values, np.sort(total_values, axis=0))
+    for t in range(2):
+      total_size = 0
+      total_keys = []
+      total_values = []
+      for i in range(proc_size):
+        params_ = models[i].get_layer(f'test_keras_save_restore_{t}').params
+        size_i = params_.size()
+        total_size = total_size + size_i
+        keys, values = params_.export()
+        total_keys.extend(keys)
+        total_values.extend(values)
+      self.assertEqual(test_size, total_size)
+      self.assertAllEqual(test_keys, np.sort(total_keys, axis=0))
+      self.assertAllEqual(test_values, np.sort(total_values, axis=0))
 
 
 @test_util.run_all_in_graph_and_eager_modes

@@ -98,6 +98,7 @@ def _de_var_fs_restore_fn(trackables, merged_prefix):
   variables_folder_dir = string_ops.regex_replace(merged_prefix,
                                                   pattern='/([^/]*)$',
                                                   rewrite='')
+  load_ops = tf_utils.ListWrapper([])
   for obj_prefix, obj in trackables.items():
     if not hasattr(obj, 'saveable'):
       continue
@@ -109,9 +110,11 @@ def _de_var_fs_restore_fn(trackables, merged_prefix):
         else:
           de_variable_folder_dir = string_ops.string_join(
               [variables_folder_dir, 'TFRADynamicEmbedding'], separator='/')
-        return load_de_variable_from_file_system(
-            saveable.op, de_variable_folder_dir, saveable.proc_size,
-            saveable.proc_rank, saveable._saver_config.buffer_size)
+        load_ops.as_list().append(
+            load_de_variable_from_file_system(
+                saveable.op, de_variable_folder_dir, saveable.proc_size,
+                saveable.proc_rank, saveable._saver_config.buffer_size))
+  return load_ops.as_list()
 
 
 class _DynamicEmbeddingSingleDeviceSaver(functional_saver._SingleDeviceSaver):
