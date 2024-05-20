@@ -455,7 +455,8 @@ class HkvHashtableTest(test.TestCase):
                                            max_hbm_for_values=1024 * 64,
                                            evict_strategy=strategy,
                                            step_per_epoch=1,
-                                           gen_scores_fn=gen_scores_fn)))
+                                           gen_scores_fn=gen_scores_fn,
+                                           reserved_key_start_bit=1)))
 
       base_epoch_lfu_scores_list = [1, 1 + (1 << 32), 1 + (2 << 32)]
 

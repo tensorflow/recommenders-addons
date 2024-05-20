@@ -308,6 +308,7 @@ REGISTER_OP(PREFIX_OP_NAME(HkvHashTableOfTensors))
     .Attr("max_hbm_for_vectors: int = 0")
     .Attr("step_per_epoch: int = 0")
     .Attr("strategy: int = 0")
+    .Attr("reserved_key_start_bit: int = 0")
     .SetIsStateful()
     .SetShapeFn([](InferenceContext* c) {
       PartialTensorShape value_p;

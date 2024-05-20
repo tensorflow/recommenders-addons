@@ -91,7 +91,7 @@ class HkvHashtableTest(test.TestCase):
               dim=8,
               init_size=1024,
               kv_creator=de.HkvHashTableCreator(config=de.HkvHashTableConfig(
-                  max_capacity=99999)))
+                  max_capacity=99999, reserved_key_start_bit=1)))
           self.assertTrue(dev_str in printed.contents())
 
           self.evaluate(table.size())
@@ -122,7 +122,7 @@ class HkvHashtableTest(test.TestCase):
       for device, use_gpu in test_list:
         with self.session(config=default_config, use_gpu=use_gpu) as sess:
           keys = constant_op.constant(
-              np.array([0, 1, 2, 3]).astype(_type_converter(key_dtype)),
+              np.array([0, 1, 2, -1]).astype(_type_converter(key_dtype)),
               key_dtype)
           values = constant_op.constant(
               _convert([[0] * dim, [1] * dim, [2] * dim, [3] * dim],
@@ -136,7 +136,7 @@ class HkvHashtableTest(test.TestCase):
               dim=dim,
               init_size=1024,
               kv_creator=de.HkvHashTableCreator(config=de.HkvHashTableConfig(
-                  max_capacity=99999)))
+                  max_capacity=99999, reserved_key_start_bit=1)))
           table.clear()
           id += 1
 
@@ -170,7 +170,7 @@ class HkvHashtableTest(test.TestCase):
           # exported data is in the order of the internal map, i.e. undefined
           sorted_keys = np.sort(self.evaluate(exported_keys))
           sorted_values = np.sort(self.evaluate(exported_values), axis=0)
-          self.assertAllEqual(_convert([0, 2, 3], key_dtype),
+          self.assertAllEqual(_convert([-1, 0, 2], key_dtype),
                               _convert(sorted_keys, key_dtype))
           self.assertAllEqual(
               _convert([[0] * dim, [2] * dim, [3] * dim], value_dtype),

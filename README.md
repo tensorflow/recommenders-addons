@@ -174,18 +174,26 @@ Only `TF_NEED_CUDA=1` is required and other environment variables are optional:
 export TF_VERSION="2.15.1"  # "2.11.0" is well tested.
 export PY_VERSION="3.9" 
 export TF_NEED_CUDA=1
-export TF_CUDA_VERSION=12.2
-export TF_CUDNN_VERSION=8.9
+export TF_CUDA_VERSION=12.2 # nvcc --version to check version
+export TF_CUDNN_VERSION=8.9 # print("cuDNN version:", tf.sysconfig.get_build_info()["cudnn_version"])
 export CUDA_TOOLKIT_PATH="/usr/local/cuda"
 export CUDNN_INSTALL_PATH="/usr/lib/x86_64-linux-gnu"
 
 python configure.py
 ```
 And then build the pip package and install:
-```sh`
+```sh
 bazel build --enable_runfiles build_pip_pkg
-bazel-bin/build_pip_pkg artifacts`
+bazel-bin/build_pip_pkg artifacts
 pip install artifacts/tensorflow_recommenders_addons_gpu-*.whl
+```
+to run unit test
+```sh
+cp -f ./bazel-bin/tensorflow_recommenders_addons/dynamic_embedding/core/*.so ./tensorflow_recommenders_addons/dynamic_embedding/core/
+pip install pytest
+python tensorflow_recommenders_addons/tests/run_all_test.py
+# and run pytest such as
+pytest -s tensorflow_recommenders_addons/dynamic_embedding/python/kernel_tests/hkv_hashtable_ops_test.py
 ```
 
 #### Apple Silicon Support
