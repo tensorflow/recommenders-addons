@@ -98,6 +98,10 @@ class HkvHashTableOfTensorsGpu final : public LookupInterface {
     options.max_capacity = static_cast<size_t>(max_capacity_i64);
     options.max_hbm_for_vectors = static_cast<size_t>(max_hbm_for_vectors_i64);
     options.step_per_epoch = step_per_epoch;
+    int reserved_key_start_bit = 0;
+    OP_REQUIRES_OK(ctx, GetNodeAttr(kernel->def(), "reserved_key_start_bit",
+                                    &reserved_key_start_bit));
+    options.reserved_key_start_bit = reserved_key_start_bit;
 
     if (options.max_capacity == 0) {
       char* env_max_capacity_str =

@@ -79,6 +79,7 @@ class HkvHashTable(LookupInterface):
       evict_strategy=HkvEvictStrategy.LRU,
       step_per_epoch=0,
       gen_scores_fn=None,
+      reserved_key_start_bit=0,
   ):
     """Creates an empty `HkvHashTable` object.
 
@@ -124,7 +125,7 @@ class HkvHashTable(LookupInterface):
     self._step_per_epoch = step_per_epoch
     self._gen_scores_fn = gen_scores_fn
     self._default_scores = tf.constant([], dtypes.int64)
-
+    self._reserved_key_start_bit = reserved_key_start_bit
     if self._config:
       self._init_capacity = self._config.init_capacity
       self._max_capacity = self._config.max_capacity
@@ -132,7 +133,7 @@ class HkvHashTable(LookupInterface):
       self._evict_strategy = self._config.evict_strategy
       self._step_per_epoch = self._config.step_per_epoch
       self._gen_scores_fn = self._config.gen_scores_fn
-
+      self._reserved_key_start_bit = self._config.reserved_key_start_bit
     self._shared_name = None
     if context.executing_eagerly():
       # TODO(allenl): This will leak memory due to kernel caching by the
@@ -183,6 +184,7 @@ class HkvHashTable(LookupInterface):
           strategy=self._evict_strategy.value,
           step_per_epoch=self._step_per_epoch,
           name=self._name,
+          reserved_key_start_bit=self._reserved_key_start_bit,
       )
 
     if context.executing_eagerly():

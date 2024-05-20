@@ -57,6 +57,8 @@ HkvHashTableConfig contains three parameters to configure the HashTable, They al
 * <b>`init_capacity`</b>: The initial capacity of the hash table.
 * <b>`max_capacity`</b>: The maximum capacity of the hash table.
 * <b>`max_hbm_for_values`</b>: The maximum HBM for values, in bytes.
+* <b>`reserved_key_start_bit`</b>: The HKV [Reserved Keys](https://github.com/NVIDIA-Merlin/HierarchicalKV?tab=readme-ov-file#reserved-keys)
+start bit, default is 0. 
 
 #### Configuration Suggestion
 
@@ -64,3 +66,4 @@ HkvHashTableConfig contains three parameters to configure the HashTable, They al
 * <b>`HBM + HMEM mode`</b>: set the max_hbm_for_values < sizeof(V) * dim * max_capacity
 * <b>`Pure HMEM mode`</b>: set the max_hbm_for_values = 0
 * if max_capacity == init_capacity, the HBM + HMEM consumption = sizeof(V) * dim * max_capacity
+* <b>`reserved_key_start_bit`</b>: If you don't use The keys of 0xFFFFFFFFFFFFFFFD, 0xFFFFFFFFFFFFFFFE, and 0xFFFFFFFFFFFFFFFF as key, you don't need to change it.

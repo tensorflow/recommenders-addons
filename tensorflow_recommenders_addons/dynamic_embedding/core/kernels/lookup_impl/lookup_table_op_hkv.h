@@ -306,6 +306,7 @@ struct TableWrapperInitOptions {
   size_t max_hbm_for_vectors;
   size_t max_bucket_size;
   int64_t step_per_epoch;
+  int reserved_key_start_bit;
 
   float max_load_factor;
   int block_size;
@@ -470,6 +471,7 @@ class TableWrapper {
         break;
     }
     step_per_epoch_ = init_options.step_per_epoch;
+    mkv_options_.reserved_key_start_bit = init_options.reserved_key_start_bit;
     curr_epoch_ = 0;
     curr_step_ = 1;
 

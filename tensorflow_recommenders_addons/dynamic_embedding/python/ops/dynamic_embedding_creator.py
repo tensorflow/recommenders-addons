@@ -156,6 +156,7 @@ class HkvHashTableConfig(object):
       evict_strategy=HkvEvictStrategy.LRU,
       step_per_epoch=0,
       gen_scores_fn=None,
+      reserved_key_start_bit=0,
   ):
     """ CuckooHashTableConfig include nothing for parameter default satisfied.
     """
@@ -165,6 +166,7 @@ class HkvHashTableConfig(object):
     self.evict_strategy = evict_strategy
     self.step_per_epoch = step_per_epoch
     self.gen_scores_fn = gen_scores_fn
+    self.reserved_key_start_bit = reserved_key_start_bit
 
 
 class HkvHashTableCreator(KVCreator):
@@ -192,6 +194,7 @@ class HkvHashTableCreator(KVCreator):
     self.evict_strategy = HkvEvictStrategy.LRU
     self.step_per_epoch = 0
     self.gen_scores_fn = None
+    self.reserved_key_start_bit = 0
     if self.config and isinstance(self.config, de.HkvHashTableConfig):
       self.init_capacity = self.config.init_capacity
       self.max_capacity = self.config.max_capacity
@@ -199,6 +202,7 @@ class HkvHashTableCreator(KVCreator):
       self.evict_strategy = self.config.evict_strategy
       self.step_per_epoch = self.config.step_per_epoch
       self.gen_scores_fn = self.config.gen_scores_fn
+      self.reserved_key_start_bit = self.config.reserved_key_start_bit
     self.device = device
     self.shard_saveable_object_fn = shard_saveable_object_fn
 
@@ -216,7 +220,8 @@ class HkvHashTableCreator(KVCreator):
         gen_scores_fn=self.gen_scores_fn,
         config=self.config,
         device=self.device,
-        shard_saveable_object_fn=self.shard_saveable_object_fn)
+        shard_saveable_object_fn=self.shard_saveable_object_fn,
+        reserved_key_start_bit=self.reserved_key_start_bit)
 
   def get_config(self):
     if not context.executing_eagerly():
