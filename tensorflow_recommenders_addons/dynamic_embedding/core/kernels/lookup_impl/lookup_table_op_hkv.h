@@ -354,9 +354,11 @@ class TFOrDefaultAllocator : public nv::merlin::BaseAllocator {
   void alloc(const NMMemType type, void** ptr, size_t size,
              unsigned int pinned_flags = cudaHostAllocDefault) override {
     if (!use_default_allocator_) {
+      tensorflow::AllocationAttributes allocation_attr(false, false, nullptr);
       switch (type) {
         case NMMemType::Device:
-          *ptr = tf_device_allocator_->AllocateRaw(kAllocatorAlignment, size);
+          *ptr = tf_device_allocator_->AllocateRaw(kAllocatorAlignment, size,
+                                                   allocation_attr);
           if (nullptr == *ptr) {
             throw std::runtime_error(
                 "Failed to allocator gpu memory, please adjust param 'max_hbm' "
