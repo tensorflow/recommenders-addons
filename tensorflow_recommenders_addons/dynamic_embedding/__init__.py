@@ -108,6 +108,7 @@ from tensorflow_recommenders_addons.dynamic_embedding.python.ops.tf_patch import
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.tf_save_restore_patch import (
     patch_on_tf_save_restore,)
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops import shadow_embedding_ops as shadow_ops
+from tensorflow_recommenders_addons.dynamic_embedding.python.ops import ragged_embedding_ops
 
 patch_on_tf()
 patch_on_tf_save_restore()
