@@ -111,7 +111,7 @@ jobs:
     strategy:
       matrix:
         # TODO: add back 'windows-latest' when it can be compiled.
-        os: ['self-hosted-gpu']
+        os: ['ubuntu-20.04']
         py-version: ['3.7', '3.8', '3.9', '3.10', '3.11']
         tf-version: ['2.11.0', '2.15.1']
         tf-need-cuda: ['1']
@@ -124,7 +124,7 @@ jobs:
           - tf-version: '2.15.1'
             py-version: '3.8'
       fail-fast: false
-    runs-on: ${{ matrix.os }}
+    runs-on: [self-hosted, Linux, X64]
     steps:
       - name: clear cache folder
         run: rm -rf /usr/share/dotnet /opt/ghc "/usr/local/share/boost"
