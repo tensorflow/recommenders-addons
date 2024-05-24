@@ -63,11 +63,13 @@ input_spec = {
         ],
                       dtype=tf.int32,
                       name='user_occupation_label'),
-    'raw_user_age':
+    'bucketized_user_age':
         tf.TensorSpec(shape=[
             None,
             1,
-        ], dtype=tf.int32, name='raw_user_age'),
+        ],
+                      dtype=tf.int32,
+                      name='bucketized_user_age'),
     'movie_id':
         tf.TensorSpec(shape=[
             None,
@@ -126,7 +128,7 @@ feature_info_spec = {
         'input_tensor': None,
         'pretreated_tensor': None,
     },
-    'raw_user_age': {
+    'bucketized_user_age': {
         'code': 106,
         'dtype': tf.int32,
         'dim': 1,
@@ -398,8 +400,8 @@ class DualChannelsDeepModel(tf.keras.Model):
 def get_dataset(batch_size=1):
   ds = tfds.load("movielens/1m-ratings",
                  split="train",
-                 data_dir="/dataset",
-                 download=False)
+                 data_dir="~/dataset",
+                 download=True)
   features = ds.map(
       lambda x: {
           "movie_id":
@@ -412,8 +414,8 @@ def get_dataset(batch_size=1):
               tf.cast(x["user_gender"], tf.int32),
           "user_occupation_label":
               tf.cast(x["user_occupation_label"], tf.int32),
-          "raw_user_age":
-              tf.cast(x["raw_user_age"], tf.int32),
+          "bucketized_user_age":
+              tf.cast(x["bucketized_user_age"], tf.int32),
           "timestamp":
               tf.cast(x["timestamp"] - 880000000, tf.int32),
       })
