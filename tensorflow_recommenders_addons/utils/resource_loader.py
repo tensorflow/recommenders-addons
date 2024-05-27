@@ -16,6 +16,7 @@
 
 import os
 import pkg_resources
+import platform
 import tensorflow as tf
 import warnings
 
@@ -84,6 +85,26 @@ def get_path_to_datafile(path):
   return os.path.join(root_dir, path.replace("/", os.sep))
 
 
+def add_tf_shared_lib_to_dyld_library_path_for_macos():
+  """
+    Checks if Tensorflow shared library exists in DYLD_LIBRARY_PATH and adds it if not.
+    """
+  if platform.system() != "Darwin":
+    return
+
+  tf_shared_lib_path = tf.sysconfig.get_link_flags()[0][2:]
+  dyld_library_path = os.environ.get('DYLD_LIBRARY_PATH', '')
+  paths = dyld_library_path.split(':') if dyld_library_path else []
+
+  if tf_shared_lib_path not in paths:
+    paths.append(tf_shared_lib_path)
+    new_dyld_library_path = ':'.join(paths)
+    os.environ['DYLD_LIBRARY_PATH'] = new_dyld_library_path
+    print(f"Added {tf_shared_lib_path} to DYLD_LIBRARY_PATH.")
+  else:
+    print(f"{tf_shared_lib_path} is already in DYLD_LIBRARY_PATH.")
+
+
 class LazySO:
 
   def __init__(self, relative_path):
@@ -99,7 +120,12 @@ class LazySO:
                   "was being loaded while --skip-custom-ops was set.")
     if self._ops is None:
       self.display_warning_if_incompatible()
-      self._ops = tf.load_op_library(get_path_to_datafile(self.relative_path))
+      try:
+        self._ops = tf.load_op_library(get_path_to_datafile(self.relative_path))
+      except:
+        add_tf_shared_lib_to_dyld_library_path_for_macos()
+        self._ops = tf.load_op_library(get_path_to_datafile(self.relative_path))
+
     return self._ops
 
   def display_warning_if_incompatible(self):
