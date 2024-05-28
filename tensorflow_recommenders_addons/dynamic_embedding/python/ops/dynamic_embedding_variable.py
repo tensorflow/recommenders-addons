@@ -569,6 +569,8 @@ class Variable(base.Trackable):
       if not issubclass(restrict_policy, de.RestrictPolicy):
         raise TypeError('restrict_policy must be subclass of RestrictPolicy.')
       self._restrict_policy = restrict_policy(self)
+      _restrict_var = self._restrict_policy._restrict_var
+      self._track_trackable(_restrict_var, _restrict_var.name, overwrite=False)
     else:
       self._restrict_policy = None
 

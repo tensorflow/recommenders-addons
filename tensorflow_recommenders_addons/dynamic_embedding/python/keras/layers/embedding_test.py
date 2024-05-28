@@ -835,6 +835,7 @@ class FieldWiseEmbeddingLayerTest(test.TestCase):
                                  slot_map_fn,
                                  bp_v2=False,
                                  initializer=init,
+                                 restrict_policy=de.FrequencyRestrictPolicy,
                                  name='pc053')
     optmz = Adam(learning_rate=1E-2, amsgrad=True)
     optmz = de.DynamicEmbeddingOptimizer(optmz)
@@ -863,6 +864,7 @@ class FieldWiseEmbeddingLayerTest(test.TestCase):
                                      slot_map_fn,
                                      bp_v2=False,
                                      initializer=copied_init,
+                                     restrict_policy=de.FrequencyRestrictPolicy,
                                      name='pc053')
     new_emb_layer = new_model.layers[0]
     new_model.load_weights(save_dir).expect_partial()
@@ -874,13 +876,26 @@ class FieldWiseEmbeddingLayerTest(test.TestCase):
     keys = tf.sort(keys)
     values = tf.gather(values, seq)
 
+    rp_keys, rp_values = emb_layer.params.restrict_policy.freq_var.export()
+    rp_seq = tf.argsort(rp_keys)
+    rp_keys = tf.sort(rp_keys)
+    rp_values = tf.gather(rp_values, rp_seq)
+
     new_keys, new_values = new_emb_layer.params.export()
     seq = tf.argsort(new_keys)
     new_keys = tf.sort(new_keys)
     new_values = tf.gather(new_values, seq)
 
+    new_rp_keys, new_rp_values = \
+      new_emb_layer.params.restrict_policy.freq_var.export()
+    new_rp_seq = tf.argsort(new_rp_keys)
+    new_rp_keys = tf.sort(new_rp_keys)
+    new_rp_values = tf.gather(new_rp_values, new_rp_seq)
+
     self.assertAllEqual(keys, new_keys)
+    self.assertAllEqual(rp_keys, new_rp_keys)
     self.assertAllEqual(values, new_values)
+    self.assertAllEqual(rp_values, new_rp_values)
 
   def test_model_save_and_load(self):
     if not context.executing_eagerly():

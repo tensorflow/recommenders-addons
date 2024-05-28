@@ -154,6 +154,7 @@ class TimestampRestrictPolicy(RestrictPolicy):
                                       trainable=False,
                                       init_size=self.var.init_size,
                                       kv_creator=self.var.kv_creator)
+      self._restrict_var = self.tstp_var
 
   def apply_update(self, ids):
     """
@@ -272,6 +273,7 @@ class FrequencyRestrictPolicy(RestrictPolicy):
                                       trainable=False,
                                       init_size=self.var.init_size,
                                       kv_creator=self.var.kv_creator)
+      self._restrict_var = self.freq_var
 
   def apply_update(self, ids):
     """
