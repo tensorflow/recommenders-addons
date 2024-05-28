@@ -23,8 +23,10 @@ limitations under the License.
 #include <unistd.h>
 
 #include <cmath>
+#include <cstddef>
 #include <iostream>
 #include <sstream>
+#include <vector>
 
 #include "md5.h"
 #include "tensorflow/core/framework/tensor.h"
@@ -69,13 +71,14 @@ inline unsigned long get_file_size(const std::string path) {
 }
 
 inline int createDirectory(const std::string path) {
-  int len = path.length();
-  char tmpDirPath[1024] = {0};
-  for (int i = 0; i < len; i++) {
+  size_t len = path.size();
+  std::vector<char> tmpDirPath;
+  tmpDirPath.resize(len);
+  for (size_t i = 0; i < len; i++) {
     tmpDirPath[i] = path[i];
     if (tmpDirPath[i] == '\\' || tmpDirPath[i] == '/') {
-      if (access(tmpDirPath, 0) == -1) {
-        int ret = mkdir(tmpDirPath, S_IRWXU | S_IRWXG | S_IRWXO);
+      if (access(tmpDirPath.data(), 0) == -1) {
+        int ret = mkdir(tmpDirPath.data(), S_IRWXU | S_IRWXG | S_IRWXO);
         if (ret == -1) return ret;
       }
     }
