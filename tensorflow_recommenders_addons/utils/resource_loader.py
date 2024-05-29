@@ -18,6 +18,7 @@ import os
 import pkg_resources
 import tensorflow as tf
 import warnings
+from packaging.version import parse as parse_version
 
 abi_warning_already_raised = False
 SKIP_CUSTOM_OPS = False
@@ -37,13 +38,32 @@ def get_required_tf_version():
           "TFRA installation.",
           UserWarning,
       )
-      return tf.__version__
+      return tf.__version__, tf.__version__
 
   pkg_info = pkg.requires()
+  low_version, high_version = None, None
+
   for x in pkg_info:
     if x.name in ["tensorflow", "tensorflow-gpu"]:
-      return x.specs[0][1]
-  assert False, "Fail to get required TensorFlow version of TFRA!"
+      for spec in x.specs:
+        if spec[0] == ">=":
+          low_version = spec[1]
+        elif spec[0] == "<=":
+          high_version = spec[1]
+  if low_version and high_version:
+    return low_version, high_version
+
+  assert False, f"Fail to get required TensorFlow version of TFRA: {pkg_info[0]} {low_version} {high_version}"
+
+
+def abi_is_compatible():
+  if "dev" in tf.__version__:
+    return False
+  low_version, high_version = get_required_tf_version()
+
+  current_version = parse_version(tf.__version__)
+  return parse_version(low_version) <= current_version <= parse_version(
+      high_version)
 
 
 def get_devices(device_type="GPU"):
@@ -136,14 +156,6 @@ class LazySO:
         UserWarning,
     )
     abi_warning_already_raised = True
-
-
-def abi_is_compatible():
-  if "dev" in tf.__version__:
-    return False
-
-  required_tf_version = get_required_tf_version()
-  return tf.__version__ == required_tf_version
 
 
 def prefix_op_name(op_name):
