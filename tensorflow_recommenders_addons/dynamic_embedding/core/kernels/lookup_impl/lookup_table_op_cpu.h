@@ -474,6 +474,7 @@ void CreateTableImpl(TableWrapperBase<K, V>** pptable, size_t init_size,
 DECLARE_CREATE_TABLE(int32, double);
 DECLARE_CREATE_TABLE(int32, float);
 DECLARE_CREATE_TABLE(int32, int32);
+DECLARE_CREATE_TABLE(int32, bfloat16);
 DECLARE_CREATE_TABLE(int64, double);
 DECLARE_CREATE_TABLE(int64, float);
 DECLARE_CREATE_TABLE(int64, int32);
