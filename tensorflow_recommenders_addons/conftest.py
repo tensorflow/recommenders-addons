@@ -1,3 +1,5 @@
+import warnings
+
 import numpy as np
 import pytest
 import tensorflow as tf
@@ -14,6 +16,13 @@ from tensorflow_recommenders_addons.utils.test_utils import (  # noqa: F401
 # fixtures present in this file will be available
 # when running tests and can be referenced with strings
 # https://docs.pytest.org/en/latest/fixture.html#conftest-py-sharing-fixture-functions
+
+import warnings
+
+def pytest_configure(config):
+  warnings.simplefilter("ignore", DeprecationWarning)
+  warnings.filterwarnings("ignore", message="Fail to get TFRA package information")
+  warnings.filterwarnings("ignore", message="Framework tensorflow installed with version")
 
 
 @pytest.fixture(autouse=True)
