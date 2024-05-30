@@ -585,6 +585,7 @@ class Variable(base.Trackable):
                         [dtypes.int32, dtypes.float32],
                         [dtypes.int32, dtypes.int32],
                         [dtypes.int32, dtypes.float64],
+                        [dtypes.int32, dtypes.bfloat16],
                         [dtypes.string, dtypes.float32],
                         [dtypes.string, dtypes.half],
                         [dtypes.string, dtypes.bfloat16],

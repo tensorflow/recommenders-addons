@@ -1842,6 +1842,7 @@ REGISTER_KERNEL_BUILDER(
 REGISTER_KERNEL(int32, double);
 REGISTER_KERNEL(int32, float);
 REGISTER_KERNEL(int32, int32);
+REGISTER_KERNEL(int32, bfloat16);
 REGISTER_KERNEL(int64_t, double);
 REGISTER_KERNEL(int64_t, float);
 REGISTER_KERNEL(int64_t, int32);
@@ -1849,6 +1850,7 @@ REGISTER_KERNEL(int64_t, int64_t);
 REGISTER_KERNEL(int64_t, tstring);
 REGISTER_KERNEL(int64_t, int8);
 REGISTER_KERNEL(int64_t, Eigen::half);
+REGISTER_KERNEL(int64_t, bfloat16);
 REGISTER_KERNEL(tstring, bool);
 REGISTER_KERNEL(tstring, double);
 REGISTER_KERNEL(tstring, float);
@@ -1856,6 +1858,7 @@ REGISTER_KERNEL(tstring, int32);
 REGISTER_KERNEL(tstring, int64_t);
 REGISTER_KERNEL(tstring, int8);
 REGISTER_KERNEL(tstring, Eigen::half);
+REGISTER_KERNEL(tstring, bfloat16);
 
 #undef REGISTER_KERNEL
 

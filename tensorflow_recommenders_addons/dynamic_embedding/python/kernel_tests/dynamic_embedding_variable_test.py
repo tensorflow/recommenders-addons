@@ -466,11 +466,12 @@ class VariableTest(test.TestCase):
     else:
       dim_list = [1, 8, 16, 128]
       kv_list = [[dtypes.int32, dtypes.double], [dtypes.int32, dtypes.float32],
-                 [dtypes.int32, dtypes.int32], [dtypes.int64, dtypes.double],
-                 [dtypes.int64, dtypes.float32], [dtypes.int64, dtypes.int32],
-                 [dtypes.int64, dtypes.int64], [dtypes.int64, dtypes.int8],
-                 [dtypes.int64, dtypes.half], [dtypes.int64, dtypes.bfloat16],
-                 [dtypes.string, dtypes.double],
+                 [dtypes.int32, dtypes.int32], [dtypes.int32, dtypes.bfloat16],
+                 [dtypes.int64, dtypes.double], [dtypes.int64, dtypes.float32],
+                 [dtypes.int64, dtypes.int32], [dtypes.int64, dtypes.int64],
+                 [dtypes.int64, dtypes.int8], [dtypes.int64, dtypes.half],
+                 [dtypes.int64,
+                  dtypes.bfloat16], [dtypes.string, dtypes.double],
                  [dtypes.string, dtypes.float32], [dtypes.string, dtypes.int32],
                  [dtypes.string, dtypes.int64], [dtypes.string, dtypes.int8],
                  [dtypes.string, dtypes.half]]
