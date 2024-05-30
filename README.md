@@ -24,7 +24,7 @@ For Apple silicon(M1), please refer to [Apple Silicon Support](#apple-silicon-su
 - Support [TF serving](https://github.com/tensorflow/serving) and [Triton Inference Server](https://github.com/triton-inference-server/server) as inference framework
 - Support variant Key-Value implements as dynamic embedding storage and easy to extend
   - [cuckoohash_map](https://github.com/efficient/libcuckoo) (from Efficient Computing at Carnegie Mellon, on CPU)
-  - [nvhash](https://github.com/rapidsai/cudf) (from NVIDIA, on GPU)
+  - [HierarchicalKV](https://github.com/NVIDIA-Merlin/HierarchicalKV) (from NVIDIA, on GPU)
   - [Redis](https://github.com/redis/redis)
 - Support half synchronous training based on Horovod
   - Synchronous training for dense weights
@@ -105,20 +105,22 @@ is compiled differently. A typical example of this would be `conda`-installed Te
 #### Compatibility Matrix
 *GPU is supported by version `0.2.0` and later.*
 
-| TFRA  | TensorFlow | Compiler   | CUDA | CUDNN | Compute Capability           | CPU           |
-|:------|:-----------|:-----------|:-----|:------|:-----------------------------|:--------------|
-| 0.6.0 | 2.8.3      | GCC 7.3.1  | 11.2 | 8.1   | 6.0, 6.1, 7.0, 7.5, 8.0, 8.6 | x86 |
-| 0.6.0 | 2.6.0      | Xcode 13.1 | -    | -     | -                            | Apple M1      |
-| 0.5.1 | 2.8.3      | GCC 7.3.1  | 11.2 | 8.1   | 6.0, 6.1, 7.0, 7.5, 8.0, 8.6 | x86 |
-| 0.5.1 | 2.6.0      | Xcode 13.1 | -    | -     | -                            | Apple M1      |
-| 0.5.0 | 2.8.3      | GCC 7.3.1  | 11.2 | 8.1   | 6.0, 6.1, 7.0, 7.5, 8.0, 8.6 | x86 |
-| 0.5.0 | 2.6.0      | Xcode 13.1 | -    | -     | -                            | Apple M1      |
-| 0.4.0 | 2.5.1      | GCC 7.3.1  | 11.2 | 8.1   | 6.0, 6.1, 7.0, 7.5, 8.0, 8.6 | x86 |
-| 0.4.0 | 2.5.0      | Xcode 13.1 | -    | -     | -                            | Apple M1      |
-| 0.3.1 | 2.5.1      | GCC 7.3.1  | 11.2 | 8.1   | 6.0, 6.1, 7.0, 7.5, 8.0, 8.6 | x86           |
-| 0.2.0 | 2.4.1      | GCC 7.3.1  | 11.0 | 8.0   | 6.0, 6.1, 7.0, 7.5, 8.0      | x86           |
-| 0.2.0 | 1.15.2     | GCC 7.3.1  | 10.0 | 7.6   | 6.0, 6.1, 7.0, 7.5           | x86           |
-| 0.1.0 | 2.4.1      | GCC 7.3.1  | -    | -     | -                            | x86           |
+| TFRA  | TensorFlow | Compiler   | CUDA | CUDNN | Compute Capability           | CPU      |
+|:------|:-----------|:-----------|:-----|:------|:-----------------------------|:---------|
+| 0.7.0 | 2.15.1     | GCC 8.2.1  | 12.2 | 8.9   | 7.0, 7.5, 8.0, 8.6, 8.9, 9.0 | x86      |
+| 0.7.0 | 2.15.1     | Xcode 13.1 | -    | -     | -                            | Apple M1 |
+| 0.6.0 | 2.8.3      | GCC 7.3.1  | 11.2 | 8.1   | 6.0, 6.1, 7.0, 7.5, 8.0, 8.6 | x86      |
+| 0.6.0 | 2.6.0      | Xcode 13.1 | -    | -     | -                            | Apple M1 |
+| 0.5.1 | 2.8.3      | GCC 7.3.1  | 11.2 | 8.1   | 6.0, 6.1, 7.0, 7.5, 8.0, 8.6 | x86      |
+| 0.5.1 | 2.6.0      | Xcode 13.1 | -    | -     | -                            | Apple M1 |
+| 0.5.0 | 2.8.3      | GCC 7.3.1  | 11.2 | 8.1   | 6.0, 6.1, 7.0, 7.5, 8.0, 8.6 | x86      |
+| 0.5.0 | 2.6.0      | Xcode 13.1 | -    | -     | -                            | Apple M1 |
+| 0.4.0 | 2.5.1      | GCC 7.3.1  | 11.2 | 8.1   | 6.0, 6.1, 7.0, 7.5, 8.0, 8.6 | x86      |
+| 0.4.0 | 2.5.0      | Xcode 13.1 | -    | -     | -                            | Apple M1 |
+| 0.3.1 | 2.5.1      | GCC 7.3.1  | 11.2 | 8.1   | 6.0, 6.1, 7.0, 7.5, 8.0, 8.6 | x86      |
+| 0.2.0 | 2.4.1      | GCC 7.3.1  | 11.0 | 8.0   | 6.0, 6.1, 7.0, 7.5, 8.0      | x86      |
+| 0.2.0 | 1.15.2     | GCC 7.3.1  | 10.0 | 7.6   | 6.0, 6.1, 7.0, 7.5           | x86      |
+| 0.1.0 | 2.4.1      | GCC 7.3.1  | -    | -     | -                            | x86      |
 
 Check [nvidia-support-matrix](https://docs.nvidia.com/deeplearning/cudnn/support-matrix/index.html) for more details.
 
@@ -145,7 +147,7 @@ At the same time, we find some OPs used by TRFA have better performance, so we h
 For all developers, we recommend you use the development docker containers which are all GPU enabled:
 ```sh
 docker pull tfra/dev_container:latest-tf2.15.1-python3.9  # Available tensorflow and python combinations can be found [here](https://www.tensorflow.org/install/source#linux)
-docker run --privileged --gpus all -it --rm -v $(pwd):$(pwd) tfra/dev_container:latest-tf2.15.1-3.9
+docker run --privileged --gpus all -it --rm -v $(pwd):$(pwd) tfra/dev_container:latest-tf2.15.1-python3.9
 ```
 
 #### CPU Only
@@ -280,16 +282,17 @@ sess_config.gpu_options.allow_growth = True
 ### With TensorFlow Serving
 
 #### Compatibility Matrix
-| TFRA  | TensorFlow | Serving branch | Compiler  | CUDA | CUDNN | Compute Capability |
-|:------|:-----------|:---------------|:---------| :------------ | :---- | :------------ |
-| 0.6.0 | 2.8.3      | r2.8           | GCC 7.3.1 | 11.2| 8.1 | 6.0, 6.1, 7.0, 7.5, 8.0, 8.6 |
-| 0.5.1 | 2.8.3      | r2.8           | GCC 7.3.1 | 11.2| 8.1 | 6.0, 6.1, 7.0, 7.5, 8.0, 8.6 |
-| 0.5.0 | 2.8.3      | r2.8           | GCC 7.3.1 | 11.2| 8.1 | 6.0, 6.1, 7.0, 7.5, 8.0, 8.6 |
-| 0.4.0 | 2.5.1      | r2.5           | GCC 7.3.1 | 11.2| 8.1 | 6.0, 6.1, 7.0, 7.5, 8.0, 8.6 |
-| 0.3.1 | 2.5.1      | r2.5           | GCC 7.3.1 | 11.2| 8.1 | 6.0, 6.1, 7.0, 7.5, 8.0, 8.6 |
-| 0.2.0 | 2.4.1      | r2.4           | GCC 7.3.1 | 11.0 | 8.0 | 6.0, 6.1, 7.0, 7.5, 8.0 |
-| 0.2.0 | 1.15.2     | r1.15          | GCC 7.3.1 | 10.0 | 7.6 | 6.0, 6.1, 7.0, 7.5 |
-| 0.1.0 | 2.4.1      | r2.4           | GCC 7.3.1 | - | - | - |
+| TFRA  | TensorFlow | Serving branch | Compiler  | CUDA | CUDNN | Compute Capability           |
+|:------|:-----------|:---------------|:----------|:-----|:------|:-----------------------------|
+| 0.7.0 | 2.15.1     | r2.15          | GCC 8.2.1 | 12.2 | 8.9   | 7.0, 7.5, 8.0, 8.6, 8.9, 9.0 |
+| 0.6.0 | 2.8.3      | r2.8           | GCC 7.3.1 | 11.2 | 8.1   | 6.0, 6.1, 7.0, 7.5, 8.0, 8.6 |
+| 0.5.1 | 2.8.3      | r2.8           | GCC 7.3.1 | 11.2 | 8.1   | 6.0, 6.1, 7.0, 7.5, 8.0, 8.6 |
+| 0.5.0 | 2.8.3      | r2.8           | GCC 7.3.1 | 11.2 | 8.1   | 6.0, 6.1, 7.0, 7.5, 8.0, 8.6 |
+| 0.4.0 | 2.5.1      | r2.5           | GCC 7.3.1 | 11.2 | 8.1   | 6.0, 6.1, 7.0, 7.5, 8.0, 8.6 |
+| 0.3.1 | 2.5.1      | r2.5           | GCC 7.3.1 | 11.2 | 8.1   | 6.0, 6.1, 7.0, 7.5, 8.0, 8.6 |
+| 0.2.0 | 2.4.1      | r2.4           | GCC 7.3.1 | 11.0 | 8.0   | 6.0, 6.1, 7.0, 7.5, 8.0      |
+| 0.2.0 | 1.15.2     | r1.15          | GCC 7.3.1 | 10.0 | 7.6   | 6.0, 6.1, 7.0, 7.5           |
+| 0.1.0 | 2.4.1      | r2.4           | GCC 7.3.1 | -    | -     | -                            |
 
 Serving TFRA-enable models by custom ops in TensorFlow Serving. 
 
