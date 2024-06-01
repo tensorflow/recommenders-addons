@@ -12,7 +12,7 @@ makes building, evaluating, and serving sophisticated recommenders models easy.
 See approved TensorFlow RFC #[313](https://github.com/tensorflow/community/pull/313).
 Those contributions will be complementary to TensorFlow Core and TensorFlow Recommenders etc. 
 
-For Apple silicon(M1), please refer to [Apple Silicon Support](#apple-silicon-support-beta-release).
+For Apple silicon(M1), please refer to [Apple Silicon Support](#apple-silicon-support).
 
 ## Main Features
 
@@ -200,14 +200,12 @@ pytest -s tensorflow_recommenders_addons/dynamic_embedding/python/kernel_tests/h
 Requirements:
 
 - macOS 12.0.0+
-- Python 3.9
-- tensorflow-macos 2.9.0
+- tensorflow 2.15.1
 - bazel 5.1.1
 
-The natively supported TensorFlow is maintained by Apple. Please see the instruction [Get started with tensorflow-metal](https://developer.apple.com/metal/tensorflow-plugin/) to install the Tensorflow on apple silicon devices.
 
 
-**Install TFRA on Apple Silicon via PIP**
+**Install TFRA on Apple Silicon via Pypi**
 ```sh
 python -m pip install tensorflow-recommenders-addons --no-deps
 ```
@@ -219,7 +217,7 @@ python -m pip install tensorflow-recommenders-addons --no-deps
 brew install bazelisk
 
 # Build wheel from source
-PY_VERSION=3.9.0 TF_VERSION=2.9.0 TF_NEED_CUDA="0" sh .github/workflows/make_wheel_macOS_arm64.sh
+TF_VERSION=2.15.1 TF_NEED_CUDA="0" sh .github/workflows/make_wheel_macOS_arm64.sh
 
 # Install the wheel
 python -m pip install --no-deps ./artifacts/*.whl
@@ -231,6 +229,7 @@ The Apple silicon version of TFRA doesn't support:
 
 * Data type **float16**
 * Synchronous training based on **Horovod**
+* HierarchicalKV (HKV)
 * `save_to_file_system`
 * `load_from_file_system` 
 * `warm_start_util`

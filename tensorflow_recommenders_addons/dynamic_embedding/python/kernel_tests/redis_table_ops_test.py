@@ -366,6 +366,10 @@ class RedisVariableTest(test.TestCase):
       return np.array(v).astype(_type_converter(t))
 
     for (key_dtype, value_dtype), dim in itertools.product(kv_list, dim_list):
+      # Skip float16 tests if the platform is macOS arm64 architecture
+      if is_macos() and is_arm64():
+        if value_dtype == dtypes.half or value_dtype == dtypes.bfloat16:
+          continue
       id += 1
       with self.session(config=default_config,
                         use_gpu=test_util.is_gpu_available()) as sess:
@@ -724,6 +728,10 @@ class RedisVariableTest(test.TestCase):
         dim_list,
         [10],
     ):
+      # Skip float16 tests if the platform is macOS arm64 architecture
+      if is_macos() and is_arm64():
+        if value_dtype == dtypes.half or value_dtype == dtypes.bfloat16:
+          continue
       id += 1
       save_dir = os.path.join(self.get_temp_dir(), "save_restore")
       save_path = os.path.join(tempfile.mkdtemp(prefix=save_dir), "hash")
@@ -819,6 +827,10 @@ class RedisVariableTest(test.TestCase):
         [10],
         [10],
     ):
+      # Skip float16 tests if the platform is macOS arm64 architecture
+      if is_macos() and is_arm64():
+        if value_dtype == dtypes.half or value_dtype == dtypes.bfloat16:
+          continue
       id += 1
       save_dir = os.path.join(self.get_temp_dir(), "save_restore")
       save_path = os.path.join(tempfile.mkdtemp(prefix=save_dir), "hash")
