@@ -28,7 +28,7 @@ def is_arm64():
 
 # Required TensorFlow version [min, max]
 if (is_macos() and is_arm64()):
-  MIN_TF_VERSION = "2.11.0"
+  MIN_TF_VERSION = "2.15.1"
   MAX_TF_VERSION = "2.15.1"
 else:
   MIN_TF_VERSION = "2.11.0"

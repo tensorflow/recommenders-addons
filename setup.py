@@ -55,12 +55,6 @@ def get_project_name_version():
 
   project_name = "tensorflow-recommenders-addons"
   version["tf_project_name"] = "tensorflow"
-
-  is_macos_arm64 = (platform.machine() == "arm64"
-                    and platform.system() == "Darwin")
-  if is_macos_arm64 and Version(os.getenv("TF_VERSION")) <= Version("2.12.0"):
-    version["tf_project_name"] = "tensorflow-macos"
-
   if os.getenv("TF_NEED_CUDA", "0") == "1":
     project_name = project_name + "-gpu"
 

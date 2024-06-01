@@ -368,7 +368,7 @@ class RedisVariableTest(test.TestCase):
       id += 1
       # Skip float16 tests if the platform is macOS arm64 architecture
       if is_macos() and is_arm64():
-        if value_dtype == dtypes.half:
+        if value_dtype == dtypes.half or value_dtype == dtypes.bfloat16:
           continue
       with self.session(config=default_config,
                         use_gpu=test_util.is_gpu_available()) as sess:
@@ -445,7 +445,7 @@ class RedisVariableTest(test.TestCase):
       id += 1
       # Skip float16 tests if the platform is macOS arm64 architecture
       if is_macos() and is_arm64():
-        if value_dtype == dtypes.half:
+        if value_dtype == dtypes.half or value_dtype == dtypes.bfloat16:
           continue
       with self.session(config=default_config,
                         use_gpu=test_util.is_gpu_available()) as sess:
