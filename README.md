@@ -243,16 +243,17 @@ These issues may be fixed in the future release.
 
 ##### Data Type Matrix for `tfra.dynamic_embedding.Variable` 
 
-|  Values \\ Keys  | int64  | int32 | string |
-|:----:|:----:|:----:|:----:| 
-| float  | CPU, GPU | CPU, GPU | CPU |
-| half  | CPU, GPU | - | CPU |
-| int32  | CPU, GPU | CPU | CPU |
-| int8  | CPU, GPU | - | CPU |
-| int64  | CPU | - | CPU |
-| double  | CPU, CPU | CPU | CPU |
-| bool  | - | - | CPU |
-| string  | CPU | - | - |
+| Values \\ Keys |  int64   |  int32   | string |
+|:--------------:|:--------:|:--------:|:------:| 
+|     float      | CPU, GPU | CPU, GPU |  CPU   |
+|    bfloat16    | CPU, GPU |   CPU    |  CPU   |
+|      half      | CPU, GPU |    -     |  CPU   |
+|     int32      | CPU, GPU |   CPU    |  CPU   |
+|      int8      | CPU, GPU |   -      |  CPU   |
+|     int64      |   CPU    |    -     |  CPU   |
+|     double     | CPU, CPU |   CPU    |  CPU   |
+|      bool      |    -     |    -     |  CPU   |
+|     string     |   CPU    |    -     |   -    |
 
 ##### To use GPU by `tfra.dynamic_embedding.Variable`
 The `tfra.dynamic_embedding.Variable` will ignore the device placement mechanism of TensorFlow, 
