@@ -1,4 +1,5 @@
 import tensorflow as tf
+from tensorflow.python.eager import context
 from tensorflow.python.framework import dtypes, ops
 from tensorflow.python.ops import resource_variable_ops, array_ops, math_ops, gen_ragged_array_ops, gen_math_ops
 from tensorflow.python.ops.bincount_ops import validate_dense_weights
@@ -19,7 +20,7 @@ def _bincount(arr,
               binary_output=False):
 
   name = "bincount" if name is None else name
-  with ops.name_scope(name):
+  with tf.name_scope(name):
     arr = tf.convert_to_tensor(arr, name="arr")
     if weights is not None:
       weights = tf.convert_to_tensor(weights, name="weights")
@@ -144,7 +145,10 @@ def _embedding_lookup_sparse_impl(
   if isinstance(params, de.shadow_ops.ShadowVariable):
     embeddings = de.shadow_ops.embedding_lookup(params, ids)
   else:
-    embeddings = de.embedding_lookup(params, ids)
+    if context.executing_eagerly():
+      embeddings = de.embedding_lookup(params, ids, name=name)
+    else:
+      embeddings = de.embedding_lookup(params, ids)
 
   if not ignore_weights:
     if segment_ids.dtype != dtypes.int32:
@@ -314,8 +318,8 @@ def embedding_lookup_sparse(
     rt_ids.values.get_shape().assert_is_compatible_with(
         rt_weights.values.get_shape())
     rt_ids.get_shape().assert_is_compatible_with(rt_weights.get_shape())
-    #
-  with ops.name_scope(name, "embedding_lookup_sparse") as name:
+
+  with tf.name_scope(name or "embedding_lookup_sparse") as name:
     segment_ids = rt_ids.value_rowids()
     ids = rt_ids.flat_values
     return _embedding_lookup_sparse_impl(
