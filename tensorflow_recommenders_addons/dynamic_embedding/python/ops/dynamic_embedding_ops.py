@@ -17,6 +17,7 @@
 Dynamic Embedding is designed for Large-scale Sparse Weights Training.
 See [Sparse Domain Isolation](https://github.com/tensorflow/community/pull/237)
 """
+from tensorflow.python.ops.variables import VariableAggregation
 
 from tensorflow_recommenders_addons import dynamic_embedding as de
 from tensorflow_recommenders_addons.utils.resource_loader import get_tf_version_triple
@@ -62,7 +63,6 @@ try:  # The data_structures has been moved to the new package in tf 2.11
 except:
   from tensorflow.python.training.tracking import data_structures
 from tensorflow.python.util import compat, dispatch
-from tensorflow.python.util.tf_export import tf_export
 
 from tensorflow.python.keras.utils import tf_utils
 try:  # tf version >= 2.14.0
@@ -649,7 +649,7 @@ def embedding_lookup(
 
       with ops.colocate_with(ids, ignore_existing=True):
         if distribute_ctx.has_strategy():
-          trainable_ = _distribute_trainable_store.get(name, None)
+          trainable_ = params._distribute_trainable_store.get(name, None)
           if trainable_ is None:
             strategy_devices = distribute_ctx.get_strategy(
             ).extended.worker_devices
@@ -773,7 +773,8 @@ def embedding_lookup_sparse(
 
     Args:
       params: A single `dynamic_embedding.Variable` instance representing
-        the complete embedding tensor or a `ShadowVariable` instance.
+        the complete embedding tensor and a new TrainableWrapper will be created and return
+         or a `ShadowVariable` instance, then params will be return without creating a new TrainableWrapper
       sp_ids: N x M `SparseTensor` of int64 ids where N is typically batch size
         and M is arbitrary.
       sp_weights: either a `SparseTensor` of float / double weights, or `None` to
