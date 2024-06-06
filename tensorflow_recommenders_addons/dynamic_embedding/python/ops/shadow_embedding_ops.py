@@ -264,6 +264,53 @@ def embedding_lookup(
       return result
 
 
+def embedding_lookup_unique_base(ids,
+                                 embedding_size,
+                                 lookup_function,
+                                 with_unique=True,
+                                 name=None):
+  """
+  Helper function to perform embedding lookup with optional uniqueness and ragged tensor support.
+
+  Args:
+    ids: A tensor or a tf.RaggedTensor containing the ids for which to lookup embeddings.
+    embedding_size: Size of each embedding.
+    lookup_function: Function to be used for the lookup, must accept a single argument (ids).
+    with_unique: Whether to use unique ids to lookup embeddings.
+    name: Optional name for the operation.
+
+  Returns:
+    A tensor or a tf.RaggedTensor containing the embeddings corresponding to ids.
+  """
+  is_ragged = isinstance(ids, tf.RaggedTensor)
+
+  if is_ragged:
+    original_structure = ids
+    ids = ids.flat_values
+  else:
+    ids = tf.convert_to_tensor(ids)
+
+  input_shape = tf.shape(ids)
+  embeddings_shape = tf.concat([input_shape, [embedding_size]], 0)
+
+  ids_flat = tf.reshape(ids, (-1,))
+  if with_unique:
+    with ops.name_scope(name, "EmbeddingWithUnique"):
+      unique_ids, idx = tf.unique(ids_flat)
+      unique_embeddings = lookup_function(unique_ids)
+      embeddings_flat = tf.gather(unique_embeddings, idx)
+  else:
+    embeddings_flat = lookup_function(ids_flat)
+
+  embeddings = tf.reshape(embeddings_flat, embeddings_shape)
+
+  if is_ragged:
+    embeddings = tf.RaggedTensor.from_row_lengths(
+        embeddings, original_structure.row_lengths())
+
+  return embeddings
+
+
 def embedding_lookup_unique(
     shadow,
     ids,
@@ -286,26 +333,7 @@ def embedding_lookup_unique(
     A tensor with shape [shape of ids] + [embedding_size],
       containing the values from the params tensor(s) for keys in ids.
   """
-  is_ragged = isinstance(ids, tf.RaggedTensor)
 
-  if is_ragged:
-    original_structure = ids
-    ids = ids.flat_values
-  else:
-    ids = tf.convert_to_tensor(ids)
-  input_shape = tf.shape(ids)
-  embeddings_shape = tf.concat([input_shape, [embedding_size]], 0)
-  ids_flat = tf.reshape(ids, (-1,))
-  if with_unique:
-    with ops.name_scope(name, "EmbeddingWithUnique"):
-      unique_ids, idx = tf.unique(ids_flat)
-      unique_embeddings = embedding_lookup(shadow, unique_ids)
-      embeddings_flat = tf.gather(unique_embeddings, idx)
-  else:
-    embeddings_flat = embedding_lookup(shadow, ids_flat)
-  embeddings = tf.reshape(embeddings_flat, embeddings_shape)
-
-  if is_ragged:
-    embeddings = tf.RaggedTensor.from_row_lengths(
-        embeddings, original_structure.row_lengths())
-  return embeddings
+  return embedding_lookup_unique_base(ids, embedding_size,
+                                      lambda x: embedding_lookup(shadow, x),
+                                      with_unique, name)

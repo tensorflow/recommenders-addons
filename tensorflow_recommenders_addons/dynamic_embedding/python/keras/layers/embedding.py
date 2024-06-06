@@ -25,22 +25,25 @@ from tensorflow_recommenders_addons import dynamic_embedding as de
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops import dynamic_embedding_variable as devar
 
 from tensorflow.python.keras.utils import tf_utils
+
 try:  # tf version >= 2.14.0
   from tensorflow.python.distribute import distribute_lib as distribute_ctx
+
   assert hasattr(distribute_ctx, 'has_strategy')
 except:
   from tensorflow.python.distribute import distribution_strategy_context as distribute_ctx
 from tensorflow.python.distribute import values_util
 from tensorflow.python.framework import ops
-from tensorflow.python.eager import tape
 from tensorflow.python.ops.variables import VariableAggregation
 from tensorflow.python.platform import tf_logging
+
 try:  # The data_structures has been moved to the new package in tf 2.11
   from tensorflow.python.trackable import data_structures
 except:
   from tensorflow.python.training.tracking import data_structures
 
-from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_ops import DistributedVariableWrapper, TrainableWrapperDistributedPolicy
+from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_ops import \
+  DistributedVariableWrapper, TrainableWrapperDistributedPolicy
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_variable import make_partition
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.tf_save_restore_patch import de_fs_saveable_class_names
 
@@ -625,18 +628,12 @@ class HvdAllToAllEmbedding(BasicEmbedding):
     Returns:
       A embedding output with shape (shape(ids), embedding_size).
     """
-    ids = tf.convert_to_tensor(ids)
-    input_shape = tf.shape(ids)
-    ids_flat = tf.reshape(ids, (-1,))
-    if self.with_unique:
-      unique_ids, idx = tf.unique(ids_flat)
-      unique_embeddings = self.__alltoall_embedding_lookup__(unique_ids)
-      lookup_result = tf.gather(unique_embeddings, idx)
-    else:
-      lookup_result = self.__alltoall_embedding_lookup__(ids_flat)
-    lookup_result = tf.reshape(
-        lookup_result, tf.concat([input_shape, [self.embedding_size]], 0))
-    return lookup_result
+
+    from tensorflow_recommenders_addons.dynamic_embedding.python.ops.shadow_embedding_ops import \
+      embedding_lookup_unique_base
+    return embedding_lookup_unique_base(ids, self.embedding_size,
+                                        self.__alltoall_embedding_lookup__,
+                                        self.with_unique, self.name)
 
   def get_config(self):
     config = super(HvdAllToAllEmbedding, self).get_config()

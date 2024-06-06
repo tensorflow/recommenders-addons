@@ -19,6 +19,7 @@ from __future__ import division
 from __future__ import print_function
 
 import itertools
+
 import numpy as np
 import os
 import tempfile
@@ -27,7 +28,6 @@ import tensorflow as tf
 from tensorflow_recommenders_addons import dynamic_embedding as de
 
 from tensorflow.core.protobuf import config_pb2
-from tensorflow.python.distribute.cluster_resolver import cluster_resolver
 from tensorflow.python.eager import context
 from tensorflow.python.eager import def_function
 from tensorflow.python.framework import constant_op
@@ -42,6 +42,11 @@ from tensorflow.python.ops import variables
 from tensorflow.python.platform import test
 from tensorflow.python.training import adam
 from tensorflow.python.training import server_lib
+
+from tensorflow_recommenders_addons.dynamic_embedding.python.keras.layers import HvdAllToAllEmbedding
+from tensorflow_recommenders_addons.dynamic_embedding.python.ops.shadow_embedding_ops import \
+  embedding_lookup_unique_base
+
 try:
   from tensorflow.keras.legacy.optimizers import Adam
 except:
@@ -434,6 +439,78 @@ class ShadowVariableBasicBehaviorTest(test.TestCase):
                              dtype=dtypes.float32))
 
   def test_embedding_lookup_unique(self):
+    if not context.executing_eagerly():
+      self.skipTest('Only test in eager mode.')
+
+    params = de.get_variable('pn012', dim=2, initializer=0.1)
+    params.upsert(
+        constant_op.constant([1, 2, 3], dtype=dtypes.int64),
+        constant_op.constant([[1., 1.], [2., 2.], [3., 3.]],
+                             dtype=dtypes.float32))
+    shadow = de.shadow_ops.ShadowVariable(params)
+
+    ids_tensor = tf.constant([[2, 3], [4, 5], [1, 0]], dtype=tf.int64)
+
+    val_tensor = de.shadow_ops.embedding_lookup_unique(shadow, ids_tensor, 2,
+                                                       True)
+
+    expected_output = tf.constant([
+        [[2., 2.], [3., 3.]],  # embeddings for ids 2 and 3
+        [[0.1, 0.1], [0.1,
+                      0.1]],  # embeddings for ids 4 and 5 (default initialized)
+        [[1., 1.], [0.1,
+                    0.1]]  # embeddings for id 1 and 0 (default initialized)
+    ])
+    self.assertAllEqual(val_tensor, expected_output)
+
+  def test_embedding_lookup_unique_hvd(self):
+    if not tf.executing_eagerly():
+      self.skipTest('Only test in eager mode.')
+
+    params = tf.Variable(
+        [[0.1, 0.1], [1., 1.], [2., 2.], [3., 3.], [0.1, 0.1], [0.1, 0.1]],
+        dtype=tf.float32)
+
+    ids_tensor = tf.constant([[2, 3], [4, 5], [1, 0]], dtype=tf.int64)
+
+    val_tensor = embedding_lookup_unique_base(
+        ids_tensor, 2, lambda ids: tf.gather(params, ids), True,
+        "mock_embedding")
+
+    expected_output = tf.constant([
+        [[2., 2.], [3., 3.]],  # embeddings for ids 2 and 3
+        [[0.1, 0.1], [0.1,
+                      0.1]],  # embeddings for ids 4 and 5 (default initialized)
+        [[1., 1.], [0.1,
+                    0.1]]  # embeddings for id 1 and 0 (default initialized)
+    ])
+
+    self.assertAllEqual(val_tensor, expected_output)
+
+  def test_ragged_embedding_lookup_unique_hvd(self):
+    if not tf.executing_eagerly():
+      self.skipTest('Only test in eager mode.')
+
+    params = tf.Variable(
+        [[0.1, 0.1], [1., 1.], [2., 2.], [3., 3.], [0.1, 0.1], [0.1, 0.1]],
+        dtype=tf.float32)
+
+    ragged_ids = tf.RaggedTensor.from_row_splits(values=tf.constant(
+        [2, 3, 4, 5, 1], dtype=tf.int64),
+                                                 row_splits=[0, 2, 5])
+    val_ragged_tensor = embedding_lookup_unique_base(
+        ragged_ids, 2, lambda ids: tf.gather(params, ids), True,
+        "mock_embedding")
+
+    expected_output = tf.RaggedTensor.from_row_splits(values=tf.constant(
+        [[2., 2.], [3., 3.], [0.1, 0.1], [0.1, 0.1], [1., 1.]],
+        dtype=tf.float32),
+                                                      row_splits=[0, 2, 5])
+
+    self.assertAllEqual(val_ragged_tensor.to_tensor(),
+                        expected_output.to_tensor())
+
+  def test_ragged_embedding_lookup_unique(self):
     if not context.executing_eagerly():
       self.skipTest('Only test in eager mode.')
 
