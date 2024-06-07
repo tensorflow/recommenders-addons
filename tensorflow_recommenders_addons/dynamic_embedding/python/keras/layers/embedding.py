@@ -42,9 +42,8 @@ try:  # The data_structures has been moved to the new package in tf 2.11
 except:
   from tensorflow.python.training.tracking import data_structures
 
-from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_ops import \
-  DistributedVariableWrapper, TrainableWrapperDistributedPolicy
-from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_variable import make_partition
+from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_variable import make_partition, \
+  TrainableWrapperDistributedPolicy
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.tf_save_restore_patch import de_fs_saveable_class_names
 
 
@@ -244,7 +243,7 @@ class Embedding(tf.keras.layers.Layer):
     ) and self.distribute_strategy and 'OneDeviceStrategy' not in str(
         self.distribute_strategy) and not values_util.is_saving_non_distributed(
         ) and values_util.get_current_replica_id_as_int() is not None:
-      self.shadow = DistributedVariableWrapper(
+      self.shadow = de.DistributedVariableWrapper(
           self.distribute_strategy, self.shadow_impl.as_list(),
           VariableAggregation.NONE,
           TrainableWrapperDistributedPolicy(VariableAggregation.NONE))

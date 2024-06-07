@@ -20,7 +20,6 @@ import os.path
 import re
 
 from tensorflow_recommenders_addons import dynamic_embedding as de
-from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_ops import TrainableWrapper, DEResourceVariable
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_variable \
   import load_de_variable_from_file_system
 
@@ -31,17 +30,14 @@ except:
 from tensorflow.core.protobuf import saver_pb2
 from tensorflow.python.client import session
 from tensorflow.python.eager import context
-from tensorflow.python.framework import constant_op
 from tensorflow.python.framework import dtypes
 from tensorflow.python.framework import errors
 from tensorflow.python.framework import ops
 from tensorflow.python.keras.saving.saved_model import save as tf_saved_model_save
 from tensorflow.python.keras.utils import tf_utils
-from tensorflow.python.lib.io import file_io
 from tensorflow.python.ops import array_ops
 from tensorflow.python.ops import control_flow_ops
 from tensorflow.python.ops import io_ops
-from tensorflow.python.ops import math_ops
 from tensorflow.python.ops import string_ops
 from tensorflow.python.platform import gfile
 from tensorflow.python.platform import tf_logging
@@ -300,8 +296,9 @@ class _DynamicEmbeddingSaver(saver.Saver):
 
   def _build(self, checkpoint_path, build_save, build_restore):
     # TrainableWrapper and DEResourceVariable should not be save or restore parameter.
-    filter_lambda = lambda x: (isinstance(x, TrainableWrapper)) or (isinstance(
-        x, DEResourceVariable))
+    from tensorflow_recommenders_addons.dynamic_embedding.python.ops.shadow_embedding_ops import DEResourceVariable
+    filter_lambda = lambda x: (isinstance(x, de.TrainableWrapper)) or (
+        isinstance(x, DEResourceVariable))
     if isinstance(self._var_list, dict):
       for key, value in self._var_list.items():
         if filter_lambda(value):

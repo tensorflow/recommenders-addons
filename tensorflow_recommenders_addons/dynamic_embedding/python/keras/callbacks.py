@@ -21,14 +21,11 @@ from tensorflow.python.framework import versions
 from tensorflow.python.keras import backend as K
 from tensorflow.python.keras import callbacks
 from tensorflow.python.keras.utils import tf_utils
-from tensorflow.python.ops import array_ops
 from tensorflow.python.ops import variables
 from tensorflow.python.platform import tf_logging as logging
-from tensorflow.python.util.deprecation import deprecated
 
 from tensorflow_recommenders_addons.dynamic_embedding.python.keras.layers import HvdAllToAllEmbedding
-from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_ops import TrainableWrapper, DEResourceVariable
-from tensorflow_recommenders_addons.utils.check_platform import is_macos, is_arm64
+from tensorflow_recommenders_addons import dynamic_embedding as de
 
 try:
   import horovod.tensorflow as hvd
@@ -72,8 +69,8 @@ class DEHvdBroadcastGlobalVariablesCallbackImpl(object):
       if hvd._executing_eagerly() and hasattr(self.model, 'variables'):
         # TensorFlow 2.0 or TensorFlow eager
         filter_lambda = lambda x: (x.ref() not in self._local_vars) and (
-            not isinstance(x, TrainableWrapper)) and (not isinstance(
-                x, DEResourceVariable))
+            not isinstance(x, de.TrainableWrapper)) and (not isinstance(
+                x, de.DEResourceVariable))
         broadcast_vars = [
             var for var in self.model.variables if filter_lambda(var)
         ]
@@ -127,7 +124,8 @@ class DEHvdModelCheckpoint(callbacks.ModelCheckpoint):
     else:
       de_dir = os.path.join(filepath, "variables", "TFRADynamicEmbedding")
       for var in self.model.variables:
-        if not hasattr(var, "params") or not isinstance(var, TrainableWrapper):
+        if not hasattr(var, "params") or not isinstance(var,
+                                                        de.TrainableWrapper):
           continue
         if not hasattr(var.params, "_created_in_class"):
           continue
