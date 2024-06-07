@@ -1,13 +1,11 @@
 import tensorflow as tf
-from tensorflow.python.eager import context
 from tensorflow.python.framework import dtypes, ops
 from tensorflow.python.ops import resource_variable_ops, array_ops, math_ops, gen_ragged_array_ops, gen_math_ops
 from tensorflow.python.ops.bincount_ops import validate_dense_weights
 from tensorflow.python.ops.ragged import ragged_tensor, ragged_array_ops
-from tensorflow_recommenders_addons.dynamic_embedding.python.ops.shadow_embedding_ops import ShadowVariable
 
-from tensorflow_recommenders_addons import dynamic_embedding as de
-from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_ops import verify_embedding_weights
+from tensorflow_recommenders_addons.dynamic_embedding.python.ops.embedding_variable import IEmbeddingVariable
+from tensorflow_recommenders_addons.dynamic_embedding.python.ops.shadow_embedding_ops import ShadowVariable
 
 
 def _bincount(arr,
@@ -142,13 +140,14 @@ def _embedding_lookup_sparse_impl(
   segment_ids = ops.convert_to_tensor(segment_ids, name="segment_ids")
 
   ids, idx = array_ops.unique(ids)
-  if isinstance(params, de.shadow_ops.ShadowVariable):
-    embeddings = de.shadow_ops.embedding_lookup(params, ids)
-  else:
-    if context.executing_eagerly():
-      embeddings = de.embedding_lookup(params, ids, name=name)
-    else:
-      embeddings = de.embedding_lookup(params, ids)
+  embeddings, _ = params.embedding_lookup(ids, name=name)
+  # if isinstance(params, de.shadow_ops.ShadowVariable):
+  #   embeddings = de.shadow_ops.embedding_lookup(params, ids)
+  # else:
+  #   if context.executing_eagerly():
+  #     embeddings = de.embedding_lookup(params, ids, name=name)
+  #   else:
+  #     embeddings = de.embedding_lookup(params, ids)
 
   if not ignore_weights:
     if segment_ids.dtype != dtypes.int32:
@@ -334,7 +333,7 @@ def embedding_lookup_sparse(
 
 
 def safe_embedding_lookup_sparse(
-    embedding_weights: ShadowVariable,
+    embedding_weights: IEmbeddingVariable,
     sparse_ids: ragged_tensor.Ragged,
     sparse_weights=None,
     combiner="mean",
@@ -415,11 +414,8 @@ def safe_embedding_lookup_sparse(
   """
   ragged_ids = sparse_ids
   ragged_weights = sparse_weights
-  if isinstance(embedding_weights, de.shadow_ops.ShadowVariable):
-    verify_embedding_weights(embedding_weights.params, sparse_ids,
-                             sparse_weights)
-  else:
-    verify_embedding_weights(embedding_weights, sparse_ids, sparse_weights)
+  embedding_weights.verify_embedding_weights(ragged_ids, ragged_weights)
+
   with ops.name_scope(name, "embedding_lookup",
                       [ragged_ids, ragged_weights]) as scope:
 

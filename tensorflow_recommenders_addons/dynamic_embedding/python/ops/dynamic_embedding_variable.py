@@ -24,7 +24,17 @@ import typing
 import tensorflow as tf
 
 from tensorflow_recommenders_addons import dynamic_embedding as de
+from tensorflow_recommenders_addons.dynamic_embedding.python.ops.embedding_variable import IEmbeddingVariable
 from tensorflow_recommenders_addons.utils.check_platform import is_macos, is_arm64
+
+try:  # tf version >= 2.14.0
+  from tensorflow.python.distribute import distribute_lib as distribute_ctx
+  assert hasattr(distribute_ctx, 'has_strategy')
+except:
+  from tensorflow.python.distribute import distribution_strategy_context as distribute_ctx
+from tensorflow.python.distribute import distribute_utils
+from tensorflow.python.distribute import values as distribute_values_lib
+from tensorflow.python.training.saving import saveable_object
 
 try:
   from tensorflow.python.util import _pywrap_util_port as pywrap
@@ -42,28 +52,22 @@ except ImportError:
 
 from tensorflow.python.client import device_lib
 from tensorflow.python.eager import context
-from tensorflow.python.eager import def_function
 from tensorflow.python.framework import constant_op
 from tensorflow.python.framework import dtypes
 from tensorflow.python.framework import ops
-from tensorflow.python.framework import versions
 from tensorflow.python.keras.optimizer_v2.optimizer_v2 import OptimizerV2
 from tensorflow.python.keras.utils import tf_utils
 from tensorflow.python.ops import array_ops
 from tensorflow.python.ops import bitwise_ops
 from tensorflow.python.ops import control_flow_ops
-from tensorflow.python.ops import data_flow_ops
-from tensorflow.python.ops import gen_functional_ops
 from tensorflow.python.ops import gen_io_ops
 from tensorflow.python.ops import init_ops
 from tensorflow.python.ops import init_ops_v2
 from tensorflow.python.data.ops import readers
 from tensorflow.python.data.ops import dataset_ops
-from tensorflow.python.data.ops import iterator_ops
 from tensorflow.python.ops import math_ops
 from tensorflow.python.ops import parsing_ops
 from tensorflow.python.ops import string_ops
-from tensorflow.python.ops import tensor_array_ops
 from tensorflow.python.ops import variable_scope
 try:  # tf version >= 2.14.0
   from tensorflow.python.ops.control_flow_assert import Assert
@@ -96,6 +100,11 @@ try:  # tf version >= 2.14.0
 except:
   from tensorflow.python.training.tracking import python_state
 from tensorflow.python.util.tf_export import tf_export
+
+from tensorflow.python.eager import tape as tape_record
+if not hasattr(tape_record, 'record_operation'):
+  # tf version >= 2.13.0
+  from tensorflow.python.eager import record as tape_record
 
 
 def make_partition(data, partition_index, shard_num, name=None):
@@ -445,7 +454,7 @@ class GraphKeys(object):
   TRAINABLE_DYNAMIC_EMBEDDING_VARIABLES = "trainable_dynamic_embedding_variables"
 
 
-class Variable(base.Trackable):
+class Variable(IEmbeddingVariable, base.Trackable):
   """
   A Distributed version of HashTable(reference from lookup_ops.MutableHashTable)
   It is designed to dynamically store the Sparse Weights(Parameters) of DLRMs.
@@ -655,6 +664,22 @@ class Variable(base.Trackable):
         else:
           self.saveable = self._saveable_object_creator.create_variable_saveable_object(
               self, self.name)
+
+  def verify_embedding_weights(self, sparse_ids, sparse_weights=None):
+    IEmbeddingVariable.verify_embedding_param_weights(self, sparse_ids,
+                                                      sparse_weights)
+
+  def embedding_lookup(self,
+                       ids,
+                       name=None,
+                       max_norm=None) -> (tf.Tensor, IEmbeddingVariable):
+    return embedding_lookup(
+        self,
+        ids,
+        name=name + '/embedding_lookup',
+        max_norm=max_norm,
+        return_trainable=True,
+    )
 
   @property
   def tables(self):
@@ -1286,3 +1311,194 @@ def get_variable(
     )
     scope_store._vars[full_name] = var_
   return scope_store._vars[full_name]
+
+
+def embedding_lookup(
+    params,
+    ids,
+    partition_strategy=None,  # pylint: disable=unused-argument
+    name=None,
+    validate_indices=None,  # pylint: disable=unused-argument
+    max_norm=None,
+    return_trainable=False,
+):
+  """Provides a dynamic version of embedding_lookup
+      similar with tf.nn.embedding_lookup.
+
+    Ids are flattened to a 1d tensor before being passed to embedding_lookup
+    then, they are unflattend to match the original ids shape plus an extra
+    leading dimension of the size of the embeddings.
+
+    Args:
+      params: A dynamic_embedding.Variable instance.
+      ids: A tensor with any shape as same dtype of params.key_dtype.
+      partition_strategy: No used, for API compatiblity with `nn.emedding_lookup`.
+      name: A name for the operation. Name is optional in graph mode and required
+        in eager mode.
+      validate_indices: No used, just for compatible with nn.embedding_lookup .
+      max_norm: If not `None`, each embedding is clipped if its l2-norm is larger
+        than this value.
+      return_trainable: optional, If True, also return TrainableWrapper. If in
+        eager mode, it will return a `ShadowVariable`, which is eager derivative of
+        TrainableWrapper. If inside tf.function scope, then set return_trainable
+        is disabled. Please use `dynamic_embedding.Variable.get_trainable_by_name` or
+        `dynamic_embedding.Variable.trainable_store` to get the created trainable
+        shadow inside tf.function scope.
+    Returns:
+      A tensor with shape [shape of ids] + [dim],
+        dim is equal to the value dim of params.
+        containing the values from the params tensor(s) for keys in ids.
+      trainable_wrap:
+        A TrainableWrapper object used to fill the Optimizers `var_list`
+          Only provided if `return_trainable` is True. If in eager mode,
+          it will be a `ShadowVariable`, which is eager derivative of TrainableWrapper.
+    """
+  if isinstance(params, (list, tuple)) and len(params) > 1:
+    raise ValueError("Only one params is allowed.")
+  if isinstance(params, (list, tuple)):
+    params = params[0]
+  if not isinstance(params, de.Variable):
+    raise TypeError("params should be a Variable instance.")
+  if params.key_dtype != ids.dtype:
+    raise TypeError(
+        "params.key_dtype should be same with ids.dtype: {} vs. {}".format(
+            params.key_dtype, ids.dtype))
+  if context.executing_eagerly() and (name is None):
+    raise ValueError(
+        'Must specify a name for dynamic_embedding.embedding_lookup when running '
+        'eagerly. The `de.shadow_ops.embedding_lookup` is recommended in eager case.'
+    )
+
+  scope = variable_scope.get_variable_scope()
+  full_name = scope.name + "/" if scope.name else ""
+  full_name += (name + "/") if name else "embedding_lookup/"
+  with ops.name_scope(full_name):
+    ids = ops.convert_to_tensor(ids, name="ids")
+    if ids.get_shape().is_fully_defined():
+      # use static shape
+      initial_shape = [ids.get_shape().num_elements(), params.dim]
+      embeddings_shape = ids.get_shape().concatenate([params.dim])
+    else:
+      # use dynamic shape
+      initial_shape = (1, params.dim)
+      embeddings_shape = array_ops.concat([array_ops.shape(ids), [params.dim]],
+                                          axis=0)
+    initial_value = array_ops.zeros(shape=initial_shape,
+                                    dtype=params.value_dtype)
+    if (isinstance(initial_value, tf.Tensor)
+        and hasattr(initial_value, "graph")
+        and initial_value.graph.building_function):
+
+      def initial_value():
+        return array_ops.zeros(initial_shape, dtype=params.value_dtype)
+
+    with ops.colocate_with(None, ignore_existing=True):
+      collections = [ops.GraphKeys.LOCAL_VARIABLES]
+      if params.trainable:
+        collections += [ops.GraphKeys.TRAINABLE_VARIABLES]
+
+      def _create_or_get_trainable(trainable_name):
+        if trainable_name is None:
+          if context.executing_eagerly():
+            raise ValueError(
+                'Must provide a name for embedding_lookup when using eager execution.'
+            )
+          _ANONYMOUS_TRAINABLE_STORE_KEY = '_anonymous_trainable_store_key'
+          trainable_name = ops.get_default_graph().unique_name(
+              _ANONYMOUS_TRAINABLE_STORE_KEY)
+        if not context.executing_eagerly() and not ops.inside_function():
+          wrapper = de.TrainableWrapper(params=params,
+                                        ids=ids,
+                                        max_norm=max_norm,
+                                        initial_value=initial_value,
+                                        dtype=params.value_dtype,
+                                        trainable=params.trainable,
+                                        collections=collections,
+                                        model_mode=de.ModelMode.CURRENT_SETTING,
+                                        name=trainable_name)
+          params._trainable_store[trainable_name] = wrapper
+          return wrapper
+        else:
+          with ops.init_scope():
+            shadow = params._trainable_store.get(trainable_name, None)
+            if shadow is None:
+              shadow = de.shadow_ops.ShadowVariable(
+                  params,
+                  name=trainable_name,
+                  max_norm=max_norm,
+                  trainable=params.trainable,
+                  model_mode=de.ModelMode.CURRENT_SETTING)
+              params._trainable_store[trainable_name] = shadow
+          return shadow
+
+      with ops.colocate_with(ids, ignore_existing=True):
+        if distribute_ctx.has_strategy():
+          trainable_ = params._distribute_trainable_store.get(name, None)
+          if trainable_ is None:
+            strategy_devices = distribute_ctx.get_strategy(
+            ).extended.worker_devices
+            trainable_impl = tf_utils.ListWrapper([])
+            for i, strategy_device in enumerate(strategy_devices):
+              with ops.device(strategy_device):
+                name_replica = name
+                if i > 0:
+                  name_replica = "%s/replica_%d" % (name, i)
+                with context.device_policy(context.DEVICE_PLACEMENT_SILENT):
+                  with tape_record.stop_recording():
+                    trainable_impl.as_list().append(
+                        _create_or_get_trainable(name_replica))
+
+            trainable_ = de.DistributedVariableWrapper(
+                distribute_ctx.get_strategy(), trainable_impl.as_list(),
+                tf.VariableAggregation.NONE,
+                TrainableWrapperDistributedPolicy(tf.VariableAggregation.NONE))
+            params._distribute_trainable_store[name] = trainable_
+        else:
+          trainable_ = _create_or_get_trainable(name)
+
+      if distribute_utils.is_distributed_variable(trainable_):
+        trainable_device = trainable_._get_on_device_or_primary()
+      else:
+        trainable_device = trainable_
+      if isinstance(trainable_device, de.shadow_ops.ShadowVariable):
+        embeddings = de.shadow_ops.embedding_lookup(
+            trainable_device,
+            ids,
+            partition_strategy=partition_strategy,
+            name=name,
+            validate_indices=validate_indices)
+        if return_trainable:
+          if not context.executing_eagerly():
+            raise NotImplementedError(
+                'return_trainable currently is not implemented when using tf.function.'
+                ' Please use `Variable.trainable_store` or `Variable.get_trainable_by_name`'
+                ' to access the shadow trainable variable if call `embedding_lookup` series'
+                ' APIs inside tf.function scope.')
+          return embeddings, trainable_
+        return embeddings
+
+    embeddings = trainable_
+    embeddings = array_ops.reshape(embeddings, shape=embeddings_shape)
+
+  return (embeddings, trainable_) if return_trainable else embeddings
+
+
+class TrainableWrapperDistributedPolicy(distribute_values_lib.OnWritePolicy):
+
+  def get_saveable(self, var, primary_var, name):
+    for v in var.values:
+      v._gather_saveables_for_checkpoint()
+
+    def tensor():
+      return array_ops.zeros((
+          0,
+          primary_var.params.dim,
+      ),
+                             dtype=primary_var.params.value_dtype)  # pylint: disable=protected-access
+
+    spec = saveable_object.SaveSpec(tensor=tensor,
+                                    slice_spec="",
+                                    name=name,
+                                    dtype=primary_var.params.value_dtype,
+                                    device=primary_var.device)
+    return tensor, [spec]

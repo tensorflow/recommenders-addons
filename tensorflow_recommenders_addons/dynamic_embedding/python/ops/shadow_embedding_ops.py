@@ -35,9 +35,6 @@ and modular style development, like keras.
 
 import tensorflow as tf
 
-from tensorflow_recommenders_addons import dynamic_embedding as de
-from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_ops import DEResourceVariable
-
 from tensorflow.python.distribute import distribute_lib
 from tensorflow.python.eager import context
 from tensorflow.python.framework import dtypes
@@ -46,6 +43,11 @@ from tensorflow.python.framework import tensor_shape
 from tensorflow.python.ops import array_ops
 from tensorflow.python.ops import gen_resource_variable_ops
 from tensorflow.python.ops import resource_variable_ops
+
+from tensorflow_recommenders_addons import dynamic_embedding as de
+from tensorflow_recommenders_addons.dynamic_embedding.python.ops.embedding_variable import IEmbeddingVariable, \
+  TrainableWrapper
+
 try:  # tf version >= 2.10.0
   from tensorflow.python.trackable import base as trackable
 except:
@@ -54,7 +56,7 @@ except:
 from tensorflow.python.distribute import distribute_utils
 
 
-class ShadowVariable(de.TrainableWrapper):
+class ShadowVariable(IEmbeddingVariable, TrainableWrapper):
   """
   ShadowVariable is a eager persistent twin of TrainableWrapper.
 
@@ -159,6 +161,16 @@ class ShadowVariable(de.TrainableWrapper):
     else:
       self.exists = exists
     self.params._trainable_store[name] = self
+
+  def verify_embedding_weights(self, sparse_ids, sparse_weights=None):
+    IEmbeddingVariable.verify_embedding_param_weights(self.params, sparse_ids,
+                                                      sparse_weights)
+
+  def embedding_lookup(self,
+                       ids,
+                       name=None,
+                       max_norm=None) -> (tf.Tensor, IEmbeddingVariable):
+    return embedding_lookup(self, ids, name), self
 
   def prefetch_values(self, update=False):
     if self.params.bp_v2:
@@ -337,3 +349,9 @@ def embedding_lookup_unique(
   return embedding_lookup_unique_base(ids, embedding_size,
                                       lambda x: embedding_lookup(shadow, x),
                                       with_unique, name)
+
+
+class DEResourceVariable(resource_variable_ops.ResourceVariable):
+
+  def __init__(self, *args, **kwargs):
+    super(DEResourceVariable, self).__init__(*args, **kwargs)
