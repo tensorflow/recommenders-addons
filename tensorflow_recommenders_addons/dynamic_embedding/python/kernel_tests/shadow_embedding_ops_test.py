@@ -43,9 +43,9 @@ from tensorflow.python.platform import test
 from tensorflow.python.training import adam
 from tensorflow.python.training import server_lib
 
-from tensorflow_recommenders_addons.dynamic_embedding.python.keras.layers import HvdAllToAllEmbedding
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.shadow_embedding_ops import \
-  embedding_lookup_unique_base
+  embedding_lookup_unique_base, HvdVariable
+from tensorflow_recommenders_addons.utils.check_platform import is_macos, is_arm64
 
 try:
   from tensorflow.keras.legacy.optimizers import Adam
@@ -180,6 +180,45 @@ class ShadowVariableTest(test.TestCase):
 
       emb = self.evaluate(
           de.safe_embedding_lookup_sparse(shadow_var, sparse_tensor))
+      self.assertAllEqual(emb, values)
+
+  def test_hvd_safe_embedding_lookup_sparse(self):
+    try:
+      import horovod.tensorflow as hvd
+    except Exception as e:
+      self.skipTest(
+          f"Skip the test for horovod import error with Tensorflow-2.7.0 on MacOS-12. {str(e)}"
+      )
+    if not context.executing_eagerly():
+      self.skipTest('Only test in eager mode.')
+    if (is_macos() and is_arm64()):
+      self.skipTest(
+          "Apple silicon devices don't support synchronous training based on Horovod."
+      )
+    # TODO: Resolve the conflict arising from the 'save' function incompatibility with TensorFlow 2.11.
+    if (tf.__version__ == "2.11.0" or tf.__version__ == "2.11.1"):
+      self.skipTest(
+          "The save function doesn't work with TF 2.11, skip the test.")
+
+    with self.session(use_gpu=test_util.is_gpu_available(),
+                      config=default_config):
+      var, shadow_var = _get_sparse_variable('tk049', dim=2)
+      hvd_var = HvdVariable("hvd_var", shadow_var, 1, mpi_size=1)
+      self.evaluate(variables.global_variables_initializer())
+      ids = constant_op.constant([2, 5], dtype=dtypes.int64)
+      values = array_ops.ones((2, 2), dtype=np.float32)
+      self.evaluate(
+          var.upsert(ids, ops.convert_to_tensor(values, dtype=dtypes.float32)))
+
+      sp_ids = constant_op.constant([[0, 2], [1, 5]], dtype=dtypes.int64)
+      sp_weights = constant_op.constant([2, 5], dtype=dtypes.int64)
+      dense_shape = constant_op.constant([2, 6], dtype=dtypes.int64)
+      sparse_tensor = tf.sparse.SparseTensor(indices=sp_ids,
+                                             values=sp_weights,
+                                             dense_shape=dense_shape)
+
+      emb = self.evaluate(
+          de.safe_embedding_lookup_sparse(hvd_var, sparse_tensor))
       self.assertAllEqual(emb, values)
 
   def test_update_with_optimizer_v1(self):

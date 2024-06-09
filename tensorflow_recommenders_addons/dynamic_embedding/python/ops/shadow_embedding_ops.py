@@ -45,7 +45,7 @@ from tensorflow.python.ops import gen_resource_variable_ops
 from tensorflow.python.ops import resource_variable_ops
 
 from tensorflow_recommenders_addons import dynamic_embedding as de
-from tensorflow_recommenders_addons.dynamic_embedding.python.ops.embedding_variable import IEmbeddingVariable, \
+from tensorflow_recommenders_addons.dynamic_embedding.python.ops.embedding_weights import EmbeddingWeights, \
   TrainableWrapper
 
 try:  # tf version >= 2.10.0
@@ -56,7 +56,7 @@ except:
 from tensorflow.python.distribute import distribute_utils
 
 
-class ShadowVariable(IEmbeddingVariable, TrainableWrapper):
+class ShadowVariable(EmbeddingWeights, TrainableWrapper):
   """
   ShadowVariable is a eager persistent twin of TrainableWrapper.
 
@@ -163,13 +163,13 @@ class ShadowVariable(IEmbeddingVariable, TrainableWrapper):
     self.params._trainable_store[name] = self
 
   def verify_embedding_weights(self, sparse_ids, sparse_weights=None):
-    IEmbeddingVariable.verify_embedding_param_weights(self.params, sparse_ids,
-                                                      sparse_weights)
+    EmbeddingWeights.verify_embedding_param_weights(self.params, sparse_ids,
+                                                    sparse_weights)
 
   def embedding_lookup(self,
                        ids,
                        name=None,
-                       max_norm=None) -> (tf.Tensor, IEmbeddingVariable):
+                       max_norm=None) -> (tf.Tensor, EmbeddingWeights):
     return embedding_lookup(self, ids, name), self
 
   def prefetch_values(self, update=False):
@@ -355,3 +355,94 @@ class DEResourceVariable(resource_variable_ops.ResourceVariable):
 
   def __init__(self, *args, **kwargs):
     super(DEResourceVariable, self).__init__(*args, **kwargs)
+
+
+class HvdVariable(EmbeddingWeights):
+
+  def __init__(
+      self,
+      name,
+      shadow,
+      embedding_size,
+      with_unique=True,
+      with_secondary_unique=True,
+      mpi_size=None,
+  ):
+    self.name = name
+    self.embedding_size = embedding_size
+    self.shadow = shadow
+    try:
+      import horovod.tensorflow as hvd
+    except ImportError:
+      raise ValueError(
+          "Please install Horovod properly first if you want to use distributed synchronous training based on Horovod"
+      )
+    self.hvd = hvd
+    self.with_unique = with_unique
+    self.with_secondary_unique = with_secondary_unique
+    if mpi_size is None:
+      self._mpi_size = self.hvd.size()
+    else:
+      self._mpi_size = mpi_size
+
+  def verify_embedding_weights(self, sparse_ids, sparse_weights=None):
+    EmbeddingWeights.verify_embedding_param_weights(self.shadow.params,
+                                                    sparse_ids, sparse_weights)
+
+  def __relocate_dense_feature__(self, ids):
+    """
+    Args:
+      ids: A 2-D Tensor with shape: (batch_size, sequence_length) or a 1-D Tensor with shape: (batch_size,).
+        If batch_size is provided, then it trust the batch_size argument, to avoid new an OP instead.
+    Returns:
+      flat_reloc_ids: a flat ids partitioned to each rank.
+    """
+    if ids.dtype not in (tf.int32, tf.int64):
+      raise NotImplementedError
+
+    if ids.shape.rank > 2:
+      raise NotImplementedError(
+          'Input ids must be shape '
+          f'(batch_size, sequence_length) or (batch_size,), but get {ids.shape}'
+      )
+
+    partition_index = self.shadow.params.partition_fn(ids, self._mpi_size)
+    from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_variable import make_partition
+    ids_partitions, ids_indices = make_partition(ids, partition_index,
+                                                 self._mpi_size)
+    partitions_sizes = tf.stack([tf.size(p) for p in ids_partitions], axis=0)
+    relocs_tensor = tf.concat(ids_partitions, axis=0)
+    flat_reloc_ids, remote_sizes = self.hvd.alltoall(relocs_tensor,
+                                                     splits=partitions_sizes)
+    return flat_reloc_ids, remote_sizes, ids_indices
+
+  def __alltoall_embedding_lookup__(self, ids):
+    if self._mpi_size == 1:
+      return de.shadow_ops.embedding_lookup(self.shadow, ids)
+    if isinstance(ids, tf.sparse.SparseTensor):
+      raise NotImplementedError('SparseTensor is not supported yet.')
+
+    reloc_ids, remote_sizes, gather_indices = self.__relocate_dense_feature__(
+        ids)
+
+    if self.with_secondary_unique:
+      with tf.name_scope(self.name + "/EmbeddingWithUnique"):
+        reloc_unique_ids, reloc_unique_idx = tf.unique(reloc_ids)
+        reloc_unique_embeddings = de.shadow_ops.embedding_lookup(
+            self.shadow, reloc_unique_ids)
+        lookup_result = tf.gather(reloc_unique_embeddings, reloc_unique_idx)
+    else:
+      lookup_result = de.shadow_ops.embedding_lookup(self.shadow, reloc_ids)
+    lookup_result, _ = self.hvd.alltoall(lookup_result, splits=remote_sizes)
+
+    input_shape = tf.shape(ids)
+    recover_shape = tf.concat((input_shape, (self.embedding_size,)), axis=0)
+    gather_indices = tf.expand_dims(tf.concat(gather_indices, axis=0), axis=-1)
+    lookup_result = tf.scatter_nd(gather_indices, lookup_result, recover_shape)
+    return lookup_result
+
+  def embedding_lookup(self,
+                       ids,
+                       name=None,
+                       max_norm=None) -> (tf.Tensor, EmbeddingWeights):
+    return self.__alltoall_embedding_lookup__(ids), self.shadow

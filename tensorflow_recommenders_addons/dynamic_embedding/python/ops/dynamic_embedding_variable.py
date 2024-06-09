@@ -24,7 +24,7 @@ import typing
 import tensorflow as tf
 
 from tensorflow_recommenders_addons import dynamic_embedding as de
-from tensorflow_recommenders_addons.dynamic_embedding.python.ops.embedding_variable import IEmbeddingVariable
+from tensorflow_recommenders_addons.dynamic_embedding.python.ops.embedding_weights import EmbeddingWeights
 from tensorflow_recommenders_addons.utils.check_platform import is_macos, is_arm64
 
 try:  # tf version >= 2.14.0
@@ -454,7 +454,7 @@ class GraphKeys(object):
   TRAINABLE_DYNAMIC_EMBEDDING_VARIABLES = "trainable_dynamic_embedding_variables"
 
 
-class Variable(IEmbeddingVariable, base.Trackable):
+class Variable(EmbeddingWeights, base.Trackable):
   """
   A Distributed version of HashTable(reference from lookup_ops.MutableHashTable)
   It is designed to dynamically store the Sparse Weights(Parameters) of DLRMs.
@@ -666,13 +666,13 @@ class Variable(IEmbeddingVariable, base.Trackable):
               self, self.name)
 
   def verify_embedding_weights(self, sparse_ids, sparse_weights=None):
-    IEmbeddingVariable.verify_embedding_param_weights(self, sparse_ids,
-                                                      sparse_weights)
+    EmbeddingWeights.verify_embedding_param_weights(self, sparse_ids,
+                                                    sparse_weights)
 
   def embedding_lookup(self,
                        ids,
                        name=None,
-                       max_norm=None) -> (tf.Tensor, IEmbeddingVariable):
+                       max_norm=None) -> (tf.Tensor, EmbeddingWeights):
     return embedding_lookup(
         self,
         ids,

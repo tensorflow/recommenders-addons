@@ -4,7 +4,7 @@ from tensorflow.python.ops import resource_variable_ops, array_ops, math_ops, ge
 from tensorflow.python.ops.bincount_ops import validate_dense_weights
 from tensorflow.python.ops.ragged import ragged_tensor, ragged_array_ops
 
-from tensorflow_recommenders_addons.dynamic_embedding.python.ops.embedding_variable import IEmbeddingVariable
+from tensorflow_recommenders_addons.dynamic_embedding.python.ops.embedding_weights import EmbeddingWeights
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.shadow_embedding_ops import ShadowVariable
 
 
@@ -141,14 +141,6 @@ def _embedding_lookup_sparse_impl(
 
   ids, idx = array_ops.unique(ids)
   embeddings, _ = params.embedding_lookup(ids, name=name)
-  # if isinstance(params, de.shadow_ops.ShadowVariable):
-  #   embeddings = de.shadow_ops.embedding_lookup(params, ids)
-  # else:
-  #   if context.executing_eagerly():
-  #     embeddings = de.embedding_lookup(params, ids, name=name)
-  #   else:
-  #     embeddings = de.embedding_lookup(params, ids)
-
   if not ignore_weights:
     if segment_ids.dtype != dtypes.int32:
       segment_ids = math_ops.cast(segment_ids, dtypes.int32)
@@ -333,7 +325,7 @@ def embedding_lookup_sparse(
 
 
 def safe_embedding_lookup_sparse(
-    embedding_weights: IEmbeddingVariable,
+    embedding_weights: EmbeddingWeights,
     sparse_ids: ragged_tensor.Ragged,
     sparse_weights=None,
     combiner="mean",

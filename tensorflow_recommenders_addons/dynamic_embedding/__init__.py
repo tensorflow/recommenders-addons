@@ -80,7 +80,7 @@ from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embeddi
     get_model_mode,)
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_ops import (
     trainable_wrapper_filter,)
-from tensorflow_recommenders_addons.dynamic_embedding.python.ops.embedding_variable import (
+from tensorflow_recommenders_addons.dynamic_embedding.python.ops.embedding_weights import (
     ModelMode,
     TrainableWrapper,
 )
