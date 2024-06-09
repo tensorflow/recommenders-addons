@@ -37,6 +37,10 @@ ARG PROTOBUF_VERSION
 RUN python -m pip install --upgrade pip
 RUN python -m pip install --default-timeout=1000 $TF_NAME==$TF_VERSION
 
+RUN if [ "$TF_VERSION" = "2.11.0" ] && ([ "$PY_VERSION" = "3.9" ] || [ "$PY_VERSION" = "3.10" ]); then \
+        pip install numpy==1.26.4 --force-reinstall; \
+    fi
+
 COPY tools/docker/install/install_horovod.sh /install/
 RUN /install/install_horovod.sh $HOROVOD_VERSION
 
@@ -103,7 +107,12 @@ RUN python -m pip install --upgrade protobuf==$PROTOBUF_VERSION
 COPY --from=make_wheel /recommenders-addons/wheelhouse/ /recommenders-addons/wheelhouse/
 RUN pip install /recommenders-addons/wheelhouse/*.whl
 
+RUN PYTHON_VERSION=$(python -V | cut -d' ' -f2 | cut -d'.' -f1,2) && \
+    if [ "$TF_VERSION" = "2.11.0" ] && ([ "$PYTHON_VERSION" = "3.9" ] || [ "$PYTHON_VERSION" = "3.10" ]); then \
+        pip install numpy==1.26.4 --force-reinstall; \
+    fi
 RUN python -c "import tensorflow_recommenders_addons as tfra; print(tfra.register_all())"
+
 
 # -------------------------------------------------------------------
 FROM scratch as output

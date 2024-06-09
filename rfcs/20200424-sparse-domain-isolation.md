@@ -564,7 +564,7 @@ def create_slots(primary, init, slot_name, op_name):
 We define a special version of `Processor` for `TrainableWrapper`:
 
 ```python
-import tensorflow_recommenders_addons.dynamic_embedding.python.ops.embedding_variable
+from tensorflow_recommenders_addons.dynamic_embedding.python.ops.embedding_weights import TrainableWrapper
 
 
 class _DenseDynamicEmbeddingTrainableProcessor(_OptimizableVariable):
@@ -628,7 +628,7 @@ class _DenseDynamicEmbeddingTrainableProcessor(_OptimizableVariable):
 def _get_processor(v):
   """The processor of v."""
   # ...
-  if isinstance(v, tensorflow_recommenders_addons.dynamic_embedding.python.ops.embedding_variable.TrainableWrapper):
+  if isinstance(v, TrainableWrapper):
     return _DenseDynamicEmbeddingTrainableProcessor(v)  # get processor for `TrainableWrapper`
   # ...
 ```
