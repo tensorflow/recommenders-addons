@@ -26,6 +26,8 @@ from tensorflow_recommenders_addons.dynamic_embedding.python.ops import dynamic_
 
 from tensorflow.python.keras.utils import tf_utils
 
+from tensorflow_recommenders_addons.dynamic_embedding.python.ops.shadow_embedding_ops import HvdVariable
+
 try:  # tf version >= 2.14.0
   from tensorflow.python.distribute import distribute_lib as distribute_ctx
 
@@ -42,7 +44,7 @@ try:  # The data_structures has been moved to the new package in tf 2.11
 except:
   from tensorflow.python.training.tracking import data_structures
 
-from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_variable import make_partition, \
+from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_variable import \
   TrainableWrapperDistributedPolicy
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.tf_save_restore_patch import de_fs_saveable_class_names
 
@@ -524,27 +526,14 @@ class HvdAllToAllEmbedding(BasicEmbedding):
   This embedding layer will dispatch keys to all corresponding Horovod workers and receive its own keys for distributed training before embedding_lookup.
   """
 
-  def __init__(self,
-               with_unique=True,
-               with_secondary_unique=True,
-               mpi_size=None,
-               batch_size=None,
-               *args,
-               **kwargs):
-    try:
-      import horovod.tensorflow as hvd
-    except ImportError:
-      raise ValueError(
-          "Please install Horovod properly first if you want to use distributed synchronous training based on Horovod"
-      )
-    self.hvd = hvd
-    self.with_unique = with_unique
-    self.with_secondary_unique = with_secondary_unique
-    self.batch_size = batch_size
-    if mpi_size is None:
-      self._mpi_size = self.hvd.size()
-    else:
-      self._mpi_size = mpi_size
+  def __init__(
+      self,
+      with_unique=True,
+      with_secondary_unique=True,
+      mpi_size=None,
+      batch_size=None,  # not used for now, reserved for assert on all nodes have the same batch size
+      *args,
+      **kwargs):
     super(HvdAllToAllEmbedding, self).__init__(*args, **kwargs)
     try:
       assert type(self.params.saveable).__name__ in de_fs_saveable_class_names
@@ -553,67 +542,9 @@ class HvdAllToAllEmbedding(BasicEmbedding):
           "Please use FileSystemSaver in KVCreator when use HvdAllToAllEmbedding. "
           "It will allow TFRA save and restore KV files when Embedding tensor parallel in distributed training. "
       )
-
-  def __relocate_dense_feature__(self, ids, batch_size=None):
-    """
-    Args:
-      ids: A 2-D Tensor with shape: (batch_size, sequence_length) or a 1-D Tensor with shape: (batch_size,). 
-        If batch_size is provided, then it trust the batch_size argument, to avoid new an OP instead.
-      batch_size: Integer or a int32/int64 scalar. All ranks must have same batch_size.
-        Otherwise will make undefined behavior.
-
-    Returns:
-      flat_reloc_ids: a flat ids partitioned to each rank.
-    """
-    if ids.dtype not in (tf.int32, tf.int64):
-      raise NotImplementedError
-
-    if ids.shape.rank > 2:
-      raise NotImplementedError(
-          'Input ids must be shape '
-          f'(batch_size, sequence_length) or (batch_size,), but get {ids.shape}'
-      )
-
-    if batch_size is None:
-      input_shape = tf.shape(ids)
-      batch_size = input_shape[0]
-
-    partition_index = self.params.partition_fn(ids, self._mpi_size)
-    ids_partitions, ids_indices = make_partition(ids, partition_index,
-                                                 self._mpi_size)
-    partitions_sizes = tf.stack([tf.size(p) for p in ids_partitions], axis=0)
-    relocs_tensor = tf.concat(ids_partitions, axis=0)
-    flat_reloc_ids, remote_sizes = self.hvd.alltoall(relocs_tensor,
-                                                     splits=partitions_sizes)
-    return flat_reloc_ids, remote_sizes, ids_indices
-
-  def __alltoall_embedding_lookup__(self, ids):
-    if self._mpi_size == 1:
-      return de.shadow_ops.embedding_lookup(self.shadow, ids)
-    if isinstance(ids, tf.sparse.SparseTensor):
-      raise NotImplementedError('SparseTensor is not supported yet.')
-
-    input_shape = tf.shape(ids)
-    if self.batch_size is None:
-      batch_size_runtime = input_shape[0]
-
-    reloc_ids, remote_sizes, gather_indices = self.__relocate_dense_feature__(
-        ids, batch_size=batch_size_runtime)
-
-    if self.with_secondary_unique:
-      with tf.name_scope(self.name + "/EmbeddingWithUnique"):
-        reloc_unique_ids, reloc_unique_idx = tf.unique(reloc_ids)
-        reloc_unique_embeddings = de.shadow_ops.embedding_lookup(
-            self.shadow, reloc_unique_ids)
-        lookup_result = tf.gather(reloc_unique_embeddings, reloc_unique_idx)
-    else:
-      lookup_result = de.shadow_ops.embedding_lookup(self.shadow, reloc_ids)
-    lookup_result, _ = self.hvd.alltoall(lookup_result, splits=remote_sizes)
-
-    recover_shape = tf.concat((input_shape, (self.embedding_size,)), axis=0)
-    gather_indices = tf.expand_dims(tf.concat(gather_indices, axis=0), axis=-1)
-    lookup_result = tf.scatter_nd(gather_indices, lookup_result, recover_shape)
-    return lookup_result
+    self.hvd_variable = HvdVariable(self.name, self.shadow, self.embedding_size,
+                                    with_unique, with_secondary_unique,
+                                    mpi_size)
 
   def call(self, ids):
     """
@@ -630,13 +561,13 @@ class HvdAllToAllEmbedding(BasicEmbedding):
 
     from tensorflow_recommenders_addons.dynamic_embedding.python.ops.shadow_embedding_ops import \
       embedding_lookup_unique_base
-    return embedding_lookup_unique_base(ids, self.embedding_size,
-                                        self.__alltoall_embedding_lookup__,
-                                        self.with_unique, self.name)
+    return embedding_lookup_unique_base(
+        ids, self.embedding_size,
+        self.hvd_variable.__alltoall_embedding_lookup__, self.with_unique,
+        self.name)
 
   def get_config(self):
     config = super(HvdAllToAllEmbedding, self).get_config()
     config.update({"with_unique": self.with_unique})
-    config.update({"mpi_size": self._mpi_size})
-    config.update({"batch_size": self.batch_size})
+    config.update({"mpi_size": self.hvd_variable._mpi_size})
     return config

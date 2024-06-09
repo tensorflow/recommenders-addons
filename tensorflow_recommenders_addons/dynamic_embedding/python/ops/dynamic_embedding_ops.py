@@ -20,7 +20,7 @@ See [Sparse Domain Isolation](https://github.com/tensorflow/community/pull/237)
 
 from tensorflow_recommenders_addons import dynamic_embedding as de
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.shadow_embedding_ops import DEResourceVariable
-from tensorflow_recommenders_addons.dynamic_embedding.python.ops.embedding_variable import IEmbeddingVariable
+from tensorflow_recommenders_addons.dynamic_embedding.python.ops.embedding_weights import EmbeddingWeights
 
 from tensorflow.python.eager import tape as tape_record
 if not hasattr(tape_record, 'record_operation'):
@@ -112,7 +112,7 @@ def embedding_lookup_unique(params,
 
 
 def embedding_lookup_sparse(
-    params: IEmbeddingVariable,
+    params: EmbeddingWeights,
     sp_ids,
     sp_weights,
     partition_strategy=None,  # no used
@@ -132,9 +132,9 @@ def embedding_lookup_sparse(
     is the sum of the size of params along dimension 0.
 
     Args:
-      params: A single `dynamic_embedding.Variable` instance representing
+      params: A single `IEmbeddingVariable`, `dynamic_embedding.Variable` instance representing
         the complete embedding tensor and a new TrainableWrapper will be created and return
-         or a `ShadowVariable` instance, then params will be return without creating a new TrainableWrapper
+         or a `ShadowVariable` / `HvdVariable` instance, then params will be return without creating a new TrainableWrapper
       sp_ids: N x M `SparseTensor` of int64 ids where N is typically batch size
         and M is arbitrary.
       sp_weights: either a `SparseTensor` of float / double weights, or `None` to
@@ -285,7 +285,7 @@ def embedding_lookup_sparse(
 
 
 def safe_embedding_lookup_sparse(
-    embedding_weights: IEmbeddingVariable,
+    embedding_weights: EmbeddingWeights,
     sparse_ids,
     sparse_weights=None,
     combiner="mean",
@@ -308,8 +308,8 @@ def safe_embedding_lookup_sparse(
     along the last dimension.
 
     Args:
-      embedding_weights: A single `dynamic_embedding.Variable` instance
-        representing the complete embedding tensor or a single `ShadowVariable` instance.
+      embedding_weights: A single `IEmbeddingVariable`, either `dynamic_embedding.Variable` or `ShadowVariable`
+       or `HvdVariable` instance representing the complete embedding tensor.
       sparse_ids: `SparseTensor` of shape `[d_0, d_1, ..., d_n]` containing the
         ids. `d_0` is typically batch size.
       sparse_weights: `SparseTensor` of same shape as `sparse_ids`, containing

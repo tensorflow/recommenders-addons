@@ -47,7 +47,7 @@ except:
   from tensorflow.python.distribute import distribution_strategy_context as distribute_ctx
 
 
-class IEmbeddingVariable(abc.ABC):
+class EmbeddingWeights(abc.ABC):
 
   @abc.abstractmethod
   def verify_embedding_weights(self, sparse_ids, sparse_weights=None):
@@ -57,7 +57,7 @@ class IEmbeddingVariable(abc.ABC):
   def embedding_lookup(self,
                        ids,
                        name=None,
-                       max_norm=None) -> (tf.Tensor, "IEmbeddingVariable"):
+                       max_norm=None) -> (tf.Tensor, "EmbeddingWeights"):
     """
     embedding lookup, and store the result. No by-product will
     be introduced in this call. So it can be decorated by `tf.function`.
