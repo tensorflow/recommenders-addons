@@ -84,6 +84,10 @@ __init__(
     max_hbm_for_values=KHkvHashTableMaxHbmForValuesByBytes,
     config=None,
     device='',
+    evict_strategy=HkvEvictStrategy.LRU,
+    step_per_epoch=0,
+    gen_scores_fn=None,
+    reserved_key_start_bit=0,
 )
 ```
 
@@ -108,6 +112,9 @@ and value_dtype, respectively.
 * <b>`config`</b>: a HkvHashTableConfig object
 * <b>`device`</b>: initial size for the Variable and initial size of each hash
   tables will be int(init_size / N), N is the number of the devices.
+* <b>`evict_strategy`</b>: Select and set different evict strategies.
+* <b>`step_per_epoch`</b>: How many steps per epoch. This parameter must be set when you select EPOCHLRU or EPOCHLFU evict strategy.
+* <b>`gen_scores_fn`</b>: Custom method for generating scores. This must be set when you choose to use CUSTOMIZED evict strategy.
 
 
 #### Returns:

@@ -45,7 +45,11 @@ KHkvHashTableMaxHbmForValuesByBytes = 1024 * 1024 * 1024
 __init__(
     init_capacity=KHkvHashTableInitCapacity,
     max_capacity=KHkvHashTableMaxCapacity,
-    max_hbm_for_values=KHkvHashTableMaxHbmForValuesByBytes
+    max_hbm_for_values=KHkvHashTableMaxHbmForValuesByBytes,
+    evict_strategy=HkvEvictStrategy.LRU,
+    step_per_epoch=0,
+    gen_scores_fn=None,
+    reserved_key_start_bit=0,
 ):
 ```
 
@@ -57,8 +61,12 @@ HkvHashTableConfig contains three parameters to configure the HashTable, They al
 * <b>`init_capacity`</b>: The initial capacity of the hash table.
 * <b>`max_capacity`</b>: The maximum capacity of the hash table.
 * <b>`max_hbm_for_values`</b>: The maximum HBM for values, in bytes.
+* <b>`evict_strategy`</b>: Select and set different evict strategies.
+* <b>`step_per_epoch`</b>: How many steps per epoch. This parameter must be set when you select EPOCHLRU or EPOCHLFU evict strategy.
+* <b>`gen_scores_fn`</b>: Custom method for generating scores. This must be set when you choose to use CUSTOMIZED evict strategy.
 * <b>`reserved_key_start_bit`</b>: The HKV [Reserved Keys](https://github.com/NVIDIA-Merlin/HierarchicalKV?tab=readme-ov-file#reserved-keys)
 start bit, default is 0. 
+
 
 #### Configuration Suggestion
 
