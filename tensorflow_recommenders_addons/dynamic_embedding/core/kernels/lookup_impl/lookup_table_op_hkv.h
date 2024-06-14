@@ -472,6 +472,20 @@ class TableWrapper {
     }
     step_per_epoch_ = init_options.step_per_epoch;
     mkv_options_.reserved_key_start_bit = init_options.reserved_key_start_bit;
+    static constexpr size_t default_chunk_buckets = 512;
+    size_t min_chunk_buckets = 1;
+    for (size_t pow_n = 1; pow_n <= 63; ++pow_n) {
+      if (mkv_options_.max_bucket_size * (1 << pow_n) >
+          mkv_options_.init_capacity) {
+        min_chunk_buckets = 1 << (pow_n - 1);
+        break;
+      }
+    }
+    mkv_options_.num_of_buckets_per_alloc =
+        mkv_options_.init_capacity >
+                (mkv_options_.max_bucket_size * default_chunk_buckets)
+            ? default_chunk_buckets
+            : min_chunk_buckets;
     curr_epoch_ = 0;
     curr_step_ = 1;
 
