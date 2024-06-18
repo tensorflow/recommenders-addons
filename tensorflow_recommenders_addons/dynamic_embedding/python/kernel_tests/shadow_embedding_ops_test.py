@@ -19,6 +19,7 @@ from __future__ import division
 from __future__ import print_function
 
 import itertools
+
 import numpy as np
 import os
 import tempfile
@@ -27,7 +28,6 @@ import tensorflow as tf
 from tensorflow_recommenders_addons import dynamic_embedding as de
 
 from tensorflow.core.protobuf import config_pb2
-from tensorflow.python.distribute.cluster_resolver import cluster_resolver
 from tensorflow.python.eager import context
 from tensorflow.python.eager import def_function
 from tensorflow.python.framework import constant_op
@@ -42,6 +42,11 @@ from tensorflow.python.ops import variables
 from tensorflow.python.platform import test
 from tensorflow.python.training import adam
 from tensorflow.python.training import server_lib
+
+from tensorflow_recommenders_addons.dynamic_embedding.python.ops.shadow_embedding_ops import \
+  embedding_lookup_unique_base, HvdVariable
+from tensorflow_recommenders_addons.utils.check_platform import is_macos, is_arm64
+
 try:
   from tensorflow.keras.legacy.optimizers import Adam
 except:
@@ -175,6 +180,45 @@ class ShadowVariableTest(test.TestCase):
 
       emb = self.evaluate(
           de.safe_embedding_lookup_sparse(shadow_var, sparse_tensor))
+      self.assertAllEqual(emb, values)
+
+  def test_hvd_safe_embedding_lookup_sparse(self):
+    try:
+      import horovod.tensorflow as hvd
+    except Exception as e:
+      self.skipTest(
+          f"Skip the test for horovod import error with Tensorflow-2.7.0 on MacOS-12. {str(e)}"
+      )
+    if not context.executing_eagerly():
+      self.skipTest('Only test in eager mode.')
+    if (is_macos() and is_arm64()):
+      self.skipTest(
+          "Apple silicon devices don't support synchronous training based on Horovod."
+      )
+    # TODO: Resolve the conflict arising from the 'save' function incompatibility with TensorFlow 2.11.
+    if (tf.__version__ == "2.11.0" or tf.__version__ == "2.11.1"):
+      self.skipTest(
+          "The save function doesn't work with TF 2.11, skip the test.")
+
+    with self.session(use_gpu=test_util.is_gpu_available(),
+                      config=default_config):
+      var, shadow_var = _get_sparse_variable('tk049', dim=2)
+      hvd_var = HvdVariable("hvd_var", shadow_var, 1, mpi_size=1)
+      self.evaluate(variables.global_variables_initializer())
+      ids = constant_op.constant([2, 5], dtype=dtypes.int64)
+      values = array_ops.ones((2, 2), dtype=np.float32)
+      self.evaluate(
+          var.upsert(ids, ops.convert_to_tensor(values, dtype=dtypes.float32)))
+
+      sp_ids = constant_op.constant([[0, 2], [1, 5]], dtype=dtypes.int64)
+      sp_weights = constant_op.constant([2, 5], dtype=dtypes.int64)
+      dense_shape = constant_op.constant([2, 6], dtype=dtypes.int64)
+      sparse_tensor = tf.sparse.SparseTensor(indices=sp_ids,
+                                             values=sp_weights,
+                                             dense_shape=dense_shape)
+
+      emb = self.evaluate(
+          de.safe_embedding_lookup_sparse(hvd_var, sparse_tensor))
       self.assertAllEqual(emb, values)
 
   def test_update_with_optimizer_v1(self):
@@ -434,6 +478,78 @@ class ShadowVariableBasicBehaviorTest(test.TestCase):
                              dtype=dtypes.float32))
 
   def test_embedding_lookup_unique(self):
+    if not context.executing_eagerly():
+      self.skipTest('Only test in eager mode.')
+
+    params = de.get_variable('pn012', dim=2, initializer=0.1)
+    params.upsert(
+        constant_op.constant([1, 2, 3], dtype=dtypes.int64),
+        constant_op.constant([[1., 1.], [2., 2.], [3., 3.]],
+                             dtype=dtypes.float32))
+    shadow = de.shadow_ops.ShadowVariable(params)
+
+    ids_tensor = tf.constant([[2, 3], [4, 5], [1, 0]], dtype=tf.int64)
+
+    val_tensor = de.shadow_ops.embedding_lookup_unique(shadow, ids_tensor, 2,
+                                                       True)
+
+    expected_output = tf.constant([
+        [[2., 2.], [3., 3.]],  # embeddings for ids 2 and 3
+        [[0.1, 0.1], [0.1,
+                      0.1]],  # embeddings for ids 4 and 5 (default initialized)
+        [[1., 1.], [0.1,
+                    0.1]]  # embeddings for id 1 and 0 (default initialized)
+    ])
+    self.assertAllEqual(val_tensor, expected_output)
+
+  def test_embedding_lookup_unique_hvd(self):
+    if not tf.executing_eagerly():
+      self.skipTest('Only test in eager mode.')
+
+    params = tf.Variable(
+        [[0.1, 0.1], [1., 1.], [2., 2.], [3., 3.], [0.1, 0.1], [0.1, 0.1]],
+        dtype=tf.float32)
+
+    ids_tensor = tf.constant([[2, 3], [4, 5], [1, 0]], dtype=tf.int64)
+
+    val_tensor = embedding_lookup_unique_base(
+        ids_tensor, 2, lambda ids: tf.gather(params, ids), True,
+        "mock_embedding")
+
+    expected_output = tf.constant([
+        [[2., 2.], [3., 3.]],  # embeddings for ids 2 and 3
+        [[0.1, 0.1], [0.1,
+                      0.1]],  # embeddings for ids 4 and 5 (default initialized)
+        [[1., 1.], [0.1,
+                    0.1]]  # embeddings for id 1 and 0 (default initialized)
+    ])
+
+    self.assertAllEqual(val_tensor, expected_output)
+
+  def test_ragged_embedding_lookup_unique_hvd(self):
+    if not tf.executing_eagerly():
+      self.skipTest('Only test in eager mode.')
+
+    params = tf.Variable(
+        [[0.1, 0.1], [1., 1.], [2., 2.], [3., 3.], [0.1, 0.1], [0.1, 0.1]],
+        dtype=tf.float32)
+
+    ragged_ids = tf.RaggedTensor.from_row_splits(values=tf.constant(
+        [2, 3, 4, 5, 1], dtype=tf.int64),
+                                                 row_splits=[0, 2, 5])
+    val_ragged_tensor = embedding_lookup_unique_base(
+        ragged_ids, 2, lambda ids: tf.gather(params, ids), True,
+        "mock_embedding")
+
+    expected_output = tf.RaggedTensor.from_row_splits(values=tf.constant(
+        [[2., 2.], [3., 3.], [0.1, 0.1], [0.1, 0.1], [1., 1.]],
+        dtype=tf.float32),
+                                                      row_splits=[0, 2, 5])
+
+    self.assertAllEqual(val_ragged_tensor.to_tensor(),
+                        expected_output.to_tensor())
+
+  def test_ragged_embedding_lookup_unique(self):
     if not context.executing_eagerly():
       self.skipTest('Only test in eager mode.')
 

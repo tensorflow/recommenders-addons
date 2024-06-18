@@ -564,13 +564,15 @@ def create_slots(primary, init, slot_name, op_name):
 We define a special version of `Processor` for `TrainableWrapper`:
 
 ```python
+from tensorflow_recommenders_addons.dynamic_embedding.python.ops.embedding_weights import TrainableWrapper
+
 
 class _DenseDynamicEmbeddingTrainableProcessor(_OptimizableVariable):
   """Processor for TrainableWrapper."""
 
   def update_op(self, optimizer, g):
-   
-    # The `update_op` is a insert-like operation of `Trainclass _DenseDynamicEmbeddingTrainableProcessor(_OptimizableVariable):
+
+  # The `update_op` is a insert-like operation of `Trainclass _DenseDynamicEmbeddingTrainableProcessor(_OptimizableVariable):
   """Processor for dense DynamiceEmbedding."""
 
   def __init__(self, v):
@@ -583,20 +585,20 @@ class _DenseDynamicEmbeddingTrainableProcessor(_OptimizableVariable):
     # pylint: disable=protected-access
     # for better convergence:
 
-    with ops.colocate_with(None,  ignore_existing=True):
+    with ops.colocate_with(None, ignore_existing=True):
       _slots = [
-          optimizer.get_slot(self._v, _s) for _s in optimizer.get_slot_names()
+        optimizer.get_slot(self._v, _s) for _s in optimizer.get_slot_names()
       ]
       with ops.control_dependencies([g]):
         _before = [self._v.read_value()] + [_s.read_value() for _s in _slots]
       if isinstance(g, ops.IndexedSlices):
         if self._v.constraint is not None:
           raise RuntimeError(
-              "Cannot use a constraint function on a sparse variable.")
+            "Cannot use a constraint function on a sparse variable.")
 
         with ops.control_dependencies(_before):
           _apply_op = optimizer._resource_apply_sparse_duplicate_indices(
-              g.values, self._v, g.indices)
+            g.values, self._v, g.indices)
         with ops.control_dependencies([_apply_op]):
           _after = control_flow_ops.group([self._v.update_op()] +
                                           [_s.update_op() for _s in _slots])
@@ -610,20 +612,23 @@ class _DenseDynamicEmbeddingTrainableProcessor(_OptimizableVariable):
         with ops.control_dependencies([_apply_op]):
           _after = control_flow_ops.group([self._v.update_op()] +
                                           [_s.update_op() for _s in _slots])
-        return _afterableWrapper`
+        return _afterableWrapper
+        `
     # which write back the trained values hold Temporarily in primary and slots `TrainableWrapper`.
     _apply_op = optimizer._resource_apply_dense(g, self._v)
     with ops.control_dependencies([_apply_op]):
-      _update = control_flow_ops.group([self._v.update_op()] + \
+      _update = control_flow_ops.group([self._v.update_op()] +
                                        [_s.update_op()
                                         for _s in dynamic_embedding_ops.get_slots(self._v)])
     return _update
+
+
 #  ...
 
 def _get_processor(v):
   """The processor of v."""
   # ...
-  if isinstance(v, resource_variable_ops.TrainableWrapper):
+  if isinstance(v, TrainableWrapper):
     return _DenseDynamicEmbeddingTrainableProcessor(v)  # get processor for `TrainableWrapper`
   # ...
 ```

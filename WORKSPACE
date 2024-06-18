@@ -57,9 +57,9 @@ http_archive(
 http_archive(
     name = "hkv",
     build_file = "//build_deps/toolchains/hkv:hkv.BUILD",
-    sha256 = "0535477e7cd82affa940468647c07caacd54d42a2c775cfdf199b3aa6e4f87a6",
-    strip_prefix = "HierarchicalKV-0.1.0-beta.11",
-    url = "https://github.com/NVIDIA-Merlin/HierarchicalKV/archive/refs/tags/v0.1.0-beta.11.tar.gz",
+    sha256 = "a73d7bea159173db2038f7c5215a7d1fbd5362adfb232fabde206dc64a1e817c",
+    strip_prefix = "HierarchicalKV-0.1.0-beta.12",
+    url = "https://github.com/NVIDIA-Merlin/HierarchicalKV/archive/refs/tags/v0.1.0-beta.12.tar.gz",
 )
 
 tf_configure(

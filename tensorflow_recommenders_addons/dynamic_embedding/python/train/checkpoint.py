@@ -15,12 +15,8 @@
 # lint-as: python3
 
 import os.path
-import re
-
-from tensorflow_recommenders_addons import dynamic_embedding as de
-from tensorflow_recommenders_addons.dynamic_embedding.python.keras.layers import HvdAllToAllEmbedding
-from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_ops import TrainableWrapper, DEResourceVariable
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.tf_save_restore_patch import de_fs_saveable_class_names, de_fs_sub_saveable_class_names
+from tensorflow_recommenders_addons import dynamic_embedding as de
 
 from tensorflow.python.eager import context
 from tensorflow.python.framework import constant_op
@@ -33,6 +29,7 @@ except:
   from tensorflow.python.training.tracking import base as ckpt_base
 from tensorflow.python.lib.io import file_io
 from tensorflow.python.platform import tf_logging
+from tensorflow.python.framework import dtypes
 
 
 class DECheckpoint(TFCheckpoint):
@@ -90,7 +87,7 @@ class DECheckpoint(TFCheckpoint):
   def _de_handle_root_and_var_with_func(self, de_dir: str, func):
 
     def _filter_de_tw(var):
-      if not hasattr(var, "params") or not isinstance(var, TrainableWrapper):
+      if not hasattr(var, "params") or not isinstance(var, de.TrainableWrapper):
         return False
       if not hasattr(var.params, "saveable"):
         return False

@@ -28,7 +28,6 @@ except:
   from tensorflow.python.distribute import distribution_strategy_context as distribute_ctx
 from tensorflow.python.distribute import parameter_server_strategy
 from tensorflow.python.distribute import parameter_server_strategy_v2
-from tensorflow.python.distribute import reduce_util as ds_reduce_util
 from tensorflow.python.eager import context
 from tensorflow.python.framework import dtypes
 from tensorflow.python.framework import ops
@@ -43,10 +42,8 @@ except:
 from tensorflow.python.keras import backend
 from tensorflow.python.keras import initializers
 from tensorflow.python.keras.utils import tf_utils
-from tensorflow.python.ops import array_ops
 from tensorflow.python.ops import control_flow_ops
 from tensorflow.python.ops import math_ops
-from tensorflow.python.ops import script_ops
 from tensorflow.python.ops import variables
 from tensorflow.python.ops import variable_scope
 try:  # tf version >= 2.14.0
@@ -80,9 +77,9 @@ try:  # The data_structures has been moved to the new package in tf 2.11
   from tensorflow.python.trackable import data_structures
 except:
   from tensorflow.python.training.tracking import data_structures
-from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_ops import DistributedVariableWrapper, TrainableWrapperDistributedPolicy
+from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_variable import \
+  TrainableWrapperDistributedPolicy
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_ops import trainable_wrapper_filter
-from tensorflow_recommenders_addons.utils.check_platform import is_macos, is_arm64
 
 try:
   import horovod.tensorflow as hvd
@@ -682,8 +679,8 @@ def DynamicEmbeddingOptimizer(self, bp_v2=False, synchronous=False, **kwargs):
   def _dist_tw_grads_and_vars_filter(grads_and_vars_in):
     dense_grads_and_vars_aggregated_out = []
     sparse_grads_and_vars_unaggregated_out = []
-    test_unaggregated_lambda = lambda x: isinstance(x[1],
-                                                    DistributedVariableWrapper)
+    test_unaggregated_lambda = lambda x: isinstance(
+        x[1], de.DistributedVariableWrapper)
     for g_and_v in grads_and_vars_in:
       if test_unaggregated_lambda(g_and_v):
         sparse_grads_and_vars_unaggregated_out.append(g_and_v)
@@ -933,7 +930,7 @@ def create_slots(variable, init, slot_name, op_name, bp_v2):
                 slot_trainable_create_(variable.values[i],
                                        scope_store._vars[full_name],
                                        full_name_replica, slot_tw_name_replica))
-    slot_trainable = DistributedVariableWrapper(
+    slot_trainable = de.DistributedVariableWrapper(
         variable.distribute_strategy, slot_variable_impl.as_list(),
         VariableAggregation.NONE,
         TrainableWrapperDistributedPolicy(VariableAggregation.NONE))

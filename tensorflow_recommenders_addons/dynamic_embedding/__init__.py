@@ -64,7 +64,7 @@ from tensorflow_recommenders_addons.dynamic_embedding.python.ops.hkv_hashtable_o
     HkvHashTable,)
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.redis_table_ops import (
     RedisTable,)
-from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_ops import (
+from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_variable import (
     embedding_lookup,)
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_ops import (
     embedding_lookup_sparse,)
@@ -80,18 +80,20 @@ from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embeddi
     get_model_mode,)
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_ops import (
     trainable_wrapper_filter,)
-from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_ops import (
-    ModelMode,)
-from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_ops import (
-    TrainableWrapper,)
-from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_ops import (
-    DistributedVariableWrapper,)
+from tensorflow_recommenders_addons.dynamic_embedding.python.ops.embedding_weights import (
+    ModelMode,
+    TrainableWrapper,
+)
+from tensorflow_recommenders_addons.dynamic_embedding.python.ops.distributed_embedding_variable import \
+    DistributedVariableWrapper
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_optimizer import (
     create_slots,)
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_optimizer import (
     DynamicEmbeddingOptimizer,)
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_variable import (
-    get_variable,)
+    get_variable,
+    embedding_lookup,
+)
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_variable import (
     Variable,)
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_variable import (
