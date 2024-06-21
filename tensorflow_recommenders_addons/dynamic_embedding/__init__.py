@@ -48,6 +48,7 @@ __all__ = [
     'math',
     'data_flow',
     'shadow_ops',
+    'DEResourceVariable',
 ]
 
 from tensorflow_recommenders_addons.dynamic_embedding.python import train
@@ -84,6 +85,7 @@ from tensorflow_recommenders_addons.dynamic_embedding.python.ops.embedding_weigh
     ModelMode,
     TrainableWrapper,
 )
+from tensorflow_recommenders_addons.dynamic_embedding.python.ops.shadow_embedding_ops import DEResourceVariable
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.distributed_embedding_variable import \
     DistributedVariableWrapper
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_optimizer import (
