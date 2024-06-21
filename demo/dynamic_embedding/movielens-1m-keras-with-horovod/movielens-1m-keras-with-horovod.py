@@ -55,20 +55,20 @@ input_spec = {
         tf.TensorSpec(shape=[
             None,
             1,
-        ], dtype=tf.int32, name='user_gender'),
+        ], dtype=tf.int64, name='user_gender'),
     'user_occupation_label':
         tf.TensorSpec(shape=[
             None,
             1,
         ],
-                      dtype=tf.int32,
+                      dtype=tf.int64,
                       name='user_occupation_label'),
     'bucketized_user_age':
         tf.TensorSpec(shape=[
             None,
             1,
         ],
-                      dtype=tf.int32,
+                      dtype=tf.int64,
                       name='bucketized_user_age'),
     'movie_id':
         tf.TensorSpec(shape=[
@@ -79,12 +79,12 @@ input_spec = {
         tf.TensorSpec(shape=[
             None,
             1,
-        ], dtype=tf.int32, name='movie_genres'),
+        ], dtype=tf.int64, name='movie_genres'),
     'timestamp':
         tf.TensorSpec(shape=[
             None,
             1,
-        ], dtype=tf.int32, name='timestamp')
+        ], dtype=tf.int64, name='timestamp')
 }
 
 feature_info_spec = {
@@ -98,7 +98,7 @@ feature_info_spec = {
     },
     'movie_genres': {
         'code': 102,
-        'dtype': tf.int32,
+        'dtype': tf.int64,
         'dim': 1,
         'ptype': 'normal_gpu',
         'input_tensor': None,
@@ -114,7 +114,7 @@ feature_info_spec = {
     },
     'user_gender': {
         'code': 104,
-        'dtype': tf.int32,
+        'dtype': tf.int64,
         'dim': 1,
         'ptype': 'normal_gpu',
         'input_tensor': None,
@@ -122,7 +122,7 @@ feature_info_spec = {
     },
     'user_occupation_label': {
         'code': 105,
-        'dtype': tf.int32,
+        'dtype': tf.int64,
         'dim': 1,
         'ptype': 'normal_gpu',
         'input_tensor': None,
@@ -130,7 +130,7 @@ feature_info_spec = {
     },
     'bucketized_user_age': {
         'code': 106,
-        'dtype': tf.int32,
+        'dtype': tf.int64,
         'dim': 1,
         'ptype': 'normal_gpu',
         'input_tensor': None,
@@ -139,7 +139,7 @@ feature_info_spec = {
     },
     'timestamp': {
         'code': 107,
-        'dtype': tf.int32,
+        'dtype': tf.int64,
         'dim': 1,
         'ptype': 'normal_gpu',
         'input_tensor': None,
@@ -225,7 +225,7 @@ class ChannelEmbeddingLayers(tf.keras.layers.Layer):
     self.dense_embedding_layer = de.keras.layers.HvdAllToAllEmbedding(
         mpi_size=mpi_size,
         embedding_size=dense_embedding_size,
-        key_dtype=tf.int32,
+        key_dtype=tf.int64,
         value_dtype=tf.float32,
         initializer=embedding_initializer,
         devices=self.gpu_device,
@@ -272,11 +272,11 @@ class ChannelEmbeddingLayers(tf.keras.layers.Layer):
         raise NotImplementedError(f'Not support ptype {ptype}.')
     # The GPU table combined query starts
     dense_input_tensors_concat, dense_input_split_dims, dense_input_is_sequence_feature = \
-        embedding_inputs_concat(dense_inputs, dense_input_dims)
+      embedding_inputs_concat(dense_inputs, dense_input_dims)
     dense_emb_concat = self.dense_embedding_layer(dense_input_tensors_concat)
     # The CPU table combined query starts
     sparse_input_tensors_concat, sparse_input_split_dims, sparse_input_is_sequence_feature = \
-        embedding_inputs_concat(sparse_inputs, sparse_input_dims)
+      embedding_inputs_concat(sparse_inputs, sparse_input_dims)
     sparse_emb_concat = self.sparse_embedding_layer(sparse_input_tensors_concat)
     # Slice the combined query result
     dense_emb_outs = embedding_out_split(dense_emb_concat,
@@ -426,17 +426,17 @@ def get_dataset(batch_size=1):
           "movie_id":
               tf.strings.to_number(x["movie_id"], tf.int64),
           "movie_genres":
-              tf.cast(x["movie_genres"][0], tf.int32),
+              tf.cast(x["movie_genres"][0], tf.int64),
           "user_id":
               tf.strings.to_number(x["user_id"], tf.int64),
           "user_gender":
-              tf.cast(x["user_gender"], tf.int32),
+              tf.cast(x["user_gender"], tf.int64),
           "user_occupation_label":
-              tf.cast(x["user_occupation_label"], tf.int32),
+              tf.cast(x["user_occupation_label"], tf.int64),
           "bucketized_user_age":
-              tf.cast(x["bucketized_user_age"], tf.int32),
+              tf.cast(x["bucketized_user_age"], tf.int64),
           "timestamp":
-              tf.cast(x["timestamp"] - 880000000, tf.int32),
+              tf.cast(x["timestamp"] - 880000000, tf.int64),
       })
 
   ratings = ds.map(lambda x: {
@@ -561,7 +561,7 @@ def export_for_serving(model, export_dir):
     de.enable_inference_mode()
     export_model = DualChannelsDeepModel(FLAGS.embedding_size,
                                          FLAGS.embedding_size,
-                                         tf.keras.initializers.Zeros(),
+                                         tf.keras.initializers.Zeros(), False,
                                          hvd.size(), hvd.rank())
     # The save_and_return_nodes function is used to overwrite the saved_model.pb file generated by the save_model function and rewrite the inference graph.
     tf_save.save_and_return_nodes(obj=export_model,
@@ -574,7 +574,7 @@ def train():
   dataset = get_dataset(batch_size=32)
   model = DualChannelsDeepModel(FLAGS.embedding_size, FLAGS.embedding_size,
                                 tf.keras.initializers.RandomNormal(0.0, 0.5),
-                                hvd.size(), hvd.rank())
+                                True, hvd.size(), hvd.rank())
   optimizer = Adam(1E-3)
   optimizer = de.DynamicEmbeddingOptimizer(optimizer)
 
@@ -621,6 +621,7 @@ def export():
                                        FLAGS.embedding_size,
                                        tf.keras.initializers.RandomNormal(
                                            0.0, 0.5),
+                                       False,
                                        mpi_size=1,
                                        mpi_rank=0)
   save_options = tf.saved_model.SaveOptions(namespace_whitelist=['TFRA'])
