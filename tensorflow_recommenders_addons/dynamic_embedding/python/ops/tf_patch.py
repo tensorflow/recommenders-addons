@@ -369,6 +369,24 @@ def bind_object(self, trackable):
   return tf_checkpoint_position_bind_object(self, trackable)
 
 
+from tensorflow.python.framework.tensor_shape import TensorShape
+from typing import Any, List
+
+
+def _as_list(self: TensorShape) -> List[Any]:
+  """Returns a list of integers or `None` for each dimension.
+
+  Returns:
+    A list of integers or `None` for each dimension.
+
+  Raises:
+    ValueError: If `self` is an unknown shape with an unknown rank.
+  """
+  if self._dims is None:
+    return []
+  return list(self._dims)
+
+
 def patch_on_tf():
   optimizer._get_processor = _get_processor
   slot_creator._create_slot_var = _create_slot_var
@@ -382,3 +400,4 @@ def patch_on_tf():
   if kinit_K is not None:
     kinit_K.VarianceScaling.__call__ = __call__for_keras_init_v2
   ckpt_base.CheckpointPosition.bind_object = bind_object
+  TensorShape.as_list = _as_list
