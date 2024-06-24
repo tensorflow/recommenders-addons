@@ -41,8 +41,8 @@ flags.DEFINE_integer('steps_per_epoch', 20000, 'Number of training steps.')
 flags.DEFINE_integer('epochs', 1, 'Number of training epochs.')
 flags.DEFINE_integer('embedding_size', 32,
                      'Embedding size for users and movies')
-flags.DEFINE_integer('test_steps', 128, 'Embedding size for users and movies')
-flags.DEFINE_integer('test_batch', 1024, 'Embedding size for users and movies')
+flags.DEFINE_integer('test_steps', 128, 'test steps.')
+flags.DEFINE_integer('test_batch', 1024, 'test batch size.')
 FLAGS = flags.FLAGS
 
 input_spec = {
@@ -214,10 +214,6 @@ class ChannelEmbeddingLayers(tf.keras.layers.Layer):
                mpi_rank=0):
 
     super(ChannelEmbeddingLayers, self).__init__()
-
-    self.gpu_device = ["GPU:0"]
-    self.cpu_device = ["CPU:0"]
-
     # The saver parameter of kv_creator saves the K-V in the hash table into a separate KV file.
     self.kv_creator = de.CuckooHashTableCreator(
         saver=de.FileSystemSaver(proc_size=mpi_size, proc_rank=mpi_rank))
@@ -228,7 +224,6 @@ class ChannelEmbeddingLayers(tf.keras.layers.Layer):
         key_dtype=tf.int64,
         value_dtype=tf.float32,
         initializer=embedding_initializer,
-        devices=self.gpu_device,
         name=name + '_DenseUnifiedEmbeddingLayer',
         bp_v2=True,
         init_capacity=4096000,
@@ -240,7 +235,6 @@ class ChannelEmbeddingLayers(tf.keras.layers.Layer):
         key_dtype=tf.int64,
         value_dtype=tf.float32,
         initializer=embedding_initializer,
-        devices=self.cpu_device,
         name=name + '_SparseUnifiedEmbeddingLayer',
         init_capacity=4096000,
         kv_creator=self.kv_creator)
@@ -586,7 +580,7 @@ def train():
                 ])
 
   if os.path.exists(FLAGS.model_dir + '/variables'):
-    model.load_weights(FLAGS.model_dir + '/variables/variables')
+    model.load_weights(FLAGS.model_dir)
 
   tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=FLAGS.model_dir)
   save_options = tf.saved_model.SaveOptions(namespace_whitelist=['TFRA'])
