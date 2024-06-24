@@ -138,7 +138,7 @@ def _ids_and_weights_2d(embed_dim=4, ragged=False):
   #   Row 3: single id
   #   Row 4: all ids have <=0 weight
   indices = [[0, 0], [0, 1], [0, 2], [1, 0], [3, 0], [4, 0], [4, 1]]
-  ids = [0, 1, -1, -1, 2, 0, 1]
+  ids = [0, 1, -100, -100, 2, 0, 1]
   weights = [1.0, 2.0, 1.0, 1.0, 3.0, 0.0, -0.5]
   shape = [5, embed_dim]
 
@@ -177,7 +177,7 @@ def _ids_and_weights_3d(
       [1, 1, 0],
       [1, 1, 1],
   ]
-  ids = [0, 1, -1, -1, 2, 0, 1]
+  ids = [0, 1, -100, -100, 2, 0, 1]
   weights = [1.0, 2.0, 1.0, 1.0, 3.0, 0.0, -0.5]
   shape = [2, 3, embed_dim]
 
@@ -945,7 +945,7 @@ class SafeEmbeddingLookupSparseTest(test.TestCase, parameterized.TestCase):
           0,
           1,
           2,
-          -1,
+          -100,
       ])
 
       # init
@@ -987,7 +987,7 @@ class SafeEmbeddingLookupSparseTest(test.TestCase, parameterized.TestCase):
       embedding_weights = _random_weights(embed_dim=dim)
       sparse_ids, sparse_weights = _ids_and_weights_2d(embed_dim=dim,
                                                        ragged=ragged)
-      valid_ids = np.array([0, 1, 2, 3, -1])
+      valid_ids = np.array([0, 1, 2, 3, -100])
 
       # init
       weights = embedding_weights.lookup(valid_ids)
@@ -1025,7 +1025,7 @@ class SafeEmbeddingLookupSparseTest(test.TestCase, parameterized.TestCase):
       embedding_weights = _random_weights(embed_dim=dim)
       sparse_ids, sparse_weights = _ids_and_weights_2d(embed_dim=dim,
                                                        ragged=ragged)
-      valid_ids = np.array([0, 1, 2, -1])
+      valid_ids = np.array([0, 1, 2, -100])
 
       # init
       weights = embedding_weights.lookup(valid_ids)
@@ -1063,7 +1063,7 @@ class SafeEmbeddingLookupSparseTest(test.TestCase, parameterized.TestCase):
       embedding_weights = _random_weights(embed_dim=dim, num_shards=3)
       sparse_ids, sparse_weights = _ids_and_weights_2d(embed_dim=dim,
                                                        ragged=ragged)
-      valid_ids = np.array([0, 1, 2, -1])
+      valid_ids = np.array([0, 1, 2, -100])
 
       # init
       weights = embedding_weights.lookup(valid_ids)
@@ -1135,7 +1135,7 @@ class SafeEmbeddingLookupSparseTest(test.TestCase, parameterized.TestCase):
   def test_safe_embedding_lookup_sparse_3d_return_zero_vector(self):
     with self.session(use_gpu=test_util.is_gpu_available(),
                       config=default_config):
-      valid_ids = np.array([0, 1, 2, -1])
+      valid_ids = np.array([0, 1, 2, -100])
       embedding_weights, embedding_weights_values, sparse_ids, sparse_weights = self._get_ids_and_weights_3d(
           valid_ids)
 
@@ -1163,7 +1163,7 @@ class SafeEmbeddingLookupSparseTest(test.TestCase, parameterized.TestCase):
     with self.session(use_gpu=test_util.is_gpu_available(),
                       config=default_config):
       embedding_weights, embedding_weights_values, sparse_ids, sparse_weights = self._get_ids_and_weights_3d(
-          np.array([0, 1, 2, 3, -1]))
+          np.array([0, 1, 2, 3, -100]))
       embedding_lookup_result = de.safe_embedding_lookup_sparse(
           embedding_weights, sparse_ids, sparse_weights, default_id=3)
       embedding_lookup_result = embedding_lookup_result.numpy(
@@ -1190,7 +1190,7 @@ class SafeEmbeddingLookupSparseTest(test.TestCase, parameterized.TestCase):
   def test_safe_embedding_lookup_sparse_3d_no_weights(self):
     with self.session(use_gpu=test_util.is_gpu_available(),
                       config=default_config):
-      valid_ids = np.array([0, 1, 2, -1])
+      valid_ids = np.array([0, 1, 2, -100])
       embedding_weights, embedding_weights_values, sparse_ids, _ = self._get_ids_and_weights_3d(
           valid_ids)
       embedding_lookup_result = de.safe_embedding_lookup_sparse(
@@ -1221,7 +1221,7 @@ class SafeEmbeddingLookupSparseTest(test.TestCase, parameterized.TestCase):
                       config=default_config):
       embedding_weights = _random_weights(num_shards=3)
       sparse_ids, _ = _ids_and_weights_3d()
-      valid_ids = np.array([0, 1, 2, -1])
+      valid_ids = np.array([0, 1, 2, -100])
 
       # init
       embedding_weights_values = embedding_weights.lookup(valid_ids)

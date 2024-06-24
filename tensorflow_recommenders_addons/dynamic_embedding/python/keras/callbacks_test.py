@@ -1,6 +1,6 @@
 import pytest
 from tensorflow_recommenders_addons.dynamic_embedding.python.keras.callbacks import \
-  DEHvdBroadcastGlobalVariablesCallback, DEHvdModelCheckpoint
+  DEHvdBroadcastGlobalVariablesCallback
 
 
 @pytest.fixture

@@ -1,36 +1,57 @@
 import os
 import shutil
-import tensorflow as tf
-import tensorflow_datasets as tfds
 
 from absl import flags
 from absl import app
+
+os.environ["TF_FORCE_GPU_ALLOW_GROWTH"] = "true"  #VERY IMPORTANT!
+os.environ["TF_GPU_THREAD_MODE"] = "gpu_private"
+# Because of the two environment variables above no non-standard library imports should happen before this.
+import tensorflow as tf
 from tensorflow_recommenders_addons import dynamic_embedding as de
 try:
   from tensorflow.keras.legacy.optimizers import Adam
 except:
   from tensorflow.keras.optimizers import Adam
-
+import tensorflow_datasets as tfds
 import horovod.tensorflow as hvd
-
-os.environ["TF_FORCE_GPU_ALLOW_GROWTH"] = "true"  #VERY IMPORTANT!
-
-os.environ["TF_GPU_THREAD_MODE"] = "gpu_private"
-
-# Horovod: initialize Horovod.
-hvd.init()
-
-if hvd.rank() > 0:
-  os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
-
-# Horovod: pin GPU to be used to process local rank (one GPU per process)
-physical_devices = tf.config.list_physical_devices('GPU')
-tf.config.set_visible_devices(physical_devices[hvd.local_rank()], 'GPU')
-tf.config.experimental.set_memory_growth(physical_devices[hvd.local_rank()],
-                                         True)
-
 # optimal performance
 os.environ['TF_XLA_FLAGS'] = '--tf_xla_auto_jit=2 --tf_xla_cpu_global_jit'
+
+
+def has_horovod() -> bool:
+  return 'OMPI_COMM_WORLD_RANK' in os.environ or 'PMI_RANK' in os.environ
+
+
+def config():
+  # callback calls hvd.rank() so we need to initialize horovod here
+  hvd.init()
+  if has_horovod():
+    print("Horovod is enabled.")
+    if hvd.rank() > 0:
+      os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+    # Horovod: pin GPU to be used to process local rank (one GPU per process)
+    config_gpu(hvd.local_rank())
+  else:
+    config_gpu()
+
+
+def config_gpu(rank=0):
+  physical_devices = tf.config.list_physical_devices('GPU')
+  if physical_devices:
+    tf.config.set_visible_devices(physical_devices[rank], 'GPU')
+    tf.config.experimental.set_memory_growth(physical_devices[rank], True)
+  else:
+    print("No GPU found, using CPU instead.")
+
+
+def get_cluster_size() -> int:
+  return hvd.size() if has_horovod() else 1
+
+
+def get_rank() -> int:
+  return hvd.rank() if has_horovod() else 0
+
 
 flags.DEFINE_string('mode', 'train', 'Select the running mode: train or test.')
 flags.DEFINE_string('model_dir', 'model_dir',
@@ -41,8 +62,9 @@ flags.DEFINE_integer('steps_per_epoch', 20000, 'Number of training steps.')
 flags.DEFINE_integer('epochs', 1, 'Number of training epochs.')
 flags.DEFINE_integer('embedding_size', 32,
                      'Embedding size for users and movies')
-flags.DEFINE_integer('test_steps', 128, 'Embedding size for users and movies')
-flags.DEFINE_integer('test_batch', 1024, 'Embedding size for users and movies')
+flags.DEFINE_integer('test_steps', 128, 'test steps.')
+flags.DEFINE_integer('test_batch', 1024, 'test batch size.')
+flags.DEFINE_bool('shuffle', True, 'shuffle dataset.')
 FLAGS = flags.FLAGS
 
 input_spec = {
@@ -190,10 +212,6 @@ class Bucketize(tf.keras.layers.Layer):
     self.boundaries = boundaries
     super(Bucketize, self).__init__(**kwargs)
 
-  def build(self, input_shape):
-    # Be sure to call this somewhere!
-    super(Bucketize, self).build(input_shape)
-
   def call(self, x, **kwargs):
     return tf.raw_ops.Bucketize(input=x, boundaries=self.boundaries)
 
@@ -201,6 +219,25 @@ class Bucketize(tf.keras.layers.Layer):
     config = {'boundaries': self.boundaries}
     base_config = super(Bucketize, self).get_config()
     return dict(list(base_config.items()) + list(config.items()))
+
+
+def get_kv_creator(mpi_size: int,
+                   mpi_rank: int,
+                   vocab_size: int = 1,
+                   value_size: int = 4,
+                   dim: int = 16):
+  gpus = tf.config.list_physical_devices('GPU')
+  saver = de.FileSystemSaver(proc_size=mpi_size, proc_rank=mpi_rank)
+  if gpus:
+    max_capacity = 2 * vocab_size
+    config = de.HkvHashTableConfig(init_capacity=vocab_size,
+                                   max_capacity=max_capacity,
+                                   max_hbm_for_values=max_capacity *
+                                   value_size * dim)
+    return de.HkvHashTableCreator(config=config, saver=saver)
+  else:
+    # The saver parameter of kv_creator saves the K-V in the hash table into a separate KV file.
+    return de.CuckooHashTableCreator(saver=saver)
 
 
 class ChannelEmbeddingLayers(tf.keras.layers.Layer):
@@ -214,13 +251,10 @@ class ChannelEmbeddingLayers(tf.keras.layers.Layer):
                mpi_rank=0):
 
     super(ChannelEmbeddingLayers, self).__init__()
-
-    self.gpu_device = ["GPU:0"]
-    self.cpu_device = ["CPU:0"]
-
-    # The saver parameter of kv_creator saves the K-V in the hash table into a separate KV file.
-    self.kv_creator = de.CuckooHashTableCreator(
-        saver=de.FileSystemSaver(proc_size=mpi_size, proc_rank=mpi_rank))
+    init_capacity = 4096000
+    kv_creator_dense = get_kv_creator(mpi_size, mpi_rank, init_capacity,
+                                      tf.dtypes.float32.size,
+                                      dense_embedding_size)
 
     self.dense_embedding_layer = de.keras.layers.HvdAllToAllEmbedding(
         mpi_size=mpi_size,
@@ -228,31 +262,29 @@ class ChannelEmbeddingLayers(tf.keras.layers.Layer):
         key_dtype=tf.int64,
         value_dtype=tf.float32,
         initializer=embedding_initializer,
-        devices=self.gpu_device,
         name=name + '_DenseUnifiedEmbeddingLayer',
         bp_v2=True,
-        init_capacity=4096000,
-        kv_creator=self.kv_creator)
+        init_capacity=init_capacity,
+        kv_creator=kv_creator_dense)
 
+    kv_creator_sparse = get_kv_creator(mpi_size, mpi_rank, init_capacity,
+                                       tf.dtypes.float32.size,
+                                       sparse_embedding_size)
     self.sparse_embedding_layer = de.keras.layers.HvdAllToAllEmbedding(
         mpi_size=mpi_size,
         embedding_size=sparse_embedding_size,
         key_dtype=tf.int64,
         value_dtype=tf.float32,
         initializer=embedding_initializer,
-        devices=self.cpu_device,
         name=name + '_SparseUnifiedEmbeddingLayer',
         init_capacity=4096000,
-        kv_creator=self.kv_creator)
+        kv_creator=kv_creator_sparse)
 
     self.dnn = tf.keras.layers.Dense(
         128,
         activation='relu',
         kernel_initializer=tf.keras.initializers.RandomNormal(0.0, 0.1),
         bias_initializer=tf.keras.initializers.RandomNormal(0.0, 0.1))
-
-  def build(self, input_shape):
-    super(ChannelEmbeddingLayers, self).build(input_shape)
 
   def __call__(self, features_info):
     dense_inputs = []
@@ -324,7 +356,7 @@ class DualChannelsDeepModel(tf.keras.Model):
     super(DualChannelsDeepModel, self).__init__()
     self.user_embedding_size = user_embedding_size
     self.movie_embedding_size = movie_embedding_size
-
+    print(f"mpi_size {mpi_size}, mpi_rank {mpi_rank}")
     self.user_embedding = ChannelEmbeddingLayers(
         name='user',
         dense_embedding_size=user_embedding_size,
@@ -444,10 +476,11 @@ def get_dataset(batch_size=1):
           tf.one_hot(tf.cast(x["user_rating"] - 1, dtype=tf.int64), 5)
   })
   dataset = tf.data.Dataset.zip((features, ratings))
-  shuffled = dataset.shuffle(1_000_000,
-                             seed=2021,
-                             reshuffle_each_iteration=False)
-  dataset = shuffled.repeat(1).batch(batch_size).prefetch(tf.data.AUTOTUNE)
+  if FLAGS.shuffle:
+    dataset = dataset.shuffle(1_000_000,
+                              seed=2021,
+                              reshuffle_each_iteration=False)
+  dataset = dataset.repeat(1).batch(batch_size).prefetch(tf.data.AUTOTUNE)
   # Only GPU:0 since TF is set to be visible to GPU:X
   dataset = dataset.apply(
       tf.data.experimental.prefetch_to_device('GPU:0', buffer_size=2))
@@ -495,28 +528,30 @@ def export_to_savedmodel(model, savedmodel_dir):
                              options=save_options)
 
 
+def save_spec(save_model):
+  if hasattr(save_model, 'save_spec'):
+    # tf version >= 2.6
+    return save_model.save_spec()
+  else:
+    arg_specs = list()
+    kwarg_specs = dict()
+    for i in save_model.inputs:
+      arg_specs.append(i.type_spec)
+    return [arg_specs], kwarg_specs
+
+
+@tf.function
+def serve(save_model, *args, **kwargs):
+  return save_model(*args, **kwargs)
+
+
 def export_for_serving(model, export_dir):
   save_options = tf.saved_model.SaveOptions(namespace_whitelist=['TFRA'])
 
   if not os.path.exists(export_dir):
     os.mkdir(export_dir)
 
-  def save_spec():
-    if hasattr(model, 'save_spec'):
-      # tf version >= 2.6
-      return model.save_spec()
-    else:
-      arg_specs = list()
-      kwarg_specs = dict()
-      for i in model.inputs:
-        arg_specs.append(i.type_spec)
-      return [arg_specs], kwarg_specs
-
-  @tf.function
-  def serve(*args, **kwargs):
-    return model(*args, **kwargs)
-
-  arg_specs, kwarg_specs = save_spec()
+  arg_specs, kwarg_specs = save_spec(model)
 
   ########################## What really happened ##########################
   # if hvd.rank() == 0:
@@ -550,31 +585,37 @@ def export_for_serving(model, export_dir):
       options=save_options,
       signatures={
           'serving_default':
-              serve.get_concrete_function(*arg_specs, **kwarg_specs)
+              serve.get_concrete_function(model, *arg_specs, **kwarg_specs)
       },
   )
 
-  if hvd.rank() == 0:
+  if get_rank() == 0:
     # Modify the inference graph to a stand-alone version
-    from tensorflow.python.saved_model import save as tf_save
     tf.keras.backend.clear_session()
+    from tensorflow.python.saved_model import save as tf_save
     de.enable_inference_mode()
     export_model = DualChannelsDeepModel(FLAGS.embedding_size,
                                          FLAGS.embedding_size,
                                          tf.keras.initializers.Zeros(), False,
-                                         hvd.size(), hvd.rank())
+                                         1, 0)
     # The save_and_return_nodes function is used to overwrite the saved_model.pb file generated by the save_model function and rewrite the inference graph.
     tf_save.save_and_return_nodes(obj=export_model,
                                   export_dir=export_dir,
                                   options=save_options,
-                                  experimental_skip_checkpoint=True)
+                                  experimental_skip_checkpoint=True,
+                                  signatures={
+                                      'serving_default':
+                                          serve.get_concrete_function(
+                                              export_model, *arg_specs,
+                                              **kwarg_specs)
+                                  })
 
 
 def train():
   dataset = get_dataset(batch_size=32)
   model = DualChannelsDeepModel(FLAGS.embedding_size, FLAGS.embedding_size,
                                 tf.keras.initializers.RandomNormal(0.0, 0.5),
-                                True, hvd.size(), hvd.rank())
+                                True, get_cluster_size(), get_rank())
   optimizer = Adam(1E-3)
   optimizer = de.DynamicEmbeddingOptimizer(optimizer)
 
@@ -586,19 +627,23 @@ def train():
                 ])
 
   if os.path.exists(FLAGS.model_dir + '/variables'):
-    model.load_weights(FLAGS.model_dir + '/variables/variables')
+    model.load_weights(FLAGS.model_dir)
 
   tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=FLAGS.model_dir)
   save_options = tf.saved_model.SaveOptions(namespace_whitelist=['TFRA'])
-  # horovod callback is used to broadcast the value generated by initializer of rank0.
-  hvd_opt_init_callback = de.keras.callbacks.DEHvdBroadcastGlobalVariablesCallback(
-      root_rank=0)
   ckpt_callback = de.keras.callbacks.ModelCheckpoint(
       filepath=FLAGS.model_dir + '/weights_epoch{epoch:03d}_loss{loss:.4f}',
       options=save_options)
-  callbacks_list = [hvd_opt_init_callback, ckpt_callback]
+  if has_horovod():
+    # horovod callback is used to broadcast the value generated by initializer of rank0.
+    hvd_opt_init_callback = de.keras.callbacks.DEHvdBroadcastGlobalVariablesCallback(
+        root_rank=0)
+    callbacks_list = [hvd_opt_init_callback, ckpt_callback]
+  else:
+    callbacks_list = [ckpt_callback]
+
   # The log class callback only takes effect in rank0 for convenience
-  if hvd.rank() == 0:
+  if get_rank() == 0:
     callbacks_list.extend([tensorboard_callback])
   # If there are callbacks such as evaluation metrics that call model calculations, take effect on all ranks.
   # callbacks_list.extend([my_auc_callback])
@@ -607,7 +652,7 @@ def train():
             callbacks=callbacks_list,
             epochs=FLAGS.epochs,
             steps_per_epoch=FLAGS.steps_per_epoch,
-            verbose=1 if hvd.rank() == 0 else 0)
+            verbose=1 if get_rank() == 0 else 0)
 
   export_to_savedmodel(model, FLAGS.model_dir)
   export_for_serving(model, FLAGS.export_dir)
@@ -625,13 +670,30 @@ def export():
                                        mpi_size=1,
                                        mpi_rank=0)
   save_options = tf.saved_model.SaveOptions(namespace_whitelist=['TFRA'])
+  dummy_features = {
+      'movie_id': tf.constant([0], dtype=tf.int64),
+      'movie_genres': tf.constant([0], dtype=tf.int64),
+      'user_id': tf.constant([0], dtype=tf.int64),
+      'user_gender': tf.constant([0], dtype=tf.int64),
+      'user_occupation_label': tf.constant([0], dtype=tf.int64),
+      'bucketized_user_age': tf.constant([0], dtype=tf.int64),
+      'timestamp': tf.constant([0], dtype=tf.int64)
+  }
+  export_model(dummy_features)
+  arg_specs, kwarg_specs = save_spec(export_model)
   # Modify the inference graph to a stand-alone version
   from tensorflow.python.saved_model import save as tf_save
   # The save_and_return_nodes function is used to overwrite the saved_model.pb file generated by the save_model function and rewrite the inference graph.
   tf_save.save_and_return_nodes(obj=export_model,
                                 export_dir=FLAGS.export_dir,
                                 options=save_options,
-                                experimental_skip_checkpoint=True)
+                                experimental_skip_checkpoint=True,
+                                signatures={
+                                    'serving_default':
+                                        serve.get_concrete_function(
+                                            export_model, *arg_specs,
+                                            **kwarg_specs)
+                                })
 
 
 def test():
@@ -639,7 +701,6 @@ def test():
 
   dataset = get_dataset(batch_size=FLAGS.test_batch)
   model = tf.keras.models.load_model(FLAGS.export_dir)
-  signature = model.signatures['serving_default']
 
   def get_close_or_equal_cnt(model, features, ratings):
     preds = model(features)
@@ -660,14 +721,49 @@ def test():
         f' accurate, {equal_cnt}/{FLAGS.test_batch} are absolutely accurate.')
 
 
+def inference():
+  de.enable_inference_mode()
+  # model = keras.models.load_model(
+  model = tf.keras.models.load_model(FLAGS.export_dir)
+  print(f"model signature keys: {model.signatures.keys()} {model.signatures}")
+  inference_func = model.signatures['serving_default']
+
+  dataset = get_dataset(batch_size=FLAGS.test_batch)
+  it = iter(dataset)
+
+  def get_close_or_equal_cnt(preds, ratings):
+    preds = tf.math.argmax(preds, axis=1)
+    ratings = tf.math.argmax(ratings, axis=1)
+    close_cnt = tf.reduce_sum(
+        tf.cast(tf.math.abs(preds - ratings) <= 1, dtype=tf.int32))
+    equal_cnt = tf.reduce_sum(
+        tf.cast(tf.math.abs(preds - ratings) == 0, dtype=tf.int32))
+    return close_cnt, equal_cnt
+
+  for step in range(FLAGS.test_steps):
+    features, ratings = next(it)
+    ratings = ratings['user_rating']
+    outputs = inference_func(**features)
+    preds = outputs['user_rating']
+
+    close_cnt, equal_cnt = get_close_or_equal_cnt(preds, ratings)
+
+    print(
+        f'In batch prediction, step: {step}, {close_cnt}/{FLAGS.test_batch} are closely'
+        f' accurate, {equal_cnt}/{FLAGS.test_batch} are absolutely accurate.')
+
+
 def main(argv):
   del argv
+  config()
   if FLAGS.mode == 'train':
     train()
   elif FLAGS.mode == 'export':
     export()
   elif FLAGS.mode == 'test':
     test()
+  elif FLAGS.mode == 'inference':
+    inference()
   else:
     raise ValueError('running mode only supports `train` or `test`')
 

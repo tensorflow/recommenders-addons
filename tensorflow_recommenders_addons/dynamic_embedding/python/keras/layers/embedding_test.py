@@ -687,7 +687,7 @@ class SquashedEmbeddingLayerTest(test.TestCase):
     init = tf.keras.initializers.Zeros()
     de_layer = de.keras.layers.SquashedEmbedding(2,
                                                  initializer=init,
-                                                 key_dtype=dtypes.int32,
+                                                 key_dtype=dtypes.int64,
                                                  value_dtype=dtypes.float32,
                                                  name='tr423')
     dense_init = tf.keras.initializers.Ones()
@@ -696,13 +696,13 @@ class SquashedEmbeddingLayerTest(test.TestCase):
                                          embeddings_initializer=dense_init,
                                          name='mt047')
 
-    preset_ids = constant_op.constant([3, 0, 1], dtype=dtypes.int32)
+    preset_ids = constant_op.constant([3, 0, 1], dtype=dtypes.int64)
     preset_values = constant_op.constant([[1, 1], [1, 1], [1, 1]],
                                          dtype=dtypes.float32)
     de_layer.params.upsert(preset_ids, preset_values)
-    de_ids = constant_op.constant([3, 0, 1, 2], dtype=tf.int32)
+    de_ids = constant_op.constant([3, 0, 1, 2], dtype=tf.int64)
     output = de_layer(de_ids)
-    tf_ids = constant_op.constant([3, 0, 1], dtype=tf.int32)
+    tf_ids = constant_op.constant([3, 0, 1], dtype=tf.int64)
     expected = tf_layer(tf_ids)
     expected = tf.reduce_sum(expected, axis=0)
     self.assertAllEqual(output, expected)

@@ -144,7 +144,8 @@ class Embedding(tf.keras.layers.Layer):
       devices: List of devices to place the embedding layer parameter.
       name: Name of the embedding layer.
       with_unique: Bool. Whether if the layer does unique on `ids`. Default is True.
-
+        must set with_unique to true in the GPU case due to the default kv is HKV hashtable,
+        and HKV requires unique key
       **kwargs:
         trainable: Bool. Whether if the layer is trainable. Default is True.
         bp_v2: Bool. If true, the embedding layer will be updated by incremental
@@ -263,7 +264,8 @@ class Embedding(tf.keras.layers.Layer):
 
     Args:
       ids: feature ids of the input. It should be same dtype as the key_dtype
-        of the layer.
+        of the layer. ids must be unique or set with_unique to true in the GPU case
+        due to the default kv is HKV hashtable and HKV requires unique key
 
     Returns:
       A embedding output with shape (shape(ids), embedding_size).

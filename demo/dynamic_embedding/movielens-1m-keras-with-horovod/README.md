@@ -6,10 +6,18 @@
 - enable gpu by `python3 -m pip install tensorflow[and-cuda]`
 - `HOROVOD_WITH_MPI=1 HOROVOD_WITH_GLOO=1 pip install --no-cache-dir horovod`
 - recommend to use nv docker image `nvcr.io/nvidia/tensorflow:24.02-tf2-py3`
-- run `rm -rf model_dir/ export_dir/` to clean up the model and export directory before running the script
 ## start train:
 By default, this shell will start a train task with N workers as GPU number on local machine.
 
 ```shell
 sh start.sh
+```
+run a debug task with only 1 steps_per_epoch
+```shell
+sh start.sh 1
+```
+## start export for serving:
+```shell
+sh test.sh export
+sh test.sh inference
 ```

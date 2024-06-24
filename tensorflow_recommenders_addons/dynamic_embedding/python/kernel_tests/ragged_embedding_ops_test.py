@@ -20,3 +20,8 @@ class TestFillEmptyRows(unittest.TestCase):
     tf.debugging.assert_equal(filled_ragged_tensor.to_tensor(),
                               expected_filled.to_tensor())
     tf.debugging.assert_equal(is_row_empty, expected_empty)
+
+
+from tensorflow.python.platform import test
+if __name__ == "__main__":
+  test.main()
