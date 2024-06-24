@@ -1556,29 +1556,6 @@ class VariableTest(test.TestCase):
       self.evaluate(table.upsert(keys, values))
       self.assertAllEqual(3, self.evaluate(table.size()))
 
-  def test_dynamic_embedding_variable_duplicate_insert(self):
-    with self.session(use_gpu=test_util.is_gpu_available(),
-                      config=default_config):
-      default_val = -1
-      keys = constant_op.constant([0, 1, 2, 2], dtypes.int64)
-      values = constant_op.constant([[0.0], [1.0], [2.0], [3.0]],
-                                    dtypes.float32)
-      table = de.get_variable("t130",
-                              dtypes.int64,
-                              dtypes.float32,
-                              initializer=default_val)
-      self.assertAllEqual(0, self.evaluate(table.size()))
-
-      self.evaluate(table.upsert(keys, values))
-      self.assertAllEqual(3, self.evaluate(table.size()))
-
-      input_keys = constant_op.constant([0, 1, 2], dtypes.int64)
-      output = table.lookup(input_keys)
-
-      result = self.evaluate(output)
-      self.assertTrue(
-          list(result) in [[[0.0], [1.0], [3.0]], [[0.0], [1.0], [2.0]]])
-
   def test_dynamic_embedding_variable_find_high_rank(self):
     with self.session(use_gpu=test_util.is_gpu_available(),
                       config=default_config):

@@ -24,7 +24,6 @@ from tensorflow.python.eager import context
 from tensorflow.python.framework import dtypes
 from tensorflow.python.framework import ops
 from tensorflow.python.framework import device as tf_device
-from tensorflow.python.ops import array_ops
 from tensorflow.python.ops.lookup_ops import LookupInterface
 from tensorflow.python.training.saver import BaseSaverBuilder
 

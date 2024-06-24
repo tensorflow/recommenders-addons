@@ -22,4 +22,5 @@ bazel-genfiles
 /pip-wheel-metadata/
 
 .bazelrc
-
+model_dir/
+export_dir/

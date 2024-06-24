@@ -1328,7 +1328,8 @@ def embedding_lookup(
     Ids are flattened to a 1d tensor before being passed to embedding_lookup
     then, they are unflattend to match the original ids shape plus an extra
     leading dimension of the size of the embeddings.
-
+    ids must be unique or call safe_embedding_lookup_sparse in the GPU case
+        if you use HKV hashtable since HKV requires unique key
     Args:
       params: A dynamic_embedding.Variable instance.
       ids: A tensor with any shape as same dtype of params.key_dtype.
