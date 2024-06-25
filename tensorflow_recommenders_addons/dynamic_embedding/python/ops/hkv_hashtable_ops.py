@@ -124,7 +124,6 @@ class HkvHashTable(LookupInterface):
     self._evict_strategy = evict_strategy
     self._step_per_epoch = step_per_epoch
     self._gen_scores_fn = gen_scores_fn
-    self._default_scores = tf.constant([], dtypes.int64)
     self._reserved_key_start_bit = reserved_key_start_bit
     if self._config:
       self._init_capacity = self._config.init_capacity
@@ -214,7 +213,7 @@ class HkvHashTable(LookupInterface):
     elif self._evict_strategy == HkvEvictStrategy.LFU or self._evict_strategy == HkvEvictStrategy.EPOCHLFU:
       return tf.ones(keys.shape, keys.dtype)
     else:
-      return self._default_scores
+      return tf.constant([], dtypes.int64)
 
   @property
   def name(self):
@@ -357,7 +356,7 @@ class HkvHashTable(LookupInterface):
     with ops.name_scope(
         name,
         "%s_lookup_table_insert" % self.name,
-        [self.resource_handle, keys, values, keys],
+        [self.resource_handle, keys, values],
     ):
       keys = ops.convert_to_tensor(keys, self._key_dtype, name="keys")
       values = ops.convert_to_tensor(values, self._value_dtype, name="values")

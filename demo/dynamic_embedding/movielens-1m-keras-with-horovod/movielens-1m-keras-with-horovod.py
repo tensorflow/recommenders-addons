@@ -190,9 +190,6 @@ class Bucketize(tf.keras.layers.Layer):
     self.boundaries = boundaries
     super(Bucketize, self).__init__(**kwargs)
 
-  def build(self, input_shape):
-    # Be sure to call this somewhere!
-    super(Bucketize, self).build(input_shape)
 
   def call(self, x, **kwargs):
     return tf.raw_ops.Bucketize(input=x, boundaries=self.boundaries)
@@ -202,6 +199,16 @@ class Bucketize(tf.keras.layers.Layer):
     base_config = super(Bucketize, self).get_config()
     return dict(list(base_config.items()) + list(config.items()))
 
+
+def get_kv_creator(mpi_size, mpi_rank):
+  gpus = tf.config.list_physical_devices('GPU')
+  saver = de.FileSystemSaver(proc_size=mpi_size, proc_rank=mpi_rank)
+  if gpus:
+    config = de.HkvHashTableConfig()
+    return de.HkvHashTableCreator(config=config, saver=saver)
+  else:
+    # The saver parameter of kv_creator saves the K-V in the hash table into a separate KV file.
+    return de.CuckooHashTableCreator(saver=saver)
 
 class ChannelEmbeddingLayers(tf.keras.layers.Layer):
 
@@ -214,9 +221,7 @@ class ChannelEmbeddingLayers(tf.keras.layers.Layer):
                mpi_rank=0):
 
     super(ChannelEmbeddingLayers, self).__init__()
-    # The saver parameter of kv_creator saves the K-V in the hash table into a separate KV file.
-    self.kv_creator = de.CuckooHashTableCreator(
-        saver=de.FileSystemSaver(proc_size=mpi_size, proc_rank=mpi_rank))
+    self.kv_creator = get_kv_creator(mpi_size, mpi_rank)
 
     self.dense_embedding_layer = de.keras.layers.HvdAllToAllEmbedding(
         mpi_size=mpi_size,
@@ -245,8 +250,6 @@ class ChannelEmbeddingLayers(tf.keras.layers.Layer):
         kernel_initializer=tf.keras.initializers.RandomNormal(0.0, 0.1),
         bias_initializer=tf.keras.initializers.RandomNormal(0.0, 0.1))
 
-  def build(self, input_shape):
-    super(ChannelEmbeddingLayers, self).build(input_shape)
 
   def __call__(self, features_info):
     dense_inputs = []
@@ -633,7 +636,6 @@ def test():
 
   dataset = get_dataset(batch_size=FLAGS.test_batch)
   model = tf.keras.models.load_model(FLAGS.export_dir)
-  signature = model.signatures['serving_default']
 
   def get_close_or_equal_cnt(model, features, ratings):
     preds = model(features)
@@ -653,6 +655,35 @@ def test():
         f'In batch prediction, step: {step}, {close_cnt}/{FLAGS.test_batch} are closely'
         f' accurate, {equal_cnt}/{FLAGS.test_batch} are absolutely accurate.')
 
+def inference():
+  de.enable_inference_mode()
+  model = tf.keras.models.load_model(FLAGS.export_dir)
+  print(f"model signature keys: {model.signatures.keys()} {model.signatures}")
+  inference_func = model.signatures['serve']
+
+  dataset = get_dataset(batch_size=FLAGS.test_batch)
+  it = iter(dataset)
+
+  def get_close_or_equal_cnt(preds, ratings):
+    preds = tf.math.argmax(preds, axis=1)
+    ratings = tf.math.argmax(ratings, axis=1)
+    close_cnt = tf.reduce_sum(
+      tf.cast(tf.math.abs(preds - ratings) <= 1, dtype=tf.int32))
+    equal_cnt = tf.reduce_sum(
+      tf.cast(tf.math.abs(preds - ratings) == 0, dtype=tf.int32))
+    return close_cnt, equal_cnt
+
+  for step in range(FLAGS.test_steps):
+    features, ratings = next(it)
+
+    outputs = inference_func(features)
+    preds = outputs['user_rating']
+
+    close_cnt, equal_cnt = get_close_or_equal_cnt(preds, ratings)
+
+    print(
+      f'In batch prediction, step: {step}, {close_cnt}/{FLAGS.test_batch} are closely'
+      f' accurate, {equal_cnt}/{FLAGS.test_batch} are absolutely accurate.')
 
 def main(argv):
   del argv
@@ -662,6 +693,8 @@ def main(argv):
     export()
   elif FLAGS.mode == 'test':
     test()
+  elif FLAGS.mode == 'inference':
+    inference()
   else:
     raise ValueError('running mode only supports `train` or `test`')
 
