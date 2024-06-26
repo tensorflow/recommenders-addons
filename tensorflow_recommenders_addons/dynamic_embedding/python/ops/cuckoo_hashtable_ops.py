@@ -105,10 +105,9 @@ class CuckooHashTable(LookupInterface):
     self._name = name
     self._new_obj_trackable = None  # for restore op can easily found this table
     self._max_capacity = sys.maxsize
-    self._max_hbm_for_values = sys.maxsize
+    self._max_hbm_for_values = 0
     self._device_type = tf_device.DeviceSpec.from_string(
         self._device).device_type
-    self._default_scores = tf.constant([], dtypes.int64)
 
     self._shared_name = None
     if context.executing_eagerly():
@@ -368,9 +367,8 @@ class CuckooHashTable(LookupInterface):
       with ops.colocate_with(self.resource_handle, ignore_existing=True):
         # pylint: disable=protected-access
         if self._device_type == "GPU":
-          return hkv_ops.tfra_hkv_hash_table_insert(self.resource_handle, keys,
-                                                    values,
-                                                    self._default_scores)
+          return hkv_ops.tfra_hkv_hash_table_insert(
+              self.resource_handle, keys, values, tf.constant([], dtypes.int64))
         else:
           return cuckoo_ops.tfra_cuckoo_hash_table_insert(
               self.resource_handle, keys, values)
@@ -407,9 +405,9 @@ class CuckooHashTable(LookupInterface):
       with ops.colocate_with(self.resource_handle, ignore_existing=True):
         # pylint: disable=protected-access
         if self._device_type == "GPU":
-          return hkv_ops.tfra_hkv_hash_table_accum(self.resource_handle, keys,
-                                                   values_or_deltas, exists,
-                                                   self._default_scores)
+          return hkv_ops.tfra_hkv_hash_table_accum(
+              self.resource_handle, keys, values_or_deltas, exists,
+              tf.constant([], dtypes.int64))
         else:
           return cuckoo_ops.tfra_cuckoo_hash_table_accum(
               self.resource_handle, keys, values_or_deltas, exists)
