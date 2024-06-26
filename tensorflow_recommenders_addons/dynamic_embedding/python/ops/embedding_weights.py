@@ -47,7 +47,7 @@ except:
   from tensorflow.python.distribute import distribution_strategy_context as distribute_ctx
 
 
-class EmbeddingWeights(abc.ABC):
+class EmbeddingWeights():
 
   @abc.abstractmethod
   def verify_embedding_weights(self, sparse_ids, sparse_weights=None):
