@@ -402,7 +402,7 @@ class HkvHashtableTest(test.TestCase):
                                                  dtype=dtypes.bool)
 
           table = de.get_variable(
-              'taccum1-' + str(id),
+              'taccum1-' + str(id) + device.split(':')[0],
               key_dtype=key_dtype,
               value_dtype=value_dtype,
               initializer=np.array([-1]).astype(_type_converter(value_dtype)),
