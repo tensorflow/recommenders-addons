@@ -20,6 +20,7 @@ limitations under the License.
 #include <stdio.h>
 #include <time.h>
 
+#include <algorithm>
 #include <limits>
 #include <string>
 #include <typeindex>
@@ -437,6 +438,8 @@ class TableWrapper {
     dim_ = dim;
     mkv_options_.init_capacity =
         std::min(init_options.init_capacity, max_capacity_);
+    mkv_options_.init_capacity =
+        std::max(mkv_options_.init_capacity, mkv_options_.max_bucket_size);
     mkv_options_.max_capacity = max_capacity_;
     // Since currently GPU nodes are not compatible to fast
     // pcie connections for D2H non-continous wirte, so just
