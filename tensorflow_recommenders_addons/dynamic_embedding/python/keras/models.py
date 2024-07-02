@@ -127,11 +127,11 @@ def _de_keras_save_func(original_save_func,
                                    proc_size=hvd.size(),
                                    proc_rank=hvd.rank())
 
-  _check_saveable_and_redirect_new_de_dir(hvd.rank())
   if hvd is None:
     call_original_save_func()
     _traverse_emb_layers_and_save(0)
   else:
+    _check_saveable_and_redirect_new_de_dir(hvd.rank())
     if hvd.rank() == 0:
       call_original_save_func()
     _traverse_emb_layers_and_save(hvd.rank())
