@@ -4,6 +4,8 @@ import shutil
 from absl import flags
 from absl import app
 
+from tensorflow_recommenders_addons import dynamic_embedding as de
+
 os.environ["TF_FORCE_GPU_ALLOW_GROWTH"] = "true"  #VERY IMPORTANT!
 os.environ["TF_GPU_THREAD_MODE"] = "gpu_private"
 # Because of the two environment variables above no non-standard library imports should happen before this.
@@ -371,7 +373,7 @@ class DualChannelsDeepModel(tf.keras.Model):
         embedding_initializer=embedding_initializer,
         mpi_size=mpi_size,
         mpi_rank=mpi_rank)
-
+    self.dynamic_layer_norm = de.keras.layers.LayerNormalization()
     self.dnn1 = tf.keras.layers.Dense(
         64,
         activation='relu',
@@ -427,7 +429,6 @@ class DualChannelsDeepModel(tf.keras.Model):
         for key, value in feature_info_spec.items()
         if key in user_fea
     }
-    user_latent = self.user_embedding(user_fea_info)
     movie_fea = ['movie_id', 'movie_genres', 'user_occupation_label']
     movie_fea = [i for i in features.keys() if i in movie_fea]
     movie_fea_info = {
@@ -435,14 +436,16 @@ class DualChannelsDeepModel(tf.keras.Model):
         for key, value in feature_info_spec.items()
         if key in movie_fea
     }
+    user_latent = self.user_embedding(user_fea_info)
     movie_latent = self.movie_embedding(movie_fea_info)
     latent = tf.concat([user_latent, movie_latent], axis=1)
 
-    x = self.dnn1(latent)
+    normalized_emb = self.dynamic_layer_norm(latent)
+    x = self.dnn1(normalized_emb)
     x = self.dnn2(x)
     x = self.dnn3(x)
 
-    bias = self.bias_net(latent)
+    bias = self.bias_net(normalized_emb)
     x = 0.2 * x + 0.8 * bias
     user_rating = tf.keras.layers.Lambda(lambda x: x, name='user_rating')(x)
     return {'user_rating': user_rating}
