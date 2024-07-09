@@ -118,7 +118,6 @@ class ShadowVariable(EmbeddingWeights, TrainableWrapper):
                                     dtype=self.params.key_dtype,
                                     distribute_strategy=distribute_strategy,
                                     shape=tensor_shape.TensorShape(None))
-      self._track_trackable(self.ids, ids_name, overwrite=False)
     else:
       if not isinstance(ids, resource_variable_ops.ResourceVariable):
         raise TypeError('If ids is set, it needs to be a ResourceVariable')
