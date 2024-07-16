@@ -157,6 +157,29 @@ class EmbeddingLayerTest(test.TestCase):
       model.fit(x, y, verbose=0)
       self.assertAllEqual(emb_layer.params.size(), start)
 
+  def test_backward_adagrad(self):
+    if not context.executing_eagerly():
+      self.skipTest('Only test in eager mode')
+    init = tf.keras.initializers.RandomNormal(seed=0)
+    model = get_sequential_model(de.keras.layers.Embedding,
+                                 4,
+                                 initializer=init,
+                                 bp_v2=False,
+                                 name='go582')
+    optmz = tf.keras.optimizers.Adagrad(1E-4)
+    optmz = de.DynamicEmbeddingOptimizer(optmz)
+    emb_layer = model.layers[0]
+    model.compile(optimizer=optmz, loss='binary_crossentropy')
+    start = 0
+    batch_size = 10
+    for i in range(1, 10):
+      x = math_ops.range(start, start + batch_size * i, dtype=dtypes.int64)
+      x = tf.reshape(x, (batch_size, -1))
+      start += batch_size * i
+      y = tf.zeros((batch_size, 1), dtype=dtypes.float32)
+      model.fit(x, y, verbose=0)
+      self.assertAllEqual(emb_layer.params.size(), start)
+
   def test_backward_bp_v2(self):
     if not context.executing_eagerly():
       self.skipTest('Only test in eager mode')

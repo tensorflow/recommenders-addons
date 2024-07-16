@@ -395,7 +395,7 @@ class FileSystemSaverConfig(object):
                proc_size: int = None,
                proc_rank: int = None,
                save_path: str = None,
-               buffer_size: int = 4194304):
+               buffer_size: int = 4096):
     """ FileSystemSaverConfig can be used to assign save_path of DynamicEmbeddings.
     """
     if type(proc_rank) != type(proc_size):
@@ -493,7 +493,7 @@ class FileSystemSaver(DynamicEmbeddingSaver):
                proc_size: int = None,
                proc_rank: int = None,
                save_path: str = None,
-               buffer_size: int = 4194304):
+               buffer_size: int = 4096):
     self.config = FileSystemSaverConfig(proc_size=proc_size,
                                         proc_rank=proc_rank,
                                         save_path=save_path,

@@ -99,7 +99,7 @@ def _de_keras_save_func(original_save_func,
       if hasattr(de_var, 'saveable'):
         de_var.saveable._saver_config.save_path = de_dir
 
-  def _traverse_emb_layers_and_save(hvd_rank=0):
+  def _traverse_emb_layers_and_save(proc_size=1, proc_rank=0):
     for var in model.variables:
       if not hasattr(var, "params"):
         continue
@@ -117,24 +117,24 @@ def _de_keras_save_func(original_save_func,
               a2a_emb.optimizer_vars, "as_list") else a2a_emb.optimizer_vars
           for de_opt_var in de_opt_vars:
             de_opt_var.save_to_file_system(dirpath=de_dir,
-                                           proc_size=hvd.size(),
-                                           proc_rank=hvd.rank())
-        if hvd_rank == 0:
+                                           proc_size=proc_size,
+                                           proc_rank=proc_rank)
+        if proc_rank == 0:
           # FileSystemSaver works well at rank 0.
           continue
         # save Dynamic Embedding Parameters
         de_var.save_to_file_system(dirpath=de_dir,
-                                   proc_size=hvd.size(),
-                                   proc_rank=hvd.rank())
+                                   proc_size=proc_size,
+                                   proc_rank=proc_rank)
 
   if hvd is None:
     call_original_save_func()
-    _traverse_emb_layers_and_save(0)
+    _traverse_emb_layers_and_save()
   else:
     _check_saveable_and_redirect_new_de_dir(hvd.rank())
     if hvd.rank() == 0:
       call_original_save_func()
-    _traverse_emb_layers_and_save(hvd.rank())
+    _traverse_emb_layers_and_save(hvd.size, hvd.rank())
     hvd.join()  # Sync for avoiding rank conflict
 
 

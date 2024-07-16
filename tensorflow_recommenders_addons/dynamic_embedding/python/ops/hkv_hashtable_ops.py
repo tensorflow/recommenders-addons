@@ -433,6 +433,20 @@ class HkvHashTable(LookupInterface):
             split_size=split_size)
     return keys, scores
 
+  def export_with_scores(self, split_size, name=None):
+    if not (split_size > 0 and isinstance(split_size, int)):
+      raise ValueError(f'split_size must be positive integer.')
+
+    with ops.name_scope(name, "%s_lookup_table_export_with_scores" % self.name,
+                        [self.resource_handle]):
+      with ops.colocate_with(self.resource_handle):
+        keys, values, scores = hkv_ops.tfra_hkv_hash_table_export_with_scores(
+            self.resource_handle,
+            key_dtype=self._key_dtype,
+            value_dtype=self._value_dtype,
+            split_size=split_size)
+    return keys, values, scores
+
   def save_to_file_system(self,
                           dirpath,
                           file_name=None,

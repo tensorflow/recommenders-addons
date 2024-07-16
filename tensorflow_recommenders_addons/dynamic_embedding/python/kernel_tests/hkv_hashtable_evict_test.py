@@ -194,6 +194,50 @@ class HkvHashtableTest(test.TestCase):
 
         del table
 
+  @test_util.run_in_graph_and_eager_modes()
+  def test_export_with_scores(self):
+    if not is_gpu_available:
+      self.skipTest('Only test when gpu is available.')
+    key_dtype = dtypes.int64
+    value_dtype = dtypes.int32
+    dim = 8
+    for strategy in de.HkvEvictStrategy:
+      with self.session(use_gpu=True, config=default_config):
+        table = de.get_variable(
+            str(strategy),
+            key_dtype=key_dtype,
+            value_dtype=value_dtype,
+            initializer=0,
+            dim=dim,
+            init_size=1024,
+            kv_creator=de.HkvHashTableCreator(
+                config=de.HkvHashTableConfig(init_capacity=1024,
+                                             max_capacity=1024,
+                                             max_hbm_for_values=1024 * 64,
+                                             evict_strategy=strategy,
+                                             gen_scores_fn=gen_scores_fn)))
+        keys = constant_op.constant(
+            np.array([0, 1, 2, 3]).astype(_type_converter(key_dtype)),
+            key_dtype)
+        values = constant_op.constant(
+            _convert([[0] * dim, [1] * dim, [2] * dim, [3] * dim], value_dtype),
+            value_dtype)
+
+        self.evaluate(table.upsert(keys, values))
+
+        exported_keys, exported_values, exported_scores = self.evaluate(
+            table.export_with_scores(1))
+        self.assertAllEqual(np.sort(exported_keys), keys)
+        self.assertAllEqual(exported_values, values)
+        if strategy is de.HkvEvictStrategy.CUSTOMIZED:
+          self.assertAllEqual(np.sort(exported_scores), gen_scores_fn(keys))
+        elif strategy is de.HkvEvictStrategy.EPOCHLFU:
+          self.assertAllEqual(exported_scores, np.full((4), 1))
+        elif strategy is de.HkvEvictStrategy.LFU:
+          self.assertAllEqual(exported_scores, np.ones(4))
+
+        del table
+
   def test_evict_strategy_lfu(self):
     if not is_gpu_available:
       self.skipTest('Only test when gpu is available.')
