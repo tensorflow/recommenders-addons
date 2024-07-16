@@ -256,6 +256,26 @@ REGISTER_OP(PREFIX_OP_NAME(HkvHashTableSaveToFileSystem))
     .Attr("dirpath_env: string")
     .Attr("append_to_file: bool")
     .Attr("buffer_size: int >= 1");
+REGISTER_OP(PREFIX_OP_NAME(HkvHashTableExportWithScores))
+    .Input("table_handle: resource")
+    .Output("keys: key_dtype")
+    .Output("values: value_dtype")
+    .Output("scores: int64")
+    .Attr("key_dtype: type")
+    .Attr("value_dtype: type")
+    .Attr("split_size: int")
+    .SetShapeFn([](InferenceContext* c) {
+      ShapeHandle handle;
+      TF_RETURN_IF_ERROR(c->WithRank(c->input(0), 0, &handle));
+      ShapeHandle keys = c->UnknownShapeOfRank(1);
+      ShapeHandle values = c->UnknownShapeOfRank(1);
+      ShapeHandle scores = c->UnknownShapeOfRank(1);
+      ShapeAndType value_shape_and_type;
+      c->set_output(0, keys);
+      c->set_output(1, values);
+      c->set_output(2, scores);
+      return TFOkStatus;
+    });
 REGISTER_OP(PREFIX_OP_NAME(HkvHashTableExportKeysAndScores))
     .Input("table_handle: resource")
     .Output("keys: key_dtype")

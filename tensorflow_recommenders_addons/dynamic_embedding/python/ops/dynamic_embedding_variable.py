@@ -717,7 +717,27 @@ class Variable(EmbeddingWeights, base.Trackable):
       else:
         raise ValueError
     except:
-      init = array_ops.fill([dim], array_ops.reshape(init, [-1])[0])
+
+      def is_indexable_and_nonempty(obj):
+        has_getitem = hasattr(obj, '__getitem__')
+        is_nonempty = hasattr(obj, '__len__') and len(obj) > 0
+        return has_getitem and is_nonempty
+
+      if isinstance(init, int) or isinstance(init, float):
+        first_element = init
+      elif not isinstance(init, tf.Tensor) and is_indexable_and_nonempty(init):
+        first_element = init[0]
+      else:
+        reshaped_init = array_ops.reshape(init, [-1])
+        size_of_reshaped_init = tf.size(reshaped_init)
+
+        def get_default_value():
+          default_value = 0.0 if self.value_dtype.is_floating else 0
+          return tf.constant(default_value, dtype=self.value_dtype)
+
+        first_element = tf.cond(tf.greater(size_of_reshaped_init, 0),
+                                lambda: reshaped_init[0], get_default_value)
+      init = array_ops.fill([dim], first_element)
     init = math_ops.cast(init, dtype=self.value_dtype)
     return init
 
