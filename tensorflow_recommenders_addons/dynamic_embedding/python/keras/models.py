@@ -134,7 +134,7 @@ def _de_keras_save_func(original_save_func,
     _check_saveable_and_redirect_new_de_dir(hvd.rank())
     if hvd.rank() == 0:
       call_original_save_func()
-    _traverse_emb_layers_and_save(hvd.size, hvd.rank())
+    _traverse_emb_layers_and_save(hvd.size(), hvd.rank())
     hvd.join()  # Sync for avoiding rank conflict
 
 

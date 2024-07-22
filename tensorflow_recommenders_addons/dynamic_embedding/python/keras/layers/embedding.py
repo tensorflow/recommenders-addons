@@ -128,6 +128,7 @@ class Embedding(tf.keras.layers.Layer):
                devices=None,
                name='DynamicEmbeddingLayer',
                with_unique=True,
+               short_file_name=False,
                **kwargs):
     """
     Creates an Embedding layer.
@@ -165,6 +166,8 @@ class Embedding(tf.keras.layers.Layer):
         distribute_strategy: Used when creating ShadowVariable.
         keep_distribution: Bool. If true, save and restore python object with
           devices information. Default is false.
+        short_file_name: Bool. If True, the file name will not use scope name as prefix and create_slots will not
+          use op_name to avoid file name over 255. the default is False to keep the same behavior as before.
     """
 
     try:
@@ -200,7 +203,8 @@ class Embedding(tf.keras.layers.Layer):
                                     kv_creator=kwargs.get('kv_creator', None),
                                     restrict_policy=kwargs.get(
                                         'restrict_policy', None),
-                                    bp_v2=kwargs.get('bp_v2', False))
+                                    bp_v2=kwargs.get('bp_v2', False),
+                                    short_file_name=short_file_name)
 
       self.distribute_strategy = kwargs.get('distribute_strategy', None)
       shadow_name = name + '-shadow' if name else 'ShadowVariable'

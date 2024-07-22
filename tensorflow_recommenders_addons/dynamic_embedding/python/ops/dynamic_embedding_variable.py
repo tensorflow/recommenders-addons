@@ -476,6 +476,7 @@ class Variable(EmbeddingWeights, base.Trackable):
       kv_creator=None,
       restrict_policy=None,
       bp_v2=False,
+      short_file_name=False,
   ):
     """Creates an empty `Variable` object.
 
@@ -528,7 +529,8 @@ class Variable(EmbeddingWeights, base.Trackable):
             parameters by *adding delta* instead of *setting*, which solves the
             race condition problem among workers during backpropagation in
             large-scale distributed asynchronous training.
-
+          short_file_name: If True, the file name will not use scope name as prefix and create_slots will not
+            use op_name to avoid file name over 255. the default is False to keep the same behavior as before.
         Returns:
           A `Variable` object.
     """
@@ -536,6 +538,7 @@ class Variable(EmbeddingWeights, base.Trackable):
     self.value_dtype = value_dtype
     self.dim = dim
     self.bp_v2 = bp_v2
+    self.short_file_name = short_file_name
 
     def _get_default_devices():
       gpu_list = [
@@ -632,7 +635,6 @@ class Variable(EmbeddingWeights, base.Trackable):
       with ops.colocate_with(None, ignore_existing=True):
         for idx in range(len(self.devices)):
           with ops.device(self.devices[idx]):
-            mht = None
             if not issubclass(self.kv_creator.__class__, de.KVCreator):
               raise TypeError("config should be instance of 'config', but got ",
                               str(type(self.kv_creator)))
@@ -1254,6 +1256,7 @@ def get_variable(
     kv_creator=None,
     restrict_policy=None,
     bp_v2=False,
+    short_file_name=False,
 ):
   """Gets an `Variable` object with this name if it exists,
          or create a new one.
@@ -1297,14 +1300,15 @@ def get_variable(
         parameters by *adding delta* instead of *setting*, which solves the
         race condition problem among workers during backpropagation in
         large-scale distributed asynchronous training.
-
+      short_file_name: If True, the file name will not use scope name as prefix and create_slots will not
+          use op_name to avoid file name over 255. the default is False to keep the same behavior as before.
     Returns:
       A `Variable` object.
     """
-  var_ = None
   scope = variable_scope.get_variable_scope()
   scope_store = variable_scope._get_default_variable_store()
-  full_name = scope.name + "/" + name if scope.name else name
+
+  full_name = scope.name + "/" + name if scope.name and not short_file_name else name
   if full_name in scope_store._vars:
     if scope.reuse is False:
       err_msg = ("Variable %s already exists, disallowed."
@@ -1328,6 +1332,7 @@ def get_variable(
         kv_creator=kv_creator,
         restrict_policy=restrict_policy,
         bp_v2=bp_v2,
+        short_file_name=short_file_name,
     )
     scope_store._vars[full_name] = var_
   return scope_store._vars[full_name]

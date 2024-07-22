@@ -867,7 +867,11 @@ def create_slots(variable, init, slot_name, op_name, bp_v2):
     params_var_ = primary.params
 
   scope_store = variable_scope._get_default_variable_store()
-  full_name = params_var_.name + "/" + op_name + "/" + slot_name
+  if params_var_.short_file_name:
+    full_name = params_var_.name + "/" + slot_name
+  else:
+    full_name = params_var_.name + "/" + op_name + "/" + slot_name
+
   if full_name not in scope_store._vars:
     with ops.colocate_with(primary, ignore_existing=True):
       slot_variable_ = de.Variable(
