@@ -267,7 +267,9 @@ class ChannelEmbeddingLayers(tf.keras.layers.Layer):
         name=name + '_DenseUnifiedEmbeddingLayer',
         bp_v2=True,
         init_capacity=init_capacity,
-        kv_creator=kv_creator_dense)
+        kv_creator=kv_creator_dense,
+        short_file_name=True,
+    )
 
     kv_creator_sparse = get_kv_creator(mpi_size, mpi_rank, init_capacity,
                                        tf.dtypes.float32.size,
@@ -280,7 +282,9 @@ class ChannelEmbeddingLayers(tf.keras.layers.Layer):
         initializer=embedding_initializer,
         name=name + '_SparseUnifiedEmbeddingLayer',
         init_capacity=4096000,
-        kv_creator=kv_creator_sparse)
+        kv_creator=kv_creator_sparse,
+        short_file_name=True,
+    )
 
     self.dnn = tf.keras.layers.Dense(
         128,
