@@ -98,8 +98,9 @@ def DynamicEmbeddingOptimizer(self, bp_v2=False, synchronous=False, **kwargs):
     bp_v2: If True, updating parameters will use updating instead of setting, which solves
       the race condition problem among workers during back-propagation in large-scale
       distributed asynchronous training. Reference: https://www.usenix.org/system/files/osdi20-jiang.pdf
-    synchronous: If True, we will use DE custom all-reduce method(now implemented by horovod) to merge the dense grad of model parameter, 
-      the default reduce method is SUM. For TrainableWrapper's grad, keep same with before.
+    synchronous: If True, we will use DE custom all-reduce method(now implemented by horovod) to merge the dense grad
+      of model parameter, the default reduce method is SUM. If False, we should use
+      For TrainableWrapper's grad, keep same with before.
 
   Example usage:
 

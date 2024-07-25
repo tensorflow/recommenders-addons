@@ -1,3 +1,4 @@
+import math
 import os
 import shutil
 
@@ -229,16 +230,21 @@ def get_kv_creator(mpi_size: int,
                    value_size: int = 4,
                    dim: int = 16):
   gpus = tf.config.list_physical_devices('GPU')
+  # The saver parameter of kv_creator saves the K-V in the hash table into a separate KV file.
   saver = de.FileSystemSaver(proc_size=mpi_size, proc_rank=mpi_rank)
   if gpus:
     max_capacity = 2 * vocab_size
-    config = de.HkvHashTableConfig(init_capacity=vocab_size,
-                                   max_capacity=max_capacity,
-                                   max_hbm_for_values=max_capacity *
-                                   value_size * dim)
+    # HKV use 128 slots per bucket, the key may lost if same bucket has more than 128 keys
+    # so set the factor larger than max_capacity to avoid this case
+    factor = mpi_size * 0.7
+    config = de.HkvHashTableConfig(
+        init_capacity=math.ceil(vocab_size / factor),
+        max_capacity=math.ceil(max_capacity / factor),
+        max_hbm_for_values=math.ceil(max_capacity * value_size * dim / factor))
     return de.HkvHashTableCreator(config=config, saver=saver)
   else:
-    # The saver parameter of kv_creator saves the K-V in the hash table into a separate KV file.
+    # for CuckooHashTable case the init_capacity passed in by Embedding layer
+    # it handles one node multiple gpu but not multi-nodes case
     return de.CuckooHashTableCreator(saver=saver)
 
 
@@ -265,7 +271,6 @@ class ChannelEmbeddingLayers(tf.keras.layers.Layer):
         value_dtype=tf.float32,
         initializer=embedding_initializer,
         name=name + '_DenseUnifiedEmbeddingLayer',
-        bp_v2=True,
         init_capacity=init_capacity,
         kv_creator=kv_creator_dense,
         short_file_name=True,
@@ -281,7 +286,7 @@ class ChannelEmbeddingLayers(tf.keras.layers.Layer):
         value_dtype=tf.float32,
         initializer=embedding_initializer,
         name=name + '_SparseUnifiedEmbeddingLayer',
-        init_capacity=4096000,
+        init_capacity=init_capacity,
         kv_creator=kv_creator_sparse,
         short_file_name=True,
     )
@@ -413,17 +418,14 @@ class DualChannelsDeepModel(tf.keras.Model):
         input_tensor = Bucketize(
             boundaries=fea_info['boundaries'])(input_tensor)
       # To prepare for GPU table combined queries, use a prefix to distinguish different features in a table.
-      if fea_info['ptype'] == 'normal_gpu':
-        if fea_info['dtype'] == tf.int64:
-          input_tensor_prefix_code = int(fea_info['code']) << 17
-        elif fea_info['dtype'] == tf.int32:
-          input_tensor_prefix_code = int(fea_info['code']) << 14
-        else:
-          input_tensor_prefix_code = None
-        if input_tensor_prefix_code is not None:
-          # input_tensor = tf.bitwise.bitwise_xor(input_tensor, input_tensor_prefix_code)
-          # xor operation can be replaced with addition operation to facilitate subsequent optimization of TRT and OpenVino.
-          input_tensor = tf.add(input_tensor, input_tensor_prefix_code)
+      if fea_info['ptype'] == 'user_occupation_label':
+        input_tensor_prefix_code = int(fea_info['code']) << 1
+      else:
+        input_tensor_prefix_code = None
+      if input_tensor_prefix_code is not None:
+        # input_tensor = tf.bitwise.bitwise_xor(input_tensor, input_tensor_prefix_code)
+        # xor operation can be replaced with addition operation to facilitate subsequent optimization of TRT and OpenVino.
+        input_tensor = tf.add(input_tensor, input_tensor_prefix_code)
       fea_info['pretreated_tensor'] = input_tensor
 
     user_fea = ['user_id', 'user_gender', 'user_occupation_label']
@@ -624,7 +626,7 @@ def train():
                                 tf.keras.initializers.RandomNormal(0.0, 0.5),
                                 True, get_cluster_size(), get_rank())
   optimizer = Adam(1E-3)
-  optimizer = de.DynamicEmbeddingOptimizer(optimizer)
+  optimizer = de.DynamicEmbeddingOptimizer(optimizer, synchronous=True)
 
   auc = tf.keras.metrics.AUC(num_thresholds=1000)
   model.compile(optimizer=optimizer,
