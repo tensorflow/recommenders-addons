@@ -2,6 +2,7 @@ import math
 import os
 import shutil
 
+import keras.layers
 from absl import flags
 from absl import app
 
@@ -70,62 +71,20 @@ flags.DEFINE_integer('test_batch', 1024, 'test batch size.')
 flags.DEFINE_bool('shuffle', True, 'shuffle dataset.')
 FLAGS = flags.FLAGS
 
-input_spec = {
-    'user_id':
-        tf.TensorSpec(shape=[
-            None,
-            1,
-        ], dtype=tf.int64, name='user_id'),
-    'user_gender':
-        tf.TensorSpec(shape=[
-            None,
-            1,
-        ], dtype=tf.int64, name='user_gender'),
-    'user_occupation_label':
-        tf.TensorSpec(shape=[
-            None,
-            1,
-        ],
-                      dtype=tf.int64,
-                      name='user_occupation_label'),
-    'bucketized_user_age':
-        tf.TensorSpec(shape=[
-            None,
-            1,
-        ],
-                      dtype=tf.int64,
-                      name='bucketized_user_age'),
-    'movie_id':
-        tf.TensorSpec(shape=[
-            None,
-            1,
-        ], dtype=tf.int64, name='movie_id'),
-    'movie_genres':
-        tf.TensorSpec(shape=[
-            None,
-            1,
-        ], dtype=tf.int64, name='movie_genres'),
-    'timestamp':
-        tf.TensorSpec(shape=[
-            None,
-            1,
-        ], dtype=tf.int64, name='timestamp')
-}
-
 feature_info_spec = {
     'movie_id': {
         'code': 101,
         'dtype': tf.int64,
         'dim': 1,
-        'ptype': 'sparse_cpu',
+        'vocab': 0,
         'input_tensor': None,
         'pretreated_tensor': None
     },
     'movie_genres': {
         'code': 102,
         'dtype': tf.int64,
-        'dim': 1,
-        'ptype': 'normal_gpu',
+        'dim': 0,  # means variable length
+        'vocab': 20,
         'input_tensor': None,
         'pretreated_tensor': None,
     },
@@ -133,7 +92,7 @@ feature_info_spec = {
         'code': 103,
         'dtype': tf.int64,
         'dim': 1,
-        'ptype': 'sparse_cpu',
+        'vocab': 0,
         'input_tensor': None,
         'pretreated_tensor': None,
     },
@@ -141,7 +100,7 @@ feature_info_spec = {
         'code': 104,
         'dtype': tf.int64,
         'dim': 1,
-        'ptype': 'normal_gpu',
+        'vocab': 2,
         'input_tensor': None,
         'pretreated_tensor': None,
     },
@@ -149,7 +108,7 @@ feature_info_spec = {
         'code': 105,
         'dtype': tf.int64,
         'dim': 1,
-        'ptype': 'normal_gpu',
+        'vocab': 22,
         'input_tensor': None,
         'pretreated_tensor': None,
     },
@@ -157,7 +116,7 @@ feature_info_spec = {
         'code': 106,
         'dtype': tf.int64,
         'dim': 1,
-        'ptype': 'normal_gpu',
+        'vocab': 10,
         'input_tensor': None,
         'pretreated_tensor': None,
         'boundaries': [i for i in range(0, 100, 10)],
@@ -166,11 +125,18 @@ feature_info_spec = {
         'code': 107,
         'dtype': tf.int64,
         'dim': 1,
-        'ptype': 'normal_gpu',
+        'vocab': 0,
         'input_tensor': None,
         'pretreated_tensor': None,
     }
 }
+# use one vocab size for both user and movie tower for simplicity
+# encoding: user tower: user_occupation_label then user_gender
+# movie tower: user_occupation_label then movie_genres
+vocab_size = feature_info_spec['user_occupation_label'][
+    'vocab'] + feature_info_spec['user_gender']['vocab'] + feature_info_spec[
+        'movie_genres']['vocab']
+prefix_size = feature_info_spec['user_occupation_label']['vocab']
 
 
 # Auxiliary function of GPU hash table combined query, recording which input is a vector feature embedding to be marked as a special treatment (usually an average) after embedding layer.
@@ -183,7 +149,7 @@ def embedding_inputs_concat(input_tensors, input_dims):
       raise ("Please make sure dimension size of all input tensors is 2!")
     if dim == 1:
       tmp_sum = tmp_sum + 1
-    elif dim > 1:
+    elif dim > 1:  # fixed seq features
       if tmp_sum > 0:
         input_split_dims.append(tmp_sum)
         input_is_sequence_feature.append(False)
@@ -191,7 +157,7 @@ def embedding_inputs_concat(input_tensors, input_dims):
       input_is_sequence_feature.append(True)
       tmp_sum = 0
     else:
-      raise ("dim must >= 1, which is {}".format(dim))
+      raise ("dim must >= 0, which is {}".format(dim))
   if tmp_sum > 0:
     input_split_dims.append(tmp_sum)
     input_is_sequence_feature.append(False)
@@ -224,6 +190,43 @@ class Bucketize(tf.keras.layers.Layer):
     return dict(list(base_config.items()) + list(config.items()))
 
 
+def concat_tensors(tensors):
+  flat_values = []
+  row_lengths = []  # This will now be a list of lists
+
+  for tensor in tensors:
+    if isinstance(tensor, tf.RaggedTensor):
+      flat_values.append(tensor.flat_values)
+      row_lengths.append(tensor.row_lengths())  # Append as a sublist
+    else:
+      flat_values.append(tf.reshape(tensor, [-1]))
+      tensor_row_lengths = tf.ones(tf.shape(tensor)[0], dtype=tf.int32)
+      row_lengths.append(tensor_row_lengths)
+  concatenated = tf.concat(flat_values, axis=0)
+  return concatenated, row_lengths
+
+
+def concat_embedding(tensors, embeddings, row_lengths):
+  offset = 0
+  results = []
+  for i, tensor in enumerate(tensors):
+    if isinstance(tensor, tf.RaggedTensor):
+      count = tf.shape(tensor.flat_values)[0]
+      ragged_embeddings = tf.RaggedTensor.from_row_lengths(
+          embeddings[offset:offset + count], row_lengths[i])
+      pooled = tf.reduce_mean(ragged_embeddings, axis=1)
+      results.append(pooled)
+      offset += count
+    else:
+      count = tf.shape(tensor)[0]
+      pooled_embeddings = tf.reshape(embeddings[offset:offset + count],
+                                     [-1, embeddings.shape[-1]])
+      results.append(pooled_embeddings)
+      offset += count
+
+  return tf.concat(results, axis=1)
+
+
 def get_kv_creator(mpi_size: int,
                    mpi_rank: int,
                    vocab_size: int = 1,
@@ -254,28 +257,20 @@ class ChannelEmbeddingLayers(tf.keras.layers.Layer):
                name='',
                dense_embedding_size=1,
                sparse_embedding_size=1,
+               dense_dim=1,
                embedding_initializer=tf.keras.initializers.Zeros(),
                mpi_size=1,
                mpi_rank=0):
 
     super(ChannelEmbeddingLayers, self).__init__()
-    init_capacity = 4096000
-    kv_creator_dense = get_kv_creator(mpi_size, mpi_rank, init_capacity,
-                                      tf.dtypes.float32.size,
-                                      dense_embedding_size)
-
-    self.dense_embedding_layer = de.keras.layers.HvdAllToAllEmbedding(
-        mpi_size=mpi_size,
-        embedding_size=dense_embedding_size,
-        key_dtype=tf.int64,
-        value_dtype=tf.float32,
-        initializer=embedding_initializer,
+    self.dense_embedding_layer = keras.layers.Embedding(
+        input_dim=dense_dim,
+        output_dim=dense_embedding_size,
+        embeddings_initializer=embedding_initializer,
         name=name + '_DenseUnifiedEmbeddingLayer',
-        init_capacity=init_capacity,
-        kv_creator=kv_creator_dense,
-        short_file_name=True,
-    )
+        dtype=tf.float32)
 
+    init_capacity = 4096000
     kv_creator_sparse = get_kv_creator(mpi_size, mpi_rank, init_capacity,
                                        tf.dtypes.float32.size,
                                        sparse_embedding_size)
@@ -299,47 +294,28 @@ class ChannelEmbeddingLayers(tf.keras.layers.Layer):
 
   def __call__(self, features_info):
     dense_inputs = []
-    dense_input_dims = []
     sparse_inputs = []
     sparse_input_dims = []
     for fea_name, fea_info in features_info.items():
       # The features of GPU table and CPU table to be combined and queried are processed separately.
-      if fea_info['ptype'] == 'normal_gpu':
+      if fea_info['vocab'] > 0:
         dense_inputs.append(fea_info['pretreated_tensor'])
-        dense_input_dims.append(fea_info['dim'])
-      elif fea_info['ptype'] == 'sparse_cpu':
-        sparse_inputs.append(fea_info['pretreated_tensor'])
-        sparse_input_dims.append(fea_info['dim'])
       else:
-        ptype = fea_info['ptype']
-        raise NotImplementedError(f'Not support ptype {ptype}.')
-    # The GPU table combined query starts
-    dense_input_tensors_concat, dense_input_split_dims, dense_input_is_sequence_feature = \
-      embedding_inputs_concat(dense_inputs, dense_input_dims)
+        sparse_inputs.append(fea_info['pretreated_tensor'])
+    assert len(sparse_inputs) == 1, "Only one sparse input is supported."
+    dense_input_tensors_concat, row_length = concat_tensors(dense_inputs)
     dense_emb_concat = self.dense_embedding_layer(dense_input_tensors_concat)
-    # The CPU table combined query starts
-    sparse_input_tensors_concat, sparse_input_split_dims, sparse_input_is_sequence_feature = \
-      embedding_inputs_concat(sparse_inputs, sparse_input_dims)
-    sparse_emb_concat = self.sparse_embedding_layer(sparse_input_tensors_concat)
-    # Slice the combined query result
-    dense_emb_outs = embedding_out_split(dense_emb_concat,
-                                         dense_input_split_dims)
-    sparse_emb_outs = embedding_out_split(sparse_emb_concat,
-                                          sparse_input_split_dims)
+    dense_emb_outs = concat_embedding(dense_inputs, dense_emb_concat,
+                                      row_length)
+    sparse_emb_concat = self.sparse_embedding_layer(sparse_inputs[0])
     # Process the results of the combined query after slicing.
     embedding_outs = []
-    input_is_sequence_feature = dense_input_is_sequence_feature + sparse_input_is_sequence_feature
-    for i, embedding in enumerate(dense_emb_outs + sparse_emb_outs):
-      if input_is_sequence_feature[i] == True:
-        # Deal with the embedding from vector features.
-        embedding_vec = tf.math.reduce_mean(
-            embedding, axis=1,
-            keepdims=True)  # (feature_combin_num, (batch, x, emb_size))
-      else:
-        embedding_vec = embedding
-      embedding_vec = tf.keras.layers.Flatten()(embedding_vec)
-      embedding_outs.append(embedding_vec)
+
+    embedding_vec = tf.keras.layers.Flatten()(sparse_emb_concat)
+    embedding_outs.append(embedding_vec)
     # Final embedding result.
+    dense_emb_outs = tf.keras.layers.Flatten()(dense_emb_outs)
+    embedding_outs.append(dense_emb_outs)
     embeddings_concat = tf.keras.layers.Concatenate(axis=1)(embedding_outs)
 
     return self.dnn(embeddings_concat)
@@ -372,6 +348,7 @@ class DualChannelsDeepModel(tf.keras.Model):
         name='user',
         dense_embedding_size=user_embedding_size,
         sparse_embedding_size=user_embedding_size * 2,
+        dense_dim=vocab_size,
         embedding_initializer=embedding_initializer,
         mpi_size=mpi_size,
         mpi_rank=mpi_rank)
@@ -379,6 +356,7 @@ class DualChannelsDeepModel(tf.keras.Model):
         name='movie',
         dense_embedding_size=movie_embedding_size,
         sparse_embedding_size=movie_embedding_size * 2,
+        dense_dim=vocab_size,
         embedding_initializer=embedding_initializer,
         mpi_size=mpi_size,
         mpi_rank=mpi_rank)
@@ -412,20 +390,14 @@ class DualChannelsDeepModel(tf.keras.Model):
       input_tensor = features[fea_name]
       input_tensor = tf.keras.layers.Lambda(lambda x: x,
                                             name=fea_name)(input_tensor)
-      input_tensor = tf.reshape(input_tensor, (-1, fea_info['dim']))
+      if fea_info['dim'] > 0:
+        input_tensor = tf.reshape(input_tensor, (-1, fea_info['dim']))
       fea_info['input_tensor'] = input_tensor
       if fea_info.__contains__('boundaries'):
         input_tensor = Bucketize(
             boundaries=fea_info['boundaries'])(input_tensor)
-      # To prepare for GPU table combined queries, use a prefix to distinguish different features in a table.
-      if fea_info['ptype'] == 'user_occupation_label':
-        input_tensor_prefix_code = int(fea_info['code']) << 1
-      else:
-        input_tensor_prefix_code = None
-      if input_tensor_prefix_code is not None:
-        # input_tensor = tf.bitwise.bitwise_xor(input_tensor, input_tensor_prefix_code)
-        # xor operation can be replaced with addition operation to facilitate subsequent optimization of TRT and OpenVino.
-        input_tensor = tf.add(input_tensor, input_tensor_prefix_code)
+      if fea_name == 'user_gender' or fea_name == 'movie_genres':
+        input_tensor = tf.add(input_tensor, prefix_size)
       fea_info['pretreated_tensor'] = input_tensor
 
     user_fea = ['user_id', 'user_gender', 'user_occupation_label']
@@ -462,23 +434,23 @@ def get_dataset(batch_size=1):
                  split="train",
                  data_dir="~/dataset",
                  download=True)
-  features = ds.map(
-      lambda x: {
-          "movie_id":
-              tf.strings.to_number(x["movie_id"], tf.int64),
-          "movie_genres":
-              tf.cast(x["movie_genres"][0], tf.int64),
-          "user_id":
-              tf.strings.to_number(x["user_id"], tf.int64),
-          "user_gender":
-              tf.cast(x["user_gender"], tf.int64),
-          "user_occupation_label":
-              tf.cast(x["user_occupation_label"], tf.int64),
-          "bucketized_user_age":
-              tf.cast(x["bucketized_user_age"], tf.int64),
-          "timestamp":
-              tf.cast(x["timestamp"] - 880000000, tf.int64),
-      })
+
+  def process_features(x):
+    # read seq as ragged tensor
+    movie_genres_ragged = tf.RaggedTensor.from_tensor(tf.expand_dims(
+        x['movie_genres'], axis=-1),
+                                                      lengths=None)
+    return {
+        "movie_id": tf.strings.to_number(x["movie_id"], tf.int64),
+        "movie_genres": movie_genres_ragged,
+        "user_id": tf.strings.to_number(x["user_id"], tf.int64),
+        "user_gender": tf.cast(x["user_gender"], tf.int64),
+        "user_occupation_label": tf.cast(x["user_occupation_label"], tf.int64),
+        "bucketized_user_age": tf.cast(x["bucketized_user_age"], tf.int64),
+        "timestamp": tf.cast(x["timestamp"] - 880000000, tf.int64),
+    }
+
+  features = ds.map(process_features)
 
   ratings = ds.map(lambda x: {
       "user_rating":
@@ -713,8 +685,8 @@ def test():
 
   def get_close_or_equal_cnt(model, features, ratings):
     preds = model(features)
-    preds = tf.math.argmax(preds, axis=1)
-    ratings = tf.math.argmax(ratings, axis=1)
+    preds = tf.math.argmax(preds['user_rating'], axis=1)
+    ratings = tf.math.argmax(ratings['user_rating'], axis=1)
     close_cnt = tf.reduce_sum(
         tf.cast(tf.math.abs(preds - ratings) <= 1, dtype=tf.int32))
     equal_cnt = tf.reduce_sum(
@@ -732,6 +704,7 @@ def test():
 
 def inference():
   de.enable_inference_mode()
+  # model = keras.models.load_model(
   model = tf.keras.models.load_model(FLAGS.export_dir)
   print(f"model signature keys: {model.signatures.keys()} {model.signatures}")
   inference_func = model.signatures['serving_default']
@@ -740,8 +713,8 @@ def inference():
   it = iter(dataset)
 
   def get_close_or_equal_cnt(preds, ratings):
-    preds = tf.math.argmax(preds['user_rating'], axis=1)
-    ratings = tf.math.argmax(ratings['user_rating'], axis=1)
+    preds = tf.math.argmax(preds, axis=1)
+    ratings = tf.math.argmax(ratings, axis=1)
     close_cnt = tf.reduce_sum(
         tf.cast(tf.math.abs(preds - ratings) <= 1, dtype=tf.int32))
     equal_cnt = tf.reduce_sum(
