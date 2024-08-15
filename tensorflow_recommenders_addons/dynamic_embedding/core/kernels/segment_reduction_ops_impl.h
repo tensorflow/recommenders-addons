@@ -42,8 +42,8 @@ limitations under the License.
 #include "tensorflow/core/platform/logging.h"
 #include "tensorflow/core/util/util.h"
 #if TF_VERSION_INTEGER >= 2160
-#include "unsupported/Eigen/CXX11/Tensor"
 #include "Eigen/Core"
+#include "unsupported/Eigen/CXX11/Tensor"
 #else
 #include "third_party/eigen3/Eigen/Core"
 #include "third_party/eigen3/unsupported/Eigen/CXX11/Tensor"
@@ -83,7 +83,6 @@ class SparseSegmentSumGpuOp : public AsyncOpKernel {
  public:
   explicit SparseSegmentSumGpuOp(OpKernelConstruction* context)
       : AsyncOpKernel(context){};
-
 
   void ComputeAsync(OpKernelContext* context, DoneCallback done) override {
     const Tensor& input_data = context->input(0);
