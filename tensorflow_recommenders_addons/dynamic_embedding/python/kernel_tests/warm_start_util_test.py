@@ -34,30 +34,12 @@ except ImportError:
   kinit2 = None
   pass  # for compatible with TF < 2.3.x
 
-from tensorflow.core.protobuf import cluster_pb2
-from tensorflow.core.protobuf import config_pb2
-from tensorflow.python.eager import context
 from tensorflow.python.framework import constant_op
 from tensorflow.python.framework import dtypes
 from tensorflow.python.framework import ops
-from tensorflow.python.framework import sparse_tensor
-from tensorflow.python.framework import tensor_shape
 from tensorflow.python.framework import test_util
-from tensorflow.python.keras import initializers as keras_init_ops
-from tensorflow.python.ops import array_ops
-from tensorflow.python.ops import embedding_ops
-from tensorflow.python.ops import gen_array_ops
-from tensorflow.python.ops import init_ops
-from tensorflow.python.ops import math_ops
-from tensorflow.python.ops import resources
-from tensorflow.python.ops import script_ops
-from tensorflow.python.ops import variables
-from tensorflow.python.ops import variable_scope
 from tensorflow.python.platform import test
-from tensorflow.python.training import device_setter
 from tensorflow.python.training import saver
-from tensorflow.python.training import server_lib
-from tensorflow.python.util import compat
 from tensorflow_recommenders_addons import dynamic_embedding as de
 
 import tensorflow as tf
@@ -213,10 +195,14 @@ class WarmStartUtilTest(test.TestCase):
       self._test_warm_start_rename(num_shards, True)
       self._test_warm_start_rename(num_shards, False)
 
-  def test_warm_start_estimator(self):
-    for num_shards in [1, 3]:
-      self._test_warm_start_estimator(num_shards, True)
-      self._test_warm_start_estimator(num_shards, False)
+  try:  # tf version <= 2.15
+
+    def test_warm_start_estimator(self):
+      for num_shards in [1, 3]:
+        self._test_warm_start_estimator(num_shards, True)
+        self._test_warm_start_estimator(num_shards, False)
+  except:
+    print(f"estimator is not supported in this version of tensorflow")
 
 
 if __name__ == "__main__":
