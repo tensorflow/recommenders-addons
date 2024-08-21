@@ -33,12 +33,10 @@ from tensorflow.python.framework import dtypes
 from tensorflow.python.framework import test_util
 from tensorflow.python.framework.errors_impl import NotFoundError
 from tensorflow.python.ops import math_ops
-from tensorflow.python.ops import variables
 from tensorflow.python.platform import test
 from tensorflow.python.training import adam
 from tensorflow.python.training import checkpoint_management
 from tensorflow.python.training import monitored_session
-from tensorflow.python.training.optimizer import Optimizer as tf1_opt
 from tensorflow.python.training import training_util
 try:
   from tensorflow.keras.optimizers.legacy import Adam
@@ -77,7 +75,8 @@ class HorovodTest(test.TestCase):
       self.skipTest(
           "Apple silicon devices don't support synchronous training based on Horovod."
       )
-
+    if not is_gpu_available:
+      self.skipTest('Only test when gpu is available.')
     base_opt = adam.AdamOptimizer(1.0)
     test_opt = adam.AdamOptimizer(1.0)
     self.common_minimize_trainable_v1(base_opt, test_opt, name="adam")
