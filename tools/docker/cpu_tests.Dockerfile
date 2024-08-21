@@ -4,7 +4,6 @@ FROM python:3.9 as build_wheel
 ARG TF_VERSION="2.15.1"
 ARG PY_VERSION="3.9"
 ARG MPI_VERSION="4.1.1"
-ARG HOROVOD_VERSION="0.28.1"
 
 RUN pip install --upgrade pip
 RUN pip install --default-timeout=1000 tensorflow==$TF_VERSION
@@ -15,9 +14,6 @@ RUN apt-get update && apt-get install -y sudo rsync cmake openmpi-bin libopenmpi
 
 COPY tools/install_deps/install_bazelisk.sh /install/
 RUN bash /install/install_bazelisk.sh
-
-COPY tools/docker/install/install_horovod.sh /install/
-RUN  /install/install_horovod.sh $HOROVOD_VERSION --only-cpu
 
 COPY requirements.txt ./
 RUN pip install -r requirements.txt

@@ -49,19 +49,22 @@ if ! [ -x "$(command -v nvidia-smi)" ]; then
   EXTRA_ARGS="-n auto"
 fi
 
-# Lack of HorovodJoin CPU kernels when install Horovod with NCCL
-if [ "$(uname)" != "Darwin" ]; then
-  # Mac only with MPI
-  python -m pip uninstall horovod -y
-  bash /install/install_horovod.sh $HOROVOD_VERSION --only-cpu
-fi
-# TODO(jamesrong): Test on GPU.
-CUDA_VISIBLE_DEVICES="" mpirun -np 2 -H localhost:2 --allow-run-as-root pytest -v ./tensorflow_recommenders_addons/dynamic_embedding/python/kernel_tests/horovod_sync_train_test.py
-# Reinstall Horovod after tests
-if [ "$(uname)" != "Darwin" ]; then
-  # Mac only with MPI
-  python -m pip uninstall horovod -y
-  bash /install/install_horovod.sh $HOROVOD_VERSION
+# only test and run horovod on GPU
+if [ "$TF_NEED_CUDA" -ne 0 ]; then
+  # Lack of HorovodJoin CPU kernels when install Horovod with NCCL
+  if [ "$(uname)" != "Darwin" ]; then
+    # Mac only with MPI
+    python -m pip uninstall horovod -y
+    bash /install/install_horovod.sh $HOROVOD_VERSION --only-cpu
+  fi
+  # TODO(jamesrong): Test on GPU.
+  CUDA_VISIBLE_DEVICES="" mpirun -np 2 -H localhost:2 --allow-run-as-root pytest -v ./tensorflow_recommenders_addons/dynamic_embedding/python/kernel_tests/horovod_sync_train_test.py
+  # Reinstall Horovod after tests
+  if [ "$(uname)" != "Darwin" ]; then
+    # Mac only with MPI
+    python -m pip uninstall horovod -y
+    bash /install/install_horovod.sh $HOROVOD_VERSION
+  fi
 fi
 
 IGNORE_HKV=""
