@@ -27,18 +27,15 @@ SKIP_CUSTOM_OPS = False
 def get_required_tf_version():
   try:
     pkg = pkg_resources.get_distribution("tensorflow-recommenders-addons")
-  except:
-    try:
-      pkg = pkg_resources.get_distribution("tensorflow-recommenders-addons-gpu")
-    except pkg_resources.DistributionNotFound:
-      # Force return for 'Test with bazel' on CI.
-      warnings.warn(
-          "Fail to get TFRA package information, if you are running on "
-          "bazel test mode, please ignore this warning, \nor you should check "
-          "TFRA installation.",
-          UserWarning,
-      )
-      return tf.__version__, tf.__version__
+  except pkg_resources.DistributionNotFound:
+    # Force return for 'Test with bazel' on CI.
+    warnings.warn(
+        "Fail to get TFRA package information, if you are running on "
+        "bazel test mode, please ignore this warning, \nor you should check "
+        "TFRA installation.",
+        UserWarning,
+    )
+    return tf.__version__, tf.__version__
 
   pkg_info = pkg.requires()
   low_version, high_version = None, None

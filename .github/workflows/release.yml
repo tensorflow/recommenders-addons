@@ -207,6 +207,8 @@ jobs:
             py-version: '3.8'
           - os: 'Linux'
             cpu: 'arm64'
+          - os: 'Linux'
+            tf-need-cuda: '0'
           - py-version: '3.7'
             cpu: 'arm64'
           - py-version: '3.8'

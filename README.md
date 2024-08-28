@@ -75,8 +75,7 @@ run the following:
 ```
 pip install tensorflow-recommenders-addons
 ```
-
-By default, CPU version will be installed. To install GPU version, run the following:
+Before version 0.8, to install GPU version, run the following:
 ```
 pip install tensorflow-recommenders-addons-gpu
 ```

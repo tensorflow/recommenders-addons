@@ -55,13 +55,9 @@ def get_project_name_version():
 
   project_name = "tensorflow-recommenders-addons"
   version["tf_project_name"] = "tensorflow"
-  if os.getenv("TF_NEED_CUDA", "0") == "1":
-    project_name = project_name + "-gpu"
 
   if "--nightly" in sys.argv:
     project_name = "tfra-nightly"
-    if os.getenv("TF_NEED_CUDA", "0") == "1":
-      project_name = project_name + "-gpu"
     version["__version__"] += get_last_commit_time()
     sys.argv.remove("--nightly")
 
