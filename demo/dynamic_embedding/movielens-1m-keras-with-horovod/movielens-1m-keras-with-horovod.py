@@ -67,6 +67,7 @@ flags.DEFINE_integer('embedding_size', 32,
                      'Embedding size for users and movies')
 flags.DEFINE_integer('test_steps', 128, 'test steps.')
 flags.DEFINE_integer('test_batch', 1024, 'test batch size.')
+flags.DEFINE_integer('profiles', 10, 'number of profiles')
 flags.DEFINE_bool('shuffle', True, 'shuffle dataset.')
 FLAGS = flags.FLAGS
 
@@ -638,7 +639,6 @@ def train():
   if os.path.exists(FLAGS.model_dir + '/variables'):
     model.load_weights(FLAGS.model_dir)
 
-  tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=FLAGS.model_dir)
   save_options = tf.saved_model.SaveOptions(namespace_whitelist=['TFRA'])
   ckpt_callback = de.keras.callbacks.ModelCheckpoint(
       filepath=FLAGS.model_dir + '/weights_epoch{epoch:03d}_loss{loss:.4f}',
@@ -651,9 +651,20 @@ def train():
   else:
     callbacks_list = [ckpt_callback]
 
+  def get_profiling_batch(total_batches: int, num_profiles: int):
+    interval = total_batches // num_profiles
+    if interval == 0:
+      return None
+    else:
+      return ((i + 1) * interval for i in range(num_profiles))
+
   # The log class callback only takes effect in rank0 for convenience
   if get_rank() == 0:
-    callbacks_list.extend([tensorboard_callback])
+    profile_batch = get_profiling_batch(FLAGS.steps_per_epoch, FLAGS.profiles)
+    if profile_batch:
+      tensorboard_callback = tf.keras.callbacks.TensorBoard(
+        log_dir="logs/profile", update_freq=100, profile_batch=(50, 100))
+      callbacks_list.extend([tensorboard_callback])
   # If there are callbacks such as evaluation metrics that call model calculations, take effect on all ranks.
   # callbacks_list.extend([my_auc_callback])
 

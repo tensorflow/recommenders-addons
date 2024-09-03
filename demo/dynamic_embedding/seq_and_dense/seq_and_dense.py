@@ -22,6 +22,7 @@ import horovod.tensorflow as hvd
 # optimal performance
 os.environ['TF_XLA_FLAGS'] = '--tf_xla_auto_jit=2 --tf_xla_cpu_global_jit'
 
+tf.config.optimizer.set_jit(True)
 
 def has_horovod() -> bool:
   return 'OMPI_COMM_WORLD_RANK' in os.environ or 'PMI_RANK' in os.environ
@@ -205,26 +206,53 @@ def concat_tensors(tensors):
   concatenated = tf.concat(flat_values, axis=0)
   return concatenated, row_lengths
 
-
 def concat_embedding(tensors, embeddings, row_lengths):
-  offset = 0
   results = []
+  indices = [0]
+  for length in row_lengths:  # Compute start indices for each segment
+    sum =  tf.reduce_sum(length).numpy()
+    indices.append(indices[-1] + sum)
+  emb_shape = embeddings.shape[-1]
+  for i, tensor in enumerate(tensors):
+    # Calculate the start and end indices for the current tensor
+    start_index = indices[i]
+    end_index = indices[i+1]
+    begin = tf.constant([start_index, 0])
+    end = tf.constant([end_index, emb_shape])
+    emb = tf.strided_slice(
+      embeddings, begin, end)
+    if isinstance(tensor, tf.RaggedTensor):
+      orignal = tf.RaggedTensor.from_row_lengths(emb, row_lengths[i])
+      emb = tf.reduce_mean(orignal, axis=1)
+    results.append(emb)
+  return tf.concat(results, axis=0)
+
+def concat_embedding_slow(tensors, embeddings, row_lengths):
+  results = []
+  start_indices = [0]
+  for length in row_lengths[:-1]:  # Compute start indices for each segment
+    start_indices.append(start_indices[-1] + length)
+
   for i, tensor in enumerate(tensors):
     if isinstance(tensor, tf.RaggedTensor):
-      count = tf.shape(tensor.flat_values)[0]
-      ragged_embeddings = tf.RaggedTensor.from_row_lengths(
-          embeddings[offset:offset + count], row_lengths[i])
-      pooled = tf.reduce_mean(ragged_embeddings, axis=1)
+      # Calculate the start and end indices for the current tensor
+      start_index = start_indices[i]
+      end_index = start_index + row_lengths[i]
+
+      # Extract embeddings using tf.strided_slice
+      sliced_embeddings = tf.strided_slice(
+        embeddings, [start_index, 0], [end_index, embeddings.shape[-1]])
+
+      # Pool the embeddings
+      pooled = tf.reduce_mean(sliced_embeddings, axis=0)
       results.append(pooled)
-      offset += count
     else:
       count = tf.shape(tensor)[0]
-      pooled_embeddings = tf.reshape(embeddings[offset:offset + count],
+      pooled_embeddings = tf.reshape(embeddings[start_indices[i]:start_indices[i] + count],
                                      [-1, embeddings.shape[-1]])
       results.append(pooled_embeddings)
-      offset += count
 
-  return tf.concat(results, axis=1)
+  return tf.concat(results, axis=0)
 
 
 def get_kv_creator(mpi_size: int,
