@@ -6,8 +6,6 @@ import keras.layers
 from absl import flags
 from absl import app
 
-from tensorflow_recommenders_addons import dynamic_embedding as de
-
 os.environ["TF_FORCE_GPU_ALLOW_GROWTH"] = "true"  #VERY IMPORTANT!
 os.environ["TF_GPU_THREAD_MODE"] = "gpu_private"
 # Because of the two environment variables above no non-standard library imports should happen before this.
@@ -22,10 +20,13 @@ import horovod.tensorflow as hvd
 # optimal performance
 os.environ['TF_XLA_FLAGS'] = '--tf_xla_auto_jit=2 --tf_xla_cpu_global_jit'
 
+tf.config.optimizer.set_jit(True)
+
 
 def has_horovod() -> bool:
   return 'OMPI_COMM_WORLD_RANK' in os.environ or 'PMI_RANK' in os.environ
 
+print(f"has_horovod: {has_horovod()}")
 
 def config():
   # callback calls hvd.rank() so we need to initialize horovod here
@@ -192,7 +193,7 @@ class Bucketize(tf.keras.layers.Layer):
 
 def concat_tensors(tensors):
   flat_values = []
-  row_lengths = []  # This will now be a list of lists
+  row_lengths = []
 
   for tensor in tensors:
     if isinstance(tensor, tf.RaggedTensor):
@@ -200,13 +201,30 @@ def concat_tensors(tensors):
       row_lengths.append(tensor.row_lengths())  # Append as a sublist
     else:
       flat_values.append(tf.reshape(tensor, [-1]))
-      tensor_row_lengths = tf.ones(tf.shape(tensor)[0], dtype=tf.int32)
+      tensor_row_lengths = tf.ones(tf.shape(tensor)[0], dtype=tf.int64)
       row_lengths.append(tensor_row_lengths)
   concatenated = tf.concat(flat_values, axis=0)
   return concatenated, row_lengths
 
 
+# using tf.split vs concat_embedding_python's slice
 def concat_embedding(tensors, embeddings, row_lengths):
+  indices = []
+  for length in row_lengths:
+    sum = tf.reduce_sum(length)
+    indices.append(sum)
+  emb = tf.split(embeddings, indices, axis=0)
+
+  for i, tensor in enumerate(tensors):
+    if isinstance(tensor, tf.RaggedTensor):
+      orignal = tf.RaggedTensor.from_row_lengths(emb[i], row_lengths[i])
+      emb[i] = tf.reduce_mean(orignal, axis=1)
+  r = tf.concat(emb, axis=1)
+  return r
+
+
+# using python slice
+def concat_embedding_python(tensors, embeddings, row_lengths):
   offset = 0
   results = []
   for i, tensor in enumerate(tensors):
@@ -223,8 +241,8 @@ def concat_embedding(tensors, embeddings, row_lengths):
                                      [-1, embeddings.shape[-1]])
       results.append(pooled_embeddings)
       offset += count
-
-  return tf.concat(results, axis=1)
+  r = tf.concat(results, axis=1)
+  return r
 
 
 def get_kv_creator(mpi_size: int,
@@ -308,6 +326,8 @@ class ChannelEmbeddingLayers(tf.keras.layers.Layer):
     dense_emb_outs = concat_embedding(dense_inputs, dense_emb_concat,
                                       row_length)
     sparse_emb_concat = self.sparse_embedding_layer(sparse_inputs[0])
+    print(f"shadow.shape: {self.sparse_embedding_layer.shadow.shape}")
+
     # Process the results of the combined query after slicing.
     embedding_outs = []
 
@@ -626,6 +646,7 @@ def train():
   # The log class callback only takes effect in rank0 for convenience
   if get_rank() == 0:
     callbacks_list.extend([tensorboard_callback])
+    tf.profiler.experimental.start('logdir')
   # If there are callbacks such as evaluation metrics that call model calculations, take effect on all ranks.
   # callbacks_list.extend([my_auc_callback])
 
@@ -634,7 +655,8 @@ def train():
             epochs=FLAGS.epochs,
             steps_per_epoch=FLAGS.steps_per_epoch,
             verbose=1 if get_rank() == 0 else 0)
-
+  if get_rank() == 0:
+    tf.profiler.experimental.stop()
   export_to_savedmodel(model, FLAGS.model_dir)
   export_for_serving(model, FLAGS.export_dir)
 

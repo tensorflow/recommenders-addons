@@ -67,6 +67,7 @@ flags.DEFINE_integer('embedding_size', 32,
                      'Embedding size for users and movies')
 flags.DEFINE_integer('test_steps', 128, 'test steps.')
 flags.DEFINE_integer('test_batch', 1024, 'test batch size.')
+flags.DEFINE_integer('profiles', 10, 'number of profiles')
 flags.DEFINE_bool('shuffle', True, 'shuffle dataset.')
 FLAGS = flags.FLAGS
 
@@ -638,7 +639,6 @@ def train():
   if os.path.exists(FLAGS.model_dir + '/variables'):
     model.load_weights(FLAGS.model_dir)
 
-  tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=FLAGS.model_dir)
   save_options = tf.saved_model.SaveOptions(namespace_whitelist=['TFRA'])
   ckpt_callback = de.keras.callbacks.ModelCheckpoint(
       filepath=FLAGS.model_dir + '/weights_epoch{epoch:03d}_loss{loss:.4f}',
@@ -653,15 +653,22 @@ def train():
 
   # The log class callback only takes effect in rank0 for convenience
   if get_rank() == 0:
+    tensorboard_callback = tf.keras.callbacks.TensorBoard(
+        log_dir="logs/profile", profile_batch=(50, 100))
     callbacks_list.extend([tensorboard_callback])
   # If there are callbacks such as evaluation metrics that call model calculations, take effect on all ranks.
   # callbacks_list.extend([my_auc_callback])
+  if get_rank() == 0:
+    tf.profiler.experimental.start('logs')
 
   model.fit(dataset,
             callbacks=callbacks_list,
             epochs=FLAGS.epochs,
             steps_per_epoch=FLAGS.steps_per_epoch,
             verbose=1 if get_rank() == 0 else 0)
+
+  if get_rank() == 0:
+    tf.profiler.experimental.stop()
 
   export_to_savedmodel(model, FLAGS.model_dir)
   export_for_serving(model, FLAGS.export_dir)
