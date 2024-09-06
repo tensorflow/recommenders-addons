@@ -15,6 +15,7 @@
 # lint-as: python3
 """patch on tensorflow"""
 
+import inspect
 import functools
 import os.path
 import re
@@ -569,12 +570,20 @@ def patch_on_tf_save_restore():
     from tensorflow.python.saved_model.registration.registration import register_checkpoint_saver
     class_obj = de.Variable
     predicate = lambda x: isinstance(x, class_obj)
-    register_checkpoint_saver("DECustomSaver",
-                              name=class_obj.__name__,
-                              predicate=predicate,
-                              save_fn=_de_var_fs_save_fn,
-                              restore_fn=_de_var_fs_restore_fn,
-                              strict_predicate_restore=False)
+    prekwargs = {
+        "package": "DECustomSaver",
+        "name": class_obj.__name__,
+        "predicate": predicate,
+        "save_fn": _de_var_fs_save_fn,
+        "restore_fn": _de_var_fs_restore_fn,
+        "strict_predicate_restore": False
+    }
+    rcs_sig = inspect.signature(register_checkpoint_saver)
+    kwargs = {}
+    for param in rcs_sig.parameters.values():
+      k_name = param.name
+      kwargs[k_name] = prekwargs[k_name]
+    register_checkpoint_saver(**kwargs)
   except:
     functional_saver._SingleDeviceSaver = _DynamicEmbeddingSingleDeviceSaver
   saver.Saver = _DynamicEmbeddingSaver
