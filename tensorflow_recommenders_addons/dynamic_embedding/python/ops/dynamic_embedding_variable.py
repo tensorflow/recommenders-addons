@@ -541,11 +541,14 @@ class Variable(EmbeddingWeights, base.Trackable):
     self.short_file_name = short_file_name
 
     def _get_default_devices():
-      gpu_list = [
-          x.name
-          for x in device_lib.list_local_devices()
-          if x.device_type == "GPU"
-      ]
+      try:
+        gpu_list = [
+            x.name
+            for x in device_lib.list_local_devices()
+            if x.device_type == "GPU"
+        ]
+      except:
+        gpu_list = []
       return gpu_list[0:1] or [
           "/CPU:0",
       ]
