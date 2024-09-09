@@ -35,6 +35,10 @@ if [[ "$TF_VERSION" == "2.11.0" && ( "$PYTHON_VERSION" == "3.9" || "$PYTHON_VERS
   python -m pip install numpy==1.26.4 --force-reinstall
 fi
 
+if [[ "$TF_VERSION" =~ ^2\.(16|17)\.[0-9]+$ ]] ; then
+  export TF_USE_LEGACY_KERAS=1
+fi
+
 python configure.py
 
 bazel build \

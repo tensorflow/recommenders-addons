@@ -1,0 +1,3 @@
+tensorflow>=2.16.0,<=2.16.2
+tensorflow-estimator
+tf-keras<=2.16.0

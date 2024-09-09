@@ -15,7 +15,7 @@ class TestTensorFlowCompatibility(unittest.TestCase):
     mock_pkg = Mock()
     mock_requirement = Mock()
     mock_requirement.name = 'tensorflow'
-    mock_requirement.specs = [('>=', '2.11.0'), ('<=', '2.15.1')]
+    mock_requirement.specs = [('>=', '2.11.0'), ('<=', '2.16.2')]
     mock_pkg.requires.return_value = [mock_requirement]
     mock_get_distribution.return_value = mock_pkg
     self.assertTrue(abi_is_compatible())
@@ -26,7 +26,7 @@ class TestTensorFlowCompatibility(unittest.TestCase):
       mock_pkg = Mock()
       mock_requirement = Mock()
       mock_requirement.name = 'tensorflow'
-      mock_requirement.specs = [('>=', '2.11.0'), ('<=', '2.15.1')]
+      mock_requirement.specs = [('>=', '2.11.0'), ('<=', '2.16.2')]
       mock_pkg.requires.return_value = [mock_requirement]
       mock_get_distribution.return_value = mock_pkg
       self.assertFalse(abi_is_compatible())
@@ -37,7 +37,7 @@ class TestTensorFlowCompatibility(unittest.TestCase):
       mock_pkg = Mock()
       mock_requirement = Mock()
       mock_requirement.name = 'tensorflow'
-      mock_requirement.specs = [('>=', '2.11.0'), ('<=', '2.15.1')]
+      mock_requirement.specs = [('>=', '2.11.0'), ('<=', '2.16.2')]
       mock_pkg.requires.return_value = [mock_requirement]
       mock_get_distribution.return_value = mock_pkg
       self.assertFalse(abi_is_compatible())
@@ -48,7 +48,7 @@ class TestTensorFlowCompatibility(unittest.TestCase):
       mock_pkg = Mock()
       mock_requirement = Mock()
       mock_requirement.name = 'tensorflow'
-      mock_requirement.specs = [('>=', '2.11.0'), ('<=', '2.15.1')]
+      mock_requirement.specs = [('>=', '2.11.0'), ('<=', '2.16.2')]
       mock_pkg.requires.return_value = [mock_requirement]
       mock_get_distribution.return_value = mock_pkg
       self.assertFalse(abi_is_compatible())

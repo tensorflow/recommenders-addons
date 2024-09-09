@@ -21,7 +21,7 @@ fi
 export TF_NEED_CUDA=1
 export TF_NAME='tensorflow'
 
-# if tensorflow version >= 2.6.0 and <= 2.15.9
+# if tensorflow version >= 2.6.0 and <= 2.16.9
 if [[ "$TF_VERSION" =~ ^2\.(16)\.[0-9]+$ ]] ; then
   export BUILD_IMAGE="tfra/nosla-cuda12.3-cudnn8.9-ubuntu20.04-manylinux2014-python$PY_VERSION"
   export TF_CUDA_VERSION="12.3"

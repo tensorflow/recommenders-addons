@@ -12,6 +12,7 @@ if [[ "$TF_VERSION" =~ ^2\.(16)\.[0-9]+$ ]] ; then
   export BUILD_IMAGE="tfra/nosla-cuda12.3-cudnn8.9-ubuntu20.04-manylinux2014-python$PY_VERSION"
   export TF_CUDA_VERSION="12.3"
   export TF_CUDNN_VERSION="8.9"
+  export TF_USE_LEGACY_KERAS=1
 elif [[ "$TF_VERSION" =~ ^2\.(15)\.[0-9]+$ ]] ; then
   export BUILD_IMAGE="tfra/nosla-cuda12.2-cudnn8.9-ubuntu20.04-manylinux2014-python$PY_VERSION"
   export TF_CUDA_VERSION="12.2"

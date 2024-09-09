@@ -44,7 +44,7 @@ jobs:
         # TODO: add back 'windows-latest' when it can be compiled.
         os: ['macos-14', 'macos-12', 'ubuntu-20.04']
         py-version: ['3.7', '3.8', '3.9', '3.10', '3.11']
-        tf-version: ['2.11.0', '2.15.1']
+        tf-version: ['2.11.0', '2.15.1', '2.16.2']
         tf-need-cuda: ['0']
         cpu: ['x86', 'arm64']
         exclude:
@@ -54,6 +54,10 @@ jobs:
           - tf-version: '2.15.1'
             py-version: '3.7'
           - tf-version: '2.15.1'
+            py-version: '3.8'
+          - tf-version: '2.16.2'
+            py-version: '3.7'
+          - tf-version: '2.16.2'
             py-version: '3.8'
           - os: 'macos-14'
             cpu: 'x86'
@@ -77,7 +81,7 @@ jobs:
           script: |
             const commit_details = await github.git.getCommit({owner: context.repo.owner, repo: context.repo.repo, commit_sha: context.sha});
             return commit_details.data.author.date
-      - if: matrix.tf-version != '2.15.1'
+      - if: matrix.tf-version < '2.15.1'
         shell: bash
         run: echo "SKIP_CUSTOM_OP_TESTS=--skip-custom-ops" >> $GITHUB_ENV
       - if: github.event_name == 'push'
@@ -87,6 +91,11 @@ jobs:
       - uses: actions/setup-python@v2
         with:
           python-version: ${{ matrix.py-version }}
+      - if: matrix.tf-version > '2.15.1'
+        shell: bash
+        run: |
+          export TF_USE_LEGACY_KERAS=1
+          pip install --default-timeout=1000 tensorflow-estimator tf-keras==2.16.0
       - name: Setup Bazel
         # Ubuntu bazel is run inside of the docker image
         if: matrix.os != 'ubuntu-20.04'
@@ -111,7 +120,7 @@ jobs:
           cond: ${{ matrix.tf-need-cuda == '1' }}
           if_true: "gpu"
           if_false: "cpu"
-      - uses: actions/upload-artifact@v1
+      - uses: actions/upload-artifact@v4
         with:
           name: ${{ runner.os }}-${{ matrix.py-version }}-tf${{ matrix.tf-version }}-${{ steps.device.outputs.value }}-${{ matrix.cpu }}-wheel
           path: wheelhouse
@@ -123,7 +132,7 @@ jobs:
         # TODO: add back 'windows-latest' when it can be compiled.
         os: ['ubuntu-20.04']
         py-version: ['3.7', '3.8', '3.9', '3.10', '3.11']
-        tf-version: ['2.11.0', '2.15.1']
+        tf-version: ['2.11.0', '2.15.1', '2.16.2']
         tf-need-cuda: ['1']
         cpu: ['x86']
         exclude:
@@ -132,6 +141,10 @@ jobs:
           - tf-version: '2.15.1'
             py-version: '3.7'
           - tf-version: '2.15.1'
+            py-version: '3.8'
+          - tf-version: '2.16.2'
+            py-version: '3.7'
+          - tf-version: '2.16.2'
             py-version: '3.8'
       fail-fast: false
     runs-on: [self-hosted, Linux, X64]
@@ -145,7 +158,7 @@ jobs:
           script: |
             const commit_details = await github.git.getCommit({owner: context.repo.owner, repo: context.repo.repo, commit_sha: context.sha});
             return commit_details.data.author.date
-      - if: matrix.tf-version != '2.15.1'
+      - if: matrix.tf-version < '2.15.1'
         shell: bash
         run: echo "SKIP_CUSTOM_OP_TESTS=--skip-custom-ops" >> $GITHUB_ENV
       - if: github.event_name == 'push'
@@ -155,6 +168,11 @@ jobs:
       - uses: actions/setup-python@v2
         with:
           python-version: ${{ matrix.py-version }}
+      - if: matrix.tf-version > '2.15.1'
+        shell: bash
+        run: |
+          export TF_USE_LEGACY_KERAS=1
+          pip install --default-timeout=1000 tf-keras==2.16.0 tensorflow-estimator
       - name: Setup Bazel
         # Ubuntu bazel is run inside of the docker image
         if: matrix.os != 'ubuntu-20.04'
@@ -179,7 +197,7 @@ jobs:
           cond: ${{ matrix.tf-need-cuda == '1' }}
           if_true: "gpu"
           if_false: "cpu"
-      - uses: actions/upload-artifact@v1
+      - uses: actions/upload-artifact@v4
         with:
           name: ${{ runner.os }}-${{ matrix.py-version }}-tf${{ matrix.tf-version }}-${{ steps.device.outputs.value }}-${{ matrix.cpu }}-wheel
           path: wheelhouse
@@ -192,7 +210,7 @@ jobs:
         # TODO: add back 'Windows' when it can be compiled.
         os: ['macOS', 'Linux']
         py-version: ['3.7', '3.8', '3.9', '3.10', '3.11']
-        tf-version: ['2.15.1']
+        tf-version: ['2.15.1', '2.16.2']
         tf-need-cuda: ['0', '1']
         cpu: ['x86', 'arm64']
         exclude:
@@ -204,6 +222,10 @@ jobs:
           - tf-version: '2.15.1'
             py-version: '3.7'
           - tf-version: '2.15.1'
+            py-version: '3.8'
+          - tf-version: '2.16.2'
+            py-version: '3.7'
+          - tf-version: '2.16.2'
             py-version: '3.8'
           - os: 'Linux'
             cpu: 'arm64'

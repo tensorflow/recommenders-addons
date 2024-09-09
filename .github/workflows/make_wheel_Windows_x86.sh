@@ -17,6 +17,10 @@ fi
 
 python -m pip install --upgrade protobuf~=$PROTOBUF_VERSION
 
+if [[ "$TF_VERSION" =~ ^2\.(16|17)\.[0-9]+$ ]] ; then
+  export TF_USE_LEGACY_KERAS=1
+fi
+
 bash ./tools/testing/build_and_run_tests.sh
 
 python configure.py
