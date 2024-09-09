@@ -975,56 +975,55 @@ class VariableTest(test.TestCase):
 
       del table
 
-  try:  # only test for tensorflow <= 2.15
+  def test_table_save_load_local_file_system_for_estimator(self):
 
-    def test_table_save_load_local_file_system_for_estimator(self):
+    def input_fn():
+      return {"x": constant_op.constant([1], dtype=dtypes.int64)}
 
-      def input_fn():
-        return {"x": constant_op.constant([1], dtype=dtypes.int64)}
+    def model_fn(features, labels, mode, params):
+      file_system_saver = de.FileSystemSaver()
+      embedding = de.get_variable(
+          name="embedding",
+          dim=3,
+          trainable=False,
+          key_dtype=dtypes.int64,
+          value_dtype=dtypes.float32,
+          initializer=-1.0,
+          kv_creator=de.CuckooHashTableCreator(saver=file_system_saver),
+      )
+      lookup = de.embedding_lookup(embedding, features["x"])
+      upsert = embedding.upsert(features["x"],
+                                constant_op.constant([[1.0, 2.0, 3.0]]))
 
-      def model_fn(features, labels, mode, params):
-        file_system_saver = de.FileSystemSaver()
-        embedding = de.get_variable(
-            name="embedding",
-            dim=3,
-            trainable=False,
-            key_dtype=dtypes.int64,
-            value_dtype=dtypes.float32,
-            initializer=-1.0,
-            kv_creator=de.CuckooHashTableCreator(saver=file_system_saver),
-        )
-        lookup = de.embedding_lookup(embedding, features["x"])
-        upsert = embedding.upsert(features["x"],
-                                  constant_op.constant([[1.0, 2.0, 3.0]]))
+      with ops.control_dependencies([lookup, upsert]):
+        train_op = state_ops.assign_add(training.get_global_step(), 1)
 
-        with ops.control_dependencies([lookup, upsert]):
-          train_op = state_ops.assign_add(training.get_global_step(), 1)
+      scaffold = training.Scaffold(
+          saver=saver.Saver(sharded=True,
+                            max_to_keep=1,
+                            keep_checkpoint_every_n_hours=None,
+                            defer_build=True,
+                            save_relative_paths=True))
+      est = estimator_lib.EstimatorSpec(mode=mode,
+                                        scaffold=scaffold,
+                                        loss=constant_op.constant(0.),
+                                        train_op=train_op,
+                                        predictions=lookup)
+      return est
 
-        scaffold = training.Scaffold(
-            saver=saver.Saver(sharded=True,
-                              max_to_keep=1,
-                              keep_checkpoint_every_n_hours=None,
-                              defer_build=True,
-                              save_relative_paths=True))
-        est = estimator_lib.EstimatorSpec(mode=mode,
-                                          scaffold=scaffold,
-                                          loss=constant_op.constant(0.),
-                                          train_op=train_op,
-                                          predictions=lookup)
-        return est
+    save_dir = os.path.join(self.get_temp_dir(), "save_restore")
+    save_path = os.path.join(tempfile.mkdtemp(prefix=save_dir), "hash")
 
-      save_dir = os.path.join(self.get_temp_dir(), "save_restore")
-      save_path = os.path.join(tempfile.mkdtemp(prefix=save_dir), "hash")
-
-      # train and save
+    # train and save
+    try:  # only test for tensorflow <= 2.15
       est = estimator.Estimator(model_fn=model_fn, model_dir=save_path)
       est.train(input_fn=input_fn, steps=1)
 
       # restore and predict
       predict_results = next(est.predict(input_fn=input_fn))
       self.assertAllEqual(predict_results, [1.0, 2.0, 3.0])
-  except:
-    pass
+    except:
+      pass
 
   def test_save_restore_only_table(self):
     if context.executing_eagerly():
