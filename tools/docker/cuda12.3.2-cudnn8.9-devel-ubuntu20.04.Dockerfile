@@ -1,28 +1,18 @@
 # To push a new version, run:
 # $ docker build -f cuda12.3.2-cudnn8.9-devel-ubuntu20.04.Dockerfile . --tag "tfra/nosla-cuda12.3.2-cudnn8.9-devel-ubuntu20.04"
-# $ docker push tfra/nosla-12.3.2-cudnn8.9-devel-ubuntu20.04
-
-# downlod https://developer.nvidia.com/downloads/compute/cudnn/secure/8.9.7/local_installers/12.x/cudnn-local-repo-ubuntu2204-8.9.7.29_1.0-1_amd64.deb/
-# en
-FROM nvidia/cuda:12.3.2-devel-ubuntu20.04 as devtoolset
+# $ docker login -u user -p token
+# $ docker push tfra/nosla-cuda12.3.2-cudnn8.9-devel-ubuntu20.04
+# https://developer.nvidia.com/rdp/cudnn-archive to find correct cudnn.
+# https://developer.nvidia.com/downloads/compute/cudnn/secure/8.9.7/local_installers/12.x/cudnn-local-repo-ubuntu2004-8.9.7.29_1.0-1_amd64.deb/
+# dowloand to local and copy to the docker build context.
+FROM nvidia/cuda:12.3.2-devel-ubuntu20.04 AS devtoolset
 RUN apt-get update
-#RUN apt-get update && apt-cache search linux-headers
-
-#RUN apt-get install linux-headers-$(uname -r)
-#RUN apt-key del 7fa2af80
-RUN rm -rf /usr/share/keyrings/cuda-archive-keyring.gpg
 RUN apt-get -y install wget
-RUN wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/cuda-keyring_1.1-1_all.deb
+COPY cudnn-local-repo-ubuntu2004-8.9.7.29_1.0-1_amd64.deb /tmp/
 
-RUN dpkg -i cuda-keyring_1.1-1_all.deb  && rm cuda-keyring_1.1-1_all.deb
-RUN cat /etc/apt/sources.list && \
-    ls -l /etc/apt/sources.list.d/
+RUN dpkg -i /tmp/cudnn-local-repo-ubuntu2004-8.9.7.29_1.0-1_amd64.deb
 
-RUN rm -f /etc/apt/sources.list.d/cuda*
-
-RUN echo "deb [signed-by=/usr/share/keyrings/cuda-archive-keyring.gpg] https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/ /" > /etc/apt/sources.list.d/cuda.list
-
-RUN apt-get update && \
-    apt-get -y install cudnn8-cuda-12
-
-RUN apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/*
+RUN cp /var/cudnn-local-repo-ubuntu2004-8.9.7.29/cudnn-*-keyring.gpg /usr/share/keyrings/
+RUN apt-get update
+RUN apt-get -y install /var/cudnn-local-repo-ubuntu2004-8.9.7.29/libcudnn*.deb
+RUN apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/cudnn-local-repo-ubuntu2004-8.9.7.29/*.deb

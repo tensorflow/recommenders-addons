@@ -48,6 +48,15 @@ from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embeddi
   TrainableWrapperDistributedPolicy
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.tf_save_restore_patch import de_fs_saveable_class_names
 
+try:  # tf version >= 2.16
+  from tf_keras.layers import Layer
+  from tf_keras.initializers import RandomNormal, Zeros, serialize
+  from tf_keras import constraints
+except:
+  from tensorflow.keras.layers import Layer
+  from tensorflow.keras.initializers import RandomNormal, Zeros, serialize
+  from tensorflow.keras import constraints
+
 
 def _choose_reduce_method(combiner, sparse=False, segmented=False):
   select = 'sparse' if sparse else 'math'
@@ -93,7 +102,7 @@ def reduce_pooling(x, combiner='sum'):
     return x
 
 
-class Embedding(tf.keras.layers.Layer):
+class Embedding(Layer):
   """
   A keras style Embedding layer. The `Embedding` layer acts same like
   [tf.keras.layers.Embedding](https://www.tensorflow.org/api_docs/python/tf/keras/layers/Embedding),
@@ -180,7 +189,7 @@ class Embedding(tf.keras.layers.Layer):
     self.embedding_size = embedding_size
     self.combiner = combiner
     if initializer is None:
-      initializer = tf.keras.initializers.RandomNormal()
+      initializer = RandomNormal()
     partitioner = kwargs.get('partitioner', devar.default_partition_fn)
     trainable = kwargs.get('trainable', True)
     self.max_norm = kwargs.get('max_norm', None)
@@ -281,10 +290,10 @@ class Embedding(tf.keras.layers.Layer):
   def get_config(self):
     _initializer = self.params.initializer
     if _initializer is None:
-      _initializer = tf.keras.initializers.Zeros()
+      _initializer = Zeros()
     _max_norm = None
-    if isinstance(self.max_norm, tf.keras.constraints.Constraint):
-      _max_norm = tf.keras.constraints.serialize(self.max_norm)
+    if isinstance(self.max_norm, constraints.Constraint):
+      _max_norm = constraints.serialize(self.max_norm)
 
     if self.params.restrict_policy:
       _restrict_policy = self.params.restrict_policy.__class__
@@ -301,7 +310,7 @@ class Embedding(tf.keras.layers.Layer):
         'combiner':
             self.combiner,
         'initializer':
-            tf.keras.initializers.serialize(_initializer),
+            serialize(_initializer),
         'devices':
             self.params.devices if self.keep_distribution else None,
         'name':
@@ -500,10 +509,10 @@ class FieldWiseEmbedding(Embedding):
   def get_config(self):
     _initializer = self.params.initializer
     if _initializer is None:
-      _initializer = tf.keras.initializers.Zeros()
+      _initializer = Zeros()
     _max_norm = None
-    if isinstance(self.max_norm, tf.keras.constraints.Constraint):
-      _max_norm = tf.keras.constraints.serialize(self.max_norm)
+    if isinstance(self.max_norm, constraints.Constraint):
+      _max_norm = constraints.serialize(self.max_norm)
 
     config = {
         'embedding_size': self.embedding_size,
@@ -512,7 +521,7 @@ class FieldWiseEmbedding(Embedding):
         'combiner': self.combiner,
         'key_dtype': self.params.key_dtype,
         'value_dtype': self.params.value_dtype,
-        'initializer': tf.keras.initializers.serialize(_initializer),
+        'initializer': serialize(_initializer),
         'devices': self.params.devices,
         'name': self.name,
         'trainable': self.trainable,

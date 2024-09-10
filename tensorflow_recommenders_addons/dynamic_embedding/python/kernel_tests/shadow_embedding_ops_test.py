@@ -48,9 +48,14 @@ from tensorflow_recommenders_addons.dynamic_embedding.python.ops.shadow_embeddin
 from tensorflow_recommenders_addons.utils.check_platform import is_macos, is_arm64
 
 try:
-  from tensorflow.keras.legacy.optimizers import Adam
+  from tf_keras import backend
+  from tf_keras.optimizers import Adam
 except:
-  from tensorflow.keras.optimizers import Adam
+  from tensorflow.keras import backend
+  try:
+    from tensorflow.keras.optimizers import Adam
+  except:
+    from tensorflow.keras.legacy.optimizers import Adam
 
 
 def _get_sparse_variable(name,
@@ -810,7 +815,7 @@ class ShadowVariableBasicBehaviorTest(test.TestCase):
     shadow_value = module.shadow.read_value(False)
     self.assertAllEqual(shadow_value.shape, (0, 1))  # clear when saving
 
-    tf.keras.backend.clear_session()
+    backend.clear_session()
     del module, ckpt
     new_module = TestNewModule(table_devices_)
     new_ckpt = de.train.DECheckpoint(new_module)
@@ -821,7 +826,7 @@ class ShadowVariableBasicBehaviorTest(test.TestCase):
     self.assertAllEqual(np.sort(expected_values, axis=0), values)
 
     # test expand shards number
-    tf.keras.backend.clear_session()
+    backend.clear_session()
     del new_module, new_ckpt
     shard_num = 5
     table_devices_ = table_device * shard_num
@@ -833,7 +838,7 @@ class ShadowVariableBasicBehaviorTest(test.TestCase):
     self.assertAllEqual(np.sort(expected_values, axis=0), values)
 
     # test contracte shards number
-    tf.keras.backend.clear_session()
+    backend.clear_session()
     del new_module, new_ckpt
     shard_num = 2
     table_devices_ = table_device * shard_num
@@ -845,7 +850,7 @@ class ShadowVariableBasicBehaviorTest(test.TestCase):
     self.assertAllEqual(np.sort(expected_values, axis=0), values)
 
     # test load all into one shard
-    tf.keras.backend.clear_session()
+    backend.clear_session()
     del new_module, new_ckpt
     shard_num = 1
     table_devices_ = table_device * shard_num

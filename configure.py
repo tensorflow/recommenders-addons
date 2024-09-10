@@ -135,7 +135,7 @@ def get_tf_version_integer():
     2.4.1 get 2041
     2.6.3 get 2063
     2.8.3 get 2083
-     get 2151
+    2.15.1 get 2151
 
   The 4-digits-string will be passed to C macro to discriminate different
   Tensorflow versions. 

@@ -53,6 +53,10 @@ RUN python -m pip install -r requirements.txt
 
 RUN python -m pip install tensorflow-io
 
+RUN bash -c 'if [[ "$TF_VERSION" =~ ^2\.(16|17)\.[0-9]+$ ]]; then \
+          pip install tf-keras==2.16.0; \
+      fi'
+
 RUN python -m pip install --upgrade protobuf==$PROTOBUF_VERSION
 
 COPY ./ /recommenders-addons

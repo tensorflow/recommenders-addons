@@ -38,10 +38,19 @@ from tensorflow.python.training import adam
 from tensorflow.python.training import checkpoint_management
 from tensorflow.python.training import monitored_session
 from tensorflow.python.training import training_util
+
 try:
-  from tensorflow.keras.optimizers.legacy import Adam
+  from tf_keras import layers, Sequential, models, backend
+  from tf_keras.initializers import Zeros
+  from tf_keras.optimizers import Adam
 except:
-  from tensorflow.keras.optimizers import Adam
+  from tensorflow.keras import layers, Sequential, models, backend
+  from tensorflow.keras.initializers import Zeros
+  try:
+    from tensorflow.keras.optimizers import Adam
+  except:
+    from tensorflow.keras.legacy.optimizers import Adam
+
 from tensorflow_recommenders_addons.utils.check_platform import is_macos, is_arm64
 
 default_config = config_pb2.ConfigProto(
@@ -50,14 +59,14 @@ default_config = config_pb2.ConfigProto(
 
 
 def get_emb_sequential_model(emb_t, opt, *args, **kwargs):
-  l0 = tf.keras.layers.InputLayer(input_shape=(None,), dtype=dtypes.int64)
+  l0 = layers.InputLayer(input_shape=(None,), dtype=dtypes.int64)
   l1 = emb_t(*args, **kwargs)
-  l2 = tf.keras.layers.Dense(8, 'relu', kernel_initializer='zeros')
-  l3 = tf.keras.layers.Dense(1, 'sigmoid', kernel_initializer='zeros')
-  if emb_t == tf.keras.layers.Embedding:
-    model = tf.keras.Sequential([l0, l1, l2, l3])
+  l2 = layers.Dense(8, 'relu', kernel_initializer='zeros')
+  l3 = layers.Dense(1, 'sigmoid', kernel_initializer='zeros')
+  if emb_t == layers.Embedding:
+    model = Sequential([l0, l1, l2, l3])
   elif emb_t == de.keras.layers.HvdAllToAllEmbedding:
-    model = tf.keras.Sequential([l0, l1, l2, l3])
+    model = Sequential([l0, l1, l2, l3])
   else:
     raise TypeError('Unsupported embedding layer {}'.format(emb_t))
   model.compile(optimizer=opt, loss='mean_absolute_error')
@@ -80,7 +89,7 @@ class HorovodTest(test.TestCase):
     base_opt = adam.AdamOptimizer(1.0)
     test_opt = adam.AdamOptimizer(1.0)
     self.common_minimize_trainable_v1(base_opt, test_opt, name="adam")
-    tf.keras.backend.clear_session()
+    backend.clear_session()
     keras_base_opt = Adam(1.0)
     keras_test_opt = Adam(1.0)
     self.common_minimize_trainable_v2(keras_base_opt,
@@ -281,7 +290,7 @@ class HorovodTest(test.TestCase):
 
     base_opt = de.DynamicEmbeddingOptimizer(base_opt, synchronous=True)
     test_opt = hvd.DistributedOptimizer(test_opt)
-    init = tf.keras.initializers.Zeros()
+    init = Zeros()
     kv_creator = de.CuckooHashTableCreator(
         saver=de.FileSystemSaver(proc_size=hvd.size(), proc_rank=hvd.rank()))
     batch_size = 8
@@ -303,7 +312,7 @@ class HorovodTest(test.TestCase):
               bp_v2=False,
               kv_creator=kv_creator,
               name='all2all_emb')
-          test_model = get_emb_sequential_model(tf.keras.layers.Embedding,
+          test_model = get_emb_sequential_model(layers.Embedding,
                                                 test_opt,
                                                 input_dim=start +
                                                 batch_size * i,
@@ -342,7 +351,7 @@ class HorovodTest(test.TestCase):
         ckpt.save(save_dir + '/ckpt/test')
         del base_model
         del base_opt
-        tf.keras.backend.clear_session()
+        backend.clear_session()
         new_opt = de.DynamicEmbeddingOptimizer(Adam(1.1), synchronous=True)
         new_base_model = get_emb_sequential_model(
             de.keras.layers.HvdAllToAllEmbedding,
@@ -359,7 +368,7 @@ class HorovodTest(test.TestCase):
         new_a2aemb_size = new_base_model.layers[0].params.size()
         self.assertEqual(a2aemb_size, new_a2aemb_size)
         hvd.join()  # Sync for avoiding files conflict
-        tf.keras.backend.clear_session()
+        backend.clear_session()
         new_base_model.load_weights(save_dir +
                                     '/variables/variables').expect_partial()
         new_a2aemb_size = new_base_model.layers[0].params.size()
@@ -390,7 +399,7 @@ class HorovodTest(test.TestCase):
 
     dim = 8
 
-    class NoCompileModel(tf.keras.models.Model):
+    class NoCompileModel(models.Model):
 
       def __init__(self, init, dynamic=False):
         super().__init__(dynamic=dynamic)
@@ -400,8 +409,8 @@ class HorovodTest(test.TestCase):
                                                         initializer=0,
                                                         kv_creator=kv_creator,
                                                         name=name)
-        self.l1 = tf.keras.layers.Dense(8, 'relu', kernel_initializer=init)
-        self.l2 = tf.keras.layers.Dense(1, 'sigmoid', kernel_initializer=init)
+        self.l1 = layers.Dense(8, 'relu', kernel_initializer=init)
+        self.l2 = layers.Dense(1, 'sigmoid', kernel_initializer=init)
 
       def build(self, input_shape):
         self.emb.build(input_shape)
@@ -499,7 +508,7 @@ class HorovodTest(test.TestCase):
       del base_opt
       del model
       del ckpt
-      tf.keras.backend.clear_session()
+      backend.clear_session()
       tf.compat.v1.reset_default_graph()
 
       new_model = NoCompileModel('zeros')
@@ -558,7 +567,7 @@ class HorovodTest(test.TestCase):
       del new_opt
       del new_model
       del new_ckpt
-      tf.keras.backend.clear_session()
+      backend.clear_session()
       tf.compat.v1.reset_default_graph()
       new_saved_model = NoCompileModel('zeros')
       new_saved_opt = Adam(1.2)

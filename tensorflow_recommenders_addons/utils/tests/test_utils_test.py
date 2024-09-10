@@ -9,6 +9,11 @@ import pytest
 import tensorflow as tf
 from tensorflow_recommenders_addons.utils import test_utils
 
+try:
+  from tf_keras import layers, Model
+except:
+  from tensorflow.keras import layers, Model
+
 
 def test_seed_is_set():
   assert random.randint(0, 10000) == 6311
@@ -24,9 +29,9 @@ def test_all_scopes(device):
 
 
 def train_small_model():
-  model_input = tf.keras.layers.Input((3,))
-  model_output = tf.keras.layers.Dense(4)(model_input)
-  model = tf.keras.Model(model_input, model_output)
+  model_input = layers.Input((3,))
+  model_output = layers.Dense(4)(model_input)
+  model = Model(model_input, model_output)
   model.compile(loss="mse")
 
   x = np.random.uniform(size=(5, 3))

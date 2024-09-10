@@ -1,5 +1,8 @@
 import tensorflow as tf
-from tensorflow.keras.layers import LayerNormalization as TFLayerNormalization
+try:  # tf version <= 2.15
+  from tensorflow.keras.layers import LayerNormalization as TFLayerNormalization
+except:
+  from tf_keras.layers import LayerNormalization as TFLayerNormalization
 
 
 class LayerNormalization(TFLayerNormalization):
