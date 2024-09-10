@@ -36,7 +36,9 @@ if [[ "$TF_VERSION" == "2.11.0" && ( "$PYTHON_VERSION" == "3.9" || "$PYTHON_VERS
 fi
 
 if [[ "$TF_VERSION" =~ ^2\.(16|17)\.[0-9]+$ ]] ; then
-  export TF_USE_LEGACY_KERAS=1
+  # comment out the following line to test compatibility with TensorFlow 2.16 without setting TF_USE_LEGACY_KERAS=1
+  # export TF_USE_LEGACY_KERAS=1
+  python -m pip install tf-keras==2.16.0
 fi
 
 python configure.py

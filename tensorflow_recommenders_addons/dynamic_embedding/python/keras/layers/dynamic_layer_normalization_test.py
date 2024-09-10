@@ -3,15 +3,20 @@ import numpy as np
 import tensorflow as tf
 from tensorflow_recommenders_addons import dynamic_embedding as de
 
+try:
+  from tf_keras import Input, models, layers
+except:
+  from tensorflow.keras import Input, models, layers
+
 
 class DynamicLayerNormalizationTest(tf.test.TestCase):
 
   def test_dynamic_shape_support(self):
-    input_data = tf.keras.Input(shape=(None, 10), dtype=tf.float32)
+    input_data = Input(shape=(None, 10), dtype=tf.float32)
     layer = de.keras.layers.LayerNormalization()
     output = layer(input_data)
 
-    model = tf.keras.models.Model(inputs=input_data, outputs=output)
+    model = models.Model(inputs=input_data, outputs=output)
 
     np.random.seed(0)
     test_data = np.random.randn(2, 5, 10).astype(np.float32)
@@ -38,10 +43,10 @@ class DynamicLayerNormalizationTest(tf.test.TestCase):
               np.random.randn(num_samples) * 0.5).astype(np.float32).reshape(
                   -1, 1)
 
-    input_data = tf.keras.Input(shape=(input_dim,), dtype=tf.float32)
+    input_data = Input(shape=(input_dim,), dtype=tf.float32)
     normalized = de.keras.layers.LayerNormalization()(input_data)
-    output = tf.keras.layers.Dense(output_dim)(normalized)
-    model = tf.keras.models.Model(inputs=input_data, outputs=output)
+    output = layers.Dense(output_dim)(normalized)
+    model = models.Model(inputs=input_data, outputs=output)
 
     model.compile(optimizer='adam', loss='mean_squared_error')
     initial_weights = [layer.get_weights() for layer in model.layers]

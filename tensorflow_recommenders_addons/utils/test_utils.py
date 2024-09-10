@@ -28,6 +28,11 @@ except:  # make it compatible for python 3.7
   from distutils.version import LooseVersion as Version
 from tensorflow_recommenders_addons.utils import resource_loader
 
+try:
+  from tf_keras import mixed_precision
+except:
+  from tensorflow.keras import mixed_precision
+
 NUMBER_OF_WORKERS = int(os.environ.get("PYTEST_XDIST_WORKER_COUNT", "1"))
 WORKER_ID = int(os.environ.get("PYTEST_XDIST_WORKER", "gw0")[2])
 NUMBER_OF_GPUS = len(resource_loader.get_devices("GPU"))
@@ -106,9 +111,9 @@ def only_run_functions_eagerly(request):
 def run_with_mixed_precision_policy(request):
   if is_gpu_available() and Version(tf.__version__) <= "2.4.1":
     pytest.xfail("See https://github.com/tensorflow/tensorflow/issues/39775")
-  tf.keras.mixed_precision.experimental.set_policy(request.param)
+  mixed_precision.experimental.set_policy(request.param)
   yield
-  tf.keras.mixed_precision.experimental.set_policy("float32")
+  mixed_precision.experimental.set_policy("float32")
 
 
 @pytest.fixture(scope="function", params=["channels_first", "channels_last"])

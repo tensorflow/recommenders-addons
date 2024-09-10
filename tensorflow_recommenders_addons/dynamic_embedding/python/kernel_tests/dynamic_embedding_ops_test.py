@@ -67,10 +67,16 @@ from tensorflow.python.platform import test
 from tensorflow.python.training import device_setter
 from tensorflow.python.training import server_lib
 from tensorflow.python.util import compat
+
 try:
-  from tensorflow.keras.legacy.optimizers import Adam
+  from tf_keras.initializers import Zeros
+  from tf_keras.optimizers import Adam
 except:
-  from tensorflow.keras.optimizers import Adam
+  from tensorflow.keras.initializers import Zeros
+  try:
+    from tensorflow.keras.optimizers import Adam
+  except:
+    from tensorflow.keras.legacy.optimizers import Adam
 
 
 # pylint: disable=missing-class-docstring
@@ -1415,9 +1421,8 @@ class EmbeddingLookupEagerTest(test.TestCase):
     labels = array_ops.zeros((batch_size,), dtype=dtypes.float32)
     devar = de.get_variable(name + '/dynamic_embedding',
                             dim=embedding_size,
-                            initializer=tf.keras.initializers.Zeros())
-    tfvar = tf.Variable(tf.keras.initializers.Zeros()((nids, embedding_size),
-                                                      dtype=tf.float32))
+                            initializer=Zeros())
+    tfvar = tf.Variable(Zeros()((nids, embedding_size), dtype=tf.float32))
     return ids, labels, devar, tfvar
 
   def _loss_fn(self, params, ids, labels):

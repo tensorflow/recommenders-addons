@@ -30,7 +30,6 @@ from tensorflow_recommenders_addons import dynamic_embedding as de
 from tensorflow_recommenders_addons.utils.check_platform import is_macos, is_arm64
 
 from tensorflow.core.protobuf import config_pb2
-from tensorflow.keras import layers
 from tensorflow.python.client import session
 from tensorflow.python.eager import context
 from tensorflow.python.framework import constant_op
@@ -66,9 +65,9 @@ from tensorflow.python.util import compat
 try:  # tf version <= 2.15
   from tensorflow_estimator.python.estimator import estimator
   from tensorflow_estimator.python.estimator import estimator_lib
+  from tensorflow.keras import layers
 except:
-  # do nothing
-  pass
+  from tf_keras import layers
 
 try:  # The data_structures has been moved to the new package in tf 2.11
   from tensorflow.python.trackable import data_structures

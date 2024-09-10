@@ -14,7 +14,6 @@
 
 # lint-as: python3
 """patch on tensorflow"""
-
 from tensorflow_recommenders_addons import dynamic_embedding as de
 
 try:
@@ -24,11 +23,14 @@ except ImportError:
   pass  # for compatible with TF < 2.3.x
 
 try:
-  import tensorflow as tf
-  kinit_tf = tf.keras.initializers
-except ImportError:
-  kinit_tf = None
-  pass  # for compatible with TF >= 2.6.x
+  import tf_keras
+  kinit_tf = tf_keras.initializers
+except:
+  try:
+    import tensorflow
+    kinit_tf = tensorflow.keras.initializers
+  except ImportError:
+    pass  # for compatible with TF >= 2.6.x
 
 try:
   import keras as tmp_keras

@@ -23,6 +23,7 @@ fi
 
 if [[ "$TF_VERSION" =~ ^2\.(16|17)\.[0-9]+$ ]] ; then
   export TF_USE_LEGACY_KERAS=1
+  python -m pip install tf-keras==2.16.0; \
 fi
 
 python -m pip install tensorflow-io

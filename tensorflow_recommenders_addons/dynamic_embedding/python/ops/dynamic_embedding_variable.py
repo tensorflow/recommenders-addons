@@ -55,7 +55,22 @@ from tensorflow.python.eager import context
 from tensorflow.python.framework import constant_op
 from tensorflow.python.framework import dtypes
 from tensorflow.python.framework import ops
+
 from tensorflow.python.keras.optimizer_v2.optimizer_v2 import OptimizerV2
+
+try:  # tf version >= 2.16
+  from tf_keras.initializers import Initializer
+  from tf_keras.optimizers.legacy import Optimizer as keras_OptimizerV2_legacy
+  from tf_keras.optimizers import Optimizer as keras_OptimizerV2
+except:
+  from tensorflow.keras.initializers import Initializer
+  try:  # Keras version >= 2.12.0
+    from tensorflow.keras.optimizers.legacy import Optimizer as keras_OptimizerV2_legacy
+    from tensorflow.keras.optimizers import Optimizer as keras_OptimizerV2
+  except:
+    from tensorflow.keras.optimizers import Optimizer as keras_OptimizerV2_legacy
+    keras_OptimizerV2 = keras_OptimizerV2_legacy
+
 from tensorflow.python.keras.utils import tf_utils
 from tensorflow.python.ops import array_ops
 from tensorflow.python.ops import bitwise_ops
@@ -693,10 +708,7 @@ class Variable(EmbeddingWeights, base.Trackable):
 
   def _convert_anything_to_init(self, raw_init, dim):
     init = raw_init
-    valid_list = [
-        init_ops.Initializer, init_ops_v2.Initializer,
-        tf.keras.initializers.Initializer
-    ]
+    valid_list = [init_ops.Initializer, init_ops_v2.Initializer, Initializer]
     if kinit2 is not None:
       valid_list.append(kinit2.Initializer)
     valid_list = tuple(valid_list)
@@ -1142,8 +1154,7 @@ class Variable(EmbeddingWeights, base.Trackable):
     Returns:
       List of slot `Variable`s in optimizer.
     """
-    if not isinstance(optimizer,
-                      (Optimizer, OptimizerV2, tf.keras.optimizers.Optimizer)):
+    if not isinstance(optimizer, (Optimizer, OptimizerV2, keras_OptimizerV2)):
       raise TypeError('Expect an optimizer, but get {}'.format(type(optimizer)))
     slots = []
     if hasattr(optimizer, 'get_slot_names'):

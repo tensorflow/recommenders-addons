@@ -63,12 +63,18 @@ except:
   from tensorflow.python.training.tracking import base as trackable
 from tensorflow.python.keras.optimizer_v2 import optimizer_v2 as optimizer_v2_legacy
 from tensorflow.python.keras.optimizer_v2 import utils as optimizer_v2_legacy_utils
-try:  # Keras version >= 2.12.0
-  from tensorflow.keras.optimizers.legacy import Optimizer as keras_OptimizerV2_legacy
-  from tensorflow.keras.optimizers import Optimizer as keras_OptimizerV2
+
+try:  # tf version >= 2.16
+  from tf_keras.optimizers.legacy import Optimizer as keras_OptimizerV2_legacy
+  from tf_keras.optimizers import Optimizer as keras_OptimizerV2
 except:
-  from tensorflow.keras.optimizers import Optimizer as keras_OptimizerV2_legacy
-  keras_OptimizerV2 = keras_OptimizerV2_legacy
+  try:  # Keras version >= 2.12.0
+    from tensorflow.keras.optimizers.legacy import Optimizer as keras_OptimizerV2_legacy
+    from tensorflow.keras.optimizers import Optimizer as keras_OptimizerV2
+  except:
+    from tensorflow.keras.optimizers import Optimizer as keras_OptimizerV2_legacy
+    keras_OptimizerV2 = keras_OptimizerV2_legacy
+
 from tensorflow.python.eager import tape
 from tensorflow.python.distribute import values_util as distribute_values_util
 from tensorflow.python.distribute import distribute_utils

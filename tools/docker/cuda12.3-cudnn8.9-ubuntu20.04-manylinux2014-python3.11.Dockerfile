@@ -6,8 +6,9 @@
 # To push a new version, run:
 # $ docker build -f cuda12.3-cudnn8.9-ubuntu20.04-manylinux2014-python3.11.Dockerfile . \
 #  --tag "tfra/nosla-cuda12.3-cudnn8.9-ubuntu20.04-manylinux2014-python3.11"
+# docker login -u user -p token
 # $ docker push tfra/nosla-cuda12.3-cudnn8.9-ubuntu20.04-manylinux2014-python3.11
-FROM nvidia/cuda:12.3.2-devel-ubuntu20.04 as devtoolset
+FROM docker.io/tfra/nosla-cuda12.3.2-cudnn8.9-devel-ubuntu20.04 AS devtoolset
 
 RUN chmod 777 /tmp/
 ENV DEBIAN_FRONTEND=noninteractive
@@ -41,7 +42,7 @@ ADD devtoolset/rpm-patch.sh rpm-patch.sh
 RUN /build_devtoolset.sh devtoolset-8 /dt8
 
 # TODO(klimek): Split up into two different docker images.
-FROM nvidia/cuda:12.3.2-devel-ubuntu20.04
+FROM docker.io/tfra/nosla-cuda12.3.2-cudnn8.9-devel-ubuntu20.04
 COPY --from=devtoolset /dt8 /dt8
 
 # Install TensorRT.
