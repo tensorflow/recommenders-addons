@@ -16,7 +16,7 @@ on:
 
 env:
   MIN_PY_VERSION: '3.8'
-  MAX_PY_VERSION: '3.11'
+  MAX_PY_VERSION: '3.12'
   HOROVOD_VERSION: '0.28.1'
 
 jobs:
@@ -35,6 +35,8 @@ jobs:
           bash tools/install_deps/install_bazelisk.sh ./
           python -m pip install tensorflow-io
           python -m pip install --upgrade protobuf==4.23.4
+          export TF_USE_LEGACY_KERAS=1
+          python -m pip install tf-keras==2.16.0
           python configure.py
           bazel test --local_ram_resources=4096 -c opt -k --test_timeout 300,450,1200,3600 --test_output=errors //tensorflow_recommenders_addons/...
   release-wheel-cpu:
@@ -43,7 +45,7 @@ jobs:
       matrix:
         # TODO: add back 'windows-latest' when it can be compiled.
         os: ['macos-14', 'macos-12', 'ubuntu-20.04']
-        py-version: ['3.8', '3.9', '3.10', '3.11']
+        py-version: ['3.8', '3.9', '3.10', '3.12']
         tf-version: ['2.15.1', '2.16.2']
         tf-need-cuda: ['0']
         cpu: ['x86', 'arm64']
@@ -53,6 +55,8 @@ jobs:
             py-version: '3.8'
           - tf-version: '2.16.2'
             py-version: '3.8'
+          - py-version: '3.12'
+            tf-version: '2.15.1'
           - os: 'macos-14'
             cpu: 'x86'
           - os: 'ubuntu-20.04'
@@ -118,7 +122,7 @@ jobs:
       matrix:
         # TODO: add back 'windows-latest' when it can be compiled.
         os: ['ubuntu-20.04']
-        py-version: ['3.8', '3.9', '3.10', '3.11']
+        py-version: ['3.8', '3.9', '3.10', '3.12']
         tf-version: ['2.15.1', '2.16.2']
         tf-need-cuda: ['1']
         cpu: ['x86']
@@ -127,6 +131,8 @@ jobs:
             py-version: '3.8'
           - tf-version: '2.16.2'
             py-version: '3.8'
+          - py-version: '3.12'
+            tf-version: '2.15.1'
       fail-fast: false
     runs-on: [self-hosted, Linux, X64]
     steps:
@@ -185,8 +191,9 @@ jobs:
       matrix:
         # TODO: add back 'Windows' when it can be compiled.
         os: ['macOS', 'Linux']
-        py-version: ['3.8', '3.9', '3.10', '3.11']
-        tf-version: ['2.15.1', '2.16.2']
+        py-version: ['3.8', '3.9', '3.10', '3.11', '3.12']
+        # only one TF version is allowed for pip
+        tf-version: ['2.16.2']
         tf-need-cuda: ['0', '1']
         cpu: ['x86', 'arm64']
         exclude:
@@ -197,6 +204,8 @@ jobs:
             py-version: '3.8'
           - tf-version: '2.16.2'
             py-version: '3.8'
+          - py-version: '3.12'
+            tf-version: '2.15.1'
           - os: 'Linux'
             cpu: 'arm64'
           - os: 'Linux'
