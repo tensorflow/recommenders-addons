@@ -186,7 +186,8 @@ jobs:
         # TODO: add back 'Windows' when it can be compiled.
         os: ['macOS', 'Linux']
         py-version: ['3.8', '3.9', '3.10', '3.11']
-        tf-version: ['2.15.1', '2.16.2']
+        # only one TF version is allowed for pip
+        tf-version: ['2.16.2']
         tf-need-cuda: ['0', '1']
         cpu: ['x86', 'arm64']
         exclude:
