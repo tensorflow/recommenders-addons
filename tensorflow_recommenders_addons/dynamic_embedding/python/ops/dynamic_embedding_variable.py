@@ -692,13 +692,14 @@ class Variable(EmbeddingWeights, base.Trackable):
   def embedding_lookup(self,
                        ids,
                        name=None,
-                       max_norm=None) -> (tf.Tensor, EmbeddingWeights):
+                       max_norm=None,
+                       return_trainable=False) -> (tf.Tensor, EmbeddingWeights):
     return embedding_lookup(
         self,
         ids,
         name=name + '/embedding_lookup',
         max_norm=max_norm,
-        return_trainable=True,
+        return_trainable=return_trainable,
     )
 
   @property

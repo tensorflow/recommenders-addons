@@ -168,8 +168,12 @@ class ShadowVariable(EmbeddingWeights, TrainableWrapper):
   def embedding_lookup(self,
                        ids,
                        name=None,
-                       max_norm=None) -> (tf.Tensor, EmbeddingWeights):
-    return embedding_lookup(self, ids, name), self
+                       max_norm=None,
+                       return_trainable=False) -> (tf.Tensor, EmbeddingWeights):
+    if return_trainable:
+      return embedding_lookup(self, ids, name, False), self
+    else:
+      return embedding_lookup(self, ids, name)
 
   def prefetch_values(self, update=False):
     if self.params.bp_v2:
@@ -443,5 +447,9 @@ class HvdVariable(EmbeddingWeights):
   def embedding_lookup(self,
                        ids,
                        name=None,
-                       max_norm=None) -> (tf.Tensor, EmbeddingWeights):
-    return self.__alltoall_embedding_lookup__(ids), self.shadow
+                       max_norm=None,
+                       return_trainable=False) -> (tf.Tensor, EmbeddingWeights):
+    if return_trainable:
+      return self.__alltoall_embedding_lookup__(ids), self.shadow
+    else:
+      return self.__alltoall_embedding_lookup__(ids)

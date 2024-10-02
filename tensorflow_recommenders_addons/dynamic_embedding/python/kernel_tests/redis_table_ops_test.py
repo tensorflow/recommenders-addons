@@ -38,7 +38,10 @@ from tensorflow.python.framework import dtypes
 from tensorflow.python.framework import ops
 from tensorflow.python.framework import sparse_tensor
 from tensorflow.python.framework import test_util
-from tensorflow.keras import layers
+try:
+  from tensorflow.keras import layers
+except:
+  from tf_keras import layers
 from tensorflow.python.keras import optimizer_v2
 from tensorflow.python.ops import array_ops
 from tensorflow.python.ops import init_ops

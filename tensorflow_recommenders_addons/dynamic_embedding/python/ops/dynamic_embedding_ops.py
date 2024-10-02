@@ -94,14 +94,17 @@ def embedding_lookup_unique(params,
     ids_flat = array_ops.reshape(ids, math_ops.reduce_prod(shape,
                                                            keepdims=True))
     unique_ids, idx = array_ops.unique(ids_flat)
-    unique_embeddings, trainable_ = de.embedding_lookup(
-        params,
-        unique_ids,
-        partition_strategy=partition_strategy,
-        name=name,
-        validate_indices=None,
-        max_norm=validate_indices,
-        return_trainable=True)
+    result = de.embedding_lookup(params,
+                                 unique_ids,
+                                 partition_strategy=partition_strategy,
+                                 name=name,
+                                 validate_indices=None,
+                                 max_norm=validate_indices,
+                                 return_trainable=return_trainable)
+    if return_trainable:
+      unique_embeddings, trainable_ = result
+    else:
+      unique_embeddings = result
     embeddings_flat = array_ops.gather(unique_embeddings, idx)
     embeddings_shape = array_ops.concat(
         [shape, array_ops.shape(unique_embeddings)[1:]], 0)
@@ -216,9 +219,12 @@ def embedding_lookup_sparse(
 
     ids = sp_ids.values
     ids, idx = array_ops.unique(ids)
-    embeddings, trainable_ = params.embedding_lookup(ids,
-                                                     name=name,
-                                                     max_norm=max_norm)
+    embeddings = params.embedding_lookup(ids,
+                                         name=name,
+                                         max_norm=max_norm,
+                                         return_trainable=return_trainable)
+    if return_trainable:
+      embeddings, trainable_ = embeddings
 
     if embeddings.dtype in (dtypes.float16, dtypes.bfloat16):
       embeddings = math_ops.cast(embeddings, dtypes.float32)
@@ -372,7 +378,7 @@ def safe_embedding_lookup_sparse(
     if sparse_weights is not None:
       sparse_weights, _ = de.math.sparse_fill_empty_rows(sparse_weights, 1.0)
 
-    result, trainable_ = embedding_lookup_sparse(
+    result = embedding_lookup_sparse(
         embedding_weights,
         sparse_ids,
         sparse_weights,
@@ -380,8 +386,10 @@ def safe_embedding_lookup_sparse(
         partition_strategy=partition_strategy,
         name=name + "/embedding_lookup_sparse",
         max_norm=max_norm,
-        return_trainable=True,
+        return_trainable=return_trainable,
     )
+    if (return_trainable):
+      result, trainable_ = result
 
     if default_id is None:
       # Broadcast is_row_empty to the same shape as embedding_lookup_result,
