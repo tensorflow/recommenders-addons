@@ -57,7 +57,9 @@ class EmbeddingWeights():
   def embedding_lookup(self,
                        ids,
                        name=None,
-                       max_norm=None) -> (tf.Tensor, "EmbeddingWeights"):
+                       max_norm=None,
+                       return_trainable=False
+                      ) -> (tf.Tensor, "EmbeddingWeights"):
     """
     embedding lookup, and store the result. No by-product will
     be introduced in this call. So it can be decorated by `tf.function`.

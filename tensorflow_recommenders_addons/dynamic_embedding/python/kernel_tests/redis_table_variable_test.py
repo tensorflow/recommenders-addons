@@ -34,7 +34,11 @@ from tensorflow_recommenders_addons import dynamic_embedding as de
 from tensorflow_recommenders_addons.utils.check_platform import is_windows, is_macos, is_arm64, is_linux, is_raspi_arm
 
 from tensorflow.core.protobuf import config_pb2
-from tensorflow.keras import layers
+try:
+  from tensorflow.keras import layers
+except:
+  from tf_keras import layers
+
 from tensorflow.python.client import session
 from tensorflow.python.eager import context
 from tensorflow.python.framework import constant_op

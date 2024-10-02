@@ -71,8 +71,10 @@ from tensorflow.python.util import compat
 try:
   from tf_keras.initializers import Zeros
   from tf_keras.optimizers import Adam
+  from tf_keras import Input, Model, layers
 except:
   from tensorflow.keras.initializers import Zeros
+  from tensorflow.keras import Input, Model, layers
   try:
     from tensorflow.keras.optimizers import Adam
   except:
@@ -566,6 +568,35 @@ class EmbeddingLookupTest(test.TestCase):
     self.assertAllEqual(p1._tables[0].name, "test_p1_mht_1of1")
     self.assertAllEqual(p1_reuse._tables[0].name, "test_p1_mht_1of1")
     self.assertAllEqual(p2._tables[0].name, "test_p2_mht_1of1")
+
+  def test_keras_input_safe_sparse_embedding_lookup(self):
+    embeddings = de.get_variable(name="p1")
+
+    @tf.function
+    def model(indices_input, ids_input):
+      shape_input = tf.constant([2, 3, 4], dtype=tf.int64)
+
+      sparse_ids = tf.sparse.SparseTensor(indices=indices_input,
+                                          values=ids_input,
+                                          dense_shape=shape_input)
+
+      embeddings_result = de.safe_embedding_lookup_sparse(
+          embeddings, sparse_ids, name="safe_sp_emb", return_trainable=False)
+      return embeddings_result
+
+    indices_data = tf.constant([
+        [0, 0, 0],
+        [0, 0, 1],
+        [0, 0, 2],
+        [0, 1, 0],
+        [1, 0, 0],
+        [1, 1, 0],
+        [1, 1, 1],
+    ],
+                               dtype=tf.int64)
+    ids_data = tf.constant([0, 1, -1, -1, 2, 0, 1], dtype=tf.int64)
+
+    # output = model(indices_data, ids_data)
 
   def test_scope_reuse_safe_sparse_embedding_lookup(self):
     indices = [

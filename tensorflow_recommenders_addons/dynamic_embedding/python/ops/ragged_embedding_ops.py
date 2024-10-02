@@ -140,7 +140,7 @@ def _embedding_lookup_sparse_impl(
   segment_ids = ops.convert_to_tensor(segment_ids, name="segment_ids")
 
   ids, idx = array_ops.unique(ids)
-  embeddings, _ = params.embedding_lookup(ids, name=name)
+  embeddings = params.embedding_lookup(ids, name=name)
   if not ignore_weights:
     if segment_ids.dtype != dtypes.int32:
       segment_ids = math_ops.cast(segment_ids, dtypes.int32)
