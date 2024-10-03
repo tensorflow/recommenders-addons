@@ -56,6 +56,8 @@ if [[ "$TF_VERSION" =~ ^2\.1[3-9]\.[0-9]$ ]] ; then
   export PROTOBUF_VERSION='4.23.4'
 fi
 
+docker system prune -f
+
 DOCKER_BUILDKIT=1 docker build --no-cache \
     -f tools/docker/build_wheel.Dockerfile \
     --output type=local,dest=wheelhouse \
