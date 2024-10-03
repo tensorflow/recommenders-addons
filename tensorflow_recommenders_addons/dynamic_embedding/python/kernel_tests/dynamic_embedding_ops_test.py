@@ -81,6 +81,52 @@ except:
     from tensorflow.keras.legacy.optimizers import Adam
 
 
+class MyModel(layers.Layer):
+
+  def __init__(self):
+    super().__init__()
+    self.embeddings = de.get_variable(name="p1")
+
+  @tf.function
+  def call(self, indices_input, ids_input):
+    shape_input = tf.constant([2, 3, 4], dtype=tf.int64)
+
+    sparse_ids = tf.sparse.SparseTensor(indices=indices_input,
+                                        values=ids_input,
+                                        dense_shape=shape_input)
+
+    embeddings_result = de.safe_embedding_lookup_sparse(self.embeddings,
+                                                        sparse_ids,
+                                                        name="safe_sp_emb",
+                                                        return_trainable=False)
+    return embeddings_result
+
+
+# class MyModel(tf.Module):
+#   def __init__(self):
+#     super().__init__()
+#     # Create the variable as an attribute of the module
+#     self.embeddings = de.get_variable(name="p1")
+#
+#   @tf.function
+#   def __call__(self, indices_input, ids_input):
+#     shape_input = tf.constant([2, 3, 4], dtype=tf.int64)
+#
+#     sparse_ids = tf.sparse.SparseTensor(
+#       indices=indices_input,
+#       values=ids_input,
+#       dense_shape=shape_input
+#     )
+#
+#     embeddings_result = de.safe_embedding_lookup_sparse(
+#       self.embeddings,
+#       sparse_ids,
+#       name="safe_sp_emb",
+#       return_trainable=False
+#     )
+#     return embeddings_result
+
+
 # pylint: disable=missing-class-docstring
 # pylint: disable=missing-function-docstring
 def _type_converter(tf_type):
@@ -570,20 +616,6 @@ class EmbeddingLookupTest(test.TestCase):
     self.assertAllEqual(p2._tables[0].name, "test_p2_mht_1of1")
 
   def test_keras_input_safe_sparse_embedding_lookup(self):
-    embeddings = de.get_variable(name="p1")
-
-    @tf.function
-    def model(indices_input, ids_input):
-      shape_input = tf.constant([2, 3, 4], dtype=tf.int64)
-
-      sparse_ids = tf.sparse.SparseTensor(indices=indices_input,
-                                          values=ids_input,
-                                          dense_shape=shape_input)
-
-      embeddings_result = de.safe_embedding_lookup_sparse(
-          embeddings, sparse_ids, name="safe_sp_emb", return_trainable=False)
-      return embeddings_result
-
     indices_data = tf.constant([
         [0, 0, 0],
         [0, 0, 1],
@@ -593,9 +625,10 @@ class EmbeddingLookupTest(test.TestCase):
         [1, 1, 0],
         [1, 1, 1],
     ],
+                               name="indices_data",
                                dtype=tf.int64)
-    ids_data = tf.constant([0, 1, -1, -1, 2, 0, 1], dtype=tf.int64)
-
+    ids_data = tf.constant([0, 1, -1, -1, 2, 0, 1], name="ids", dtype=tf.int64)
+    model = MyModel()
     # output = model(indices_data, ids_data)
 
   def test_scope_reuse_safe_sparse_embedding_lookup(self):
