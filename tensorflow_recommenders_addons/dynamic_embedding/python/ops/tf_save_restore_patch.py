@@ -18,6 +18,7 @@
 import inspect
 import functools
 import os.path
+from packaging import version
 import re
 
 from tensorflow_recommenders_addons import dynamic_embedding as de
@@ -54,6 +55,7 @@ except:
   from tensorflow.python.training.saving import functional_saver
 from tensorflow.python.util import compat
 from tensorflow.python.util import nest
+from tensorflow import version as tf_version
 
 tf_original_save_func = tf_saved_model_save.save
 if keras_saved_model_save is not None:
@@ -566,7 +568,9 @@ class _DynamicEmbeddingSaver(saver.Saver):
 
 
 def patch_on_tf_save_restore():
-  try:
+  if version.parse(tf_version.VERSION) < version.parse("2.11"):
+    functional_saver._SingleDeviceSaver = _DynamicEmbeddingSingleDeviceSaver
+  else:
     from tensorflow.python.saved_model.registration.registration import register_checkpoint_saver
     class_obj = de.Variable
     predicate = lambda x: isinstance(x, class_obj)
@@ -584,8 +588,6 @@ def patch_on_tf_save_restore():
       k_name = param.name
       kwargs[k_name] = prekwargs[k_name]
     register_checkpoint_saver(**kwargs)
-  except:
-    functional_saver._SingleDeviceSaver = _DynamicEmbeddingSingleDeviceSaver
   saver.Saver = _DynamicEmbeddingSaver
   # # Replace origin saving function is too dangerous.
   # tf_saved_model_save.save = functools.partial(de.keras.models._de_keras_save_func,
