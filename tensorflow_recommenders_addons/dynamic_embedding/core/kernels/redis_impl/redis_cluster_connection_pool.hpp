@@ -1302,14 +1302,15 @@ every bucket has its own BucketContext for sending data---for locating reply-
       exists_split[key_bucket_locs].push_back(*(exists + begin + i));
     }
 
-    const bool *pe_raw = exists + begin;
+    std::vector<std::unique_ptr<std::vector<char>>> exists_chars(storage_slice);
     for (unsigned i = 0; i < storage_slice; ++i) {
       if (!exists_split[i].empty()) {
-        std::vector<char> exists_char(exists_split[i].size());
-        std::transform(exists_split[i].begin(), exists_split[i].end(), exists_char.begin(), [](bool b) {
+        exists_chars[i] = std::make_unique<std::vector<char>>(exists_split[i].size());
+        std::transform(exists_split[i].begin(), exists_split[i].end(), exists_chars[i]->begin(), [](bool b) {
             return static_cast<char>(b);
         });
-        thread_context->HandlePushBack(i, exists_char.data(), exists_char.size() * sizeof(char));
+
+        thread_context->HandlePushBack(i, exists_chars[i]->data(), exists_chars[i]->size() * sizeof(char));
       }
     }
 
