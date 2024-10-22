@@ -1281,6 +1281,7 @@ every bucket has its own BucketContext for sending data---for locating reply-
                                      dtype_str_size);
     }
 
+    std::vector<std::vector<bool>> exists_split(storage_slice);
     VContentAndTypeSizeResult VCATS_temp;
     // std::vector<char> for storage all string in one KV pair
     std::vector<std::vector<char>> buff_temp(total);
@@ -1298,12 +1299,18 @@ every bucket has its own BucketContext for sending data---for locating reply-
           key_bucket_locs, KContentPointer<K>(pk_raw), KTypeSize<K>(pk_raw));
       thread_context->HandlePushBack(
           key_bucket_locs, VCATS_temp.VContentPointer, VCATS_temp.VTypeSize);
+      exists_split[key_bucket_locs].push_back(*(exists + begin + i));
     }
 
     const bool *pe_raw = exists + begin;
     for (unsigned i = 0; i < storage_slice; ++i) {
-      thread_context->HandlePushBack(i, KContentPointer<bool>(pe_raw),
-                                     total * KTypeSize<bool>(pe_raw));
+      if (!exists_split[i].empty()) {
+        std::vector<char> exists_char(exists_split[i].size());
+        std::transform(exists_split[i].begin(), exists_split[i].end(), exists_char.begin(), [](bool b) {
+            return static_cast<char>(b);
+        });
+        thread_context->HandlePushBack(i, exists_char.data(), exists_char.size() * sizeof(char));
+      }
     }
 
     auto cmd = [](::sw::redis::Connection &connection,
