@@ -33,6 +33,8 @@ The `shadow_ops` submodule is designed to support usage on `tf.function`
 and modular style development, like keras.
 """
 
+from packaging import version
+
 import tensorflow as tf
 
 from tensorflow.python.distribute import distribute_lib
@@ -48,9 +50,9 @@ from tensorflow_recommenders_addons import dynamic_embedding as de
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.embedding_weights import EmbeddingWeights, \
   TrainableWrapper
 
-try:  # tf version >= 2.10.0
+if version.parse(tf.__version__) >= version.parse("2.10"):
   from tensorflow.python.trackable import base as trackable
-except:
+else:
   from tensorflow.python.training.tracking import base as trackable
 
 from tensorflow.python.distribute import distribute_utils
