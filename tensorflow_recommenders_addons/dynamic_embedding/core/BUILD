@@ -58,35 +58,63 @@ custom_op_library(
     ],
 )
 
+# _math_ops.so has been removed since TF2 performance is good enough.
+config_setting(
+    name = "build_math_op",
+    values = {
+        "define": "BUILD_MATH_OP=1",
+    },
+)
+
 custom_op_library(
     name = "_math_ops.so",
-    srcs = [
-        "kernels/segment_reduction_ops.h",
-        "kernels/segment_reduction_ops_impl.cc",
-        "kernels/segment_reduction_ops_impl.h",
-        "ops/math_ops.cc",
-        "utils/utils.h",
-    ],
-    cuda_srcs = [
-        "kernels/segment_reduction_ops.h",
-        "kernels/segment_reduction_ops_gpu.cu.cc",
-    ],
+    srcs = select({
+        ":build_math_op": [
+            "kernels/segment_reduction_ops.h",
+            "kernels/segment_reduction_ops_impl.cc",
+            "kernels/segment_reduction_ops_impl.h",
+            "ops/math_ops.cc",
+            "utils/utils.h",
+        ],
+        "//conditions:default": [],
+    }),
+    cuda_srcs = select({
+        ":build_math_op": [
+            "kernels/segment_reduction_ops.h",
+            "kernels/segment_reduction_ops_gpu.cu.cc",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+# _data_flow_ops.so has been removed since TF2.9 already support int32/int64 GPU op.
+config_setting(
+    name = "build_data_flow_op",
+    values = {
+        "define": "BUILD_DATA_FLOW_OP=1",
+    },
 )
 
 custom_op_library(
     name = "_data_flow_ops.so",
-    srcs = [
-        "kernels/dynamic_partition_op.cc",
-        "kernels/dynamic_stitch_op.cc",
-        "ops/data_flow_ops.cc",
-        "utils/utils.h",
-    ],
-    cuda_srcs = [
-        "kernels/fill_functor.cu.cc",
-        "kernels/dynamic_partition_op_gpu.cu.cc",
-        "kernels/dynamic_stitch_op_gpu.cu.cc",
-        "utils/utils.h",
-    ],
+    srcs = select({
+        ":build_data_flow_op": [
+            "kernels/dynamic_partition_op.cc",
+            "kernels/dynamic_stitch_op.cc",
+            "ops/data_flow_ops.cc",
+            "utils/utils.h",
+        ],
+        "//conditions:default": [],
+    }),
+    cuda_srcs = select({
+        ":build_data_flow_op": [
+            "kernels/fill_functor.cu.cc",
+            "kernels/dynamic_partition_op_gpu.cu.cc",
+            "kernels/dynamic_stitch_op_gpu.cu.cc",
+            "utils/utils.h",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 # TODO: Add hkv targets.
