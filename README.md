@@ -298,7 +298,7 @@ sess_config.gpu_options.allow_growth = True
 | 0.1.0 | 2.4.1      | r2.4           | GCC 7.3.1 | -    | -     | -                            |
 
 Serving TFRA-enable models by custom ops in TensorFlow Serving. 
-
+ 
 ```sh
 ## If enable GPU OPs
 export SERVING_WITH_GPU=1 
