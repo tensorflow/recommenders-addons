@@ -15,16 +15,19 @@
 # lint-as: python3
 
 import os.path
+from packaging import version
+
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.tf_save_restore_patch import de_fs_saveable_class_names, de_fs_sub_saveable_class_names
 from tensorflow_recommenders_addons import dynamic_embedding as de
 
+from tensorflow import version as tf_version
 from tensorflow.python.eager import context
 from tensorflow.python.framework import constant_op
 from tensorflow.python.framework import ops
-try:  # tf version >= 2.10.0
+if version.parse(tf_version.VERSION) >= version.parse("2.10"):
   from tensorflow.python.checkpoint.checkpoint import Checkpoint as TFCheckpoint
   from tensorflow.python.checkpoint import restore as ckpt_base
-except:
+else:
   from tensorflow.python.training.tracking.util import Checkpoint as TFCheckpoint
   from tensorflow.python.training.tracking import base as ckpt_base
 from tensorflow.python.lib.io import file_io

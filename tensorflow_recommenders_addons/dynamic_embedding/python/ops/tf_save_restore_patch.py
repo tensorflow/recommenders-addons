@@ -25,10 +25,7 @@ from tensorflow_recommenders_addons import dynamic_embedding as de
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_variable \
   import load_de_variable_from_file_system
 
-try:
-  from keras.saving.saved_model import save as keras_saved_model_save
-except:
-  keras_saved_model_save = None
+from tensorflow import version as tf_version
 from tensorflow.core.protobuf import saver_pb2
 from tensorflow.python.client import session
 from tensorflow.python.eager import context
@@ -45,21 +42,16 @@ from tensorflow.python.platform import gfile
 from tensorflow.python.platform import tf_logging
 from tensorflow.python.training import saver
 from tensorflow.python.training import training_util
-try:  # tf version >= 2.10.0
+if version.parse(tf_version.VERSION) >= version.parse("2.10"):
   from tensorflow.python.checkpoint import checkpoint_management
   from tensorflow.python.checkpoint import checkpoint_options
   from tensorflow.python.checkpoint import functional_saver
-except:
+else:
   from tensorflow.python.training import checkpoint_management
   from tensorflow.python.training.saving import checkpoint_options
   from tensorflow.python.training.saving import functional_saver
 from tensorflow.python.util import compat
 from tensorflow.python.util import nest
-from tensorflow import version as tf_version
-
-tf_original_save_func = tf_saved_model_save.save
-if keras_saved_model_save is not None:
-  keras_original_save_func = keras_saved_model_save.save
 
 de_fs_saveable_class_names = [
     '_DynamicEmbeddingVariabelFileSystemSaveable',
@@ -116,7 +108,7 @@ def _de_var_fs_restore_fn(trackables, merged_prefix):
   return load_ops.as_list()
 
 
-try:  # tf version <= 2.15
+if version.parse(tf_version.VERSION) <= version.parse("2.15"):
 
   class _DynamicEmbeddingSingleDeviceSaver(functional_saver._SingleDeviceSaver):
 
@@ -235,7 +227,7 @@ try:  # tf version <= 2.15
               restore_ops[saveable.name]
           ])
       return restore_ops
-except:
+else:
   print(" _SingleDeviceSaver removed after tf version 2.15")
 
 
@@ -589,9 +581,3 @@ def patch_on_tf_save_restore():
       kwargs[k_name] = prekwargs[k_name]
     register_checkpoint_saver(**kwargs)
   saver.Saver = _DynamicEmbeddingSaver
-  # # Replace origin saving function is too dangerous.
-  # tf_saved_model_save.save = functools.partial(de.keras.models._de_keras_save_func,
-  #                                              tf_original_save_func)
-  # if keras_saved_model_save is not None:
-  #   keras_saved_model_save.save = functools.partial(de.keras.models._de_keras_save_func,
-  #                                                   keras_original_save_func)

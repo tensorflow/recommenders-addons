@@ -18,6 +18,8 @@ Dynamic Embedding is designed for Large-scale Sparse Weights Training.
 See [Sparse Domain Isolation](https://github.com/tensorflow/community/pull/237)
 """
 
+from packaging import version
+
 import tensorflow as tf
 
 from tensorflow.python.eager import context
@@ -28,31 +30,35 @@ from tensorflow.python.keras.utils import tf_utils
 
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.shadow_embedding_ops import HvdVariable
 
-try:  # tf version >= 2.14.0
+if version.parse(tf.__version__) >= version.parse("2.14"):
   from tensorflow.python.distribute import distribute_lib as distribute_ctx
-
-  assert hasattr(distribute_ctx, 'has_strategy')
-except:
+else:
   from tensorflow.python.distribute import distribution_strategy_context as distribute_ctx
 from tensorflow.python.distribute import values_util
 from tensorflow.python.framework import ops
 from tensorflow.python.ops.variables import VariableAggregation
 from tensorflow.python.platform import tf_logging
 
-try:  # The data_structures has been moved to the new package in tf 2.11
+if version.parse(tf.__version__) >= version.parse("2.11"):
+  # The data_structures has been moved to the new package in tf 2.11
   from tensorflow.python.trackable import data_structures
-except:
+else:
   from tensorflow.python.training.tracking import data_structures
 
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.dynamic_embedding_variable import \
   TrainableWrapperDistributedPolicy
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.tf_save_restore_patch import de_fs_saveable_class_names
 
-try:  # tf version >= 2.16
-  from tf_keras.layers import Layer
-  from tf_keras.initializers import RandomNormal, Zeros, serialize
-  from tf_keras import constraints
-except:
+if version.parse(tf.__version__) >= version.parse("2.16"):
+  try:  # independently import tf_keras
+    from tf_keras.layers import Layer
+    from tf_keras.initializers import RandomNormal, Zeros, serialize
+    from tf_keras import constraints
+  except:
+    from tensorflow.python.keras.legacy_tf_layers.base import Layer
+    from tensorflow.python.keras.initializers import RandomNormal, Zeros, serialize
+    from tensorflow.python.keras import constraints
+else:
   from tensorflow.keras.layers import Layer
   from tensorflow.keras.initializers import RandomNormal, Zeros, serialize
   from tensorflow.keras import constraints

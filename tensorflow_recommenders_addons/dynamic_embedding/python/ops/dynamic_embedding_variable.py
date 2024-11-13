@@ -19,6 +19,7 @@ See [Sparse Domain Isolation](https://github.com/tensorflow/community/pull/237)
 """
 
 import functools
+from packaging import version
 import re
 import typing
 import tensorflow as tf
@@ -27,10 +28,9 @@ from tensorflow_recommenders_addons import dynamic_embedding as de
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.embedding_weights import EmbeddingWeights
 from tensorflow_recommenders_addons.utils.check_platform import is_macos, is_arm64
 
-try:  # tf version >= 2.14.0
+if version.parse(tf.__version__) >= version.parse("2.14"):
   from tensorflow.python.distribute import distribute_lib as distribute_ctx
-  assert hasattr(distribute_ctx, 'has_strategy')
-except:
+else:
   from tensorflow.python.distribute import distribution_strategy_context as distribute_ctx
 from tensorflow.python.distribute import distribute_utils
 from tensorflow.python.distribute import values as distribute_values_lib
@@ -58,16 +58,21 @@ from tensorflow.python.framework import ops
 
 from tensorflow.python.keras.optimizer_v2.optimizer_v2 import OptimizerV2
 
-try:  # tf version >= 2.16
-  from tf_keras.initializers import Initializer
-  from tf_keras.optimizers.legacy import Optimizer as keras_OptimizerV2_legacy
-  from tf_keras.optimizers import Optimizer as keras_OptimizerV2
-except:
+if version.parse(tf.__version__) >= version.parse("2.16"):
+  try:  # independently import tf_keras
+    from tf_keras.initializers import Initializer
+    from tf_keras.optimizers.legacy import Optimizer as keras_OptimizerV2_legacy
+    from tf_keras.optimizers import Optimizer as keras_OptimizerV2
+  except:
+    from tensorflow.python.keras.initializers.initializers_v2 import Initializer
+    from tensorflow.python.keras.optimizers import Optimizer as keras_OptimizerV2_legacy
+    from tensorflow.python.keras.optimizer_v2.optimizer_v2 import OptimizerV2 as keras_OptimizerV2
+else:
   from tensorflow.keras.initializers import Initializer
-  try:  # Keras version >= 2.12.0
+  if version.parse(tf.__version__) >= version.parse("2.12"):
     from tensorflow.keras.optimizers.legacy import Optimizer as keras_OptimizerV2_legacy
     from tensorflow.keras.optimizers import Optimizer as keras_OptimizerV2
-  except:
+  else:
     from tensorflow.keras.optimizers import Optimizer as keras_OptimizerV2_legacy
     keras_OptimizerV2 = keras_OptimizerV2_legacy
 
@@ -84,35 +89,36 @@ from tensorflow.python.ops import math_ops
 from tensorflow.python.ops import parsing_ops
 from tensorflow.python.ops import string_ops
 from tensorflow.python.ops import variable_scope
-try:  # tf version >= 2.14.0
+if version.parse(tf.__version__) >= version.parse("2.14"):
   from tensorflow.python.ops.control_flow_assert import Assert
-except:
+else:
   from tensorflow.python.ops.control_flow_ops import Assert
-try:  # tf version >= 2.14.0
+if version.parse(tf.__version__) >= version.parse("2.14"):
   from tensorflow.python.ops.cond import cond
-except:
+else:
   from tensorflow.python.ops.control_flow_ops import cond
-try:  # tf version >= 2.14.0
+if version.parse(tf.__version__) >= version.parse("2.14"):
   from tensorflow.python.ops.while_loop import while_loop
-except:
+else:
   from tensorflow.python.ops.control_flow_ops import while_loop
 from tensorflow.python.platform import tf_logging
 from tensorflow.python.training.optimizer import Optimizer
-try:  # tf version >= 2.10.0
+if version.parse(tf.__version__) >= version.parse("2.10"):
   from tensorflow.python.trackable import base
-except:
+else:
   from tensorflow.python.training.tracking import base
-try:  # tf version >= 2.10.0
+if version.parse(tf.__version__) >= version.parse("2.10"):
   from tensorflow.python.training.saving.saveable_object_util import _PythonStringStateSaveable as TF_PythonStringStateSaveable
-except:
+else:
   from tensorflow.python.training.tracking.base import PythonStringStateSaveable as TF_PythonStringStateSaveable
-try:  # The data_structures has been moved to the new package in tf 2.11
+if version.parse(tf.__version__) >= version.parse("2.11"):
+  # The data_structures has been moved to the new package in tf 2.11
   from tensorflow.python.trackable import data_structures
-except:
+else:
   from tensorflow.python.training.tracking import data_structures
-try:  # tf version >= 2.14.0
+if version.parse(tf.__version__) >= version.parse("2.14"):
   from tensorflow.python.trackable import python_state
-except:
+else:
   from tensorflow.python.training.tracking import python_state
 from tensorflow.python.util.tf_export import tf_export
 

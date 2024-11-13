@@ -14,6 +14,9 @@
 
 # lint-as: python3
 """patch on tensorflow"""
+
+from packaging import version
+
 from tensorflow_recommenders_addons import dynamic_embedding as de
 
 try:
@@ -39,18 +42,19 @@ except ImportError:
   kinit_K = None
   pass  # for compatible with standalone Keras
 
+from tensorflow import version as tf_version
 from tensorflow.core.framework import node_def_pb2
 from tensorflow.python.eager import context
 from tensorflow.python.framework import device as pydev
 from tensorflow.python.framework import dtypes
 from tensorflow.python.framework import ops
-try:  # tf version >= 2.14.0
+if version.parse(tf_version.VERSION) >= version.parse("2.14"):
   from tensorflow.python.framework.tensor import Tensor
-except:
+else:
   from tensorflow.python.framework.ops import Tensor
-try:  # tf version >= 2.13.0
+if version.parse(tf_version.VERSION) >= version.parse("2.13"):
   from tensorflow.python.framework.indexed_slices import IndexedSlices
-except:
+else:
   from tensorflow.python.framework.ops import IndexedSlices
 from tensorflow.python.keras import initializers as kinit1
 from tensorflow.python.ops import control_flow_ops
@@ -63,9 +67,9 @@ from tensorflow.python.platform import tf_logging
 from tensorflow.python.training import device_setter
 from tensorflow.python.training import optimizer
 from tensorflow.python.training import slot_creator
-try:  # tf version >= 2.10.0
+if version.parse(tf_version.VERSION) >= version.parse("2.10"):
   from tensorflow.python.checkpoint import restore as ckpt_base
-except:
+else:
   from tensorflow.python.training.tracking import base as ckpt_base
 
 _PARTITION_SHAPE = 'partition_shape'
