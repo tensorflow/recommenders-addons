@@ -419,7 +419,7 @@ class DualChannelsDeepModel(tf.keras.Model):
             boundaries=fea_info['boundaries'])(input_tensor)
       # To prepare for GPU table combined queries, use a prefix to distinguish different features in a table.
       if fea_info['ptype'] == 'user_occupation_label':
-        input_tensor_prefix_code = int(fea_info['code']) << 1
+        input_tensor_prefix_code = int(fea_info['code']) << 48
       else:
         input_tensor_prefix_code = None
       if input_tensor_prefix_code is not None:
