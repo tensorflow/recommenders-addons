@@ -32,16 +32,13 @@ from tensorflow_recommenders_addons.dynamic_embedding.python.ops import data_flo
 from tensorflow_recommenders_addons.utils.resource_loader import LazySO
 
 tfra_data_flow_ops = LazySO("dynamic_embedding/core/_data_flow_ops.so").ops
-# TODO(MoFHeka): dynamic_partition and dynamic_stitch in TensorFlow
+# NOTE(MoFHeka): dynamic_partition and dynamic_stitch in TensorFlow
 #                missing compile implementation of the bool data type.
 #                Remove TFRA DE same-name op when TensorFlow supports those data type.
 
 
 def dynamic_partition(data, partitions, num_partitions, name=None):
   if not hasattr(tfra_data_flow_ops, 'tfra_dynamic_partition'):
-    tf_logging.warn(
-        '`tfra.dynamic_embedding.data_flow.dynamic_partition` is not'
-        ' found. Use tf.dynamic_partition instead.')
     with ops.colocate_with(None, ignore_existing=True):
       return tf.dynamic_partition(data, partitions, num_partitions, name=name)
   else:
@@ -53,8 +50,6 @@ def dynamic_partition(data, partitions, num_partitions, name=None):
 
 def dynamic_stitch(indices, data, use_fast=True, name=None):
   if not hasattr(tfra_data_flow_ops, 'tfra_dynamic_stitch'):
-    tf_logging.warn('`tfra.dynamic_embedding.data_flow.dynamic_stitch` is not'
-                    ' found. Use tf.dynamic_stitch instead.')
     with ops.colocate_with(None, ignore_existing=True):
       return tf.dynamic_stitch(indices, data, name=name)
   else:
