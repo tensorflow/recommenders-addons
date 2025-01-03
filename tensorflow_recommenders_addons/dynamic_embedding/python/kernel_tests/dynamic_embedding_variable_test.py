@@ -23,12 +23,14 @@ import itertools
 import math
 import numpy as np
 import os
+from packaging import version
 import six
 import tempfile
 
 from tensorflow_recommenders_addons import dynamic_embedding as de
 from tensorflow_recommenders_addons.utils.check_platform import is_macos, is_arm64
 
+from tensorflow import version as tf_version
 from tensorflow.core.protobuf import config_pb2
 from tensorflow.python.client import session
 from tensorflow.python.eager import context
@@ -56,22 +58,26 @@ from tensorflow.python.training import adam
 from tensorflow.python.training import saver
 from tensorflow.python.training import server_lib
 from tensorflow.python.training import training
-try:  # tf version >= 2.14.0
+if version.parse(tf_version.VERSION) >= version.parse("2.14"):
   from tensorflow.python.checkpoint.checkpoint import Checkpoint
-except:
+else:
   from tensorflow.python.training.tracking.util import Checkpoint
 from tensorflow.python.util import compat
 
-try:  # tf version <= 2.15
+if version.parse(tf_version.VERSION) >= version.parse("2.16"):
+  try:  # independently import tf_keras
+    from tf_keras import layers
+  except:
+    from tensorflow.python.keras import layers
+else:
   from tensorflow_estimator.python.estimator import estimator
   from tensorflow_estimator.python.estimator import estimator_lib
   from tensorflow.keras import layers
-except:
-  from tf_keras import layers
 
-try:  # The data_structures has been moved to the new package in tf 2.11
+if version.parse(tf_version.VERSION) >= version.parse("2.11"):
+  # The data_structures has been moved to the new package in tf 2.11
   from tensorflow.python.trackable import data_structures
-except:
+else:
   from tensorflow.python.training.tracking import data_structures
 
 try:

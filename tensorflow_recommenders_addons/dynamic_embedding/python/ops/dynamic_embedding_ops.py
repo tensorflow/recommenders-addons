@@ -18,10 +18,13 @@ Dynamic Embedding is designed for Large-scale Sparse Weights Training.
 See [Sparse Domain Isolation](https://github.com/tensorflow/community/pull/237)
 """
 
+from packaging import version
+
 from tensorflow_recommenders_addons import dynamic_embedding as de
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.shadow_embedding_ops import DEResourceVariable
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.embedding_weights import EmbeddingWeights
 
+from tensorflow import version as tf_version
 from tensorflow.python.eager import tape as tape_record
 if not hasattr(tape_record, 'record_operation'):
   # tf version >= 2.13.0
@@ -30,31 +33,31 @@ from tensorflow.python.framework import dtypes
 from tensorflow.python.framework import ops
 from tensorflow.python.framework import sparse_tensor
 from tensorflow.python.framework import tensor_shape
-try:  # tf version >= 2.14.0
+if version.parse(tf_version.VERSION) >= version.parse("2.14"):
   from tensorflow.python.framework.tensor import Tensor
-except:
+else:
   from tensorflow.python.framework.ops import Tensor
 from tensorflow.python.ops import array_ops
 from tensorflow.python.ops import math_ops
 from tensorflow.python.ops import sparse_ops
 from tensorflow.python.ops import variable_scope
-try:  # tf version >= 2.14.0
+if version.parse(tf_version.VERSION) >= version.parse("2.14"):
   from tensorflow.python.ops.array_ops_stack import stack
-except:
+else:
   from tensorflow.python.ops.array_ops import stack
-try:  # tf version >= 2.10.0
+if version.parse(tf_version.VERSION) >= version.parse("2.10"):
   from tensorflow.python.trackable import base as trackable
-except:
+else:
   from tensorflow.python.training.tracking import base as trackable
-try:  # The data_structures has been moved to the new package in tf 2.11
+if version.parse(tf_version.VERSION) >= version.parse("2.11"):
+  # The data_structures has been moved to the new package in tf 2.11
   from tensorflow.python.trackable import data_structures
-except:
+else:
   from tensorflow.python.training.tracking import data_structures
 
-try:  # tf version >= 2.14.0
+if version.parse(tf_version.VERSION) >= version.parse("2.14"):
   from tensorflow.python.distribute import distribute_lib as distribute_ctx
-  assert hasattr(distribute_ctx, 'has_strategy')
-except:
+else:
   from tensorflow.python.distribute import distribution_strategy_context as distribute_ctx
 
 
