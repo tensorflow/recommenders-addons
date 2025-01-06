@@ -83,42 +83,43 @@ py_test(
 #     ],
 # )
 
-py_test(
-    name = "math_ops_test",
-    srcs = ["math_ops_test.py"],
-    python_version = "PY3",
-    srcs_version = "PY3",
-    deps = [
-        "//tensorflow_recommenders_addons",
-    ],
-)
+# Remove the following tests due to there are well-support operators in latest Tensorflow version.
+# py_test(
+#     name = "math_ops_test",
+#     srcs = ["math_ops_test.py"],
+#     python_version = "PY3",
+#     srcs_version = "PY3",
+#     deps = [
+#         "//tensorflow_recommenders_addons",
+#     ],
+# )
 
-py_test(
-    name = "math_grad_test",
-    srcs = ["math_grad_test.py"],
-    python_version = "PY3",
-    srcs_version = "PY3",
-    deps = [
-        "//tensorflow_recommenders_addons",
-    ],
-)
+# py_test(
+#     name = "math_grad_test",
+#     srcs = ["math_grad_test.py"],
+#     python_version = "PY3",
+#     srcs_version = "PY3",
+#     deps = [
+#         "//tensorflow_recommenders_addons",
+#     ],
+# )
 
-py_test(
-    name = "dynamic_partition_op_test",
-    srcs = ["dynamic_partition_op_test.py"],
-    python_version = "PY3",
-    srcs_version = "PY3",
-    deps = [
-        "//tensorflow_recommenders_addons",
-    ],
-)
+# py_test(
+#     name = "dynamic_partition_op_test",
+#     srcs = ["dynamic_partition_op_test.py"],
+#     python_version = "PY3",
+#     srcs_version = "PY3",
+#     deps = [
+#         "//tensorflow_recommenders_addons",
+#     ],
+# )
 
-py_test(
-    name = "dynamic_stitch_op_test",
-    srcs = ["dynamic_stitch_op_test.py"],
-    python_version = "PY3",
-    srcs_version = "PY3",
-    deps = [
-        "//tensorflow_recommenders_addons",
-    ],
-)
+# py_test(
+#     name = "dynamic_stitch_op_test",
+#     srcs = ["dynamic_stitch_op_test.py"],
+#     python_version = "PY3",
+#     srcs_version = "PY3",
+#     deps = [
+#         "//tensorflow_recommenders_addons",
+#     ],
+# )
