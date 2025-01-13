@@ -22,6 +22,7 @@ limitations under the License.
 
 #include <chrono>
 #include <iostream>
+#include <random>
 
 #include "redis_connection_util.hpp"
 #include "thread_pool.h"
@@ -213,6 +214,12 @@ class RedisWrapper<RedisInstance, K, V,
     return nullptr;
   }
 
+  int GenerateRedisRandomTag() {
+    static thread_local std::mt19937 generator(std::random_device{}());
+    std::uniform_int_distribution<int> distribution(0, 16383);
+    return distribution(generator);
+  }
+
  public:
   virtual std::vector<std::string> GetKeyBucketsAndOptimizerParamsWithName(
       const std::string &keys_prefix_name,
@@ -224,7 +231,7 @@ class RedisWrapper<RedisInstance, K, V,
                   ::sw::redis::StringView hkey) {
       connection.send("CLUSTER SLOTS");
     };
-    ::sw::redis::StringView _hkey("0");
+    ::sw::redis::StringView _hkey(std::to_string(GenerateRedisRandomTag()));
     std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply;
     try {
       reply = redis_conn_read->command(cmd, _hkey);
@@ -363,7 +370,7 @@ class RedisWrapper<RedisInstance, K, V,
                   ::sw::redis::StringView hkey) {
       connection.send("CLUSTER NODES");
     };
-    ::sw::redis::StringView _hkey("0");
+    ::sw::redis::StringView _hkey(std::to_string(GenerateRedisRandomTag()));
     std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply;
     try {
       reply = redis_conn_read->command(cmd, _hkey);
