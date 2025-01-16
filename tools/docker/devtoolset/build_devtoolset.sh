@@ -98,13 +98,13 @@ cd "${TARGET}-build"
       --disable-libsanitizer \
       --disable-libunwind-exceptions \
       --disable-libunwind-exceptions \
-      --disable-lto \
       --disable-multilib \
       --enable-__cxa_atexit \
       --enable-gnu-indirect-function \
       --enable-gnu-unique-object \
       --enable-initfini-array \
       --enable-languages="c,c++" \
+      --enable-lto \
       --enable-linker-build-id \
       --enable-plugin \
       --enable-shared \
