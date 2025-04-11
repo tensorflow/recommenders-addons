@@ -136,6 +136,10 @@ class _DenseDynamicEmbeddingTrainableProcessor(optimizer._OptimizableVariable):
 
 def _get_processor(v):
   """The processor of v."""
+  import tensorflow as tf
+  tfprint = tf.print("_get_processor:", v, output_stream=tf.compat.v1.logging.error)
+  with tf.control_dependencies([tfprint]):
+    pass
   if isinstance(v, de.TrainableWrapper):
     return _DenseDynamicEmbeddingTrainableProcessor(v)
   if context.executing_eagerly():

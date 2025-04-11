@@ -17,7 +17,6 @@
 Dynamic Embedding is designed for Large-scale Sparse Weights Training.
 See [Sparse Domain Isolation](https://github.com/tensorflow/community/pull/237)
 """
-
 from packaging import version
 
 import tensorflow as tf
@@ -28,7 +27,10 @@ from tensorflow_recommenders_addons.dynamic_embedding.python.ops import dynamic_
 
 from tensorflow.python.keras.utils import tf_utils
 
+from tensorflow_recommenders_addons.dynamic_embedding.python.ops.parameter_server import create_ps_shadow_variable
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.shadow_embedding_ops import HvdVariable
+from tensorflow_recommenders_addons.dynamic_embedding.python.train.utils import \
+  is_parameter_server_strategy
 
 if version.parse(tf.__version__) >= version.parse("2.14"):
   from tensorflow.python.distribute import distribute_lib as distribute_ctx
@@ -225,7 +227,8 @@ class Embedding(Layer):
       shadow_name = name + '-shadow' if name else 'ShadowVariable'
       if distribute_ctx.has_strategy():
         self.distribute_strategy = distribute_ctx.get_strategy()
-      if self.distribute_strategy:
+      if self.distribute_strategy and not is_parameter_server_strategy(
+          self.distribute_strategy):
         strategy_devices = self.distribute_strategy.extended.worker_devices
         self.shadow_impl = tf_utils.ListWrapper([])
         for i, strategy_device in enumerate(strategy_devices):
@@ -242,12 +245,23 @@ class Embedding(Layer):
                       trainable=trainable,
                       distribute_strategy=self.distribute_strategy))
       else:
-        self.shadow_impl = tf_utils.ListWrapper([
-            de.shadow_ops.ShadowVariable(self.params,
-                                         name=shadow_name,
-                                         max_norm=self.max_norm,
-                                         trainable=trainable)
-        ])
+        if is_parameter_server_strategy(self.distribute_strategy):
+          self.shadow_impl = tf_utils.ListWrapper([
+            create_ps_shadow_variable(
+                  params=self.params,
+                  name=shadow_name,
+                  max_norm=self.max_norm,
+              strategy=self.distribute_strategy,
+                  trainable=trainable)
+          ])
+        else:
+          self.shadow_impl = tf_utils.ListWrapper([
+              de.shadow_ops.ShadowVariable(self.params,
+                                           name=shadow_name,
+                                           max_norm=self.max_norm,
+                                           trainable=trainable)
+          ])
+
     if len(self.shadow_impl.as_list()) > 1:
       self._current_ids = data_structures.NoDependency(
           [shadow_i.ids for shadow_i in self.shadow_impl.as_list()])
@@ -261,16 +275,17 @@ class Embedding(Layer):
       self._current_exists = data_structures.NoDependency(
           self.shadow_impl.as_list()[0].exists)
       self.optimizer_vars = self.shadow_impl.as_list()[0]._optimizer_vars
-    if distribute_ctx.has_strategy(
-    ) and self.distribute_strategy and 'OneDeviceStrategy' not in str(
-        self.distribute_strategy) and not values_util.is_saving_non_distributed(
-        ) and values_util.get_current_replica_id_as_int() is not None:
+    if distribute_ctx.has_strategy() and self.distribute_strategy and \
+      'OneDeviceStrategy' not in str(self.distribute_strategy) and \
+        not values_util.is_saving_non_distributed() and \
+        values_util.get_current_replica_id_as_int() is not None:
       self.shadow = de.DistributedVariableWrapper(
           self.distribute_strategy, self.shadow_impl.as_list(),
           VariableAggregation.NONE,
           TrainableWrapperDistributedPolicy(VariableAggregation.NONE))
     else:
       self.shadow = self.shadow_impl.as_list()[0]
+
     self.params._created_in_class = self  # To facilitate access to the primitive class through params
     super(Embedding, self).__init__(name=name,
                                     trainable=trainable,
@@ -278,7 +293,7 @@ class Embedding(Layer):
 
   def call(self, ids):
     """
-    Compute embedding output for feature ids. The output shape will be (shape(ids), 
+    Compute embedding output for feature ids. The output shape will be (shape(ids),
     embedding_size).
 
     Args:
@@ -289,9 +304,15 @@ class Embedding(Layer):
     Returns:
       A embedding output with shape (shape(ids), embedding_size).
     """
-    return de.shadow_ops.embedding_lookup_unique(self.shadow, ids,
+
+    r = de.shadow_ops.embedding_lookup_unique(self.shadow, ids,
                                                  self.embedding_size,
                                                  self.with_unique, self.name)
+
+    tfprint = tf.print("ids_8a:", r, ids, self.shadow.ids,  output_stream=tf.compat.v1.logging.error)
+    with tf.control_dependencies([tfprint]):
+      pass
+    return r
 
   def get_config(self):
     _initializer = self.params.initializer

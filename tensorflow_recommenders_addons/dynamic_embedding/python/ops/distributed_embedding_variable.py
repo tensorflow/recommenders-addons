@@ -10,10 +10,10 @@ class DistributedVariableWrapper(EmbeddingWeights,
   def __init__(self, strategy, values, aggregation, var_policy=None):
     super(DistributedVariableWrapper, self).__init__(strategy, values,
                                                      aggregation, var_policy)
-    self.shadow = self._get_on_device_or_primary()
+    self._shadow = self._get_on_device_or_primary()
 
   def verify_embedding_weights(self, sparse_ids, sparse_weights=None):
-    EmbeddingWeights.verify_embedding_param_weights(self.shadow.params,
+    EmbeddingWeights.verify_embedding_param_weights(self._shadow.params,
                                                     sparse_ids, sparse_weights)
 
   def embedding_lookup(self,

@@ -68,9 +68,9 @@ class DEHvdBroadcastGlobalVariablesCallbackImpl(object):
     with ops.device(self.device):
       if hvd._executing_eagerly() and hasattr(self.model, 'variables'):
         # TensorFlow 2.0 or TensorFlow eager
+        from tensorflow_recommenders_addons.dynamic_embedding.python.ops.shadow_embedding_ops import is_de_resource_variable
         filter_lambda = lambda x: (x.ref() not in self._local_vars) and (
-            not isinstance(x, de.TrainableWrapper)) and (not isinstance(
-                x, de.DEResourceVariable))
+            not is_de_resource_variable(x))
         broadcast_vars = [
             var for var in self.model.variables if filter_lambda(var)
         ]

@@ -16,13 +16,20 @@
 """patch on optimizers"""
 
 import functools
+
+import tensorflow as tf
 from packaging import version
 import six
 
 from tensorflow_recommenders_addons import dynamic_embedding as de
 
 from tensorflow import version as tf_version
-from tensorflow.python.distribute import central_storage_strategy
+from tensorflow.python.distribute import central_storage_strategy, ps_values
+
+from tensorflow_recommenders_addons.dynamic_embedding.python.ops.parameter_server import create_ps_shadow_variable
+from tensorflow_recommenders_addons.dynamic_embedding.python.train.utils import worker_devices, \
+  is_parameter_server_strategy
+
 if version.parse(tf_version.VERSION) >= version.parse("2.14"):
   from tensorflow.python.distribute import distribute_lib as distribute_ctx
 else:
@@ -138,7 +145,9 @@ def DynamicEmbeddingOptimizer(self, bp_v2=False, synchronous=False, **kwargs):
       """Apply gradient to variable."""
       if isinstance(var, Tensor):
         raise NotImplementedError("Trying to update a Tensor ", var)
-
+      tfprint = tf.print("_distributed_apply: ", var, grad, type(var))
+      with tf.control_dependencies([tfprint]):
+        pass
       apply_kwargs = {}
       if not isinstance(var, de.TrainableWrapper):
         if isinstance(grad, IndexedSlices):
@@ -180,6 +189,9 @@ def DynamicEmbeddingOptimizer(self, bp_v2=False, synchronous=False, **kwargs):
                   "Cannot use a constraint function on a sparse variable.")
             if "apply_state" in self._sparse_apply_args:
               apply_kwargs["apply_state"] = apply_state
+            printop = tf.print("g_and_v_1 var:", var, output_stream=tf.compat.v1.logging.error)
+            with tf.control_dependencies([printop]):
+              pass
             with ops.control_dependencies(_before):
               _apply_op = self._resource_apply_sparse_duplicate_indices(
                   grad.values, var, grad.indices, **apply_kwargs)
@@ -692,9 +704,13 @@ def DynamicEmbeddingOptimizer(self, bp_v2=False, synchronous=False, **kwargs):
     dense_grads_and_vars_aggregated_out = []
     sparse_grads_and_vars_unaggregated_out = []
     test_unaggregated_lambda = lambda x: isinstance(
-        x[1], de.DistributedVariableWrapper)
-    for g_and_v in grads_and_vars_in:
+        x[1], de.DistributedVariableWrapper) or isinstance(x[1], ps_values.PerWorkerVariable)
+    for g_and_v in grads_and_vars_in: # type(g_and_v[1])
+      printop = tf.print("g_and_v_1 x[1]:", g_and_v[1], output_stream=tf.compat.v1.logging.error)
+      with tf.control_dependencies([printop]):
+        pass
       if test_unaggregated_lambda(g_and_v):
+
         sparse_grads_and_vars_unaggregated_out.append(g_and_v)
       else:
         dense_grads_and_vars_aggregated_out.append(g_and_v)
@@ -707,7 +723,9 @@ def DynamicEmbeddingOptimizer(self, bp_v2=False, synchronous=False, **kwargs):
     grads_and_vars = optimizer_v2_legacy_utils.filter_empty_gradients(
         grads_and_vars)
     var_list = [v for (_, v) in grads_and_vars]
-
+    # tfprint = tf.print("g_and_v_1 in grads_and_vars:", output_stream=tf.compat.v1.logging.error)
+    # with tf.control_dependencies([tfprint]):
+    #   pass
     with ops.name_scope_v2(self._name):
       # Create iteration if necessary.
       with ops.init_scope():
@@ -851,6 +869,9 @@ def DynamicEmbeddingOptimizer(self, bp_v2=False, synchronous=False, **kwargs):
         self._compute_gradients = compute_gradients_horovod_wrapper(
             compute_gradients_horovod_v2)
       else:
+        tfprint = tf.print("g_and_v_1 apply_gradients_strategy_v2_lagacy", output_stream=tf.compat.v1.logging.error)
+        with tf.control_dependencies([tfprint]):
+          pass
         self.apply_gradients = apply_gradients_strategy_v2_lagacy
     elif hasattr(self, '_distributed_apply_gradients_fn'):
       # Latest Keras optimizer
@@ -912,16 +933,28 @@ def create_slots(variable, init, slot_name, op_name, bp_v2):
     # for forward compatibility.
     slot_tw_name = slot_name
 
-  def slot_trainable_create_(var_impl, scope_store_params, full_name_in,
-                             slot_tw_name_in):
+  def slot_trainable_create_(var_impl,
+                             scope_store_params,
+                             full_name_in,
+                             slot_tw_name_in,
+                             distribute_strategy=None):
     if isinstance(var_impl, de.shadow_ops.ShadowVariable):
-      slot_trainable = de.shadow_ops.ShadowVariable(
+      if is_parameter_server_strategy(distribute_strategy):
+        slot_trainable = create_ps_shadow_variable(
           params=scope_store_params,
           ids=var_impl.ids,
           exists=var_impl.exists,
           name=full_name_in,
           trainable=False,
-      )
+          strategy=distribute_strategy)
+      else:
+        slot_trainable = de.shadow_ops.ShadowVariable(
+            params=scope_store_params,
+            ids=var_impl.ids,
+            exists=var_impl.exists,
+            name=full_name_in,
+            trainable=False,
+            distribute_strategy=distribute_strategy)
     else:
       _, slot_trainable = de.embedding_lookup(
           params=scope_store_params,
@@ -951,8 +984,21 @@ def create_slots(variable, init, slot_name, op_name, bp_v2):
         VariableAggregation.NONE,
         TrainableWrapperDistributedPolicy(VariableAggregation.NONE))
   else:
-    slot_trainable = slot_trainable_create_(variable,
-                                            scope_store._vars[full_name],
-                                            full_name, slot_tw_name)
+    if hasattr(
+        variable, 'distribute_strategy'
+    ) and variable.distribute_strategy and is_parameter_server_strategy(
+        variable.distribute_strategy):
+      printop = tf.print("g_and_v_1 variab:", variable,
+                 output_stream=tf.compat.v1.logging.error)
+      with tf.control_dependencies([printop]):
+        pass
+      slot_trainable = slot_trainable_create_(variable,
+                                              scope_store._vars[full_name],
+                                              full_name, slot_tw_name,
+                                              variable.distribute_strategy)
+    else:
+      slot_trainable = slot_trainable_create_(variable,
+                                              scope_store._vars[full_name],
+                                              full_name, slot_tw_name)
 
   return slot_trainable

@@ -21,7 +21,7 @@ See [Sparse Domain Isolation](https://github.com/tensorflow/community/pull/237)
 from packaging import version
 
 from tensorflow_recommenders_addons import dynamic_embedding as de
-from tensorflow_recommenders_addons.dynamic_embedding.python.ops.shadow_embedding_ops import DEResourceVariable
+from tensorflow_recommenders_addons.dynamic_embedding.python.ops.shadow_embedding_ops import is_de_resource_variable
 from tensorflow_recommenders_addons.dynamic_embedding.python.ops.embedding_weights import EmbeddingWeights
 
 from tensorflow import version as tf_version
@@ -464,8 +464,7 @@ def trainable_wrapper_filter(iterable_object_in,
   dense_grads_and_vars_aggregated_out = []
   sparse_grads_and_vars_unaggregated_out = []
   if test_unaggregated_function is None:
-    test_unaggregated_function = lambda x: isinstance(
-        x, de.TrainableWrapper) or isinstance(x, DEResourceVariable)
+    test_unaggregated_function = is_de_resource_variable
   for item in iterable_object_in:
     if test_unaggregated_function(item):
       sparse_grads_and_vars_unaggregated_out.append(item)

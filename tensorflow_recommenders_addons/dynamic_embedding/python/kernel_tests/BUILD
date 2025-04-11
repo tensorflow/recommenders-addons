@@ -72,6 +72,18 @@ py_test(
     ],
 )
 
+# This test is not for pytest, it requires
+# bazel test //tensorflow_recommenders_addons/dynamic_embedding/python/kernel_tests:parameter_server_bzl
+py_test(
+    name = "parameter_server_bzl",
+    srcs = ["parameter_server_bzl.py"],
+    python_version = "PY3",
+    srcs_version = "PY3",
+    deps = [
+        "//tensorflow_recommenders_addons",
+    ],
+)
+
 # This test will be banned by GitHub and cause account violations, please run the test manually locally.
 # py_test(
 #     name = "redis_table_variable_test",
