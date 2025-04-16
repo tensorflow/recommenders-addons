@@ -60,7 +60,7 @@ if [ "$TF_NEED_CUDA" -ne 0 ]; then
     bash /install/install_horovod.sh $HOROVOD_VERSION --only-cpu
   fi
   # TODO(jamesrong): Test on GPU.
-  CUDA_VISIBLE_DEVICES="" mpirun -np 2 -H localhost:2 --allow-run-as-root pytest -v ./tensorflow_recommenders_addons/dynamic_embedding/python/kernel_tests/horovod_sync_train_test.py
+  CUDA_VISIBLE_DEVICES="" mpirun -np 2 -H localhost:2 --allow-run-as-root pytest -v ./tensorflow_recommenders_addons/dynamic_embedding/python/kernel_tests/horovod_sync_train_test.py ./tensorflow_recommenders_addons/dynamic_embedding/python/kernel_tests/horovod_embedding_restrict_save_test.py
   # Reinstall Horovod after tests
   if [ "$(uname)" != "Darwin" ]; then
     # Mac only with MPI
@@ -74,12 +74,15 @@ if [ "$TF_NEED_CUDA" -eq 0 ]; then
     IGNORE_HKV="--ignore=./tensorflow_recommenders_addons/dynamic_embedding/python/kernel_tests/hkv_hashtable_ops_test.py"
 fi
 
+# Test only with horovod on GPU
+IGNORE_HOROVOD_DIST_TRAINING_TEST="--ignore=./tensorflow_recommenders_addons/dynamic_embedding/python/kernel_tests/horovod_embedding_restrict_save_test.py"
+
 # Only use GPU 0 if available.
 if [ -x "$(command -v nvidia-smi)" ]; then
   export CUDA_VISIBLE_DEVICES=0
 fi
 
-python -m pytest -v -s --functions-durations=20 --modules-durations=5 $IGNORE_HKV $SKIP_CUSTOM_OP_TESTS_FLAG $EXTRA_ARGS ./tensorflow_recommenders_addons/dynamic_embedding/python/kernel_tests/
+python -m pytest -v -s --functions-durations=20 --modules-durations=5 $IGNORE_HKV $IGNORE_HOROVOD_DIST_TRAINING_TEST $SKIP_CUSTOM_OP_TESTS_FLAG $EXTRA_ARGS ./tensorflow_recommenders_addons/dynamic_embedding/python/kernel_tests/
 
 # Release disk space
 bazel clean --expunge

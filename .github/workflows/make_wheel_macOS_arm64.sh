@@ -7,6 +7,7 @@ export TF_NEED_CUDA=0
 export IGNORE_HKV="--ignore=./tensorflow_recommenders_addons/dynamic_embedding/python/kernel_tests/hkv_hashtable_ops_test.py"
 export IGNORE_REDIS="--ignore=./tensorflow_recommenders_addons/dynamic_embedding/python/kernel_tests/redis_table_ops_test.py"
 export IGNORE_REDIS_VAR="--ignore=./tensorflow_recommenders_addons/dynamic_embedding/python/kernel_tests/redis_table_variable_test.py"
+export IGNORE_HOROVOD_DIST_TRAINING_TEST="--ignore=./tensorflow_recommenders_addons/dynamic_embedding/python/kernel_tests/horovod_embedding_restrict_save_test.py"
 export USE_BAZEL_VERSION='5.1.1'
 
 # For TensorFlow version 2.12 or earlier:
@@ -59,7 +60,7 @@ delocate-wheel -w wheelhouse -v --ignore-missing-dependencies artifacts/*.whl
 # Test
 pip install --default-timeout=1000 -r tools/install_deps/pytest.txt
 cp ./bazel-bin/tensorflow_recommenders_addons/dynamic_embedding/core/_*_ops.so ./tensorflow_recommenders_addons/dynamic_embedding/core/
-python -m pytest -v -s --functions-durations=20 --modules-durations=5 $IGNORE_HKV $IGNORE_REDIS $IGNORE_REDIS_VAR $SKIP_CUSTOM_OP_TESTS ./tensorflow_recommenders_addons/dynamic_embedding/python/kernel_tests/
+python -m pytest -v -s --functions-durations=20 --modules-durations=5 $IGNORE_HKV $IGNORE_HOROVOD_DIST_TRAINING_TEST $IGNORE_REDIS $IGNORE_REDIS_VAR $SKIP_CUSTOM_OP_TESTS ./tensorflow_recommenders_addons/dynamic_embedding/python/kernel_tests/
 
 # Clean
 bazel clean
