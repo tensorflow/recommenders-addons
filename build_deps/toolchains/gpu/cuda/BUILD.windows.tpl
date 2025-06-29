@@ -92,22 +92,6 @@ cc_import(
 )
 
 cc_import(
-    name = "cudnn",
-    interface_library = "cuda/lib/%{cudnn_lib}",
-    system_provided = 1,
-    visibility = ["//visibility:public"],
-)
-
-cc_library(
-    name = "cudnn_header",
-    includes = [
-        ".",
-        "cuda/include",
-    ],
-    visibility = ["//visibility:public"],
-)
-
-cc_import(
     name = "cufft",
     interface_library = "cuda/lib/%{cufft_lib}",
     system_provided = 1,
@@ -128,7 +112,6 @@ cc_library(
         ":cublas",
         ":cuda_headers",
         ":cudart",
-        ":cudnn",
         ":cufft",
         ":curand",
     ],

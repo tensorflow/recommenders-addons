@@ -64,7 +64,6 @@ ARG TF_VERSION
 ARG PY_VERSION
 ARG TF_NEED_CUDA
 ARG TF_CUDA_VERSION
-ARG TF_CUDNN_VERSION
 ARG TF_NAME
 ARG HOROVOD_VERSION
 ARG BUILD_IMAGE
@@ -84,6 +83,4 @@ RUN echo "export TF_NAME=$TF_NAME" >> ~/.bashrc
 RUN echo "export PROTOBUF_VERSION=$PROTOBUF_VERSION" >> ~/.bashrc
 RUN echo "export TF_NEED_CUDA=1" >> ~/.bashrc
 RUN echo "export TF_CUDA_VERSION=$TF_CUDA_VERSION" >> ~/.bashrc
-RUN echo "export TF_CUDNN_VERSION=$TF_CUDNN_VERSION" >> ~/.bashrc
 RUN echo "export CUDA_TOOLKIT_PATH='/usr/local/cuda'" >> ~/.bashrc
-RUN echo "export CUDNN_INSTALL_PATH='/usr/lib/x86_64-linux-gnu'" >> ~/.bashrc

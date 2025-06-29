@@ -273,12 +273,7 @@ def configure_cuda():
   write_action_env("TF_NEED_CUDA", "1")
   write_action_env("CUDA_TOOLKIT_PATH",
                    os.getenv("CUDA_TOOLKIT_PATH", "/usr/local/cuda"))
-  write_action_env(
-      "CUDNN_INSTALL_PATH",
-      os.getenv("CUDNN_INSTALL_PATH", "/usr/lib/x86_64-linux-gnu"),
-  )
   write_action_env("TF_CUDA_VERSION", os.getenv("TF_CUDA_VERSION", "11.0"))
-  write_action_env("TF_CUDNN_VERSION", os.getenv("TF_CUDNN_VERSION", "8.0"))
 
   write("test --config=cuda")
   write("build --config=cuda")
