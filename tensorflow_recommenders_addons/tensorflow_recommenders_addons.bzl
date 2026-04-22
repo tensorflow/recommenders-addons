@@ -1,15 +1,15 @@
 load(
+    "@local_config_cuda//cuda:build_defs.bzl",
+    "cuda_is_configured",
+    "if_cuda",
+    "if_cuda_is_configured",
+)
+load(
     "@local_config_tf//:build_defs.bzl",
     "DTF_VERSION_INTEGER",
     "D_GLIBCXX_USE_CXX11_ABI",
     "FOR_TF_SERVING",
     "TF_CXX_STANDARD",
-)
-load(
-    "@local_config_cuda//cuda:build_defs.bzl",
-    "cuda_is_configured",
-    "if_cuda",
-    "if_cuda_is_configured",
 )
 
 def custom_cuda_op_library(
@@ -41,6 +41,11 @@ def custom_op_library(
             "@local_config_tf//:tf_header_lib",
         ]
 
+    has_std = False
+    for c in copts:
+        if type(c) == "string" and c.startswith("-std="):
+            has_std = True
+
     copts = copts + select({
         "//tensorflow_recommenders_addons:windows": [
             "/DEIGEN_STRONG_INLINE=inline",
@@ -63,15 +68,24 @@ def custom_op_library(
             DTF_VERSION_INTEGER,
         ],
     })
-    copts = copts + ["-std=" + TF_CXX_STANDARD]
+
+    if not has_std:
+        copts = copts + ["-std=" + TF_CXX_STANDARD]
 
     if cuda_srcs:
         copts = copts + if_cuda(["-DGOOGLE_CUDA=1"])
-        cuda_copts = copts + if_cuda_is_configured([
-            "-x cuda",
-            "-nvcc_options=relaxed-constexpr",
-            "-nvcc_options=ftz=true",
-        ])
+        cuda_copts = copts + if_cuda_is_configured(["-x cuda"]) + select({
+            "@local_config_cuda//cuda:using_nvcc": [
+                "-nvcc_options=relaxed-constexpr",
+                # "-nvcc_options=ftz=true",
+                "-Xcuda-ptxas --fast-math",
+            ],
+            "@local_config_cuda//cuda:using_clang": [
+                "-fcuda-flush-denormals-to-zero",
+                "-Xcuda-ptxas --fast-math",
+            ],
+            "//conditions:default": [],
+        })
         cuda_deps = deps + if_cuda_is_configured(cuda_deps) + if_cuda_is_configured([
             "@local_config_cuda//cuda:cuda_headers",
             "@local_config_cuda//cuda:cudart_static",

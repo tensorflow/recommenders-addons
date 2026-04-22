@@ -1,12 +1,10 @@
+load("@local_config_cuda//cuda:build_defs.bzl", "if_cuda", "if_cuda_is_configured")
+load("@local_config_tf//:build_defs.bzl", "FOR_TF_SERVING")
+load("//tensorflow_recommenders_addons:tensorflow_recommenders_addons.bzl", "custom_cuda_op_library", "custom_op_library", "if_cuda_for_tf_serving")
+
 licenses(["notice"])  # Apache 2.0
 
-load("@local_config_cuda//cuda:build_defs.bzl", "if_cuda", "if_cuda_is_configured")
-
 package(default_visibility = ["//visibility:public"])
-
-load("//tensorflow_recommenders_addons:tensorflow_recommenders_addons.bzl", "custom_cuda_op_library", "custom_op_library", "if_cuda_for_tf_serving")
-load("@local_config_cuda//cuda:build_defs.bzl", "if_cuda")
-load("@local_config_tf//:build_defs.bzl", "FOR_TF_SERVING")
 
 custom_op_library(
     name = "_cuckoo_hashtable_ops.so",
@@ -14,11 +12,17 @@ custom_op_library(
         "kernels/cuckoo_hashtable_op.cc",
         "kernels/cuckoo_hashtable_op.h",
         "ops/cuckoo_hashtable_ops.cc",
+        "utils/cxx17_absl_hack.h",
         "utils/types.h",
         "utils/utils.h",
     ] + glob(["kernels/lookup_impl/lookup_table_op_cpu*"]),
+    copts = [
+        "-std=c++17",
+        "-include tensorflow_recommenders_addons/dynamic_embedding/core/utils/cxx17_absl_hack.h",
+        "-mcx16",
+    ],
     deps = [
-        "//tensorflow_recommenders_addons/dynamic_embedding/core/lib/cuckoo:cuckoohash",
+        "//tensorflow_recommenders_addons/dynamic_embedding/core/lib/parlayhash:concurrent_hashmap",
     ],
 )
 
@@ -124,9 +128,13 @@ custom_cuda_op_library(
         "kernels/cuckoo_hashtable_op.h",
         "kernels/hkv_hashtable_op.cc",
         "ops/hkv_hashtable_ops.cc",
+        "utils/cxx17_absl_hack.h",
         "utils/utils.h",
     ] + glob(["kernels/lookup_impl/lookup_table_op_cpu*"]),
     copts = [
+        "-std=c++17",
+        "-include tensorflow_recommenders_addons/dynamic_embedding/core/utils/cxx17_absl_hack.h",
+        "-mcx16",
         "-Ofast",
     ],
     cuda_deps = if_cuda_for_tf_serving(
@@ -135,12 +143,16 @@ custom_cuda_op_library(
         FOR_TF_SERVING,
     ),
     cuda_srcs = if_cuda([
+        "utils/cxx17_absl_hack.h",
         "utils/utils.h",
         "utils/types.h",
         "kernels/cuckoo_hashtable_op_gpu.h",
-        "kernels/hkv_hashtable_op_gpu.cu.cc",
-    ]) + glob(["kernels/lookup_impl/lookup_table_op_hkv*"]),
+        "kernels/hkv_hashtable_op_gpu.h",
+    ]) + glob([
+        "kernels/lookup_impl/lookup_table_op_hkv*",
+        "kernels/hkv_impl/hkv_hashtable_op_gpu_impl_*.cu.cc",
+    ]),
     deps = [
-        "//tensorflow_recommenders_addons/dynamic_embedding/core/lib/cuckoo:cuckoohash",
+        "//tensorflow_recommenders_addons/dynamic_embedding/core/lib/parlayhash:concurrent_hashmap",
     ],
 )

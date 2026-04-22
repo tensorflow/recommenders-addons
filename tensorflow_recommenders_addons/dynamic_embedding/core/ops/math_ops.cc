@@ -28,7 +28,7 @@ using shape_inference::ShapeHandle;
 
 namespace {
 
-Status SparseSegmentReductionShapeFn(InferenceContext* c) {
+Status SparseSegmentReductionShapeFn(InferenceContext *c) {
   ShapeHandle data_shape;
   TF_RETURN_IF_ERROR(c->WithRankAtLeast(c->input(0), 1, &data_shape));
 
@@ -52,7 +52,7 @@ Status SparseSegmentReductionShapeFn(InferenceContext* c) {
   return TFOkStatus;
 }
 
-Status SparseSegmentReductionWithNumSegmentsShapeFn(InferenceContext* c) {
+Status SparseSegmentReductionWithNumSegmentsShapeFn(InferenceContext *c) {
   ShapeHandle data_shape;
   TF_RETURN_IF_ERROR(c->WithRankAtLeast(c->input(0), 1, &data_shape));
 
@@ -73,7 +73,7 @@ Status SparseSegmentReductionWithNumSegmentsShapeFn(InferenceContext* c) {
   TF_RETURN_IF_ERROR(c->Subshape(data_shape, 1, &subshape));
 
   ShapeHandle out;
-  const Tensor* dim0 = c->input_tensor(3);
+  const Tensor *dim0 = c->input_tensor(3);
   if (dim0 == nullptr) {
     // We don't have the value at inference time, so the output
     // shape is unknown.
@@ -90,7 +90,7 @@ Status SparseSegmentReductionWithNumSegmentsShapeFn(InferenceContext* c) {
   c->set_output(0, out);
   return TFOkStatus;
 }
-}  // namespace
+} // namespace
 
 #if GOOGLE_CUDA || TENSORFLOW_USE_ROCM
 REGISTER_OP(PREFIX_OP_NAME(SparseSegmentSum))
@@ -114,7 +114,7 @@ REGISTER_OP(PREFIX_OP_NAME(SparseSegmentSumWithNumSegments))
     .Attr("Tnumsegments: {int32,int64} = DT_INT32")
     .Attr("Tsegmentids: {int32, int64} = DT_INT32")
     .SetShapeFn(SparseSegmentReductionWithNumSegmentsShapeFn);
-#endif  // GOOGLE_CUDA || TENSORFLOW_USE_ROCM
+#endif // GOOGLE_CUDA || TENSORFLOW_USE_ROCM
 
 #if GOOGLE_CUDA
 REGISTER_OP("TfraSparseFillEmptyRows")
@@ -127,7 +127,7 @@ REGISTER_OP("TfraSparseFillEmptyRows")
     .Output("empty_row_indicator: bool")
     .Output("reverse_index_map: int64")
     .Attr("T: type")
-    .SetShapeFn([](InferenceContext* c) {
+    .SetShapeFn([](InferenceContext *c) {
       ShapeHandle input_indices = c->input(0);
       TF_RETURN_IF_ERROR(c->WithRank(input_indices, 2, &input_indices));
       ShapeHandle input_values = c->input(1);
@@ -156,6 +156,6 @@ REGISTER_OP("TfraSparseFillEmptyRows")
       return TFOkStatus;
     });
 
-#endif  // GOOGLE_CUDA
+#endif // GOOGLE_CUDA
 
-}  // namespace tensorflow
+} // namespace tensorflow

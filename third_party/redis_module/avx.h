@@ -15,10 +15,10 @@ limitations under the License.
 
 #if (defined(__arm64__) || defined(__aarch64__)) && defined(__ARM_NEON)
 #include <arm_neon.h>
-void accumulatefloat(char* value, char* delta, size_t len) {
-  float* pa = (float*)value;
-  float* pb = (float*)delta;
-  const float* pend = pa + len / sizeof(float);
+void accumulatefloat(char *value, char *delta, size_t len) {
+  float *pa = (float *)value;
+  float *pb = (float *)delta;
+  const float *pend = pa + len / sizeof(float);
 
   while (pa + 4 < pend) {
     vst1q_f32(pa, vaddq_f32(vld1q_f32(pa), vld1q_f32(pb)));
@@ -33,10 +33,10 @@ void accumulatefloat(char* value, char* delta, size_t len) {
   }
 }
 
-void accumulatedouble(char* value, char* delta, size_t len) {
-  double* pa = (double*)value;
-  double* pb = (double*)delta;
-  const double* pend = pa + len / sizeof(double);
+void accumulatedouble(char *value, char *delta, size_t len) {
+  double *pa = (double *)value;
+  double *pb = (double *)delta;
+  const double *pend = pa + len / sizeof(double);
 
   while (pa + 2 < pend) {
     vst1q_f64(pa, vaddq_f64(vld1q_f64(pa), vld1q_f64(pb)));
@@ -51,10 +51,10 @@ void accumulatedouble(char* value, char* delta, size_t len) {
   }
 }
 
-void accumulateint32(char* value, char* delta, size_t len) {
-  int32_t* pa = (int32_t*)value;
-  int32_t* pb = (int32_t*)delta;
-  const int32_t* pend = pa + len / sizeof(int32_t);
+void accumulateint32(char *value, char *delta, size_t len) {
+  int32_t *pa = (int32_t *)value;
+  int32_t *pb = (int32_t *)delta;
+  const int32_t *pend = pa + len / sizeof(int32_t);
 
   while (pa + 4 < pend) {
     vst1q_s32(pa, vaddq_s32(vld1q_s32(pa), vld1q_s32(pb)));
@@ -69,10 +69,10 @@ void accumulateint32(char* value, char* delta, size_t len) {
   }
 }
 
-void accumulateint64(char* value, char* delta, size_t len) {
-  int64_t* pa = (int64_t*)value;
-  int64_t* pb = (int64_t*)delta;
-  const int64_t* pend = pa + len / sizeof(int64_t);
+void accumulateint64(char *value, char *delta, size_t len) {
+  int64_t *pa = (int64_t *)value;
+  int64_t *pb = (int64_t *)delta;
+  const int64_t *pend = pa + len / sizeof(int64_t);
 
   while (pa + 2 < pend) {
     vst1q_s64(pa, vaddq_s64(vld1q_s64(pa), vld1q_s64(pb)));
@@ -87,10 +87,10 @@ void accumulateint64(char* value, char* delta, size_t len) {
   }
 }
 
-void accumulateint8(char* value, char* delta, size_t len) {
-  char* pa = value;
-  char* pb = delta;
-  const char* pend = pa + len;
+void accumulateint8(char *value, char *delta, size_t len) {
+  char *pa = value;
+  char *pb = delta;
+  const char *pend = pa + len;
 
   while (pa + 8 < pend) {
     vst1q_s8(pa, vaddq_s8(vld1q_s8(pa), vld1q_s8(pb)));
@@ -108,10 +108,10 @@ void accumulateint8(char* value, char* delta, size_t len) {
 #elif defined(__x86_64__)
 #include <immintrin.h>
 
-void accumulatefloat(char* value, char* delta, size_t len) {
-  float* pa = (float*)value;
-  float* pb = (float*)delta;
-  const float* pend = pa + len / sizeof(float);
+void accumulatefloat(char *value, char *delta, size_t len) {
+  float *pa = (float *)value;
+  float *pb = (float *)delta;
+  const float *pend = pa + len / sizeof(float);
 
 #if defined(__AVX512F__)
   while (pa + 16 < pend) {
@@ -146,10 +146,10 @@ void accumulatefloat(char* value, char* delta, size_t len) {
   }
 }
 
-void accumulatedouble(char* value, char* delta, size_t len) {
-  double* pa = (double*)value;
-  double* pb = (double*)delta;
-  const double* pend = pa + len / sizeof(double);
+void accumulatedouble(char *value, char *delta, size_t len) {
+  double *pa = (double *)value;
+  double *pb = (double *)delta;
+  const double *pend = pa + len / sizeof(double);
 
 #if defined(__AVX512F__)
   while (pa + 8 < pend) {
@@ -184,10 +184,10 @@ void accumulatedouble(char* value, char* delta, size_t len) {
   }
 }
 
-void accumulateint32(char* value, char* delta, size_t len) {
-  int32_t* pa = (int32_t*)value;
-  int32_t* pb = (int32_t*)delta;
-  const int32_t* pend = pa + len / sizeof(int32_t);
+void accumulateint32(char *value, char *delta, size_t len) {
+  int32_t *pa = (int32_t *)value;
+  int32_t *pb = (int32_t *)delta;
+  const int32_t *pend = pa + len / sizeof(int32_t);
 
 #if defined(__AVX512F__)
   while (pa + 16 < pend) {
@@ -226,10 +226,10 @@ void accumulateint32(char* value, char* delta, size_t len) {
   }
 }
 
-void accumulateint64(char* value, char* delta, size_t len) {
-  int64_t* pa = (int64_t*)value;
-  int64_t* pb = (int64_t*)delta;
-  const int64_t* pend = pa + len / sizeof(int64_t);
+void accumulateint64(char *value, char *delta, size_t len) {
+  int64_t *pa = (int64_t *)value;
+  int64_t *pb = (int64_t *)delta;
+  const int64_t *pend = pa + len / sizeof(int64_t);
 
 #if defined(__AVX512F__)
   while (pa + 8 < pend) {
@@ -265,10 +265,10 @@ void accumulateint64(char* value, char* delta, size_t len) {
   }
 }
 
-void accumulateint8(char* a, char* b, size_t len) {
-  char* pa = a;
-  char* pb = b;
-  const char* pend = pa + len;
+void accumulateint8(char *a, char *b, size_t len) {
+  char *pa = a;
+  char *pb = b;
+  const char *pend = pa + len;
 
 #if defined(__AVX512F__) && defined(__AVX512BW__)
   while (pa + 64 < pend) {
@@ -305,10 +305,10 @@ void accumulateint8(char* a, char* b, size_t len) {
 }
 
 #else
-void accumulatefloat(char* value, char* delta, size_t len) {
-  float* pa = (float*)value;
-  float* pb = (float*)delta;
-  const float* pend = pa + len / sizeof(float);
+void accumulatefloat(char *value, char *delta, size_t len) {
+  float *pa = (float *)value;
+  float *pb = (float *)delta;
+  const float *pend = pa + len / sizeof(float);
 
   while (pa < pend) {
     *pa = *pa + *pb;
@@ -317,10 +317,10 @@ void accumulatefloat(char* value, char* delta, size_t len) {
   }
 }
 
-void accumulatedouble(char* value, char* delta, size_t len) {
-  double* pa = (double*)value;
-  double* pb = (double*)delta;
-  const double* pend = pa + len / sizeof(double);
+void accumulatedouble(char *value, char *delta, size_t len) {
+  double *pa = (double *)value;
+  double *pb = (double *)delta;
+  const double *pend = pa + len / sizeof(double);
 
   while (pa < pend) {
     *pa = *pa + *pb;
@@ -329,10 +329,10 @@ void accumulatedouble(char* value, char* delta, size_t len) {
   }
 }
 
-void accumulateint64(char* value, char* delta, size_t len) {
-  int64_t* pa = (int64_t*)value;
-  int64_t* pb = (int64_t*)delta;
-  const int64_t* pend = pa + len / sizeof(int64_t);
+void accumulateint64(char *value, char *delta, size_t len) {
+  int64_t *pa = (int64_t *)value;
+  int64_t *pb = (int64_t *)delta;
+  const int64_t *pend = pa + len / sizeof(int64_t);
 
   while (pa < pend) {
     *pa = *pa + *pb;
@@ -341,10 +341,10 @@ void accumulateint64(char* value, char* delta, size_t len) {
   }
 }
 
-void accumulateint8(char* value, char* delta, size_t len) {
-  char* pa = value;
-  char* pb = delta;
-  const char* pend = pa + len;
+void accumulateint8(char *value, char *delta, size_t len) {
+  char *pa = value;
+  char *pb = delta;
+  const char *pend = pa + len;
 
   while (pa < pend) {
     *pa = *pa + *pb;

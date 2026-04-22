@@ -1,19 +1,6 @@
 """cc_toolchain_config rule for configuring CUDA toolchains on Linux, Mac, and Windows."""
 
 load(
-    "@bazel_tools//tools/cpp:cc_toolchain_config_lib.bzl",
-    "action_config",
-    "env_entry",
-    "env_set",
-    "feature",
-    "feature_set",
-    "flag_group",
-    "flag_set",
-    "tool",
-    "tool_path",
-    "variable_with_value",
-)
-load(
     "@bazel_tools//tools/build_defs/cc:action_names.bzl",
     "ASSEMBLE_ACTION_NAME",
     "CC_FLAGS_MAKE_VARIABLE_ACTION_NAME",
@@ -31,13 +18,24 @@ load(
     "LTO_BACKEND_ACTION_NAME",
     "LTO_INDEXING_ACTION_NAME",
     "OBJCPP_COMPILE_ACTION_NAME",
-    "OBJCPP_EXECUTABLE_ACTION_NAME",
-    "OBJC_ARCHIVE_ACTION_NAME",
     "OBJC_COMPILE_ACTION_NAME",
     "OBJC_EXECUTABLE_ACTION_NAME",
     "OBJC_FULLY_LINK_ACTION_NAME",
     "PREPROCESS_ASSEMBLE_ACTION_NAME",
     "STRIP_ACTION_NAME",
+)
+load(
+    "@bazel_tools//tools/cpp:cc_toolchain_config_lib.bzl",
+    "action_config",
+    "env_entry",
+    "env_set",
+    "feature",
+    "feature_set",
+    "flag_group",
+    "flag_set",
+    "tool",
+    "tool_path",
+    "variable_with_value",
 )
 
 ACTION_NAMES = struct(
@@ -57,13 +55,15 @@ ACTION_NAMES = struct(
     linkstamp_compile = LINKSTAMP_COMPILE_ACTION_NAME,
     lto_backend = LTO_BACKEND_ACTION_NAME,
     lto_indexing = LTO_INDEXING_ACTION_NAME,
-    objc_archive = OBJC_ARCHIVE_ACTION_NAME,
+    # Use native string identifiers instead of volatile Bazel constants to
+    # guarantee robust forward-compatibility and decouple toolchain definitions.
+    objc_archive = "objc-archive",
     objc_compile = OBJC_COMPILE_ACTION_NAME,
     objc_executable = OBJC_EXECUTABLE_ACTION_NAME,
     objc_fully_link = OBJC_FULLY_LINK_ACTION_NAME,
     objcopy_embed_data = "objcopy_embed_data",
     objcpp_compile = OBJCPP_COMPILE_ACTION_NAME,
-    objcpp_executable = OBJCPP_EXECUTABLE_ACTION_NAME,
+    objcpp_executable = OBJC_EXECUTABLE_ACTION_NAME,
     preprocess_assemble = PREPROCESS_ASSEMBLE_ACTION_NAME,
     strip = STRIP_ACTION_NAME,
 )

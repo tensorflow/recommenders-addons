@@ -27,7 +27,7 @@ namespace recommenders_addons {
 #define TF_EXCLUSIVE_LOCKS_REQUIRED(ml)
 #endif
 
-}  // namespace recommenders_addons
-}  // namespace tensorflow
+} // namespace recommenders_addons
+} // namespace tensorflow
 
-#endif  // TFRA_TYPES_H_
+#endif // TFRA_TYPES_H_

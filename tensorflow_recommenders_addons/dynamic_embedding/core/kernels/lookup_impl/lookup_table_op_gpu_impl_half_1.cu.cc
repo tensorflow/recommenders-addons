@@ -13,13 +13,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#include "tensorflow_recommenders_addons/dynamic_embedding/core/kernels/lookup_impl/lookup_table_op_gpu.h"
+#include "tensorflow_recommenders_addons/dynamic_embedding/core/kernels/lookup_impl/lookup_table_op_gpu_impl.h"
 namespace tensorflow {
 namespace recommenders_addons {
 namespace lookup {
 namespace gpu {
 DEFINE_CREATE_TABLE(1, int64, Eigen::half, 0, 5);
-}  // namespace gpu
-}  // namespace lookup
-}  // namespace recommenders_addons
-}  // namespace tensorflow
+} // namespace gpu
+} // namespace lookup
+} // namespace recommenders_addons
+} // namespace tensorflow

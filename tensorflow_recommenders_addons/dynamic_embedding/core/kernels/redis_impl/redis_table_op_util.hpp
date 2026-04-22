@@ -35,9 +35,9 @@ namespace redis_table {
 
 using namespace redis_connection;
 
-size_t SelectAvailableThreadContext(
-    std::vector<ThreadContext *> &threads_context,
-    std::mutex &threads_context_mutex) {
+size_t
+SelectAvailableThreadContext(std::vector<ThreadContext *> &threads_context,
+                             std::mutex &threads_context_mutex) {
   size_t thread_context_id = 0;
   bool *thread_context_i_status = new bool[threads_context.size()]();
 
@@ -257,74 +257,74 @@ Status ParseJsonConfig(const std::string *const redis_config_abs_dir,
     }                                                                          \
   }
 
-#define ReadStringOneJsonToParams(json_key_name)                      \
-  {                                                                   \
-    json_hangar_it = json_hangar.find(#json_key_name);                \
-    if (json_hangar_it != json_hangar.end()) {                        \
-      if (json_hangar_it->second->type == json_string) {              \
-        redis_connection_params->json_key_name =                      \
-            std::string(json_hangar_it->second->u.string.ptr,         \
-                        json_hangar_it->second->u.string.length);     \
-      } else {                                                        \
-        LOG(ERROR) << #json_key_name " should be json string";        \
-        return ReturnInvalidArgumentStatus(#json_key_name             \
-                                           " should be json string"); \
-      }                                                               \
-    }                                                                 \
+#define ReadStringOneJsonToParams(json_key_name)                               \
+  {                                                                            \
+    json_hangar_it = json_hangar.find(#json_key_name);                         \
+    if (json_hangar_it != json_hangar.end()) {                                 \
+      if (json_hangar_it->second->type == json_string) {                       \
+        redis_connection_params->json_key_name =                               \
+            std::string(json_hangar_it->second->u.string.ptr,                  \
+                        json_hangar_it->second->u.string.length);              \
+      } else {                                                                 \
+        LOG(ERROR) << #json_key_name " should be json string";                 \
+        return ReturnInvalidArgumentStatus(#json_key_name                      \
+                                           " should be json string");          \
+      }                                                                        \
+    }                                                                          \
   }
 
-#define ReadArrayJsonToParams(json_key_name, json_val_type)                 \
-  {                                                                         \
-    json_hangar_it = json_hangar.find(#json_key_name);                      \
-    if (json_hangar_it != json_hangar.end()) {                              \
-      if (json_hangar_it->second->type == json_array) {                     \
-        redis_connection_params->json_key_name.clear();                     \
-        for (unsigned i = 0; i < json_hangar_it->second->u.array.length;    \
-             ++i) {                                                         \
-          value_depth1 = json_hangar_it->second->u.array.values[i];         \
-          if (value_depth1->type == json_##json_val_type) {                 \
-            redis_connection_params->redis_host_port.push_back(             \
-                value_depth1->u.json_val_type);                             \
-          } else {                                                          \
-            LOG(ERROR) << #json_key_name " should be json " #json_val_type  \
-                                         " array";                          \
-            return ReturnInvalidArgumentStatus(                             \
-                #json_key_name " should be json " #json_val_type " array"); \
-          }                                                                 \
-        }                                                                   \
-      } else {                                                              \
-        LOG(ERROR) << #json_key_name " should be json " #json_val_type      \
-                                     " array";                              \
-        return ReturnInvalidArgumentStatus(                                 \
-            #json_key_name " should be json " #json_val_type " array");     \
-      }                                                                     \
-    }                                                                       \
+#define ReadArrayJsonToParams(json_key_name, json_val_type)                    \
+  {                                                                            \
+    json_hangar_it = json_hangar.find(#json_key_name);                         \
+    if (json_hangar_it != json_hangar.end()) {                                 \
+      if (json_hangar_it->second->type == json_array) {                        \
+        redis_connection_params->json_key_name.clear();                        \
+        for (unsigned i = 0; i < json_hangar_it->second->u.array.length;       \
+             ++i) {                                                            \
+          value_depth1 = json_hangar_it->second->u.array.values[i];            \
+          if (value_depth1->type == json_##json_val_type) {                    \
+            redis_connection_params->redis_host_port.push_back(                \
+                value_depth1->u.json_val_type);                                \
+          } else {                                                             \
+            LOG(ERROR) << #json_key_name " should be json " #json_val_type     \
+                                         " array";                             \
+            return ReturnInvalidArgumentStatus(                                \
+                #json_key_name " should be json " #json_val_type " array");    \
+          }                                                                    \
+        }                                                                      \
+      } else {                                                                 \
+        LOG(ERROR) << #json_key_name " should be json " #json_val_type         \
+                                     " array";                                 \
+        return ReturnInvalidArgumentStatus(                                    \
+            #json_key_name " should be json " #json_val_type " array");        \
+      }                                                                        \
+    }                                                                          \
   }
 
-#define ReadStringArrayJsonToParams(json_key_name)                           \
-  {                                                                          \
-    json_hangar_it = json_hangar.find(#json_key_name);                       \
-    if (json_hangar_it != json_hangar.end()) {                               \
-      if (json_hangar_it->second->type == json_array) {                      \
-        redis_connection_params->json_key_name.clear();                      \
-        for (unsigned i = 0; i < json_hangar_it->second->u.array.length;     \
-             ++i) {                                                          \
-          value_depth1 = json_hangar_it->second->u.array.values[i];          \
-          if (value_depth1->type == json_string) {                           \
-            redis_connection_params->json_key_name.push_back(std::string(    \
-                value_depth1->u.string.ptr, value_depth1->u.string.length)); \
-          } else {                                                           \
-            LOG(ERROR) << #json_key_name " should be json string array";     \
-            return ReturnInvalidArgumentStatus(                              \
-                #json_key_name " should be json string array");              \
-          }                                                                  \
-        }                                                                    \
-      } else {                                                               \
-        LOG(ERROR) << #json_key_name " should be json string array";         \
-        return ReturnInvalidArgumentStatus(#json_key_name                    \
-                                           " should be json string array");  \
-      }                                                                      \
-    }                                                                        \
+#define ReadStringArrayJsonToParams(json_key_name)                             \
+  {                                                                            \
+    json_hangar_it = json_hangar.find(#json_key_name);                         \
+    if (json_hangar_it != json_hangar.end()) {                                 \
+      if (json_hangar_it->second->type == json_array) {                        \
+        redis_connection_params->json_key_name.clear();                        \
+        for (unsigned i = 0; i < json_hangar_it->second->u.array.length;       \
+             ++i) {                                                            \
+          value_depth1 = json_hangar_it->second->u.array.values[i];            \
+          if (value_depth1->type == json_string) {                             \
+            redis_connection_params->json_key_name.push_back(std::string(      \
+                value_depth1->u.string.ptr, value_depth1->u.string.length));   \
+          } else {                                                             \
+            LOG(ERROR) << #json_key_name " should be json string array";       \
+            return ReturnInvalidArgumentStatus(                                \
+                #json_key_name " should be json string array");                \
+          }                                                                    \
+        }                                                                      \
+      } else {                                                                 \
+        LOG(ERROR) << #json_key_name " should be json string array";           \
+        return ReturnInvalidArgumentStatus(#json_key_name                      \
+                                           " should be json string array");    \
+      }                                                                        \
+    }                                                                          \
   }
 
   ReadOneJsonToParams(redis_connection_mode, integer);
@@ -531,6 +531,6 @@ void CreateKeysPrefixNameHandle(
       redis_connection_params->redis_hash_tags_import, keys_prefix_name_import);
 }
 
-}  // namespace redis_table
-}  // namespace recommenders_addons
-}  // namespace tensorflow
+} // namespace redis_table
+} // namespace recommenders_addons
+} // namespace tensorflow

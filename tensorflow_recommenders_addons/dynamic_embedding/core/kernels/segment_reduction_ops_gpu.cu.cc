@@ -29,8 +29,8 @@ using GPUDevice = Eigen::GpuDevice;
 template <typename T, typename Index, int OuterDimTileSize>
 __global__ void SortedSparseSegmentSumCustomKernel(
     const Index input_outer_dim_size, const Index inner_dim_size,
-    const Index output_outer_dim_size, const Index* indices,
-    const Index* segment_ids, const T* input, T* output,
+    const Index output_outer_dim_size, const Index *indices,
+    const Index *segment_ids, const T *input, T *output,
     const Index total_stripe_count) {
   for (int stripe_index : GpuGridRangeX(total_stripe_count)) {
     const Index segment_offset = stripe_index % inner_dim_size;
@@ -76,8 +76,8 @@ namespace functor {
 // checking for indicies out of bound in the kernel would
 // require copying code between GPU/CPU, and thus slow.
 template <typename T, typename Index>
-void SparseSegmentSumFunctor<T, Index>::operator()(OpKernelContext* ctx,
-                                                   const GPUDevice& d) {
+void SparseSegmentSumFunctor<T, Index>::operator()(OpKernelContext *ctx,
+                                                   const GPUDevice &d) {
   auto stream = ctx->op_device_context()->stream();
   auto output_flat = output->flat_outer_dims<T>();
   auto data_ptr = input.template flat<T>().data();
@@ -107,7 +107,8 @@ void SparseSegmentSumFunctor<T, Index>::operator()(OpKernelContext* ctx,
   const Index total_stripe_count =
       input_inner_dim_size * input_outer_dim_num_stripe;
 
-  if (total_stripe_count <= 0) return;
+  if (total_stripe_count <= 0)
+    return;
   config = GetGpuLaunchConfig(total_stripe_count, d);
   TF_CHECK_OK(GpuLaunchKernel(
       SortedSparseSegmentSumCustomKernel<T, Index, OuterDimTileSize>,
@@ -117,11 +118,11 @@ void SparseSegmentSumFunctor<T, Index>::operator()(OpKernelContext* ctx,
       total_stripe_count));
 }
 
-#define DEFINE_SPARSE_SEGMENT_SUM_GPU_SPECS_INDEX(T, Index) \
+#define DEFINE_SPARSE_SEGMENT_SUM_GPU_SPECS_INDEX(T, Index)                    \
   template struct SparseSegmentSumFunctor<T, Index>
 
-#define DEFINE_SPARSE_SEGMENT_SUM_GPU_SPECS(T)         \
-  DEFINE_SPARSE_SEGMENT_SUM_GPU_SPECS_INDEX(T, int32); \
+#define DEFINE_SPARSE_SEGMENT_SUM_GPU_SPECS(T)                                 \
+  DEFINE_SPARSE_SEGMENT_SUM_GPU_SPECS_INDEX(T, int32);                         \
   DEFINE_SPARSE_SEGMENT_SUM_GPU_SPECS_INDEX(T, int64);
 
 TF_CALL_GPU_NUMBER_TYPES(DEFINE_SPARSE_SEGMENT_SUM_GPU_SPECS);
@@ -129,8 +130,8 @@ TF_CALL_GPU_NUMBER_TYPES(DEFINE_SPARSE_SEGMENT_SUM_GPU_SPECS);
 #undef DEFINE_SPARSE_SEGMENT_SUM_GPU_SPECS
 #undef DEFINE_SPARSE_SEGMENT_SUM_GPU_SPECS_INDEX
 
-}  // namespace functor
+} // namespace functor
 
-}  // namespace tensorflow
+} // namespace tensorflow
 
-#endif  // GOOGLE_CUDA || TENSORFLOW_USE_ROCM
+#endif // GOOGLE_CUDA || TENSORFLOW_USE_ROCM

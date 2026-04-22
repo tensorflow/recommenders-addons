@@ -218,8 +218,8 @@ def DynamicEmbeddingOptimizer(self, bp_v2=False, synchronous=False, **kwargs):
                                                      args=(grad,),
                                                      group=False)
             replica_context = distribute_ctx.get_replica_context()
-            if (replica_context is None or replica_context
-                is distribute_ctx._get_default_replica_context()):
+            if (replica_context is None or replica_context is
+                distribute_ctx._get_default_replica_context()):
               # In cross-replica context, extended.update returns a list of
               # update ops from all replicas (group=False).
               update_ops.extend(update_op)

@@ -41,34 +41,34 @@ using tensorflow::lookup::LookupInterface;
 
 template <class Container, class key_dtype, class value_dtype>
 class HashTableGpuOp : public OpKernel {
- public:
+public:
   // ctx is not owned by this class.
-  explicit HashTableGpuOp(OpKernelConstruction* ctx)
+  explicit HashTableGpuOp(OpKernelConstruction *ctx)
       : OpKernel(ctx), table_set_(false) {
     OP_REQUIRES_OK(
         ctx, ctx->GetAttr("use_node_name_sharing", &use_node_name_sharing_));
   }
 
   // ctx is not owned by this function.
-  void Compute(OpKernelContext* ctx) override {
+  void Compute(OpKernelContext *ctx) override {
     mutex_lock l(mu_);
 
     if (!table_set_) {
       AllocatorAttributes attr;
       attr.set_gpu_compatible(true);
       attr.set_on_host(true);
-      OP_REQUIRES_OK(
-          ctx, ctx->allocate_temp(tensorflow::DT_STRING,
-                                  tensorflow::TensorShape({2}), &table_, attr));
+      OP_REQUIRES_OK(ctx, ctx->allocate_temp(tensorflow::DT_STRING,
+                                             tensorflow::TensorShape({2}),
+                                             &table_, attr));
 
       OP_REQUIRES_OK(ctx, cinfo_.Init(ctx->resource_manager(), def(),
                                       use_node_name_sharing_));
     }
 
     auto creator =
-        [ctx, this](lookup::LookupInterface** ret)
+        [ctx, this](lookup::LookupInterface **ret)
             TF_EXCLUSIVE_LOCKS_REQUIRED(mu_) {
-              lookup::LookupInterface* container = new Container(ctx, this);
+              lookup::LookupInterface *container = new Container(ctx, this);
               if (!ctx->status().ok()) {
                 container->Unref();
                 return ctx->status();
@@ -81,7 +81,7 @@ class HashTableGpuOp : public OpKernel {
               return TFOkStatus;
             };
 
-    lookup::LookupInterface* table = nullptr;
+    lookup::LookupInterface *table = nullptr;
     OP_REQUIRES_OK(ctx,
                    cinfo_.resource_manager()
                        ->template LookupOrCreate<lookup::LookupInterface>(
@@ -93,7 +93,7 @@ class HashTableGpuOp : public OpKernel {
                             DataTypeToEnum<value_dtype>::v(), cinfo_.name()));
 
     if (ctx->expected_output_dtype(0) == DT_RESOURCE) {
-      Tensor* handle;
+      Tensor *handle;
 #if GOOGLE_CUDA
       AllocatorAttributes attr;
       attr.set_gpu_compatible(true);
@@ -129,7 +129,7 @@ class HashTableGpuOp : public OpKernel {
     }
   }
 
- private:
+private:
   mutex mu_;
   Tensor table_ TF_GUARDED_BY(mu_);
   bool table_set_ TF_GUARDED_BY(mu_);
@@ -139,7 +139,7 @@ class HashTableGpuOp : public OpKernel {
   TF_DISALLOW_COPY_AND_ASSIGN(HashTableGpuOp);
 };
 
-}  // namespace recommenders_addons
-}  // namespace tensorflow
+} // namespace recommenders_addons
+} // namespace tensorflow
 
-#endif  // TFRA_CORE_KERNELS_CUCKOO_LOOKUP_TABLE_OP_H_
+#endif // TFRA_CORE_KERNELS_CUCKOO_LOOKUP_TABLE_OP_H_

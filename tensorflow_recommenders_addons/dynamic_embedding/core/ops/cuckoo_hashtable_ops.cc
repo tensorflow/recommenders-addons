@@ -28,7 +28,7 @@ using shape_inference::ShapeHandle;
 
 namespace {
 
-Status ScalarAndTwoElementVectorInputsAndScalarOutputs(InferenceContext* c) {
+Status ScalarAndTwoElementVectorInputsAndScalarOutputs(InferenceContext *c) {
   ShapeHandle handle;
   DimensionHandle unused_handle;
   TF_RETURN_IF_ERROR(c->WithRank(c->input(0), 0, &handle));
@@ -42,37 +42,35 @@ Status ScalarAndTwoElementVectorInputsAndScalarOutputs(InferenceContext* c) {
   return TFOkStatus;
 }
 
-}  // namespace
+} // namespace
 
-Status ValidateTableResourceHandle(InferenceContext* c, ShapeHandle keys,
-                                   const string& key_dtype_attr,
-                                   const string& value_dtype_attr,
+Status ValidateTableResourceHandle(InferenceContext *c, ShapeHandle keys,
+                                   const string &key_dtype_attr,
+                                   const string &value_dtype_attr,
                                    bool is_lookup,
-                                   ShapeAndType* output_shape_and_type) {
-  auto* handle_data = c->input_handle_shapes_and_types(0);
+                                   ShapeAndType *output_shape_and_type) {
+  auto *handle_data = c->input_handle_shapes_and_types(0);
   if (handle_data == nullptr || handle_data->size() != 2) {
     output_shape_and_type->shape = c->UnknownShape();
     output_shape_and_type->dtype = DT_INVALID;
   } else {
-    const ShapeAndType& key_shape_and_type = (*handle_data)[0];
-    const ShapeAndType& value_shape_and_type = (*handle_data)[1];
+    const ShapeAndType &key_shape_and_type = (*handle_data)[0];
+    const ShapeAndType &value_shape_and_type = (*handle_data)[1];
     DataType key_dtype;
     TF_RETURN_IF_ERROR(c->GetAttr(key_dtype_attr, &key_dtype));
     if (key_shape_and_type.dtype != key_dtype) {
-      return errors::InvalidArgument(
-          "Trying to read value with wrong dtype. "
-          "Expected ",
-          DataTypeString(key_shape_and_type.dtype), " got ",
-          DataTypeString(key_dtype));
+      return errors::InvalidArgument("Trying to read value with wrong dtype. "
+                                     "Expected ",
+                                     DataTypeString(key_shape_and_type.dtype),
+                                     " got ", DataTypeString(key_dtype));
     }
     DataType value_dtype;
     TF_RETURN_IF_ERROR(c->GetAttr(value_dtype_attr, &value_dtype));
     if (value_shape_and_type.dtype != value_dtype) {
-      return errors::InvalidArgument(
-          "Trying to read value with wrong dtype. "
-          "Expected ",
-          DataTypeString(value_shape_and_type.dtype), " got ",
-          DataTypeString(value_dtype));
+      return errors::InvalidArgument("Trying to read value with wrong dtype. "
+                                     "Expected ",
+                                     DataTypeString(value_shape_and_type.dtype),
+                                     " got ", DataTypeString(value_dtype));
     }
     output_shape_and_type->dtype = value_shape_and_type.dtype;
 
@@ -112,8 +110,8 @@ Status ValidateTableResourceHandle(InferenceContext* c, ShapeHandle keys,
   return TFOkStatus;
 }
 
-Status CuckooHashTableShape(InferenceContext* c, const ShapeHandle& key,
-                            const ShapeHandle& value) {
+Status CuckooHashTableShape(InferenceContext *c, const ShapeHandle &key,
+                            const ShapeHandle &value) {
   c->set_output(0, c->Scalar());
 
   ShapeHandle key_s;
@@ -138,7 +136,7 @@ REGISTER_OP(PREFIX_OP_NAME(CuckooHashTableFind))
     .Output("values: Tout")
     .Attr("Tin: type")
     .Attr("Tout: type")
-    .SetShapeFn([](InferenceContext* c) {
+    .SetShapeFn([](InferenceContext *c) {
       ShapeHandle handle;
       TF_RETURN_IF_ERROR(c->WithRank(c->input(0), 0, &handle));
 
@@ -162,7 +160,7 @@ REGISTER_OP(PREFIX_OP_NAME(CuckooHashTableFindWithExists))
     .Output("exists: bool")
     .Attr("Tin: type")
     .Attr("Tout: type")
-    .SetShapeFn([](InferenceContext* c) {
+    .SetShapeFn([](InferenceContext *c) {
       ShapeHandle handle;
       TF_RETURN_IF_ERROR(c->WithRank(c->input(0), 0, &handle));
 
@@ -186,7 +184,7 @@ REGISTER_OP(PREFIX_OP_NAME(CuckooHashTableInsert))
     .Input("values: Tout")
     .Attr("Tin: type")
     .Attr("Tout: type")
-    .SetShapeFn([](InferenceContext* c) {
+    .SetShapeFn([](InferenceContext *c) {
       ShapeHandle handle;
       TF_RETURN_IF_ERROR(c->WithRank(c->input(0), 0, &handle));
 
@@ -201,7 +199,7 @@ REGISTER_OP(PREFIX_OP_NAME(CuckooHashTableAccum))
     .Input("exists: bool")
     .Attr("key_dtype: type")
     .Attr("value_dtype: type")
-    .SetShapeFn([](InferenceContext* c) {
+    .SetShapeFn([](InferenceContext *c) {
       ShapeHandle handle;
       TF_RETURN_IF_ERROR(c->WithRank(c->input(0), 0, &handle));
 
@@ -213,7 +211,7 @@ REGISTER_OP(PREFIX_OP_NAME(CuckooHashTableRemove))
     .Input("table_handle: resource")
     .Input("keys: Tin")
     .Attr("Tin: type")
-    .SetShapeFn([](InferenceContext* c) {
+    .SetShapeFn([](InferenceContext *c) {
       ShapeHandle handle;
       TF_RETURN_IF_ERROR(c->WithRank(c->input(0), 0, &handle));
       TF_RETURN_IF_ERROR(c->WithRankAtLeast(c->input(1), 1, &handle));
@@ -238,7 +236,7 @@ REGISTER_OP(PREFIX_OP_NAME(CuckooHashTableExport))
     .Output("values: Tvalues")
     .Attr("Tkeys: type")
     .Attr("Tvalues: type")
-    .SetShapeFn([](InferenceContext* c) {
+    .SetShapeFn([](InferenceContext *c) {
       ShapeHandle handle;
       TF_RETURN_IF_ERROR(c->WithRank(c->input(0), 0, &handle));
       ShapeHandle keys = c->UnknownShapeOfRank(1);
@@ -270,7 +268,7 @@ REGISTER_OP(PREFIX_OP_NAME(CuckooHashTableImport))
     .Input("values: Tout")
     .Attr("Tin: type")
     .Attr("Tout: type")
-    .SetShapeFn([](InferenceContext* c) {
+    .SetShapeFn([](InferenceContext *c) {
       ShapeHandle handle;
       TF_RETURN_IF_ERROR(c->WithRank(c->input(0), 0, &handle));
 
@@ -300,11 +298,11 @@ REGISTER_OP(PREFIX_OP_NAME(CuckooHashTableOfTensors))
     .Attr("value_shape: shape = {}")
     .Attr("init_size: int = 0")
     .SetIsStateful()
-    .SetShapeFn([](InferenceContext* c) {
+    .SetShapeFn([](InferenceContext *c) {
       PartialTensorShape value_p;
       TF_RETURN_IF_ERROR(c->GetAttr("value_shape", &value_p));
       ShapeHandle value_s;
       TF_RETURN_IF_ERROR(c->MakeShapeFromPartialTensorShape(value_p, &value_s));
       return CuckooHashTableShape(c, /*key=*/c->Scalar(), /*value=*/value_s);
     });
-}  // namespace tensorflow
+} // namespace tensorflow

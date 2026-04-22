@@ -31,8 +31,8 @@ namespace tensorflow {
 // Shared code that is not dependent on the type of T.  We do this to reduce
 // code size by not duplicating all this for all T (float, double, int32, etc.)
 class TfraDynamicPartitionOp_Shared : public OpKernel {
- public:
-  explicit TfraDynamicPartitionOp_Shared(OpKernelConstruction* c)
+public:
+  explicit TfraDynamicPartitionOp_Shared(OpKernelConstruction *c)
       : OpKernel(c) {
     OP_REQUIRES_OK(c, c->GetAttr("num_partitions", &num_partitions_));
     //   QUESTION: It'd be nice to support DT_INT16, DT_UINT8, etc.
@@ -42,9 +42,9 @@ class TfraDynamicPartitionOp_Shared : public OpKernel {
     //   in the graph?
   }
 
-  void ValidateAndAllocateOutputs(OpKernelContext* c, const Tensor** data,
-                                  const Tensor** partitions,
-                                  OpOutputList* Tout) {
+  void ValidateAndAllocateOutputs(OpKernelContext *c, const Tensor **data,
+                                  const Tensor **partitions,
+                                  OpOutputList *Tout) {
     OP_REQUIRES_OK(c, c->input("data", data));
     OP_REQUIRES_OK(c, c->input("partitions", partitions));
     OP_REQUIRES(
@@ -76,27 +76,29 @@ class TfraDynamicPartitionOp_Shared : public OpKernel {
       for (int i = (*partitions)->dims(); i < (*data)->dims(); i++) {
         shape.AddDim((*data)->dim_size(i));
       }
-      Tensor* out;
+      Tensor *out;
       OP_REQUIRES_OK(c, Tout->allocate(p, shape, &out));
     }
   }
 
- protected:
+protected:
   int num_partitions_;
 };
 
 template <class T>
 class TfraDynamicPartitionOp : public TfraDynamicPartitionOp_Shared {
- public:
-  explicit TfraDynamicPartitionOp(OpKernelConstruction* c)
+public:
+  explicit TfraDynamicPartitionOp(OpKernelConstruction *c)
       : TfraDynamicPartitionOp_Shared(c) {}
-  void Compute(OpKernelContext* c) override {
-    const Tensor* data;
-    const Tensor* partitions;
+  void Compute(OpKernelContext *c) override {
+    const Tensor *data;
+    const Tensor *partitions;
     OpOutputList outputs;
     ValidateAndAllocateOutputs(c, &data, &partitions, &outputs);
-    if (!c->status().ok()) return;
-    if (num_partitions_ == 0 || data->NumElements() == 0) return;
+    if (!c->status().ok())
+      return;
+    if (num_partitions_ == 0 || data->NumElements() == 0)
+      return;
 
     auto e_partitions = partitions->flat<int32>();
     const int64_t N = e_partitions.dimension(0);
@@ -106,7 +108,7 @@ class TfraDynamicPartitionOp : public TfraDynamicPartitionOp_Shared {
       // Walk through data and copy the data to the appropriate output tensor
       const auto data_flat = data->flat<T>();
       std::vector<Eigen::TensorMap<Eigen::Tensor<T, 1, Eigen::RowMajor>,
-                                   Eigen::Aligned> >
+                                   Eigen::Aligned>>
           out_vec;
       out_vec.reserve(num_partitions_);
       for (int p = 0; p < num_partitions_; p++) {
@@ -128,7 +130,7 @@ class TfraDynamicPartitionOp : public TfraDynamicPartitionOp_Shared {
     } else {
       // If data has extra dimensions, use Eigen slices
       std::vector<Eigen::TensorMap<Eigen::Tensor<T, 2, Eigen::RowMajor>,
-                                   Eigen::Aligned> >
+                                   Eigen::Aligned>>
           out_flat;
       out_flat.reserve(num_partitions_);
       for (int p = 0; p < num_partitions_; p++) {
@@ -161,13 +163,13 @@ class TfraDynamicPartitionOp : public TfraDynamicPartitionOp_Shared {
   }
 };
 
-#define REGISTER_DYNAMIC_PARTITION(T)                            \
-  REGISTER_KERNEL_BUILDER(Name(PREFIX_OP_NAME(DynamicPartition)) \
-                              .Device(DEVICE_CPU)                \
-                              .TypeConstraint<T>("T"),           \
+#define REGISTER_DYNAMIC_PARTITION(T)                                          \
+  REGISTER_KERNEL_BUILDER(Name(PREFIX_OP_NAME(DynamicPartition))               \
+                              .Device(DEVICE_CPU)                              \
+                              .TypeConstraint<T>("T"),                         \
                           TfraDynamicPartitionOp<T>)
 
 TF_CALL_ALL_TYPES(REGISTER_DYNAMIC_PARTITION);
 #undef REGISTER_DYNAMIC_PARTITION
 
-}  // namespace tensorflow
+} // namespace tensorflow

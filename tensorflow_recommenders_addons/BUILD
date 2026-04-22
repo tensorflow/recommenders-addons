@@ -1,12 +1,12 @@
 # Placeholder for internal Python library.
 
-# TensorFlow Recommenders-Addons, a TensorFlow library for building recommender systems.
-licenses(["notice"])  # Apache 2.0
-
 load(
     "@local_config_cuda//cuda:build_defs.bzl",
     "if_cuda",
 )
+
+# TensorFlow Recommenders-Addons, a TensorFlow library for building recommender systems.
+licenses(["notice"])  # Apache 2.0
 
 package(default_visibility = ["//visibility:public"])
 

@@ -284,6 +284,7 @@ def configure_cuda():
   write("build --config=cuda")
   write("build:cuda --define=using_cuda=true --define=using_cuda_nvcc=true")
   write("build:cuda --crosstool_top=@local_config_cuda//crosstool:toolchain")
+  write("build:cuda --extra_toolchains=@local_config_cuda//crosstool:toolchain-linux-x86_64")
 
 
 if __name__ == "__main__":

@@ -16,28 +16,28 @@
 namespace nv {
 
 class CubAllocator {
- public:
+public:
   CubAllocator() : allocator_(8u, 3u) {}
-  CubAllocator(const int*, int) : allocator_(8u, 3u) {}
+  CubAllocator(const int *, int) : allocator_(8u, 3u) {}
 
-  void malloc(void** ptr, size_t size, cudaStream_t stream = 0) {
+  void malloc(void **ptr, size_t size, cudaStream_t stream = 0) {
     CUDA_CHECK(allocator_.DeviceAllocate(ptr, size, stream));
   }
-  void malloc(void** ptr, size_t size, int dev, cudaStream_t stream = 0) {
+  void malloc(void **ptr, size_t size, int dev, cudaStream_t stream = 0) {
     CudaDeviceRestorer dev_restorer;
     CUDA_CHECK(allocator_.DeviceAllocate(dev, ptr, size, stream));
   }
 
-  void free(void* ptr) { CUDA_CHECK(allocator_.DeviceFree(ptr)); }
-  void free(void* ptr, int dev) {
+  void free(void *ptr) { CUDA_CHECK(allocator_.DeviceFree(ptr)); }
+  void free(void *ptr, int dev) {
     CudaDeviceRestorer dev_restorer;
     CUDA_CHECK(allocator_.DeviceFree(dev, ptr));
   }
 
- private:
+private:
   cub::CachingDeviceAllocator allocator_;
 };
 
-}  // namespace nv
+} // namespace nv
 
 #endif

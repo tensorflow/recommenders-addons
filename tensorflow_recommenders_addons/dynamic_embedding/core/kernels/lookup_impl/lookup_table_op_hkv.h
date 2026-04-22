@@ -51,7 +51,7 @@ namespace recommenders_addons {
 namespace hkv_table {
 namespace gpu {
 
-inline Status ReturnInternalErrorStatus(const char* const str) {
+inline Status ReturnInternalErrorStatus(const char *const str) {
 #if TF_VERSION_INTEGER >= 2130 /* 2.13.0 */
   return Status(absl::StatusCode::kInternal, str);
 #else
@@ -64,13 +64,13 @@ constexpr uint64_t IGNORED_GLOBAL_EPOCH = UINT64_C(0xFFFFFFFFFFFFFFFF);
 
 template <typename K, typename V, typename S>
 class KVOnlyFile : public nv::merlin::BaseKVFile<K, V, S> {
- public:
+public:
   KVOnlyFile() : keys_fp_(nullptr), values_fp_(nullptr) {}
 
   ~KVOnlyFile() { close(); }
 
-  bool open(const std::string& keys_path, const std::string& values_path,
-            const char* mode) {
+  bool open(const std::string &keys_path, const std::string &values_path,
+            const char *mode) {
     close();
     keys_fp_ = fopen(keys_path.c_str(), mode);
     if (!keys_fp_) {
@@ -95,8 +95,8 @@ class KVOnlyFile : public nv::merlin::BaseKVFile<K, V, S> {
     }
   }
 
-  size_t read(const size_t n, const size_t dim, K* keys, V* vectors,
-              S* scores) override {
+  size_t read(const size_t n, const size_t dim, K *keys, V *vectors,
+              S *scores) override {
     size_t nread_keys =
         fread(keys, sizeof(K), static_cast<size_t>(n), keys_fp_);
     size_t nread_vecs =
@@ -110,8 +110,8 @@ class KVOnlyFile : public nv::merlin::BaseKVFile<K, V, S> {
     return nread_keys;
   }
 
-  size_t write(const size_t n, const size_t dim, const K* keys,
-               const V* vectors, const S* scores) override {
+  size_t write(const size_t n, const size_t dim, const K *keys,
+               const V *vectors, const S *scores) override {
     size_t nwritten_keys =
         fwrite(keys, sizeof(K), static_cast<size_t>(n), keys_fp_);
     size_t nwritten_vecs =
@@ -124,26 +124,23 @@ class KVOnlyFile : public nv::merlin::BaseKVFile<K, V, S> {
     return nwritten_keys;
   }
 
- private:
-  FILE* keys_fp_;
-  FILE* values_fp_;
+private:
+  FILE *keys_fp_;
+  FILE *values_fp_;
 };
 
 template <typename K, typename V, typename S>
 class RandomKVFile : public nv::merlin::BaseKVFile<K, V, S> {
- public:
-  RandomKVFile(FileSystem* fs, const std::string& filepath, size_t value_dim,
+public:
+  RandomKVFile(FileSystem *fs, const std::string &filepath, size_t value_dim,
                size_t buffer_size, bool append_to_file = false)
-      : fs_(fs),
-        filepath_(filepath),
-        value_dim_(value_dim),
-        buffer_size_(buffer_size),
-        append_to_file_(append_to_file) {}
+      : fs_(fs), filepath_(filepath), value_dim_(value_dim),
+        buffer_size_(buffer_size), append_to_file_(append_to_file) {}
 
   ~RandomKVFile() {}
 
-  Status open(const std::string& key_filepath,
-              const std::string& value_filepath, const std::string& mode) {
+  Status open(const std::string &key_filepath,
+              const std::string &value_filepath, const std::string &mode) {
     key_buffer_byte_size_ = buffer_size_ * sizeof(K);
     const size_t value_len = sizeof(V) * value_dim_;
     value_buffer_byte_size_ = buffer_size_ * value_len;
@@ -218,8 +215,8 @@ class RandomKVFile : public nv::merlin::BaseKVFile<K, V, S> {
     }
   }
 
-  size_t read(const size_t n, const size_t dim, K* keys, V* vectors,
-              S* scores) override {
+  size_t read(const size_t n, const size_t dim, K *keys, V *vectors,
+              S *scores) override {
     size_t key_read_byte = n * sizeof(K);
     size_t value_read_byte = n * sizeof(V) * dim;
 
@@ -230,29 +227,29 @@ class RandomKVFile : public nv::merlin::BaseKVFile<K, V, S> {
     TFRA_LOG_IF_ERROR(
         value_reader_->ReadNBytes(value_read_byte, &value_buffer_));
 
-    memcpy((char*)keys, key_buffer_.data(), key_buffer_.size());
-    memcpy((char*)vectors, value_buffer_.data(), value_buffer_.size());
+    memcpy((char *)keys, key_buffer_.data(), key_buffer_.size());
+    memcpy((char *)vectors, value_buffer_.data(), value_buffer_.size());
 
     size_t nread_keys = key_buffer_.size() / sizeof(K);
     return nread_keys;
   }
 
-  size_t write(const size_t n, const size_t dim, const K* keys,
-               const V* vectors, const S* scores) override {
+  size_t write(const size_t n, const size_t dim, const K *keys,
+               const V *vectors, const S *scores) override {
     size_t key_write_byte = n * sizeof(K);
     size_t value_write_byte = n * sizeof(V) * value_dim_;
 
     TFRA_LOG_IF_ERROR(
-        key_writer_->Append(StringPiece((char*)keys, key_write_byte)));
+        key_writer_->Append(StringPiece((char *)keys, key_write_byte)));
     TFRA_LOG_IF_ERROR(
-        value_writer_->Append(StringPiece((char*)vectors, value_write_byte)));
+        value_writer_->Append(StringPiece((char *)vectors, value_write_byte)));
 
     return n;
   }
 
- private:
+private:
   size_t value_dim_;
-  FileSystem* fs_ = nullptr;
+  FileSystem *fs_ = nullptr;
   std::string filepath_;
   size_t buffer_size_;
   size_t key_buffer_byte_size_;
@@ -274,7 +271,7 @@ class RandomKVFile : public nv::merlin::BaseKVFile<K, V, S> {
 
 // template to avoid multidef in compile time only.
 template <typename K, typename V>
-__global__ void gpu_u64_to_i64_kernel(const uint64_t* u64, int64* i64,
+__global__ void gpu_u64_to_i64_kernel(const uint64_t *u64, int64 *i64,
                                       size_t len) {
   size_t tid = (blockIdx.x * blockDim.x) + threadIdx.x;
   if (tid < len) {
@@ -283,7 +280,7 @@ __global__ void gpu_u64_to_i64_kernel(const uint64_t* u64, int64* i64,
 }
 
 template <typename T>
-__global__ void broadcast_kernel(T* data, T val, size_t n) {
+__global__ void broadcast_kernel(T *data, T val, size_t n) {
   int tid = blockIdx.x * blockDim.x + threadIdx.x;
   if (tid < n) {
     data[tid] = val;
@@ -291,7 +288,7 @@ __global__ void broadcast_kernel(T* data, T val, size_t n) {
 }
 
 template <typename K, typename V>
-void gpu_cast_u64_to_i64(const uint64_t* u64, int64* i64, size_t len,
+void gpu_cast_u64_to_i64(const uint64_t *u64, int64 *i64, size_t len,
                          cudaStream_t stream) {
   size_t block_size = nv::merlin::SAFE_GET_BLOCK_SIZE(1024);
   size_t grid_size = nv::merlin::SAFE_GET_GRID_SIZE(len, block_size);
@@ -315,7 +312,7 @@ struct TableWrapperInitOptions {
 };
 
 template <typename V>
-__global__ void gpu_fill_default_values(V* d_vals, V* d_def_val, size_t len,
+__global__ void gpu_fill_default_values(V *d_vals, V *d_def_val, size_t len,
                                         size_t dim) {
   int threadId = blockIdx.x * blockDim.x + threadIdx.x;
   if (threadId < len) {
@@ -327,21 +324,21 @@ __global__ void gpu_fill_default_values(V* d_vals, V* d_def_val, size_t len,
 }
 
 class TFOrDefaultAllocator : public nv::merlin::BaseAllocator {
- private:
+private:
   using NMMemType = nv::merlin::MemoryType;
   // tensorflow::Allocator* tf_host_allocator_ = nullptr;
-  tensorflow::Allocator* tf_device_allocator_ = nullptr;
+  tensorflow::Allocator *tf_device_allocator_ = nullptr;
   std::unique_ptr<nv::merlin::DefaultAllocator> default_allocator_ = nullptr;
   bool use_default_allocator_ = false;
   // bool tf_async_allocator_stream_set_ = false;
   static constexpr size_t kAllocatorAlignment = 4;
 
- public:
+public:
   TFOrDefaultAllocator() : use_default_allocator_(true) {
     default_allocator_ = std::make_unique<nv::merlin::DefaultAllocator>();
   }
 
-  TFOrDefaultAllocator(OpKernelContext* ctx) {
+  TFOrDefaultAllocator(OpKernelContext *ctx) {
     if (ctx) {
       tensorflow::AllocatorAttributes tf_alloc_attrs;
       tf_device_allocator_ = ctx->get_allocator(tf_alloc_attrs);
@@ -353,33 +350,33 @@ class TFOrDefaultAllocator : public nv::merlin::BaseAllocator {
 
   ~TFOrDefaultAllocator() override {}
 
-  void alloc(const NMMemType type, void** ptr, size_t size,
+  void alloc(const NMMemType type, void **ptr, size_t size,
              unsigned int pinned_flags = cudaHostAllocDefault) override {
     if (!use_default_allocator_) {
       tensorflow::AllocationAttributes allocation_attr(false, false, nullptr);
       switch (type) {
-        case NMMemType::Device:
-          *ptr = tf_device_allocator_->AllocateRaw(kAllocatorAlignment, size,
-                                                   allocation_attr);
-          if (nullptr == *ptr) {
-            throw std::runtime_error(
-                "Failed to allocator gpu memory, please adjust param 'max_hbm' "
-                "smaller.");
-          }
-          break;
-        case NMMemType::Pinned:
-          CUDA_CHECK(cudaMallocHost(ptr, size, pinned_flags));
-          break;
-        case NMMemType::Host:
-          *ptr = std::malloc(size);
-          break;
+      case NMMemType::Device:
+        *ptr = tf_device_allocator_->AllocateRaw(kAllocatorAlignment, size,
+                                                 allocation_attr);
+        if (nullptr == *ptr) {
+          throw std::runtime_error(
+              "Failed to allocator gpu memory, please adjust param 'max_hbm' "
+              "smaller.");
+        }
+        break;
+      case NMMemType::Pinned:
+        CUDA_CHECK(cudaMallocHost(ptr, size, pinned_flags));
+        break;
+      case NMMemType::Host:
+        *ptr = std::malloc(size);
+        break;
       }
     } else {
       default_allocator_->alloc(type, ptr, size, pinned_flags);
     }
   }
 
-  void alloc_async(const NMMemType type, void** ptr, size_t size,
+  void alloc_async(const NMMemType type, void **ptr, size_t size,
                    cudaStream_t stream) override {
     if (!use_default_allocator_) {
       if (NMMemType::Device == type) {
@@ -395,25 +392,25 @@ class TFOrDefaultAllocator : public nv::merlin::BaseAllocator {
     }
   }
 
-  void free(const NMMemType type, void* ptr) override {
+  void free(const NMMemType type, void *ptr) override {
     if (!use_default_allocator_) {
       switch (type) {
-        case NMMemType::Device:
-          tf_device_allocator_->DeallocateRaw(ptr);
-          break;
-        case NMMemType::Pinned:
-          CUDA_CHECK(cudaFreeHost(ptr));
-          break;
-        case NMMemType::Host:
-          std::free(ptr);
-          break;
+      case NMMemType::Device:
+        tf_device_allocator_->DeallocateRaw(ptr);
+        break;
+      case NMMemType::Pinned:
+        CUDA_CHECK(cudaFreeHost(ptr));
+        break;
+      case NMMemType::Host:
+        std::free(ptr);
+        break;
       }
     } else {
       default_allocator_->free(type, ptr);
     }
   }
 
-  void free_async(const NMMemType type, void* ptr,
+  void free_async(const NMMemType type, void *ptr,
                   cudaStream_t stream) override {
     if (!use_default_allocator_) {
       if (NMMemType::Device == type) {
@@ -425,14 +422,13 @@ class TFOrDefaultAllocator : public nv::merlin::BaseAllocator {
   }
 };
 
-template <class K, class V>
-class TableWrapper {
- private:
+template <class K, class V> class TableWrapper {
+private:
   using Table = nv::merlin::HashTableBase<K, V, uint64_t>;
   nv::merlin::HashTableOptions mkv_options_;
 
- public:
-  TableWrapper(TableWrapperInitOptions& init_options, size_t dim,
+public:
+  TableWrapper(TableWrapperInitOptions &init_options, size_t dim,
                int strategy) {
     max_capacity_ = init_options.max_capacity;
     dim_ = dim;
@@ -452,26 +448,26 @@ class TableWrapper {
 
     block_size_ = mkv_options_.block_size;
     switch (strategy) {
-      case HkvEvictStrategy::kLfu:
-        table_ptr_ = std::make_unique<
-            nv::merlin::HashTable<K, V, uint64_t, HkvEvictStrategy::kLfu>>();
-        break;
-      case HkvEvictStrategy::kEpochLru:
-        table_ptr_ = std::make_unique<nv::merlin::HashTable<
-            K, V, uint64_t, HkvEvictStrategy::kEpochLru>>();
-        break;
-      case HkvEvictStrategy::kEpochLfu:
-        table_ptr_ = std::make_unique<nv::merlin::HashTable<
-            K, V, uint64_t, HkvEvictStrategy::kEpochLfu>>();
-        break;
-      case HkvEvictStrategy::kCustomized:
-        table_ptr_ = std::make_unique<nv::merlin::HashTable<
-            K, V, uint64_t, HkvEvictStrategy::kCustomized>>();
-        break;
-      default:
-        table_ptr_ = std::make_unique<
-            nv::merlin::HashTable<K, V, uint64_t, HkvEvictStrategy::kLru>>();
-        break;
+    case HkvEvictStrategy::kLfu:
+      table_ptr_ = std::make_unique<
+          nv::merlin::HashTable<K, V, uint64_t, HkvEvictStrategy::kLfu>>();
+      break;
+    case HkvEvictStrategy::kEpochLru:
+      table_ptr_ = std::make_unique<
+          nv::merlin::HashTable<K, V, uint64_t, HkvEvictStrategy::kEpochLru>>();
+      break;
+    case HkvEvictStrategy::kEpochLfu:
+      table_ptr_ = std::make_unique<
+          nv::merlin::HashTable<K, V, uint64_t, HkvEvictStrategy::kEpochLfu>>();
+      break;
+    case HkvEvictStrategy::kCustomized:
+      table_ptr_ = std::make_unique<nv::merlin::HashTable<
+          K, V, uint64_t, HkvEvictStrategy::kCustomized>>();
+      break;
+    default:
+      table_ptr_ = std::make_unique<
+          nv::merlin::HashTable<K, V, uint64_t, HkvEvictStrategy::kLru>>();
+      break;
     }
     step_per_epoch_ = init_options.step_per_epoch;
     mkv_options_.reserved_key_start_bit = init_options.reserved_key_start_bit;
@@ -510,16 +506,16 @@ class TableWrapper {
 
   ~TableWrapper() {}
 
-  Status init(nv::merlin::BaseAllocator* allocator) {
+  Status init(nv::merlin::BaseAllocator *allocator) {
     try {
       table_ptr_->init(mkv_options_, allocator);
-    } catch (std::runtime_error& e) {
+    } catch (std::runtime_error &e) {
       return ReturnInternalErrorStatus(e.what());
     }
     return TFOkStatus;
   }
 
-  void upsert(const K* d_keys, const V* d_vals, const uint64_t* d_scores,
+  void upsert(const K *d_keys, const V *d_vals, const uint64_t *d_scores,
               size_t len, cudaStream_t stream) {
     size_t grid_size = nv::merlin::SAFE_GET_GRID_SIZE(len, block_size_);
     table_ptr_->insert_or_assign(len, d_keys, d_vals, d_scores, stream);
@@ -536,8 +532,8 @@ class TableWrapper {
     }
   }
 
-  void accum(const K* d_keys, const V* d_vals_or_deltas, const bool* d_exists,
-             const uint64_t* d_scores, size_t len, cudaStream_t stream) {
+  void accum(const K *d_keys, const V *d_vals_or_deltas, const bool *d_exists,
+             const uint64_t *d_scores, size_t len, cudaStream_t stream) {
     uint64_t t0 = (uint64_t)time(NULL);
     size_t grid_size = nv::merlin::SAFE_GET_GRID_SIZE(len, block_size_);
     table_ptr_->accum_or_assign(len, d_keys, d_vals_or_deltas, d_exists,
@@ -545,27 +541,27 @@ class TableWrapper {
     CUDA_CHECK(cudaStreamSynchronize(stream));
   }
 
-  void dump(K* d_key, V* d_val, const size_t offset, const size_t search_length,
-            size_t* d_dump_counter, cudaStream_t stream) const {
+  void dump(K *d_key, V *d_val, const size_t offset, const size_t search_length,
+            size_t *d_dump_counter, cudaStream_t stream) const {
     table_ptr_->export_batch(search_length, offset, d_dump_counter, d_key,
                              d_val,
                              /*d_scores=*/nullptr, stream);
   }
 
-  void dump_with_scores(K* d_key, V* d_val, uint64_t* d_scores,
+  void dump_with_scores(K *d_key, V *d_val, uint64_t *d_scores,
                         const size_t offset, const size_t search_length,
-                        size_t* d_dump_counter, cudaStream_t stream) const {
+                        size_t *d_dump_counter, cudaStream_t stream) const {
     table_ptr_->export_batch(search_length, offset, d_dump_counter, d_key,
                              d_val, d_scores, stream);
   }
 
-  void dump_keys_and_scores(K* keys, int64* scores, size_t len,
+  void dump_keys_and_scores(K *keys, int64 *scores, size_t len,
                             size_t split_len, cudaStream_t stream) const {
-    V* values_buf = nullptr;
+    V *values_buf = nullptr;
     size_t offset = 0;
     size_t real_offset = 0;
     size_t skip = split_len;
-    uint64_t* scores_u64 = reinterpret_cast<uint64_t*>(scores);
+    uint64_t *scores_u64 = reinterpret_cast<uint64_t *>(scores);
     size_t span_len = table_ptr_->capacity();
     CUDA_CHECK(
         cudaMallocAsync(&values_buf, sizeof(V) * dim_ * split_len, stream));
@@ -594,12 +590,12 @@ class TableWrapper {
   }
 
   // TODO (LinGeLin) support scores
-  bool is_valid_scores(const std::string& keyfile,
-                       const std::string& scorefile) const {
+  bool is_valid_scores(const std::string &keyfile,
+                       const std::string &scorefile) const {
     return false;
   }
 
-  void dump_to_file(FileSystem* fs, const string filepath, size_t dim,
+  void dump_to_file(FileSystem *fs, const string filepath, size_t dim,
                     cudaStream_t stream, const size_t buffer_size,
                     bool append_to_file) const {
     LOG(INFO) << "dump_to_file, filepath: " << filepath << ", dim: " << dim
@@ -615,9 +611,10 @@ class TableWrapper {
 
     if (is_valid_scores(keyfile, scorefile)) {
       wfile_ptr = std::make_unique<nv::merlin::LocalKVFile<K, V, uint64_t>>();
-      bool open_ok = reinterpret_cast<nv::merlin::LocalKVFile<K, V, uint64_t>*>(
-                         wfile_ptr.get())
-                         ->open(keyfile, valuefile, scorefile, "wb");
+      bool open_ok =
+          reinterpret_cast<nv::merlin::LocalKVFile<K, V, uint64_t> *>(
+              wfile_ptr.get())
+              ->open(keyfile, valuefile, scorefile, "wb");
       has_scores = true;
       if (!open_ok) {
         std::string error_msg = "Failed to dump to file to " + keyfile + ", " +
@@ -628,7 +625,7 @@ class TableWrapper {
       wfile_ptr = std::make_unique<RandomKVFile<K, V, uint64_t>>(
           fs, filepath, dim, buffer_size, append_to_file);
       status.Update(
-          reinterpret_cast<RandomKVFile<K, V, uint64_t>*>(wfile_ptr.get())
+          reinterpret_cast<RandomKVFile<K, V, uint64_t> *>(wfile_ptr.get())
               ->open(keyfile, valuefile, "wb"));
     }
     if (!status.ok()) {
@@ -651,15 +648,16 @@ class TableWrapper {
     }
     CUDA_CHECK(cudaStreamSynchronize(stream));
     if (has_scores) {
-      reinterpret_cast<nv::merlin::LocalKVFile<K, V, uint64_t>*>(
+      reinterpret_cast<nv::merlin::LocalKVFile<K, V, uint64_t> *>(
           wfile_ptr.get())
           ->close();
     } else {
-      reinterpret_cast<RandomKVFile<K, V, uint64_t>*>(wfile_ptr.get())->close();
+      reinterpret_cast<RandomKVFile<K, V, uint64_t> *>(wfile_ptr.get())
+          ->close();
     }
   }
 
-  void load_from_file(FileSystem* fs, const string filepath, size_t dim,
+  void load_from_file(FileSystem *fs, const string filepath, size_t dim,
                       cudaStream_t stream, const size_t buffer_size) {
     std::unique_ptr<nv::merlin::BaseKVFile<K, V, uint64_t>> rfile_ptr;
     string keyfile = filepath + "-keys";
@@ -670,9 +668,10 @@ class TableWrapper {
 
     if (is_valid_scores(keyfile, scorefile)) {
       rfile_ptr = std::make_unique<nv::merlin::LocalKVFile<K, V, uint64_t>>();
-      bool open_ok = reinterpret_cast<nv::merlin::LocalKVFile<K, V, uint64_t>*>(
-                         rfile_ptr.get())
-                         ->open(keyfile, valuefile, scorefile, "rb");
+      bool open_ok =
+          reinterpret_cast<nv::merlin::LocalKVFile<K, V, uint64_t> *>(
+              rfile_ptr.get())
+              ->open(keyfile, valuefile, scorefile, "rb");
       has_scores = true;
       if (!open_ok) {
         std::string error_msg = "Failed to load from file " + keyfile + ", " +
@@ -683,7 +682,7 @@ class TableWrapper {
       rfile_ptr = std::make_unique<RandomKVFile<K, V, uint64_t>>(
           fs, filepath, dim, buffer_size);
       status.Update(
-          reinterpret_cast<RandomKVFile<K, V, uint64_t>*>(rfile_ptr.get())
+          reinterpret_cast<RandomKVFile<K, V, uint64_t> *>(rfile_ptr.get())
               ->open(keyfile, valuefile, "rb"));
     }
     if (!status.ok()) {
@@ -708,15 +707,16 @@ class TableWrapper {
     }
     CUDA_CHECK(cudaStreamSynchronize(stream));
     if (has_scores) {
-      reinterpret_cast<nv::merlin::LocalKVFile<K, V, uint64_t>*>(
+      reinterpret_cast<nv::merlin::LocalKVFile<K, V, uint64_t> *>(
           rfile_ptr.get())
           ->close();
     } else {
-      reinterpret_cast<RandomKVFile<K, V, uint64_t>*>(rfile_ptr.get())->close();
+      reinterpret_cast<RandomKVFile<K, V, uint64_t> *>(rfile_ptr.get())
+          ->close();
     }
   }
 
-  void get(const K* d_keys, V* d_vals, bool* d_status, size_t len, V* d_def_val,
+  void get(const K *d_keys, V *d_vals, bool *d_status, size_t len, V *d_def_val,
            cudaStream_t stream, bool is_full_size_default) const {
     if (is_full_size_default) {
       CUDA_CHECK(cudaMemcpyAsync(d_vals, d_def_val, sizeof(V) * dim_ * len,
@@ -732,9 +732,9 @@ class TableWrapper {
   }
 
   // TODO(LinGeLin): Implemented using the HKV contains API
-  void contains(const K* d_keys, V* d_status, size_t len, cudaStream_t stream) {
+  void contains(const K *d_keys, V *d_status, size_t len, cudaStream_t stream) {
     // pass
-    V* tmp_vals = nullptr;
+    V *tmp_vals = nullptr;
     CUDA_CHECK(cudaMallocAsync(&tmp_vals, sizeof(V) * len * dim_, stream));
     CUDA_CHECK(cudaMemsetAsync(&tmp_vals, 0, sizeof(V) * len * dim_, stream));
     table_ptr_->find(len, d_keys, tmp_vals, d_status, /*d_scores=*/nullptr,
@@ -749,13 +749,13 @@ class TableWrapper {
 
   size_t get_capacity() const { return table_ptr_->capacity(); }
 
-  void remove(const K* d_keys, size_t len, cudaStream_t stream) {
+  void remove(const K *d_keys, size_t len, cudaStream_t stream) {
     table_ptr_->erase(len, d_keys, stream);
   }
 
   void clear(cudaStream_t stream) { table_ptr_->clear(stream); }
 
- private:
+private:
   std::unique_ptr<Table> table_ptr_;
   size_t max_capacity_;
   size_t dim_;
@@ -768,17 +768,17 @@ class TableWrapper {
 };
 
 template <class K, class V>
-Status CreateTableImpl(TableWrapper<K, V>** pptable,
-                       TableWrapperInitOptions& options,
-                       nv::merlin::BaseAllocator* allocator, size_t runtime_dim,
+Status CreateTableImpl(TableWrapper<K, V> **pptable,
+                       TableWrapperInitOptions &options,
+                       nv::merlin::BaseAllocator *allocator, size_t runtime_dim,
                        int strategy) {
   *pptable = new TableWrapper<K, V>(options, runtime_dim, strategy);
   return (*pptable)->init(allocator);
 }
 
-}  // namespace gpu
-}  // namespace hkv_table
-}  // namespace recommenders_addons
-}  // namespace tensorflow
+} // namespace gpu
+} // namespace hkv_table
+} // namespace recommenders_addons
+} // namespace tensorflow
 
-#endif  // TFRA_CORE_KERNELS_LOOKUP_TABLE_OP_HKV_H_
+#endif // TFRA_CORE_KERNELS_LOOKUP_TABLE_OP_HKV_H_

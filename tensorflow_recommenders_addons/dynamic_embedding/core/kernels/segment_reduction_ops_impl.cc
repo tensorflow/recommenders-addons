@@ -21,16 +21,16 @@ limitations under the License.
 namespace tensorflow {
 
 #if GOOGLE_CUDA || TENSORFLOW_USE_ROCM
-#define REGISTER_GPU_SORTED_KERNELS(type, index_type)                        \
-  REGISTER_KERNEL_BUILDER(Name(PREFIX_OP_NAME(SparseSegmentSum))             \
-                              .Device(DEVICE_GPU)                            \
-                              .TypeConstraint<type>("T")                     \
-                              .TypeConstraint<index_type>("Tidx"),           \
-                          SparseSegmentSumGpuOp<GPUDevice, type, index_type, \
+#define REGISTER_GPU_SORTED_KERNELS(type, index_type)                          \
+  REGISTER_KERNEL_BUILDER(Name(PREFIX_OP_NAME(SparseSegmentSum))               \
+                              .Device(DEVICE_GPU)                              \
+                              .TypeConstraint<type>("T")                       \
+                              .TypeConstraint<index_type>("Tidx"),             \
+                          SparseSegmentSumGpuOp<GPUDevice, type, index_type,   \
                                                 /*has_num_segments=*/false>)
 
-#define REGISTER_GPU_SORTED_KERNELS_ALL(type) \
-  REGISTER_GPU_SORTED_KERNELS(type, int32);   \
+#define REGISTER_GPU_SORTED_KERNELS_ALL(type)                                  \
+  REGISTER_GPU_SORTED_KERNELS(type, int32);                                    \
   REGISTER_GPU_SORTED_KERNELS(type, int64);
 
 TF_CALL_GPU_NUMBER_TYPES(REGISTER_GPU_SORTED_KERNELS_ALL);
@@ -38,18 +38,18 @@ TF_CALL_GPU_NUMBER_TYPES(REGISTER_GPU_SORTED_KERNELS_ALL);
 #undef REGISTER_GPU_SORTED_KERNELS
 #undef REGISTER_GPU_SORTED_KERNELS_ALL
 
-#define REGISTER_GPU_SORTED_KERNELS(type, index_type)       \
-  REGISTER_KERNEL_BUILDER(                                  \
-      Name(PREFIX_OP_NAME(SparseSegmentSumWithNumSegments)) \
-          .Device(DEVICE_GPU)                               \
-          .HostMemory("num_segments")                       \
-          .TypeConstraint<type>("T")                        \
-          .TypeConstraint<index_type>("Tidx"),              \
-      SparseSegmentSumGpuOp<GPUDevice, type, index_type,    \
+#define REGISTER_GPU_SORTED_KERNELS(type, index_type)                          \
+  REGISTER_KERNEL_BUILDER(                                                     \
+      Name(PREFIX_OP_NAME(SparseSegmentSumWithNumSegments))                    \
+          .Device(DEVICE_GPU)                                                  \
+          .HostMemory("num_segments")                                          \
+          .TypeConstraint<type>("T")                                           \
+          .TypeConstraint<index_type>("Tidx"),                                 \
+      SparseSegmentSumGpuOp<GPUDevice, type, index_type,                       \
                             /*has_num_segments=*/true>)
 
-#define REGISTER_GPU_SORTED_KERNELS_ALL(type) \
-  REGISTER_GPU_SORTED_KERNELS(type, int32);   \
+#define REGISTER_GPU_SORTED_KERNELS_ALL(type)                                  \
+  REGISTER_GPU_SORTED_KERNELS(type, int32);                                    \
   REGISTER_GPU_SORTED_KERNELS(type, int64);
 
 TF_CALL_GPU_NUMBER_TYPES(REGISTER_GPU_SORTED_KERNELS_ALL);
@@ -57,6 +57,6 @@ TF_CALL_GPU_NUMBER_TYPES(REGISTER_GPU_SORTED_KERNELS_ALL);
 #undef REGISTER_GPU_SORTED_KERNELS
 #undef REGISTER_GPU_SORTED_KERNELS_ALL
 
-#endif  // GOOGLE_CUDA || TENSORFLOW_USE_ROCM
+#endif // GOOGLE_CUDA || TENSORFLOW_USE_ROCM
 
-}  // namespace tensorflow
+} // namespace tensorflow

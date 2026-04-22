@@ -23,7 +23,7 @@ limitations under the License.
 
 #if GOOGLE_CUDA || TENSORFLOW_USE_ROCM
 #include "tensorflow/core/kernels/gpu_device_array.h"
-#endif  // GOOGLE_CUDA || TENSORFLOW_USE_ROCM
+#endif // GOOGLE_CUDA || TENSORFLOW_USE_ROCM
 
 #include "tensorflow_recommenders_addons/dynamic_embedding/core/utils/utils.h"
 
@@ -32,13 +32,12 @@ namespace tensorflow {
 typedef Eigen::ThreadPoolDevice CPUDevice;
 #if GOOGLE_CUDA || TENSORFLOW_USE_ROCM
 typedef Eigen::GpuDevice GPUDevice;
-#endif  // GOOGLE_CUDA || TENSORFLOW_USE_ROCM
+#endif // GOOGLE_CUDA || TENSORFLOW_USE_ROCM
 
-template <class T>
-class TfraDynamicStitchOpImplBase : public OpKernel {
- public:
-  explicit TfraDynamicStitchOpImplBase(OpKernelConstruction* c,
-                                       const string& op_name)
+template <class T> class TfraDynamicStitchOpImplBase : public OpKernel {
+public:
+  explicit TfraDynamicStitchOpImplBase(OpKernelConstruction *c,
+                                       const string &op_name)
       : OpKernel(c) {
     // Compute expected input signature
     const DataType dt = DataTypeToEnum<T>::v();
@@ -58,13 +57,14 @@ class TfraDynamicStitchOpImplBase : public OpKernel {
                     op_name + ": Must have even number of arguments"));
   }
 
- protected:
+protected:
   // Check if data0.shape[indices0.dims():] == data1.shape[indices1.dims():]
-  static bool SameExtraShape(const Tensor& data0, const Tensor& indices0,
-                             const Tensor& data1, const Tensor& indices1) {
+  static bool SameExtraShape(const Tensor &data0, const Tensor &indices0,
+                             const Tensor &data1, const Tensor &indices1) {
     const int extra0 = data0.dims() - indices0.dims();
     const int extra1 = data1.dims() - indices1.dims();
-    if (extra0 != extra1) return false;
+    if (extra0 != extra1)
+      return false;
     for (int i = 0; i < extra0; i++) {
       if (data0.dim_size(indices0.dims() + i) !=
           data1.dim_size(indices1.dims() + i)) {
@@ -74,11 +74,11 @@ class TfraDynamicStitchOpImplBase : public OpKernel {
     return true;
   }
 
-  void CheckArgsAndAllocateResult(OpKernelContext* c,
-                                  OpInputList* indices_inputs,
-                                  OpInputList* data_inputs, int* first_dim_size,
-                                  int* data_elements_size,
-                                  Tensor** result_ptr) {
+  void CheckArgsAndAllocateResult(OpKernelContext *c,
+                                  OpInputList *indices_inputs,
+                                  OpInputList *data_inputs, int *first_dim_size,
+                                  int *data_elements_size,
+                                  Tensor **result_ptr) {
     // Find maximum index in the indices vectors
     OP_REQUIRES_OK(c, c->input_list("indices", indices_inputs));
 
@@ -86,7 +86,7 @@ class TfraDynamicStitchOpImplBase : public OpKernel {
     if (data_elements_size) {
       *data_elements_size = 0;
     }
-    for (const Tensor& indices : *indices_inputs) {
+    for (const Tensor &indices : *indices_inputs) {
       if (indices.NumElements() > 0) {
         Eigen::Tensor<int32, 0, Eigen::RowMajor> m =
             indices.flat<int32>().maximum();
@@ -101,11 +101,11 @@ class TfraDynamicStitchOpImplBase : public OpKernel {
 
     // Validate that data[i].shape = indices[i].shape + constant
     OP_REQUIRES_OK(c, c->input_list("data", data_inputs));
-    const Tensor& data0 = (*data_inputs)[0];
-    const Tensor& indices0 = (*indices_inputs)[0];
+    const Tensor &data0 = (*data_inputs)[0];
+    const Tensor &indices0 = (*indices_inputs)[0];
     for (int input_num = 0; input_num < indices_inputs->size(); input_num++) {
-      const Tensor& indices = (*indices_inputs)[input_num];
-      const Tensor& data = (*data_inputs)[input_num];
+      const Tensor &indices = (*indices_inputs)[input_num];
+      const Tensor &data = (*data_inputs)[input_num];
       OP_REQUIRES(
           c, TensorShapeUtils::StartsWith(data.shape(), indices.shape()),
           errors::InvalidArgument("data[", input_num,
@@ -138,18 +138,18 @@ class TfraDynamicStitchOpImplBase : public OpKernel {
 #if GOOGLE_CUDA || TENSORFLOW_USE_ROCM
 
 template <typename T>
-void TfraDynamicStitchGPUImpl(const Eigen::GpuDevice& gpu_device,
+void TfraDynamicStitchGPUImpl(const Eigen::GpuDevice &gpu_device,
                               const int32_t slice_size,
                               const int32_t first_dim_size,
-                              const GpuDeviceArrayStruct<int>& input_indices,
-                              const GpuDeviceArrayStruct<const T*>& input_ptrs,
-                              T* output);
-#define REGISTER_GPU(T)                                           \
-  extern template void TfraDynamicStitchGPUImpl(                  \
-      const Eigen::GpuDevice& gpu_device, const int32 slice_size, \
-      const int32 first_dim_size,                                 \
-      const GpuDeviceArrayStruct<int32>& input_indices,           \
-      const GpuDeviceArrayStruct<const T*>& input_ptrs, T* output);
+                              const GpuDeviceArrayStruct<int> &input_indices,
+                              const GpuDeviceArrayStruct<const T *> &input_ptrs,
+                              T *output);
+#define REGISTER_GPU(T)                                                        \
+  extern template void TfraDynamicStitchGPUImpl(                               \
+      const Eigen::GpuDevice &gpu_device, const int32 slice_size,              \
+      const int32 first_dim_size,                                              \
+      const GpuDeviceArrayStruct<int32> &input_indices,                        \
+      const GpuDeviceArrayStruct<const T *> &input_ptrs, T *output);
 
 TF_CALL_bool(REGISTER_GPU);
 TF_CALL_int8(REGISTER_GPU);
@@ -159,14 +159,14 @@ TF_CALL_GPU_NUMBER_TYPES(REGISTER_GPU);
 #undef REGISTER_GPU
 
 template <typename T>
-void TfraDynamicStitchFastGPUImpl(OpKernelContext* c, const int32 slice_size,
-                                  const OpInputList& indices_inputs,
-                                  const OpInputList& data_inputs, T* output);
-#define REGISTER_GPU(T)                                                  \
-  extern template void TfraDynamicStitchFastGPUImpl(                     \
-      OpKernelContext* c, const int32 slice_size,                        \
-      const OpInputList& indices_inputs, const OpInputList& data_inputs, \
-      T* output);
+void TfraDynamicStitchFastGPUImpl(OpKernelContext *c, const int32 slice_size,
+                                  const OpInputList &indices_inputs,
+                                  const OpInputList &data_inputs, T *output);
+#define REGISTER_GPU(T)                                                        \
+  extern template void TfraDynamicStitchFastGPUImpl(                           \
+      OpKernelContext *c, const int32 slice_size,                              \
+      const OpInputList &indices_inputs, const OpInputList &data_inputs,       \
+      T *output);
 
 TF_CALL_bool(REGISTER_GPU);
 TF_CALL_int8(REGISTER_GPU);
@@ -177,16 +177,16 @@ TF_CALL_GPU_NUMBER_TYPES(REGISTER_GPU);
 
 template <class T>
 class TfraDynamicStitchOpGPU : public TfraDynamicStitchOpImplBase<T> {
- public:
-  explicit TfraDynamicStitchOpGPU(OpKernelConstruction* c)
+public:
+  explicit TfraDynamicStitchOpGPU(OpKernelConstruction *c)
       : TfraDynamicStitchOpImplBase<T>(c, PREFIX_OP_NAME(DynamicStitchOp)) {}
 
-  void Compute(OpKernelContext* c) override {
+  void Compute(OpKernelContext *c) override {
     OpInputList indices_inputs;
     OpInputList data_inputs;
     int first_dim_size;
     int data_elements_size;
-    Tensor* merged = nullptr;
+    Tensor *merged = nullptr;
     // TODO(MoFHeKa): We don't need to check it for better performance.
     this->CheckArgsAndAllocateResult(c, &indices_inputs, &data_inputs,
                                      &first_dim_size, &data_elements_size,
@@ -209,7 +209,7 @@ class TfraDynamicStitchOpGPU : public TfraDynamicStitchOpImplBase<T> {
       const int slice_size = merged->flat_outer_dims<T>().dimension(1);
 
       GpuDeviceArrayOnHost<int32> indices_flat(c, first_dim_size);
-      GpuDeviceArrayOnHost<const T*> data_flat(c, data_elements_size);
+      GpuDeviceArrayOnHost<const T *> data_flat(c, data_elements_size);
       OP_REQUIRES_OK(c, indices_flat.Init());
       OP_REQUIRES_OK(c, data_flat.Init());
       // initialize the indices_flat (-1 represents missing indices)
@@ -230,8 +230,8 @@ class TfraDynamicStitchOpGPU : public TfraDynamicStitchOpImplBase<T> {
           // data located.
           indices_flat.Set(indices_vec(j), base_size + j);
           data_flat.Set(
-              idx, const_cast<T*>(reinterpret_cast<const T*>(data_ptr_base) +
-                                  j * slice_size));
+              idx, const_cast<T *>(reinterpret_cast<const T *>(data_ptr_base) +
+                                   j * slice_size));
           ++idx;
         }
         base_size += indices_vec.size();
@@ -249,46 +249,46 @@ class TfraDynamicStitchOpGPU : public TfraDynamicStitchOpImplBase<T> {
 
 template <class T>
 class TfraDynamicStitchFastOpGPU : public TfraDynamicStitchOpImplBase<T> {
- public:
-  explicit TfraDynamicStitchFastOpGPU(OpKernelConstruction* c)
+public:
+  explicit TfraDynamicStitchFastOpGPU(OpKernelConstruction *c)
       : TfraDynamicStitchOpImplBase<T>(c, PREFIX_OP_NAME(DynamicStitchFastOp)) {
   }
 
-  void Compute(OpKernelContext* c) override {
+  void Compute(OpKernelContext *c) override {
     OpInputList indices_inputs;
     OpInputList data_inputs;
     int first_dim_size = 0;
-    Tensor* merged = nullptr;
+    Tensor *merged = nullptr;
 
     OP_REQUIRES_OK(c, c->input_list("indices", &indices_inputs));
     OP_REQUIRES_OK(c, c->input_list("data", &data_inputs));
 
-    const Tensor& data0 = data_inputs[0];
-    const Tensor& indices0 = indices_inputs[0];
+    const Tensor &data0 = data_inputs[0];
+    const Tensor &indices0 = indices_inputs[0];
     for (int input_num = 0; input_num < indices_inputs.size(); input_num++) {
-      const Tensor& indices = indices_inputs[input_num];
-      const Tensor& data = data_inputs[input_num];
+      const Tensor &indices = indices_inputs[input_num];
+      const Tensor &data = data_inputs[input_num];
       OP_REQUIRES(
           c, TensorShapeUtils::StartsWith(data.shape(), indices.shape()),
           errors::InvalidArgument("data[", input_num,
                                   "].shape = ", data.shape().DebugString(),
                                   " does not start with indices[", input_num,
                                   "].shape = ", indices.shape().DebugString()));
-      OP_REQUIRES(
-          c,
-          input_num == 0 ||
-              this->SameExtraShape(data0, indices0, data, indices),
-          errors::InvalidArgument(
-              "Need data[0].shape[", indices0.dims(), ":] = data[", input_num,
-              "].shape[", indices.dims(),
-              ":], got data[0].shape = ", data0.shape().DebugString(),
-              ", data[", input_num, "].shape = ", data.shape().DebugString(),
-              ", indices[0].shape = ", indices0.shape().DebugString(),
-              ", indices[", input_num,
-              "].shape = ", indices.shape().DebugString()));
+      OP_REQUIRES(c,
+                  input_num == 0 ||
+                      this->SameExtraShape(data0, indices0, data, indices),
+                  errors::InvalidArgument(
+                      "Need data[0].shape[", indices0.dims(), ":] = data[",
+                      input_num, "].shape[", indices.dims(),
+                      ":], got data[0].shape = ", data0.shape().DebugString(),
+                      ", data[", input_num,
+                      "].shape = ", data.shape().DebugString(),
+                      ", indices[0].shape = ", indices0.shape().DebugString(),
+                      ", indices[", input_num,
+                      "].shape = ", indices.shape().DebugString()));
     }
 
-    for (const Tensor& indices : indices_inputs) {
+    for (const Tensor &indices : indices_inputs) {
       first_dim_size += indices.NumElements();
     }
 
@@ -313,21 +313,21 @@ class TfraDynamicStitchFastOpGPU : public TfraDynamicStitchOpImplBase<T> {
   }
 };
 
-#endif  // GOOGLE_CUDA || TENSORFLOW_USE_ROCM
+#endif // GOOGLE_CUDA || TENSORFLOW_USE_ROCM
 
 template <class T, bool Parallel>
 class TfraDynamicStitchOpImplCPU : public TfraDynamicStitchOpImplBase<T> {
- public:
-  explicit TfraDynamicStitchOpImplCPU(OpKernelConstruction* c)
+public:
+  explicit TfraDynamicStitchOpImplCPU(OpKernelConstruction *c)
       : TfraDynamicStitchOpImplBase<T>(
             c, (Parallel ? PREFIX_OP_NAME(ParallelDynamicStitchOp)
                          : PREFIX_OP_NAME(DynamicStitchOp))) {}
 
-  void Compute(OpKernelContext* c) override {
+  void Compute(OpKernelContext *c) override {
     OpInputList indices_inputs;
     OpInputList data_inputs;
     int first_dim_size;
-    Tensor* merged = nullptr;
+    Tensor *merged = nullptr;
     this->CheckArgsAndAllocateResult(c, &indices_inputs, &data_inputs,
                                      &first_dim_size, nullptr, &merged);
     if (!c->status().ok()) {
@@ -344,22 +344,22 @@ class TfraDynamicStitchOpImplCPU : public TfraDynamicStitchOpImplBase<T> {
       const auto slice_size = merged_flat.dimension(1);
       const size_t slice_bytes = slice_size * sizeof(T);
       auto OnInputNumber = [&](int input_num) {
-        const Tensor& indices = indices_inputs[input_num];
+        const Tensor &indices = indices_inputs[input_num];
         auto indices_vec = indices.flat<int32>();
-        const Tensor& data = data_inputs[input_num];
+        const Tensor &data = data_inputs[input_num];
         auto data_flat =
             data.shaped<T, 2>({indices_vec.dimension(0), slice_size});
 
         if (DataTypeCanUseMemcpy(DataTypeToEnum<T>::v())) {
-          T* merged_base = merged_flat.data();
-          const T* data_base = data_flat.data();
+          T *merged_base = merged_flat.data();
+          const T *data_base = data_flat.data();
           for (int i = 0; i < indices_vec.size(); i++) {
             int32_t index = internal::SubtleMustCopy(indices_vec(i));
             OP_REQUIRES(
                 c, FastBoundsCheck(index, first_dim_size),
                 errors::InvalidArgument("indices[", i, "] is out of range"));
-            memcpy((void*)(merged_base + index * slice_size),
-                   (void*)(data_base + i * slice_size), slice_bytes);
+            memcpy((void *)(merged_base + index * slice_size),
+                   (void *)(data_base + i * slice_size), slice_bytes);
           }
         } else {
           Eigen::DSizes<Eigen::DenseIndex, 2> sizes(1, slice_size);
@@ -418,21 +418,21 @@ struct TfraParallelDynamicStitchOpCPU : TfraDynamicStitchOpImplCPU<T, true> {
   using TfraDynamicStitchOpImplCPU<T, true>::TfraDynamicStitchOpImplCPU;
 };
 
-#define REGISTER_DYNAMIC_STITCH(type)                                 \
-  REGISTER_KERNEL_BUILDER(Name(PREFIX_OP_NAME(DynamicStitch))         \
-                              .Device(DEVICE_CPU)                     \
-                              .TypeConstraint<type>("T")              \
-                              .HostMemory("indices"),                 \
-                          TfraDynamicStitchOpCPU<type>)               \
-  REGISTER_KERNEL_BUILDER(Name(PREFIX_OP_NAME(DynamicStitchFast))     \
-                              .Device(DEVICE_CPU)                     \
-                              .TypeConstraint<type>("T")              \
-                              .HostMemory("indices"),                 \
-                          TfraDynamicStitchOpCPU<type>)               \
-  REGISTER_KERNEL_BUILDER(Name(PREFIX_OP_NAME(ParallelDynamicStitch)) \
-                              .Device(DEVICE_CPU)                     \
-                              .TypeConstraint<type>("T")              \
-                              .HostMemory("indices"),                 \
+#define REGISTER_DYNAMIC_STITCH(type)                                          \
+  REGISTER_KERNEL_BUILDER(Name(PREFIX_OP_NAME(DynamicStitch))                  \
+                              .Device(DEVICE_CPU)                              \
+                              .TypeConstraint<type>("T")                       \
+                              .HostMemory("indices"),                          \
+                          TfraDynamicStitchOpCPU<type>)                        \
+  REGISTER_KERNEL_BUILDER(Name(PREFIX_OP_NAME(DynamicStitchFast))              \
+                              .Device(DEVICE_CPU)                              \
+                              .TypeConstraint<type>("T")                       \
+                              .HostMemory("indices"),                          \
+                          TfraDynamicStitchOpCPU<type>)                        \
+  REGISTER_KERNEL_BUILDER(Name(PREFIX_OP_NAME(ParallelDynamicStitch))          \
+                              .Device(DEVICE_CPU)                              \
+                              .TypeConstraint<type>("T")                       \
+                              .HostMemory("indices"),                          \
                           TfraParallelDynamicStitchOpCPU<type>)
 
 TF_CALL_POD_STRING_TYPES(REGISTER_DYNAMIC_STITCH);
@@ -440,13 +440,13 @@ TF_CALL_variant(REGISTER_DYNAMIC_STITCH);
 TF_CALL_QUANTIZED_TYPES(REGISTER_DYNAMIC_STITCH);
 #undef REGISTER_DYNAMIC_STITCH
 
-#define REGISTER_PARALLEL_DYNAMIC_STITCH(type)                        \
-  REGISTER_KERNEL_BUILDER(Name(PREFIX_OP_NAME(ParallelDynamicStitch)) \
-                              .Device(DEVICE_DEFAULT)                 \
-                              .TypeConstraint<type>("T")              \
-                              .HostMemory("indices")                  \
-                              .HostMemory("data")                     \
-                              .HostMemory("merged"),                  \
+#define REGISTER_PARALLEL_DYNAMIC_STITCH(type)                                 \
+  REGISTER_KERNEL_BUILDER(Name(PREFIX_OP_NAME(ParallelDynamicStitch))          \
+                              .Device(DEVICE_DEFAULT)                          \
+                              .TypeConstraint<type>("T")                       \
+                              .HostMemory("indices")                           \
+                              .HostMemory("data")                              \
+                              .HostMemory("merged"),                           \
                           TfraParallelDynamicStitchOpCPU<type>)
 
 TF_CALL_int32(REGISTER_PARALLEL_DYNAMIC_STITCH);
@@ -455,11 +455,11 @@ TF_CALL_GPU_NUMBER_TYPES(REGISTER_PARALLEL_DYNAMIC_STITCH);
 #undef REGISTER_PARALLEL_DYNAMIC_STITCH
 
 #if GOOGLE_CUDA || TENSORFLOW_USE_ROCM
-#define REGISTER_DYNAMIC_STITCH_GPU(type)                     \
-  REGISTER_KERNEL_BUILDER(Name(PREFIX_OP_NAME(DynamicStitch)) \
-                              .Device(DEVICE_GPU)             \
-                              .TypeConstraint<type>("T")      \
-                              .HostMemory("indices"),         \
+#define REGISTER_DYNAMIC_STITCH_GPU(type)                                      \
+  REGISTER_KERNEL_BUILDER(Name(PREFIX_OP_NAME(DynamicStitch))                  \
+                              .Device(DEVICE_GPU)                              \
+                              .TypeConstraint<type>("T")                       \
+                              .HostMemory("indices"),                          \
                           TfraDynamicStitchOpGPU<type>)
 
 TF_CALL_bool(REGISTER_DYNAMIC_STITCH_GPU);
@@ -469,10 +469,10 @@ TF_CALL_int64(REGISTER_DYNAMIC_STITCH_GPU);
 TF_CALL_GPU_NUMBER_TYPES(REGISTER_DYNAMIC_STITCH_GPU);
 #undef REGISTER_DYNAMIC_STITCH_GPU
 
-#define REGISTER_DYNAMIC_STITCH_FAST_GPU(type)                    \
-  REGISTER_KERNEL_BUILDER(Name(PREFIX_OP_NAME(DynamicStitchFast)) \
-                              .Device(DEVICE_GPU)                 \
-                              .TypeConstraint<type>("T"),         \
+#define REGISTER_DYNAMIC_STITCH_FAST_GPU(type)                                 \
+  REGISTER_KERNEL_BUILDER(Name(PREFIX_OP_NAME(DynamicStitchFast))              \
+                              .Device(DEVICE_GPU)                              \
+                              .TypeConstraint<type>("T"),                      \
                           TfraDynamicStitchFastOpGPU<type>)
 
 TF_CALL_bool(REGISTER_DYNAMIC_STITCH_FAST_GPU);
@@ -482,6 +482,6 @@ TF_CALL_int64(REGISTER_DYNAMIC_STITCH_FAST_GPU);
 TF_CALL_GPU_NUMBER_TYPES(REGISTER_DYNAMIC_STITCH_FAST_GPU);
 #undef REGISTER_DYNAMIC_STITCH_FAST_GPU
 
-#endif  // GOOGLE_CUDA || TENSORFLOW_USE_ROCM
+#endif // GOOGLE_CUDA || TENSORFLOW_USE_ROCM
 
-}  // namespace tensorflow
+} // namespace tensorflow

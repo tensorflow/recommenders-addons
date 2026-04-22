@@ -40,7 +40,7 @@ class RedisWrapper<
     RedisInstance, K, V,
     typename std::enable_if<std::is_same<RedisInstance, Redis>::value>::type>
     : public RedisBaseWrapper<K, V> {
- private:
+private:
   SentinelOptions sentinel_opts;
   bool using_sentinel = true;
   ConnectionOptions conn_opts;
@@ -48,13 +48,13 @@ class RedisWrapper<
   ThreadPool *network_worker_pool;
   std::exception_ptr error_ptr;
 
- public:
+public:
   std::shared_ptr<RedisInstance> redis_conn_read =
-      nullptr;  // for the hungry singleton mode
+      nullptr; // for the hungry singleton mode
   std::shared_ptr<RedisInstance> redis_conn_write =
-      nullptr;  // for the hungry singleton mode
+      nullptr; // for the hungry singleton mode
 
- public:
+public:
   RedisWrapper(RedisInstance &&) = delete;
   RedisWrapper(const RedisInstance &) = delete;
   RedisWrapper &operator=(const RedisInstance &) = delete;
@@ -69,15 +69,15 @@ class RedisWrapper<
         << "RedisSentinel connection pool destructor called successfully.";
   }
 
- private:
-  RedisWrapper()  // In singleton mode, classes should not be initialized
-                  // through constructor
+private:
+  RedisWrapper() // In singleton mode, classes should not be initialized
+                 // through constructor
   {
     LOG(INFO)
         << "RedisSentinel connection pool constructor called successfully.";
   }
 
- public:
+public:
   void SetUsingSentinel(bool use_sentinel) {
     this->using_sentinel = use_sentinel;
   }
@@ -198,7 +198,7 @@ class RedisWrapper<
       if (this->isRedisConnect == false) {
         LOG(ERROR) << "Can not connect to the Redis Master servers.";
         if (redis_conn_read == nullptr && redis_conn_write != nullptr) {
-#if TF_VERSION_INTEGER >= 2130  // 2.13.0
+#if TF_VERSION_INTEGER >= 2130 // 2.13.0
           return Status(absl::StatusCode::kUnavailable,
                         "Can not access Redis Slave servers, Exit without any "
                         "Redis connection.");
@@ -208,7 +208,7 @@ class RedisWrapper<
                         "Redis connection.");
 #endif
         }
-#if TF_VERSION_INTEGER >= 2130  // 2.13.0
+#if TF_VERSION_INTEGER >= 2130 // 2.13.0
         return Status(absl::StatusCode::kUnavailable,
                       "Exit without any Redis connection.");
 #else
@@ -219,15 +219,15 @@ class RedisWrapper<
     return TFOkStatus;
   }
 
-  static std::shared_ptr<RedisWrapper<RedisInstance, K, V>> get_instance(
-      bool use_sentinel = true) {
+  static std::shared_ptr<RedisWrapper<RedisInstance, K, V>>
+  get_instance(bool use_sentinel = true) {
     std::shared_ptr<RedisWrapper<RedisInstance, K, V>> instance_ptr(
         new RedisWrapper<RedisInstance, K, V>());
     instance_ptr->SetUsingSentinel(use_sentinel);
     return instance_ptr;
   }
 
- public:
+public:
   virtual std::vector<std::string> GetKeyBucketsAndOptimizerParamsWithName(
       const std::string &keys_prefix_name,
       const bool only_get_buckets) override {
@@ -321,13 +321,13 @@ class RedisWrapper<
     return -1;
   }
 
-  virtual std::vector<std::pair<unsigned, unsigned>> ClusterNodesSlots(
-      bool full_slots) override {
+  virtual std::vector<std::pair<unsigned, unsigned>>
+  ClusterNodesSlots(bool full_slots) override {
     return std::vector<std::pair<unsigned, unsigned>>();
   }
 
-  virtual size_t TableSizeInBucket(
-      const std::string &keys_prefix_name_slice) override {
+  virtual size_t
+  TableSizeInBucket(const std::string &keys_prefix_name_slice) override {
     const std::string redis_command = "HLEN " + keys_prefix_name_slice;
     auto cmd = [](::sw::redis::Connection &connection, const char *str) {
       connection.send(str);
@@ -341,15 +341,15 @@ class RedisWrapper<
       throw(err);
     }
     size_t size = 0;
-    if (reply->type == REDIS_REPLY_INTEGER)  // #define REDIS_REPLY_STRING 1
+    if (reply->type == REDIS_REPLY_INTEGER) // #define REDIS_REPLY_STRING 1
     {
-      size = reply->integer;  // decimal
+      size = reply->integer; // decimal
     }
     return size;
   }
 
-  virtual Status RemoveHkeysInBuckets(
-      const std::string &keys_prefix_name_slice) override {
+  virtual Status
+  RemoveHkeysInBuckets(const std::string &keys_prefix_name_slice) override {
     // std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply;
     const std::string redis_command = "DEL " + keys_prefix_name_slice;
     auto cmd = [](::sw::redis::Connection &connection, const char *str) {
@@ -393,9 +393,9 @@ class RedisWrapper<
     return reply;
   }
 
-  virtual std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> MgetInBucket(
-      const K *keys, const int64_t begin, const int64_t max_i,
-      const std::string &keys_prefix_name_slice) override {
+  virtual std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter>
+  MgetInBucket(const K *keys, const int64_t begin, const int64_t max_i,
+               const std::string &keys_prefix_name_slice) override {
     std::unique_ptr<BucketContext> bucket_context_temp(new BucketContext());
     const static char *redis_command = "HMGET";
     const static std::size_t redis_command_byte = 5;
@@ -438,8 +438,8 @@ class RedisWrapper<
     return nullptr;
   }
 
-  virtual Status SetExpireBuckets(
-      const std::string &keys_prefix_name) override {
+  virtual Status
+  SetExpireBuckets(const std::string &keys_prefix_name) override {
     if (this->redis_connection_params.expire_model_tag_in_seconds >= 0) {
       // std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply;
       const std::string expire_command("EXPIRE ");
@@ -467,8 +467,8 @@ class RedisWrapper<
     return TFOkStatus;
   }
 
-  virtual Status SetPersistBuckets(
-      const std::string &keys_prefix_name) override {
+  virtual Status
+  SetPersistBuckets(const std::string &keys_prefix_name) override {
     // std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply;
     const std::string expire_command("PERSIST ");
     std::string redis_command;
@@ -495,9 +495,9 @@ class RedisWrapper<
   /*
   fds are the return of POSIX open file function declared in <fcntl.h>
   */
-  virtual Status DumpToDisk(
-      const std::vector<std::string> &keys_prefix_name_slices,
-      std::vector<aiocb> &wrs, const std::vector<int> &fds) override {
+  virtual Status
+  DumpToDisk(const std::vector<std::string> &keys_prefix_name_slices,
+             std::vector<aiocb> &wrs, const std::vector<int> &fds) override {
     if (fds.size() == 0) {
       return TFOkStatus;
       ;
@@ -505,7 +505,7 @@ class RedisWrapper<
 
     std::string redis_command;
     aiocb *wr;
-    int ret;  // int fd;
+    int ret; // int fd;
 
     auto cmd = [](::sw::redis::Connection &connection,
                   ::sw::redis::StringView hkey,
@@ -539,23 +539,25 @@ class RedisWrapper<
                          << " did not finish writing last round. "
                          << "Try to write " << i << " more times";
             ret = aio_write(wr);
-            if (ret < 0) perror("aio_write");
+            if (ret < 0)
+              perror("aio_write");
           }
         }
       }
-      if (reply->type == REDIS_REPLY_STRING)  // #define REDIS_REPLY_STRING 1
+      if (reply->type == REDIS_REPLY_STRING) // #define REDIS_REPLY_STRING 1
       {
         buf_len = reply->len;
         tem_aio_buf = wr->aio_buf;
         wr->aio_buf = realloc((void *)tem_aio_buf,
-                              buf_len);  // Be careful! The memory requested
-                                         // here should be freed somewhere!
+                              buf_len); // Be careful! The memory requested
+                                        // here should be freed somewhere!
         memcpy((void *)(wr->aio_buf), reply->str, buf_len);
         wr->aio_nbytes = buf_len;
         wr->aio_fildes = fds[i];
         wr->aio_offset = 0;
         ret = aio_write(wr);
-        if (ret < 0) perror("aio_write");
+        if (ret < 0)
+          perror("aio_write");
       } else {
         LOG(ERROR) << "HKEY " << keys_prefix_name_slices[i]
                    << " does not exist in the Redis server. ";
@@ -565,10 +567,10 @@ class RedisWrapper<
     return TFOkStatus;
   }
 
-  virtual Status RestoreFromDisk(
-      const std::vector<std::string> &keys_prefix_name_slices,
-      std::vector<aiocb> &rds, const std::vector<int> &fds,
-      const std::vector<unsigned long> &buf_sizes) override {
+  virtual Status
+  RestoreFromDisk(const std::vector<std::string> &keys_prefix_name_slices,
+                  std::vector<aiocb> &rds, const std::vector<int> &fds,
+                  const std::vector<unsigned long> &buf_sizes) override {
     if (fds.size() == 0) {
       return TFOkStatus;
     }
@@ -576,7 +578,7 @@ class RedisWrapper<
     // std::unique_ptr<redisReply, ::sw::redis::ReplyDeleter> reply;
     const unsigned &&storage_slice = fds.size();
     aiocb *rd;
-    int ret;  // int fd;
+    int ret; // int fd;
 
     auto cmd = [](::sw::redis::Connection &connection,
                   const ::sw::redis::StringView hkey,
@@ -608,13 +610,14 @@ class RedisWrapper<
 
       tem_aio_buf = rd->aio_buf;
       rd->aio_buf = realloc((void *)tem_aio_buf,
-                            buf_len);  // Be careful! The memory requested here
-                                       // should be freed somewhere!
+                            buf_len); // Be careful! The memory requested here
+                                      // should be freed somewhere!
       rd->aio_nbytes = buf_len;
       rd->aio_fildes = fds[i];
       rd->aio_offset = 0;
       ret = aio_read(rd);
-      if (ret < 0) perror("aio_read");
+      if (ret < 0)
+        perror("aio_read");
 
       ptrs_i_i[i].reserve(5);
       ptrs_i_i[i].clear();
@@ -675,7 +678,8 @@ class RedisWrapper<
                              << "Try to read " << reread_countdown[i] - 1
                              << " more times";
                 ret = aio_read(rd);
-                if (ret < 0) perror("aio_read");
+                if (ret < 0)
+                  perror("aio_read");
                 --reread_countdown[i];
               }
             }
@@ -756,7 +760,7 @@ class RedisWrapper<
       throw(err);
     }
 
-    if (reply->type == REDIS_REPLY_STRING)  // #define REDIS_REPLY_STRING 1
+    if (reply->type == REDIS_REPLY_STRING) // #define REDIS_REPLY_STRING 1
     {
       ptrs_0.emplace_back(redis_restore_command);
       ptrs_0.emplace_back(keys_prefix_name_slice_new.data());
@@ -804,7 +808,7 @@ class RedisWrapper<
     return TFOkStatus;
   }
 
- public:
+public:
   /*
   The structure of ptrs and sizes which for storing Redis command char
 sequence pointer and size of parameters. For example: vector<ThreadContext>
@@ -863,9 +867,9 @@ every bucket has its own BucketContext for sending data---for locating reply-
 
     for (; pk_raw != pk_raw_end; ++pk_raw) {
       *ptrs_iter = KContentPointer<K>(
-          pk_raw);  // Direct access to Tensor data in TensorFlow
+          pk_raw); // Direct access to Tensor data in TensorFlow
       ++ptrs_iter;
-      *sizes_iter = KTypeSize<K>(pk_raw);  // key data char size
+      *sizes_iter = KTypeSize<K>(pk_raw); // key data char size
       ++sizes_iter;
     }
 
@@ -897,11 +901,11 @@ every bucket has its own BucketContext for sending data---for locating reply-
     if (is_full_default) {
       DefaultMemcpyToTensor<V>(
           pv_raw, dft_raw,
-          Velems_per_dim0);  // Direct access to Tensor data in TensorFlow
+          Velems_per_dim0); // Direct access to Tensor data in TensorFlow
     } else {
       DefaultMemcpyToTensor<V>(
           pv_raw, dft_raw_begin,
-          Velems_per_dim0);  // Direct access to Tensor data in TensorFlow
+          Velems_per_dim0); // Direct access to Tensor data in TensorFlow
     }
   }
 
@@ -925,11 +929,11 @@ every bucket has its own BucketContext for sending data---for locating reply-
         if (reply[0]->type == REDIS_REPLY_ARRAY) {
           temp_reply = reply[0]->element[i];
           if (temp_reply->type ==
-              REDIS_REPLY_STRING)  // #define REDIS_REPLY_STRING 1
+              REDIS_REPLY_STRING) // #define REDIS_REPLY_STRING 1
           {
             ReplyMemcpyToValTensor<V>(
                 pv_raw, temp_reply->str,
-                Velems_per_dim0);  // Direct access to Tensor data in TensorFlow
+                Velems_per_dim0); // Direct access to Tensor data in TensorFlow
           } else {
             CopyDefaultToTensor(is_full_default, pv_raw, dft_raw, dft_raw_begin,
                                 Velems_per_dim0);
@@ -970,11 +974,11 @@ every bucket has its own BucketContext for sending data---for locating reply-
         if (reply[0]->type == REDIS_REPLY_ARRAY) {
           temp_reply = reply[0]->element[i];
           if (temp_reply->type ==
-              REDIS_REPLY_STRING)  // #define REDIS_REPLY_STRING 1
+              REDIS_REPLY_STRING) // #define REDIS_REPLY_STRING 1
           {
             ReplyMemcpyToValTensor<V>(
                 pv_raw, temp_reply->str,
-                Velems_per_dim0);  // Direct access to Tensor data in TensorFlow
+                Velems_per_dim0); // Direct access to Tensor data in TensorFlow
             exists[j] = true;
           } else {
             CopyDefaultToTensor(is_full_default, pv_raw, dft_raw, dft_raw_begin,
@@ -1042,11 +1046,11 @@ every bucket has its own BucketContext for sending data---for locating reply-
                                           V_byte_size, pv_raw, buff_temp[i]);
 
       *ptrs_iter = KContentPointer<K>(
-          pk_raw);  // Direct access to Tensor data in TensorFlow
+          pk_raw); // Direct access to Tensor data in TensorFlow
       *(++ptrs_iter) = VCATS_temp.VContentPointer;
       ++ptrs_iter;
 
-      *sizes_iter = KTypeSize<K>(pk_raw);  // key data char size
+      *sizes_iter = KTypeSize<K>(pk_raw); // key data char size
       *(++sizes_iter) = VCATS_temp.VTypeSize;
       ++sizes_iter;
     }
@@ -1121,11 +1125,11 @@ every bucket has its own BucketContext for sending data---for locating reply-
                                           V_byte_size, pv_raw, buff_temp[i]);
 
       *ptrs_iter = KContentPointer<K>(
-          pk_raw);  // Direct access to Tensor data in TensorFlow
+          pk_raw); // Direct access to Tensor data in TensorFlow
       *(++ptrs_iter) = VCATS_temp.VContentPointer;
       ++ptrs_iter;
 
-      *sizes_iter = KTypeSize<K>(pk_raw);  // key data char size
+      *sizes_iter = KTypeSize<K>(pk_raw); // key data char size
       *(++sizes_iter) = VCATS_temp.VTypeSize;
       ++sizes_iter;
     }
@@ -1155,10 +1159,10 @@ every bucket has its own BucketContext for sending data---for locating reply-
     return TFOkStatus;
   }
 
-  virtual Status DelCommand(
-      const K *keys, ThreadContext *thread_context, const int64_t begin,
-      const int64_t max_i,
-      const std::vector<std::string> &keys_prefix_name_slices) override {
+  virtual Status
+  DelCommand(const K *keys, ThreadContext *thread_context, const int64_t begin,
+             const int64_t max_i,
+             const std::vector<std::string> &keys_prefix_name_slices) override {
     const int argc = (max_i - begin) + 2;
 
     const static char *redis_command = "HDEL";
@@ -1186,9 +1190,9 @@ every bucket has its own BucketContext for sending data---for locating reply-
 
     for (; pk_raw != pk_raw_end; ++pk_raw) {
       *ptrs_iter = KContentPointer<K>(
-          pk_raw);  // Direct access to Tensor data in TensorFlow
+          pk_raw); // Direct access to Tensor data in TensorFlow
       ++ptrs_iter;
-      *sizes_iter = KTypeSize<K>(pk_raw);  // key data char size
+      *sizes_iter = KTypeSize<K>(pk_raw); // key data char size
       ++sizes_iter;
     }
 
@@ -1212,8 +1216,8 @@ every bucket has its own BucketContext for sending data---for locating reply-
 
     return TFOkStatus;
   }
-};  // namespace redis_connection
+}; // namespace redis_connection
 
-}  // namespace redis_connection
-}  // namespace recommenders_addons
-}  // namespace tensorflow
+} // namespace redis_connection
+} // namespace recommenders_addons
+} // namespace tensorflow

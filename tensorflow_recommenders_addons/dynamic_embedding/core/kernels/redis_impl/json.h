@@ -153,7 +153,7 @@ typedef struct _json_value {
 
 #ifdef __cplusplus
 
- public:
+public:
   inline _json_value() { memset(this, 0, sizeof(_json_value)); }
 
   inline const struct _json_value &operator[](int index) const {
@@ -166,7 +166,8 @@ typedef struct _json_value {
   }
 
   inline const struct _json_value &operator[](const char *index) const {
-    if (type != json_object) return json_value_none;
+    if (type != json_object)
+      return json_value_none;
 
     for (unsigned int i = 0; i < u.object.length; ++i)
       if (!strcmp(u.object.values[i].name, index))
@@ -177,43 +178,44 @@ typedef struct _json_value {
 
   inline operator const char *() const {
     switch (type) {
-      case json_string:
-        return u.string.ptr;
+    case json_string:
+      return u.string.ptr;
 
-      default:
-        return "";
+    default:
+      return "";
     };
   }
 
   inline operator json_int_t() const {
     switch (type) {
-      case json_integer:
-        return u.integer;
+    case json_integer:
+      return u.integer;
 
-      case json_double:
-        return (json_int_t)u.dbl;
+    case json_double:
+      return (json_int_t)u.dbl;
 
-      default:
-        return 0;
+    default:
+      return 0;
     };
   }
 
   inline operator bool() const {
-    if (type != json_boolean) return false;
+    if (type != json_boolean)
+      return false;
 
     return u.boolean != 0;
   }
 
   inline operator double() const {
     switch (type) {
-      case json_integer:
-        return (double)u.integer;
+    case json_integer:
+      return (double)u.integer;
 
-      case json_double:
-        return u.dbl;
+    case json_double:
+      return u.dbl;
 
-      default:
-        return 0;
+    default:
+      return 0;
     };
   }
 

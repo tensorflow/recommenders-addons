@@ -33,12 +33,12 @@ using GPUDevice = Eigen::GpuDevice;
 namespace {
 
 template <typename T>
-__global__ void TfraDynamicStitchKernel(
-    const int32 slice_size, const int32 output_size,
-    GpuDeviceArrayStruct<int32> input_indices,
-    GpuDeviceArrayStruct<const T*> input_ptrs, T* output) {
-  int32* data_indices = GetGpuDeviceArrayOnDevice(&input_indices);
-  const T** data_ptrs = GetGpuDeviceArrayOnDevice(&input_ptrs);
+__global__ void
+TfraDynamicStitchKernel(const int32 slice_size, const int32 output_size,
+                        GpuDeviceArrayStruct<int32> input_indices,
+                        GpuDeviceArrayStruct<const T *> input_ptrs, T *output) {
+  int32 *data_indices = GetGpuDeviceArrayOnDevice(&input_indices);
+  const T **data_ptrs = GetGpuDeviceArrayOnDevice(&input_ptrs);
   GPU_1D_KERNEL_LOOP(output_index, output_size) {
     const int32 slice_id = output_index / slice_size;
     const int32 slice_offset = output_index % slice_size;
@@ -53,22 +53,22 @@ template <typename T>
 __global__ void TfraDynamicStitchFastKernel(
     const int32 slice_size, const int32 indices_nsegments,
     GpuDeviceArrayStruct<int32> indices_vec_sizes,
-    GpuDeviceArrayStruct<const int32*> indices_inputs_base,
-    GpuDeviceArrayStruct<const T*> data_inputs_base, T* output) {
-  const int32* indices_vec_sizes_ptr =
+    GpuDeviceArrayStruct<const int32 *> indices_inputs_base,
+    GpuDeviceArrayStruct<const T *> data_inputs_base, T *output) {
+  const int32 *indices_vec_sizes_ptr =
       GetGpuDeviceArrayOnDevice(&indices_vec_sizes);
-  const int32** indices_inputs_base_ptr =
+  const int32 **indices_inputs_base_ptr =
       GetGpuDeviceArrayOnDevice(&indices_inputs_base);
-  const T** data_inputs_base_ptr = GetGpuDeviceArrayOnDevice(&data_inputs_base);
+  const T **data_inputs_base_ptr = GetGpuDeviceArrayOnDevice(&data_inputs_base);
 
   __shared__ int32 indices_vec_size;
-  __shared__ int32* indices_vec;
-  __shared__ T* data_ptr_base;
+  __shared__ int32 *indices_vec;
+  __shared__ T *data_ptr_base;
 
   for (int32 indice_seg : GpuGridRangeY(indices_nsegments)) {
     indices_vec_size = indices_vec_sizes_ptr[indice_seg];
-    indices_vec = const_cast<int32*>(indices_inputs_base_ptr[indice_seg]);
-    data_ptr_base = const_cast<T*>(data_inputs_base_ptr[indice_seg]);
+    indices_vec = const_cast<int32 *>(indices_inputs_base_ptr[indice_seg]);
+    data_ptr_base = const_cast<T *>(data_inputs_base_ptr[indice_seg]);
     for (int32 indice_i : GpuGridRangeX(indices_vec_size)) {
       const int32 output_indice_base = indices_vec[indice_i] * slice_size;
       const int32 data_ptr_indice_base = indice_i * slice_size;
@@ -81,15 +81,15 @@ __global__ void TfraDynamicStitchFastKernel(
   }
 }
 
-}  // namespace
+} // namespace
 
 template <typename T>
-void TfraDynamicStitchGPUImpl(const Eigen::GpuDevice& gpu_device,
+void TfraDynamicStitchGPUImpl(const Eigen::GpuDevice &gpu_device,
                               const int32 slice_size,
                               const int32 first_dim_size,
-                              const GpuDeviceArrayStruct<int>& input_indices,
-                              const GpuDeviceArrayStruct<const T*>& input_ptrs,
-                              T* output) {
+                              const GpuDeviceArrayStruct<int> &input_indices,
+                              const GpuDeviceArrayStruct<const T *> &input_ptrs,
+                              T *output) {
   const int32 output_size = first_dim_size * slice_size;
   auto config = GetGpuLaunchConfig(output_size, gpu_device);
 
@@ -100,9 +100,9 @@ void TfraDynamicStitchGPUImpl(const Eigen::GpuDevice& gpu_device,
 }
 
 template <typename T>
-void TfraDynamicStitchFastGPUImpl(OpKernelContext* c, const int32 slice_size,
-                                  const OpInputList& indices_inputs,
-                                  const OpInputList& data_inputs, T* output) {
+void TfraDynamicStitchFastGPUImpl(OpKernelContext *c, const int32 slice_size,
+                                  const OpInputList &indices_inputs,
+                                  const OpInputList &data_inputs, T *output) {
   int32 ninner = 0;
   int32 nsegments = indices_inputs.size();
 
@@ -115,21 +115,21 @@ void TfraDynamicStitchFastGPUImpl(OpKernelContext* c, const int32 slice_size,
   }
   OP_REQUIRES_OK(c, indices_vec_sizes.Finalize());
 
-  GpuDeviceArrayOnHost<const int32*> indices_inputs_base(c, nsegments);
+  GpuDeviceArrayOnHost<const int32 *> indices_inputs_base(c, nsegments);
   OP_REQUIRES_OK(c, indices_inputs_base.Init());
   for (int i = 0; i < nsegments; ++i) {
     indices_inputs_base.Set(i, indices_inputs[i].flat<int32>().data());
   }
   OP_REQUIRES_OK(c, indices_inputs_base.Finalize());
 
-  GpuDeviceArrayOnHost<const T*> data_inputs_base(c, data_inputs.size());
+  GpuDeviceArrayOnHost<const T *> data_inputs_base(c, data_inputs.size());
   OP_REQUIRES_OK(c, data_inputs_base.Init());
   for (int i = 0; i < data_inputs.size(); ++i) {
     data_inputs_base.Set(i, data_inputs[i].template flat<T>().data());
   }
   OP_REQUIRES_OK(c, data_inputs_base.Finalize());
 
-  auto& gpu_device = c->eigen_gpu_device();
+  auto &gpu_device = c->eigen_gpu_device();
   Gpu2DLaunchConfig config = GetGpu2DLaunchConfig(
       ninner, nsegments, gpu_device, TfraDynamicStitchFastKernel<T>,
       /*dynamic_shared_memory_size=*/0, /*block_size_limit=*/0);
@@ -140,12 +140,12 @@ void TfraDynamicStitchFastGPUImpl(OpKernelContext* c, const int32 slice_size,
       data_inputs_base.data(), output));
 }
 
-#define REGISTER_GPU(T)                                           \
-  template void TfraDynamicStitchGPUImpl(                         \
-      const Eigen::GpuDevice& gpu_device, const int32 slice_size, \
-      const int32 first_dim_size,                                 \
-      const GpuDeviceArrayStruct<int32>& input_indices,           \
-      const GpuDeviceArrayStruct<const T*>& input_ptrs, T* output);
+#define REGISTER_GPU(T)                                                        \
+  template void TfraDynamicStitchGPUImpl(                                      \
+      const Eigen::GpuDevice &gpu_device, const int32 slice_size,              \
+      const int32 first_dim_size,                                              \
+      const GpuDeviceArrayStruct<int32> &input_indices,                        \
+      const GpuDeviceArrayStruct<const T *> &input_ptrs, T *output);
 
 TF_CALL_bool(REGISTER_GPU);
 TF_CALL_int8(REGISTER_GPU);
@@ -155,11 +155,11 @@ TF_CALL_GPU_NUMBER_TYPES(REGISTER_GPU);
 
 #undef REGISTER_GPU
 
-#define REGISTER_GPU(T)                                                  \
-  template void TfraDynamicStitchFastGPUImpl(                            \
-      OpKernelContext* c, const int32 slice_size,                        \
-      const OpInputList& indices_inputs, const OpInputList& data_inputs, \
-      T* output);
+#define REGISTER_GPU(T)                                                        \
+  template void TfraDynamicStitchFastGPUImpl(                                  \
+      OpKernelContext *c, const int32 slice_size,                              \
+      const OpInputList &indices_inputs, const OpInputList &data_inputs,       \
+      T *output);
 
 TF_CALL_bool(REGISTER_GPU);
 TF_CALL_int8(REGISTER_GPU);
@@ -169,5 +169,5 @@ TF_CALL_GPU_NUMBER_TYPES(REGISTER_GPU);
 
 #undef REGISTER_GPU
 
-}  // namespace tensorflow
-#endif  // GOOGLE_CUDA || TENSORFLOW_USE_ROCM
+} // namespace tensorflow
+#endif // GOOGLE_CUDA || TENSORFLOW_USE_ROCM

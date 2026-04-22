@@ -90,7 +90,7 @@ _DEFAULT_CUDA_COMPUTE_CAPABILITIES.update(
         "8.6",
         "8.9",
         "9.0",
-    ] for v in range(0, 8)},
+    ] for v in range(0, 10)},
 )
 
 def _get_python_bin(repository_ctx):
@@ -888,7 +888,8 @@ def _read_dir(repository_ctx, src_dir):
             empty_stdout_fine = True,
         )
         result = find_result.stdout
-    return sorted(result.splitlines())
+
+    return [r for r in sorted(result.splitlines()) if "__algorithm" not in r]
 
 def _create_local_cuda_repository(repository_ctx):
     """Creates the repository containing files set up to build with CUDA."""

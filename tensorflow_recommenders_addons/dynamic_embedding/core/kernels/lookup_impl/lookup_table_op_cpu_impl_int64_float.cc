@@ -13,13 +13,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#include "tensorflow_recommenders_addons/dynamic_embedding/core/kernels/lookup_impl/lookup_table_op_cpu.h"
+#include "tensorflow_recommenders_addons/dynamic_embedding/core/kernels/lookup_impl/lookup_table_op_cpu_impl.h"
 namespace tensorflow {
 namespace recommenders_addons {
 namespace lookup {
 namespace cpu {
 DEFINE_CREATE_TABLE(int64, float, 0, 0);
-}  // namespace cpu
-}  // namespace lookup
-}  // namespace recommenders_addons
-}  // namespace tensorflow
+} // namespace cpu
+} // namespace lookup
+} // namespace recommenders_addons
+} // namespace tensorflow

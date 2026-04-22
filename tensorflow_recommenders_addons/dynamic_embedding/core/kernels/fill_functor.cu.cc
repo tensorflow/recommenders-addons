@@ -13,30 +13,29 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#if (defined(GOOGLE_CUDA) && GOOGLE_CUDA) || \
+#if (defined(GOOGLE_CUDA) && GOOGLE_CUDA) ||                                   \
     (defined(TENSORFLOW_USE_ROCM) && TENSORFLOW_USE_ROCM)
 
 #define EIGEN_USE_GPU
 
+#include "tensorflow/core/kernels/fill_functor.h"
 #include "tensorflow/core/framework/register_types.h"
 #include "tensorflow/core/framework/tensor_types.h"
-#include "tensorflow/core/kernels/fill_functor.h"
 #include "tensorflow/core/platform/types.h"
 
 namespace Eigen {
 namespace internal {
 
-template <typename T>
-struct scalar_const_op {
+template <typename T> struct scalar_const_op {
   typedef typename packet_traits<T>::type Packet;
 
-  const T* val;
+  const T *val;
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
-  scalar_const_op(const scalar_const_op& x)
+  scalar_const_op(const scalar_const_op &x)
       : val(x.val) {}
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE scalar_const_op(const T* v) : val(v) {}
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE scalar_const_op(const T *v) : val(v) {}
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const T operator()() const {
     return *val;
@@ -48,8 +47,7 @@ struct scalar_const_op {
   }
 };
 
-template <typename T>
-struct functor_traits<scalar_const_op<T> > {
+template <typename T> struct functor_traits<scalar_const_op<T>> {
   enum {
     Cost = 1,
     PacketAccess = packet_traits<T>::Vectorizable,
@@ -57,8 +55,8 @@ struct functor_traits<scalar_const_op<T> > {
   };
 };
 
-}  // end namespace internal
-}  // end namespace Eigen
+} // end namespace internal
+} // end namespace Eigen
 
 namespace tensorflow {
 
@@ -67,12 +65,11 @@ namespace functor {
 typedef Eigen::GpuDevice GPUDevice;
 
 // Partial specialization FillFunctor<Device=GPUDevice, T>
-template <typename T>
-struct FillFunctor<GPUDevice, T> {
-  void operator()(const GPUDevice& d, typename TTypes<T>::Flat out,
+template <typename T> struct FillFunctor<GPUDevice, T> {
+  void operator()(const GPUDevice &d, typename TTypes<T>::Flat out,
                   typename TTypes<T>::ConstScalar in) {
     Eigen::internal::scalar_const_op<T> f(in.data());
-#if TF_VERSION_INTEGER >= 2070  // 2.7.0
+#if TF_VERSION_INTEGER >= 2070 // 2.7.0
     MaybeWith32BitIndexing<GPUDevice>(
         [&](auto out32) { out32.device(d) = out32.nullaryExpr(f); }, out);
 #else
@@ -87,10 +84,9 @@ TF_CALL_bool(DEFINE_FILL_GPU);
 #undef DEFINE_FILL_GPU
 
 // Partial specialization of SetZeroFunctor<Device=GPUDevice, T>.
-template <typename T>
-struct SetZeroFunctor<GPUDevice, T> {
-  void operator()(const GPUDevice& d, typename TTypes<T>::Flat out) {
-#if TF_VERSION_INTEGER >= 2070  // 2.7.0
+template <typename T> struct SetZeroFunctor<GPUDevice, T> {
+  void operator()(const GPUDevice &d, typename TTypes<T>::Flat out) {
+#if TF_VERSION_INTEGER >= 2070 // 2.7.0
     MaybeWith32BitIndexing<GPUDevice>(
         [&](auto out32) { out32.device(d) = out32.constant(T(0)); }, out);
 #else
@@ -101,7 +97,7 @@ struct SetZeroFunctor<GPUDevice, T> {
 
 template <>
 void SetZeroFunctor<GPUDevice, Variant>::operator()(
-    const GPUDevice& d, typename TTypes<Variant>::Flat out) {
+    const GPUDevice &d, typename TTypes<Variant>::Flat out) {
   // TODO(b/123028789): Implement this.
 }
 
@@ -112,10 +108,9 @@ TF_CALL_variant(DEFINE_SETZERO_GPU);
 #undef DEFINE_SETZERO_GPU
 
 // Partial specialization of SetOneFunctor<Device=GPUDevice, T>.
-template <typename T>
-struct SetOneFunctor<GPUDevice, T> {
-  void operator()(const GPUDevice& d, typename TTypes<T>::Flat out) {
-#if TF_VERSION_INTEGER >= 2070  // 2.7.0
+template <typename T> struct SetOneFunctor<GPUDevice, T> {
+  void operator()(const GPUDevice &d, typename TTypes<T>::Flat out) {
+#if TF_VERSION_INTEGER >= 2070 // 2.7.0
     MaybeWith32BitIndexing<GPUDevice>(
         [&](auto out32) { out32.device(d) = out32.constant(T(1)); }, out);
 #else
@@ -130,10 +125,9 @@ TF_CALL_bool(DEFINE_SETONE_GPU);
 #undef DEFINE_SETONE_GPU
 
 // Partial specialization of SetNanFunctor<Device=GPUDevice, T>.
-template <typename T>
-struct SetNanFunctor<GPUDevice, T> {
-  void operator()(const GPUDevice& d, typename TTypes<T>::Flat out) {
-#if TF_VERSION_INTEGER >= 2070  // 2.7.0
+template <typename T> struct SetNanFunctor<GPUDevice, T> {
+  void operator()(const GPUDevice &d, typename TTypes<T>::Flat out) {
+#if TF_VERSION_INTEGER >= 2070 // 2.7.0
     MaybeWith32BitIndexing<GPUDevice>(
         [&](auto out32) {
           out32.device(d) = out32.constant(Eigen::NumTraits<T>::quiet_NaN());
@@ -151,7 +145,7 @@ TF_CALL_NUMBER_TYPES(DEFINE_SETNAN_GPU);
 TF_CALL_bool(DEFINE_SETNAN_GPU);
 #undef DEFINE_SETNAN_GPU
 
-}  // end namespace functor
-}  // end namespace tensorflow
+} // end namespace functor
+} // end namespace tensorflow
 
-#endif  // GOOGLE_CUDA || TENSORFLOW_USE_ROCM
+#endif // GOOGLE_CUDA || TENSORFLOW_USE_ROCM

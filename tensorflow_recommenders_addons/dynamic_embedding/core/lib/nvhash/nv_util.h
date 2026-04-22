@@ -14,17 +14,17 @@
 
 #include "cuda_runtime_api.h"
 
-#define CUDA_CHECK(val) \
+#define CUDA_CHECK(val)                                                        \
   { nv::cuda_check_((val), __FILE__, __LINE__); }
 
 namespace nv {
 
 class CudaException : public std::runtime_error {
- public:
-  CudaException(const std::string& what) : runtime_error(what) {}
+public:
+  CudaException(const std::string &what) : runtime_error(what) {}
 };
 
-inline void cuda_check_(cudaError_t val, const char* file, int line) {
+inline void cuda_check_(cudaError_t val, const char *file, int line) {
   if (val != cudaSuccess) {
     throw CudaException(std::string(file) + ":" + std::to_string(line) +
                         ": CUDA error " + std::to_string(val) + ": " +
@@ -33,15 +33,15 @@ inline void cuda_check_(cudaError_t val, const char* file, int line) {
 }
 
 class CudaDeviceRestorer {
- public:
+public:
   CudaDeviceRestorer() { CUDA_CHECK(cudaGetDevice(&dev_)); }
   ~CudaDeviceRestorer() { CUDA_CHECK(cudaSetDevice(dev_)); }
 
- private:
+private:
   int dev_;
 };
 
-inline int get_dev(const void* ptr) {
+inline int get_dev(const void *ptr) {
   cudaPointerAttributes attr;
   CUDA_CHECK(cudaPointerGetAttributes(&attr, ptr));
   int dev = -1;
@@ -57,12 +57,12 @@ inline int get_dev(const void* ptr) {
   return dev;
 }
 
-inline void switch_to_dev(const void* ptr) {
+inline void switch_to_dev(const void *ptr) {
   int dev = get_dev(ptr);
   if (dev >= 0) {
     CUDA_CHECK(cudaSetDevice(dev));
   }
 }
 
-}  // namespace nv
+} // namespace nv
 #endif

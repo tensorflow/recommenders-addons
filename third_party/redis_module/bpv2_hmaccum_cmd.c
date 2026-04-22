@@ -22,11 +22,16 @@ limitations under the License.
 enum valueType getValueType(RedisModuleString *typeStr) {
   size_t len = 0;
   const char *type = RedisModule_StringPtrLen(typeStr, &len);
-  if (0 == strcmp(type, "float")) return DT_FLOAT;
-  if (0 == strcmp(type, "double")) return DT_DOUBLE;
-  if (0 == strcmp(type, "int32")) return DT_INT32;
-  if (0 == strcmp(type, "int64")) return DT_INT64;
-  if (0 == strcmp(type, "int8")) return DT_INT8;
+  if (0 == strcmp(type, "float"))
+    return DT_FLOAT;
+  if (0 == strcmp(type, "double"))
+    return DT_DOUBLE;
+  if (0 == strcmp(type, "int32"))
+    return DT_INT32;
+  if (0 == strcmp(type, "int64"))
+    return DT_INT64;
+  if (0 == strcmp(type, "int8"))
+    return DT_INT8;
 
   return DT_INVALID;
 }
@@ -45,29 +50,29 @@ int TensorValueAccump(RedisModuleCtx *ctx, RedisModuleString *old,
   }
 
   switch (type) {
-    case DT_FLOAT: {
-      accumulatefloat(oldData, deltaData, valLen);
-      break;
-    }
-    case DT_DOUBLE: {
-      accumulatedouble(oldData, deltaData, valLen);
-      break;
-    }
-    case DT_INT32: {
-      accumulateint32(oldData, deltaData, valLen);
-      break;
-    }
-    case DT_INT64: {
-      accumulateint64(oldData, deltaData, valLen);
-      break;
-    }
-    case DT_INT8: {
-      accumulateint8(oldData, deltaData, valLen);
-      break;
-    }
-    default: {
-      RedisModule_Log(ctx, "warning", "not supported value type");
-    }
+  case DT_FLOAT: {
+    accumulatefloat(oldData, deltaData, valLen);
+    break;
+  }
+  case DT_DOUBLE: {
+    accumulatedouble(oldData, deltaData, valLen);
+    break;
+  }
+  case DT_INT32: {
+    accumulateint32(oldData, deltaData, valLen);
+    break;
+  }
+  case DT_INT64: {
+    accumulateint64(oldData, deltaData, valLen);
+    break;
+  }
+  case DT_INT8: {
+    accumulateint8(oldData, deltaData, valLen);
+    break;
+  }
+  default: {
+    RedisModule_Log(ctx, "warning", "not supported value type");
+  }
   }
 
   return OP_SUCCESS;
@@ -79,7 +84,8 @@ int CustomHmaccumCommand(RedisModuleCtx *ctx, RedisModuleString **argv,
   RedisModule_AutoMemory(ctx);
 
   /* we need 2 * n + 4 argument, where n is the number of <K,V> pairs */
-  if (argc < 4 || argc % 2 == 1) return RedisModule_WrongArity(ctx);
+  if (argc < 4 || argc % 2 == 1)
+    return RedisModule_WrongArity(ctx);
 
   RedisModuleKey *key =
       RedisModule_OpenKey(ctx, argv[1], REDISMODULE_READ | REDISMODULE_WRITE);

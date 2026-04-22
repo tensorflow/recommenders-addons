@@ -33,36 +33,31 @@ namespace functor {
 typedef Eigen::GpuDevice GPUDevice;
 
 #if GOOGLE_CUDA || TENSORFLOW_USE_ROCM
-template <typename T, typename Index>
-struct SparseSegmentSumFunctor {
+template <typename T, typename Index> struct SparseSegmentSumFunctor {
   const Index output_rows;
   const Index num_indices;
   const Index data_size;
-  const Tensor& input;
-  const Tensor& indices;
-  const Tensor& segment_ids;
-  Tensor* output;
+  const Tensor &input;
+  const Tensor &indices;
+  const Tensor &segment_ids;
+  Tensor *output;
 
   explicit SparseSegmentSumFunctor(const Index output_rows,
                                    const Index num_indices,
                                    const Index data_size,
-                                   const Tensor& input_data,
-                                   const Tensor& indices,
-                                   const Tensor& segment_ids, Tensor* output)
-      : output_rows(output_rows),
-        num_indices(num_indices),
-        data_size(data_size),
-        input(input_data),
-        indices(indices),
-        segment_ids(segment_ids),
-        output(output) {}
+                                   const Tensor &input_data,
+                                   const Tensor &indices,
+                                   const Tensor &segment_ids, Tensor *output)
+      : output_rows(output_rows), num_indices(num_indices),
+        data_size(data_size), input(input_data), indices(indices),
+        segment_ids(segment_ids), output(output) {}
 
-  void operator()(OpKernelContext* ctx, const GPUDevice& d);
+  void operator()(OpKernelContext *ctx, const GPUDevice &d);
 };
-#endif  // GOOGLE_CUDA || TENSORFLOW_USE_ROCM
+#endif // GOOGLE_CUDA || TENSORFLOW_USE_ROCM
 
-}  // namespace functor
+} // namespace functor
 
-}  // namespace tensorflow
+} // namespace tensorflow
 
-#endif  // TFRA_CORE_KERNELS_SEGMENT_REDUCTION_OPS_H_
+#endif // TFRA_CORE_KERNELS_SEGMENT_REDUCTION_OPS_H_

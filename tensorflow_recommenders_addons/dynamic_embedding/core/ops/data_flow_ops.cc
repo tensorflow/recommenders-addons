@@ -28,7 +28,7 @@ using shape_inference::ShapeHandle;
 
 namespace {
 
-Status DynamicStitchShapeFunction(InferenceContext* c) {
+Status DynamicStitchShapeFunction(InferenceContext *c) {
   int32_t num_partitions;
   TF_RETURN_IF_ERROR(c->GetAttr("N", &num_partitions));
 
@@ -36,7 +36,7 @@ Status DynamicStitchShapeFunction(InferenceContext* c) {
   int32_t max_index = -1;
   ShapeHandle extra_shape = c->UnknownShape();
   for (int i = 0; i < num_partitions; ++i) {
-    const Tensor* indices_t = c->input_tensor(i);
+    const Tensor *indices_t = c->input_tensor(i);
     if (indices_t == nullptr) {
       all_indices_constant = false;
     }
@@ -60,7 +60,7 @@ Status DynamicStitchShapeFunction(InferenceContext* c) {
 
     if (indices_t != nullptr) {
       // The length is based on the highest index from flattened indices.
-      const int32* indices = indices_t->flat<int32>().data();
+      const int32 *indices = indices_t->flat<int32>().data();
       int64_t count = indices_t->NumElements();
       for (int64_t i = 0; i < count; ++i) {
         if (indices[i] > max_index) {
@@ -77,7 +77,7 @@ Status DynamicStitchShapeFunction(InferenceContext* c) {
   return TFOkStatus;
 }
 
-}  // namespace
+} // namespace
 
 #if GOOGLE_CUDA
 
@@ -87,7 +87,7 @@ REGISTER_OP(PREFIX_OP_NAME(DynamicPartition))
     .Output("outputs: num_partitions * T")
     .Attr("num_partitions: int")
     .Attr("T: type")
-    .SetShapeFn([](InferenceContext* c) {
+    .SetShapeFn([](InferenceContext *c) {
       int64_t num_partitions;
       TF_RETURN_IF_ERROR(c->GetAttr("num_partitions", &num_partitions));
 
@@ -146,6 +146,6 @@ REGISTER_OP(PREFIX_OP_NAME(ParallelDynamicStitch))
     .Attr("T : type")
     .SetShapeFn(DynamicStitchShapeFunction);
 
-#endif  // GOOGLE_CUDA
+#endif // GOOGLE_CUDA
 
-}  // namespace tensorflow
+} // namespace tensorflow

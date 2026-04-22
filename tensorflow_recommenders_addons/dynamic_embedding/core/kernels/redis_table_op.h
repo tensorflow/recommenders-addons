@@ -43,14 +43,11 @@ namespace tensorflow {
 namespace recommenders_addons {
 namespace redis_table {
 
-template <class V, size_t DIM>
-using ValueArray = std::array<V, DIM>;
+template <class V, size_t DIM> using ValueArray = std::array<V, DIM>;
 
-template <class V>
-using Flat1D = typename tensorflow::TTypes<V>::Flat;
+template <class V> using Flat1D = typename tensorflow::TTypes<V>::Flat;
 
-template <class V>
-using Tensor2D = typename tensorflow::TTypes<V, 2>::Tensor;
+template <class V> using Tensor2D = typename tensorflow::TTypes<V, 2>::Tensor;
 
 template <class V>
 using ConstFlat1D = const typename tensorflow::TTypes<V>::ConstFlat;
@@ -64,8 +61,8 @@ using tensorflow::lookup::LookupInterface;
 
 template <class Container, class key_dtype, class value_dtype>
 class HashTableOp : public OpKernel {
- public:
-  explicit HashTableOp(OpKernelConstruction* ctx)
+public:
+  explicit HashTableOp(OpKernelConstruction *ctx)
       : OpKernel(ctx), table_set_(false) {
     if (ctx->output_type(0) == DT_RESOURCE) {
       OP_REQUIRES_OK(ctx,
@@ -80,7 +77,7 @@ class HashTableOp : public OpKernel {
         ctx, ctx->GetAttr("use_node_name_sharing", &use_node_name_sharing_));
   }
 
-  void Compute(OpKernelContext* ctx) override {
+  void Compute(OpKernelContext *ctx) override {
     mutex_lock l(mu_);
 
     if (!table_set_) {
@@ -89,8 +86,8 @@ class HashTableOp : public OpKernel {
     }
 
     auto creator =
-        [ctx, this](LookupInterface** ret) TF_EXCLUSIVE_LOCKS_REQUIRED(mu_) {
-          LookupInterface* container = new Container(ctx, this);
+        [ctx, this](LookupInterface **ret) TF_EXCLUSIVE_LOCKS_REQUIRED(mu_) {
+          LookupInterface *container = new Container(ctx, this);
           if (!ctx->status().ok()) {
             container->Unref();
             return ctx->status();
@@ -103,7 +100,7 @@ class HashTableOp : public OpKernel {
           return TFOkStatus;
         };
 
-    LookupInterface* table = nullptr;
+    LookupInterface *table = nullptr;
     OP_REQUIRES_OK(
         ctx,
         cinfo_.resource_manager()->template LookupOrCreate<LookupInterface>(
@@ -142,7 +139,7 @@ class HashTableOp : public OpKernel {
     }
   }
 
- private:
+private:
   mutex mu_;
   Tensor table_ TF_GUARDED_BY(mu_);
   bool table_set_ TF_GUARDED_BY(mu_);
@@ -152,8 +149,8 @@ class HashTableOp : public OpKernel {
   TF_DISALLOW_COPY_AND_ASSIGN(HashTableOp);
 };
 
-}  // namespace redis_table
-}  // namespace recommenders_addons
-}  // namespace tensorflow
+} // namespace redis_table
+} // namespace recommenders_addons
+} // namespace tensorflow
 
-#endif  // TFRA_CORE_KERNELS_REDIS_LOOKUP_TABLE_OP_H_
+#endif // TFRA_CORE_KERNELS_REDIS_LOOKUP_TABLE_OP_H_
